@@ -12,6 +12,8 @@
 
 #include <SDL.h>
 
+#include "ui.h" // Fulldex's: the pause menu looks like the DS games' one
+
 #include <algorithm>
 #include <cmath>
 #include <cstdarg>
@@ -66,6 +68,12 @@ bool Exists(const std::string& path)
 std::string Lower(std::string s)
 {
     for (char& c : s) c = (char)tolower((unsigned char)c);
+    return s;
+}
+
+std::string Upper(std::string s)
+{
+    for (char& c : s) c = (char)toupper((unsigned char)c);
     return s;
 }
 
@@ -191,28 +199,31 @@ uint32_t KeyboardKeys(const Uint8* k)
     return keys;
 }
 
-// "labels": the button marked A is A (Nintendo pads swap SDL's positional A/B); "positions": by place.
+// Nintendo pads put A where SDL's B is: with "labels" the button marked A is A.
+bool SwapAB(SDL_GameController* pad, bool byLabel)
+{
+    if (!pad || !byLabel) return false;
+#if SDL_VERSION_ATLEAST(2, 0, 12)
+    const SDL_GameControllerType t = SDL_GameControllerGetType(pad);
+    if (t == SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_PRO) return true;
+#if SDL_VERSION_ATLEAST(2, 24, 0)
+    if (t == SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_JOYCON_PAIR) return true;
+#endif
+#endif
+    return false;
+}
+
 uint32_t PadKeys(SDL_GameController* pad, bool byLabel)
 {
     if (!pad) return 0;
     uint32_t keys = 0;
     auto b = [&](SDL_GameControllerButton btn) { return SDL_GameControllerGetButton(pad, btn) != 0; };
-    bool swap = false;
-#if SDL_VERSION_ATLEAST(2, 0, 12)
-    const SDL_GameControllerType t = SDL_GameControllerGetType(pad);
-    swap = byLabel && (t == SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_PRO
-#if SDL_VERSION_ATLEAST(2, 24, 0)
-                       || t == SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_JOYCON_PAIR
-#endif
-                       );
-#endif
-    const bool a = b(swap ? SDL_CONTROLLER_BUTTON_B : SDL_CONTROLLER_BUTTON_A);
-    const bool bb = b(swap ? SDL_CONTROLLER_BUTTON_A : SDL_CONTROLLER_BUTTON_B);
+    const bool swap = SwapAB(pad, byLabel);
     const Sint16 lx = SDL_GameControllerGetAxis(pad, SDL_CONTROLLER_AXIS_LEFTX);
     const Sint16 ly = SDL_GameControllerGetAxis(pad, SDL_CONTROLLER_AXIS_LEFTY);
     auto set = [&](int bit, bool on) { if (on) keys |= 1u << bit; };
-    set(KEY_A, a);
-    set(KEY_B, bb);
+    set(KEY_A, b(swap ? SDL_CONTROLLER_BUTTON_B : SDL_CONTROLLER_BUTTON_A));
+    set(KEY_B, b(swap ? SDL_CONTROLLER_BUTTON_A : SDL_CONTROLLER_BUTTON_B));
     set(KEY_SELECT, b(SDL_CONTROLLER_BUTTON_BACK));
     set(KEY_START, b(SDL_CONTROLLER_BUTTON_START));
     set(KEY_RIGHT, b(SDL_CONTROLLER_BUTTON_DPAD_RIGHT) || lx > 16000);
@@ -236,6 +247,32 @@ SDL_Rect Place(int winW, int winH, int picW, int picH, const std::string& scalin
     r.x = (winW - r.w) / 2;
     r.y = (winH - r.h) / 2;
     return r;
+}
+
+// One step through a list of choices, wrapping round.
+template <size_t N>
+std::string Step(const char* const (&choices)[N], const std::string& now, int dir)
+{
+    size_t i = 0;
+    while (i < N && now != choices[i]) i++;
+    if (i == N) i = 0;
+    return choices[(i + N + (dir < 0 ? -1 : 1)) % N];
+}
+
+const char* const kShapes[] = { "auto", "off", "16:10", "16:9", "18:9", "20:9", "21:9" };
+const char* const kScalings[] = { "sharp", "smooth", "whole" };
+
+std::string ScalingLabel(const std::string& s)
+{
+    return s == "smooth" ? "SMOOTH" : s == "whole" ? "WHOLE PIXELS" : "SHARP";
+}
+
+// The pause menu's rows
+enum Row { ROW_RESUME, ROW_WIDE, ROW_SCALING, ROW_VOLUME, ROW_FPS, ROW_FF, ROW_RA, ROW_RESET, ROW_QUIT };
+
+std::string Fit(const std::string& s, size_t n)
+{
+    return s.size() <= n ? s : s.substr(0, n - 1) + ".";
 }
 
 }
@@ -295,13 +332,21 @@ bool Play(const std::string& romPath, Options& o)
 
     Settings settings;
     settings.Load(o.data);
-    const std::string shape = settings.Get("widescreen", "auto");
-    const std::string scaling = settings.Get("scaling", "sharp");
-    const bool showFps = settings.Get("show_fps", "0") == "1";
-    const int volume = std::max(0, std::min(100, atoi(settings.Get("volume", "100").c_str())));
+    std::string shape = settings.Get("widescreen", "auto");
+    std::string scaling = settings.Get("scaling", "sharp");
+    bool showFps = settings.Get("show_fps", "0") == "1";
+    int volume = std::max(0, std::min(100, atoi(settings.Get("volume", "100").c_str())));
     const bool byLabel = settings.Get("buttons", "labels") != "positions";
-    const int ffSpeed = std::max(2, std::min(8, atoi(settings.Get("fast_forward", "3").c_str())));
-    settings.Save();
+    int ffSpeed = std::max(2, std::min(8, atoi(settings.Get("fast_forward", "3").c_str())));
+    auto saveSettings = [&]() {
+        settings.values["widescreen"] = shape;
+        settings.values["scaling"] = scaling;
+        settings.values["show_fps"] = showFps ? "1" : "0";
+        settings.values["volume"] = std::to_string(volume);
+        settings.values["fast_forward"] = std::to_string(ffSpeed);
+        settings.Save();
+    };
+    saveSettings();
 
     mLogSetDefaultLogger(&gQuiet);
     struct VFile* vf = VFileMemChunk(rom.data(), rom.size());
@@ -326,21 +371,31 @@ bool Play(const std::string& romPath, Options& o)
     mCoreLoadSaveFile(core, savePath.c_str(), false);
 
     SDL_InitSubSystem(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER | SDL_INIT_EVENTS);
-    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, scaling == "smooth" ? "1" : "0");
     int winW = o.w > 0 ? o.w : 1280, winH = o.h > 0 ? o.h : 720;
     Uint32 flags = SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI;
     if (o.fullscreen) flags |= SDL_WINDOW_FULLSCREEN_DESKTOP;
     SDL_Window* window = SDL_CreateWindow(name.c_str(), SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, winW, winH, flags);
     SDL_Renderer* renderer = window ? SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED) : nullptr;
-    SDL_Texture* texture = renderer ? SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, kMaxWidth, kHeight) : nullptr;
+    SDL_Texture* texture = nullptr;
+    auto makeTexture = [&]() {
+        if (texture) SDL_DestroyTexture(texture);
+        SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, scaling == "smooth" ? "1" : "0");
+        texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, kMaxWidth, kHeight);
+    };
+    if (renderer) makeTexture();
     if (!texture)
     {
         fprintf(stderr, "[gba] no window: %s\n", SDL_GetError());
         if (renderer) SDL_DestroyRenderer(renderer);
         if (window) SDL_DestroyWindow(window);
+        mCoreConfigDeinit(&core->config);
         core->deinit(core);
         return false;
     }
+    // The menu, the messages and the FPS counter: Fulldex's canvas over the game
+    Canvas canvas;
+    SDL_Texture* overlay = nullptr;
+    int overlayW = 0, overlayH = 0;
 
     // Sound: the core's rate converted to the device's
     SDL_AudioSpec want{}, have{};
@@ -373,12 +428,23 @@ bool Play(const std::string& romPath, Options& o)
     AchievementsHost* ra = o.achievements;
     const bool raOn = ra && ra->begin && ra->begin(ra->ud, original.data(), original.size(), core, ReadMemory);
 
-    // Test hooks: quit after a number of frames, save a frame every 300, tap A now and then.
+    // Test hooks: quit after a number of frames, save a frame every 300, tap A now and then, open the menu.
     const char* testFrames = getenv("GBAW_TEST_FRAMES");
     const char* testDump = getenv("GBAW_TEST_DUMP");
     const bool testPress = getenv("GBAW_TEST_PRESS") != nullptr;
+    const char* testMenu = getenv("GBAW_TEST_MENU");
     const long testLimit = testFrames ? atol(testFrames) : 0;
-    long frameCount = 0;
+    const long testMenuAt = testMenu ? atol(testMenu) : -1;
+    long frameCount = 0, loops = 0;
+
+    // Pause menu state
+    enum { PAGE_NONE, PAGE_MAIN, PAGE_RA } page = PAGE_NONE;
+    Menu menu;
+    std::vector<Row> rows;
+    std::string toast;
+    Uint32 toastUntil = 0;
+    std::string fpsText;
+    bool startHeld = false, selectHeld = false;
 
     std::vector<int16_t> samples;
     const double frameTime = 1.0 / kFps;
@@ -387,16 +453,65 @@ bool Play(const std::string& romPath, Options& o)
     Uint32 fpsStart = SDL_GetTicks();
     int fpsFrames = 0;
     bool running = true;
+    auto openMenu = [&]() {
+        page = PAGE_MAIN;
+        menu.open = true;
+        menu.selected = 0;
+        menu.scroll = 0;
+        core->setKeys(core, 0);
+        if (audio) SDL_ClearQueuedAudio(audio);
+    };
+    auto closeMenu = [&]() {
+        page = PAGE_NONE;
+        menu.open = false;
+        saveSettings();
+        next = (double)SDL_GetPerformanceCounter() / freq;
+    };
     while (running)
     {
+        MenuInput in;
+        bool toggle = false;
         SDL_Event e;
         while (SDL_PollEvent(&e))
         {
             if (e.type == SDL_QUIT) running = false;
-            else if (e.type == SDL_KEYDOWN && e.key.keysym.scancode == SDL_SCANCODE_ESCAPE) running = false;
-            else if (e.type == SDL_KEYDOWN && (e.key.keysym.scancode == SDL_SCANCODE_F11
-                     || (e.key.keysym.scancode == SDL_SCANCODE_RETURN && (e.key.keysym.mod & KMOD_ALT))))
-                SDL_SetWindowFullscreen(window, (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN_DESKTOP) ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP);
+            else if (e.type == SDL_KEYDOWN && !e.key.repeat)
+            {
+                const SDL_Scancode s = e.key.keysym.scancode;
+                if (s == SDL_SCANCODE_ESCAPE) toggle = true;
+                else if (s == SDL_SCANCODE_F11 || (s == SDL_SCANCODE_RETURN && (e.key.keysym.mod & KMOD_ALT)))
+                    SDL_SetWindowFullscreen(window, (SDL_GetWindowFlags(window) & SDL_WINDOW_FULLSCREEN_DESKTOP) ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP);
+                else if (s == SDL_SCANCODE_UP) in.up = true;
+                else if (s == SDL_SCANCODE_DOWN) in.down = true;
+                else if (s == SDL_SCANCODE_LEFT) in.left = true;
+                else if (s == SDL_SCANCODE_RIGHT) in.right = true;
+                else if (s == SDL_SCANCODE_RETURN || s == SDL_SCANCODE_X) in.accept = true;
+                else if (s == SDL_SCANCODE_Z || s == SDL_SCANCODE_BACKSPACE) in.back = true;
+            }
+            else if (e.type == SDL_CONTROLLERBUTTONDOWN)
+            {
+                const bool swap = SwapAB(pad, byLabel);
+                switch (e.cbutton.button)
+                {
+                case SDL_CONTROLLER_BUTTON_GUIDE: toggle = true; break;
+                case SDL_CONTROLLER_BUTTON_DPAD_UP: in.up = true; break;
+                case SDL_CONTROLLER_BUTTON_DPAD_DOWN: in.down = true; break;
+                case SDL_CONTROLLER_BUTTON_DPAD_LEFT: in.left = true; break;
+                case SDL_CONTROLLER_BUTTON_DPAD_RIGHT: in.right = true; break;
+                case SDL_CONTROLLER_BUTTON_A: (swap ? in.back : in.accept) = true; break;
+                case SDL_CONTROLLER_BUTTON_B: (swap ? in.accept : in.back) = true; break;
+                case SDL_CONTROLLER_BUTTON_START: startHeld = true; break;
+                case SDL_CONTROLLER_BUTTON_BACK: selectHeld = true; break;
+                default: break;
+                }
+                // Start and Select together, as the DS games' + and -
+                if (startHeld && selectHeld) toggle = true;
+            }
+            else if (e.type == SDL_CONTROLLERBUTTONUP)
+            {
+                if (e.cbutton.button == SDL_CONTROLLER_BUTTON_START) startHeld = false;
+                if (e.cbutton.button == SDL_CONTROLLER_BUTTON_BACK) selectHeld = false;
+            }
             else if (e.type == SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) applyShape();
             else if (e.type == SDL_CONTROLLERDEVICEADDED && !pad) pad = SDL_GameControllerOpen(e.cdevice.which);
             else if (e.type == SDL_CONTROLLERDEVICEREMOVED && pad
@@ -406,23 +521,126 @@ bool Play(const std::string& romPath, Options& o)
                 pad = nullptr;
             }
         }
-        const Uint8* kb = SDL_GetKeyboardState(nullptr);
-        const bool fast = kb[SDL_SCANCODE_TAB] || (pad && SDL_GameControllerGetAxis(pad, SDL_CONTROLLER_AXIS_TRIGGERRIGHT) > 16000);
-        uint32_t keys = KeyboardKeys(kb) | PadKeys(pad, byLabel);
-        if (testPress && frameCount % 120 >= 60 && frameCount % 120 < 64) keys |= 1u << KEY_A;
-        core->setKeys(core, keys);
-
-        const int runs = fast ? ffSpeed : 1;
-        for (int i = 0; i < runs; i++)
+        if (testMenuAt >= 0 && loops == testMenuAt) toggle = true;
+        loops++;
+        if (toggle)
         {
-            core->runFrame(core);
-            if (raOn && ra->frame) ra->frame(ra->ud);
+            if (page == PAGE_NONE) openMenu();
+            else if (page == PAGE_RA) { page = PAGE_MAIN; menu.selected = 0; menu.scroll = 0; }
+            else closeMenu();
         }
-        frameCount += runs;
-        if (testDump && frameCount % 300 == 0)
+
+        if (page != PAGE_NONE)
         {
-            unsigned w = 0, h = 0;
-            core->currentVideoSize(core, &w, &h);
+            // Paused: the menu takes the buttons
+            if (in.back)
+            {
+                if (page == PAGE_RA) { page = PAGE_MAIN; menu.selected = 0; menu.scroll = 0; }
+                else closeMenu();
+            }
+            int dir = 0;
+            const int hit = page == PAGE_NONE ? -1 : menu.Update(in, dir);
+            if (hit >= 0 && page == PAGE_MAIN && hit < (int)rows.size())
+            {
+                switch (rows[hit])
+                {
+                case ROW_RESUME: closeMenu(); break;
+                case ROW_WIDE:
+                    shape = Step(kShapes, shape, dir);
+                    applyShape();
+                    break;
+                case ROW_SCALING:
+                    scaling = Step(kScalings, scaling, dir);
+                    makeTexture();
+                    break;
+                case ROW_VOLUME: volume = std::max(0, std::min(100, volume + (dir < 0 ? -10 : 10))); break;
+                case ROW_FPS: showFps = !showFps; break;
+                case ROW_FF: ffSpeed = dir < 0 ? (ffSpeed <= 2 ? 8 : ffSpeed - 1) : (ffSpeed >= 8 ? 2 : ffSpeed + 1); break;
+                case ROW_RA:
+                    if (dir == 0)
+                    {
+                        page = PAGE_RA;
+                        menu.selected = 0;
+                        menu.scroll = 0;
+                    }
+                    break;
+                case ROW_RESET:
+                    if (dir == 0)
+                    {
+                        core->reset(core);
+                        if (raOn && ra->reset) ra->reset(ra->ud);
+                        closeMenu();
+                    }
+                    break;
+                case ROW_QUIT:
+                    if (dir == 0) running = false;
+                    break;
+                }
+            }
+            else if (hit == 0 && page == PAGE_RA && dir == 0)
+            {
+                page = PAGE_MAIN;
+                menu.selected = 0;
+                menu.scroll = 0;
+            }
+            if (raOn && ra->pump) ra->pump(ra->ud, 1);
+        }
+        else
+        {
+            const Uint8* kb = SDL_GetKeyboardState(nullptr);
+            const bool fast = kb[SDL_SCANCODE_TAB] || (pad && SDL_GameControllerGetAxis(pad, SDL_CONTROLLER_AXIS_TRIGGERRIGHT) > 16000);
+            uint32_t keys = KeyboardKeys(kb) | PadKeys(pad, byLabel);
+            if (testPress && frameCount % 120 >= 60 && frameCount % 120 < 64) keys |= 1u << KEY_A;
+            core->setKeys(core, keys);
+
+            const int runs = fast ? ffSpeed : 1;
+            for (int i = 0; i < runs; i++)
+            {
+                core->runFrame(core);
+                if (raOn && ra->frame) ra->frame(ra->ud);
+            }
+            frameCount += runs;
+            fpsFrames += runs;
+            if (raOn && ra->pump) ra->pump(ra->ud, 0);
+
+            // Sound, only at normal speed
+            struct mAudioBuffer* buffer = core->getAudioBuffer(core);
+            const size_t avail = mAudioBufferAvailable(buffer);
+            samples.resize(avail * 2);
+            const size_t got = mAudioBufferRead(buffer, samples.data(), avail);
+            const unsigned rate = core->audioSampleRate(core);
+            if (audio && !fast && got)
+            {
+                if (!stream || rate != streamRate)
+                {
+                    if (stream) SDL_FreeAudioStream(stream);
+                    stream = SDL_NewAudioStream(AUDIO_S16SYS, 2, (int)rate, have.format, have.channels, have.freq);
+                    streamRate = rate;
+                }
+                if (volume != 100)
+                    for (size_t i = 0; i < got * 2; i++) samples[i] = (int16_t)(samples[i] * volume / 100);
+                if (stream && SDL_AudioStreamPut(stream, samples.data(), (int)(got * 4)) == 0)
+                {
+                    std::vector<uint8_t> conv(SDL_AudioStreamAvailable(stream));
+                    const int n = SDL_AudioStreamGet(stream, conv.data(), (int)conv.size());
+                    // Keep at most about 0.15 s queued so the sound stays with the picture
+                    if (n > 0 && SDL_GetQueuedAudioSize(audio) < (Uint32)(have.freq * 4 * 15 / 100))
+                        SDL_QueueAudio(audio, conv.data(), (Uint32)n);
+                }
+            }
+        }
+
+        char msg[256];
+        if (raOn && ra->pop && ra->pop(ra->ud, msg, sizeof msg))
+        {
+            toast = msg;
+            toastUntil = SDL_GetTicks() + 4000;
+        }
+
+        unsigned w = 0, h = 0;
+        core->currentVideoSize(core, &w, &h);
+        if (testDump && page == PAGE_NONE && frameCount % 300 == 0 && frameCount > 0)
+        {
             const std::string path = std::string(testDump) + "-" + std::to_string(frameCount) + ".ppm";
             if (FILE* f = fopen(path.c_str(), "wb"))
             {
@@ -438,36 +656,7 @@ bool Play(const std::string& romPath, Options& o)
             }
         }
         if (testLimit && frameCount >= testLimit) running = false;
-        if (raOn && ra->pump) ra->pump(ra->ud, 0);
 
-        // Sound, only at normal speed
-        struct mAudioBuffer* buffer = core->getAudioBuffer(core);
-        const size_t avail = mAudioBufferAvailable(buffer);
-        samples.resize(avail * 2);
-        const size_t got = mAudioBufferRead(buffer, samples.data(), avail);
-        const unsigned rate = core->audioSampleRate(core);
-        if (audio && !fast && got)
-        {
-            if (!stream || rate != streamRate)
-            {
-                if (stream) SDL_FreeAudioStream(stream);
-                stream = SDL_NewAudioStream(AUDIO_S16SYS, 2, (int)rate, have.format, have.channels, have.freq);
-                streamRate = rate;
-            }
-            if (volume != 100)
-                for (size_t i = 0; i < got * 2; i++) samples[i] = (int16_t)(samples[i] * volume / 100);
-            if (stream && SDL_AudioStreamPut(stream, samples.data(), (int)(got * 4)) == 0)
-            {
-                std::vector<uint8_t> conv(SDL_AudioStreamAvailable(stream));
-                const int n = SDL_AudioStreamGet(stream, conv.data(), (int)conv.size());
-                // Keep at most about 0.15 s queued so the sound stays with the picture
-                if (n > 0 && SDL_GetQueuedAudioSize(audio) < (Uint32)(have.freq * 4 * 15 / 100))
-                    SDL_QueueAudio(audio, conv.data(), (Uint32)n);
-            }
-        }
-
-        unsigned w = 0, h = 0;
-        core->currentVideoSize(core, &w, &h);
         SDL_UpdateTexture(texture, nullptr, pixels.data(), kMaxWidth * 4);
         int outW = 0, outH = 0;
         SDL_GetRendererOutputSize(renderer, &outW, &outH);
@@ -476,16 +665,112 @@ bool Play(const std::string& romPath, Options& o)
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
         SDL_RenderCopy(renderer, texture, &src, &dst);
+
+        // The overlay: menu, message and FPS counter
+        canvas.Resize(outW, outH);
+        canvas.Clear();
+        const int scale = std::max(1, outH / 240);
+        if (page == PAGE_MAIN)
+        {
+            rows.clear();
+            menu.items.clear();
+            auto add = [&](Row r, const std::string& label, const std::string& value = "", int slider = -1) {
+                rows.push_back(r);
+                MenuItem it;
+                it.label = label;
+                it.value = value;
+                it.slider = slider;
+                menu.items.push_back(it);
+            };
+            add(ROW_RESUME, "RESUME");
+            if (profile) add(ROW_WIDE, "WIDESCREEN", Upper(shape));
+            add(ROW_SCALING, "SCALING", ScalingLabel(scaling));
+            add(ROW_VOLUME, "VOLUME", std::to_string(volume) + "%", volume / 10);
+            add(ROW_FPS, "FPS COUNTER", showFps ? "ON" : "OFF");
+            add(ROW_FF, "FAST FORWARD", std::to_string(ffSpeed) + "X");
+            if (raOn) add(ROW_RA, "ACHIEVEMENTS");
+            add(ROW_RESET, "RESET GAME");
+            add(ROW_QUIT, "QUIT");
+            menu.selected = std::min(menu.selected, (int)menu.items.size() - 1);
+            menu.Draw(canvas, name, profile ? "ESC OR B: BACK TO THE GAME" : "NO WIDESCREEN FOR THIS ROM");
+        }
+        else if (page == PAGE_RA)
+        {
+            menu.items.clear();
+            MenuItem back;
+            back.label = "BACK";
+            menu.items.push_back(back);
+            std::vector<std::string> notes(1);
+            const int n = ra->count ? ra->count(ra->ud) : 0;
+            for (int i = 0; i < n; i++)
+            {
+                char title[128] = {}, description[256] = {}, progress[64] = {};
+                unsigned points = 0;
+                int unlocked = 0;
+                if (!ra->at(ra->ud, i, title, sizeof title, description, sizeof description, progress, sizeof progress, &points, &unlocked)) continue;
+                MenuItem it;
+                it.label = Fit(Upper(title), 20);
+                it.value = unlocked ? "UNLOCKED" : std::to_string(points) + " POINTS";
+                it.info = true;
+                menu.items.push_back(it);
+                notes.push_back(Upper(description) + (progress[0] ? "  " + std::string(progress) : ""));
+            }
+            menu.selected = std::min(menu.selected, (int)menu.items.size() - 1);
+            char line[256] = {};
+            if (!(ra->account && ra->account(ra->ud, line, sizeof line))) snprintf(line, sizeof line, "NOT LOGGED IN");
+            char gameLine[256] = {};
+            const std::string title = ra->game && ra->game(ra->ud, gameLine, sizeof gameLine) ? Upper(gameLine) : "ACHIEVEMENTS";
+            menu.Draw(canvas, Fit(title, 30), Upper(line), menu.selected > 0 ? notes[menu.selected] : "", 260);
+        }
+        if (!toast.empty() && SDL_GetTicks() < toastUntil)
+        {
+            const std::string t = Fit(Upper(toast), 60);
+            const int tw = Canvas::TextWidth(t, scale) + 12 * scale;
+            const int ty = outH - 18 * scale;
+            canvas.Fill((outW - tw) / 2, ty, tw, 13 * scale, 0xE0101010);
+            canvas.Text((outW - tw) / 2 + 6 * scale, ty + 3 * scale, t, scale, 0xFFFFD75E);
+        }
+        if (showFps && !fpsText.empty())
+            canvas.Text(outW - Canvas::TextWidth(fpsText, scale) - 4 * scale, 4 * scale, fpsText, scale, 0xFFFFFFFF);
+        if (canvas.Dirty())
+        {
+            if (!overlay || overlayW != outW || overlayH != outH)
+            {
+                if (overlay) SDL_DestroyTexture(overlay);
+                overlay = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, outW, outH);
+                SDL_SetTextureBlendMode(overlay, SDL_BLENDMODE_BLEND);
+                overlayW = outW;
+                overlayH = outH;
+            }
+            if (overlay)
+            {
+                SDL_UpdateTexture(overlay, nullptr, canvas.px.data(), outW * 4);
+                SDL_RenderCopy(renderer, overlay, nullptr, nullptr);
+            }
+        }
+        // (Test: our window's picture once while the menu is open; only this window is read.)
+        static bool menuShot = false;
+        if (testDump && page == PAGE_MAIN && !menuShot && loops > testMenuAt + 2)
+        {
+            menuShot = true;
+            std::vector<uint32_t> shot((size_t)outW * outH);
+            if (SDL_RenderReadPixels(renderer, nullptr, SDL_PIXELFORMAT_ARGB8888, shot.data(), outW * 4) == 0)
+                if (FILE* f = fopen((std::string(testDump) + "-menu.ppm").c_str(), "wb"))
+                {
+                    fprintf(f, "P6\n%d %d\n255\n", outW, outH);
+                    for (uint32_t c : shot)
+                    {
+                        const unsigned char rgb[3] = { (unsigned char)(c >> 16), (unsigned char)(c >> 8), (unsigned char)c };
+                        fwrite(rgb, 1, 3, f);
+                    }
+                    fclose(f);
+                }
+        }
         SDL_RenderPresent(renderer);
 
-        fpsFrames += runs;
         if (SDL_GetTicks() - fpsStart >= 1000)
         {
-            std::string title = name;
-            if (showFps) title += "  " + std::to_string(fpsFrames) + " fps";
-            char msg[256];
-            if (raOn && ra->pop && ra->pop(ra->ud, msg, sizeof msg)) title += "  " + std::string(msg);
-            SDL_SetWindowTitle(window, title.c_str());
+            fpsText = std::to_string(fpsFrames) + " FPS";
             fpsStart = SDL_GetTicks();
             fpsFrames = 0;
         }
@@ -496,9 +781,11 @@ bool Play(const std::string& romPath, Options& o)
         else if (now - next > 0.25) next = now;
     }
 
+    saveSettings();
     if (stream) SDL_FreeAudioStream(stream);
     if (audio) SDL_CloseAudioDevice(audio);
     if (pad) SDL_GameControllerClose(pad);
+    if (overlay) SDL_DestroyTexture(overlay);
     SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);

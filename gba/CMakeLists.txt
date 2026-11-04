@@ -45,6 +45,8 @@ add_library(gbawide STATIC frontend/embed.cpp frontend/wide_rom.cpp "${GBAW_EMBE
 target_compile_features(gbawide PRIVATE cxx_std_17)
 target_include_directories(gbawide PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/frontend"
     PRIVATE "${GBAW_MGBA_DIR}/include" "${CMAKE_CURRENT_BINARY_DIR}/mgba/include")
+# Fulldex's ui.h (its pause menu's look): this folder is only built inside Fulldex
+target_include_directories(gbawide PRIVATE "${CMAKE_SOURCE_DIR}/frontend")
 target_compile_definitions(gbawide PRIVATE BUILD_STATIC ENABLE_DIRECTORIES ENABLE_VFS ENABLE_VFS_FD M_CORE_GB M_CORE_GBA)
 if(TARGET SDL2::SDL2)
     target_link_libraries(gbawide PRIVATE SDL2::SDL2)

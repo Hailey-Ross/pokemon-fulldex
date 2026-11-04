@@ -22,8 +22,10 @@ Settings live in `gba-settings.ini` in Fulldex's data folder:
 - Also `volume`, `show_fps`, `buttons` (`labels` or `positions`) and `fast_forward` (2–8, hold Tab or
   the right trigger).
 
-Keys: arrows, X = A, Z = B, A = L, S = R, Enter = Start, Backspace = Select. F11 switches full screen;
-Esc goes back to the list.
+Keys: arrows, X = A, Z = B, A = L, S = R, Enter = Start, Backspace = Select. F11 switches full screen.
+Esc (a controller's Guide, or Start and Select together) opens the pause menu: widescreen, scaling,
+volume, FPS counter, fast-forward speed, the RetroAchievements list, reset, and quit to the list.
+It looks like the DS games' menu (Fulldex's `frontend/ui.h`).
 
 Credits: Pokemon GBA Widescreen by mamesj (the idea and the protocol, in Pokemon Fulldex), mGBA by
 endrift and contributors (MPL-2.0; `patches/mgba-wide.patch` is MPL-2.0), the pret decompilations
