@@ -9,7 +9,12 @@
 #include <mgba/core/log.h>
 #include <mgba/gba/interface.h>
 #include <mgba-util/audio-buffer.h>
+#include <mgba-util/crc32.h>
 #include <mgba-util/vfs.h>
+
+extern "C" {
+#include "pk_wide.h" // PokeDaisy's EXPAND (third_party/pokedaisy)
+}
 
 #include <SDL.h>
 
@@ -407,7 +412,20 @@ bool Play(const std::string& romPath, Options& o)
         rom = original;
         profile = nullptr;
     }
-    fprintf(stderr, "[gba] %s: %s\n", name.c_str(), profile ? profile->version : "no widescreen for this ROM");
+    // Our patch where it fits; otherwise PokeDaisy's EXPAND draws the sides for the games and hacks it knows
+    const bool expand = !profile && pk_wide_configure(doCrc32(rom.data(), rom.size()));
+    struct ExpandOff
+    {
+        bool on;
+        ~ExpandOff()
+        {
+            if (!on) return;
+            pk_wide_configure(0);
+            pk_wide_extras_reset();
+        }
+    } expandOff{ expand };
+    fprintf(stderr, "[gba] %s: %s\n", name.c_str(),
+            profile ? profile->version : expand ? "expand (PokeDaisy)" : "no widescreen for this ROM");
 
     Settings settings;
     settings.Load(o.data);
@@ -439,6 +457,8 @@ bool Play(const std::string& romPath, Options& o)
     mCoreInitConfig(core, nullptr);
     std::vector<uint32_t> pixels((size_t)kMaxWidth * kHeight);
     core->setVideoBuffer(core, (mColor*)pixels.data(), kMaxWidth);
+    std::vector<uint32_t> frame240((size_t)GBA_VIDEO_HORIZONTAL_PIXELS * kHeight), wideOut; // EXPAND's in and out
+    int wideOutW = 0;
     if (!core->loadROM(core, vf))
     {
         core->deinit(core);
@@ -495,9 +515,10 @@ bool Play(const std::string& romPath, Options& o)
     auto applyShape = [&]() {
         int w = 0, h = 0;
         SDL_GetRendererOutputSize(renderer, &w, &h);
-        const int want = profile ? ExtraFor(shape, w, h) : 0;
+        const int want = profile ? ExtraFor(shape, w, h) : expand ? std::min(PK_WIDE_MAX_MARGIN, ExtraFor(shape, w, h)) : 0;
         if (want == extra) return;
         extra = want;
+        if (expand) return; // (mGBA stays at 240: EXPAND draws the sides)
         mCoreConfigSetIntValue(&core->config, "gba.wideExtra", extra);
         core->reloadConfigOption(core, "gba.wideExtra", nullptr);
     };
@@ -686,6 +707,7 @@ bool Play(const std::string& romPath, Options& o)
                     if (dir == 0)
                     {
                         core->reset(core);
+                        if (expand) pk_wide_reset();
                         if (raOn && ra->reset) ra->reset(ra->ud);
                         closeMenu();
                     }
@@ -718,6 +740,19 @@ bool Play(const std::string& romPath, Options& o)
             {
                 core->runFrame(core);
                 if (raOn && ra->frame) ra->frame(ra->ud);
+                if (expand)
+                {
+                    for (int y = 0; y < kHeight; y++)
+                        memcpy(&frame240[(size_t)y * GBA_VIDEO_HORIZONTAL_PIXELS], &pixels[(size_t)y * kMaxWidth],
+                               GBA_VIDEO_HORIZONTAL_PIXELS * 4);
+                    if (i + 1 < runs) pk_wide_skip(core, frame240.data()); // (fast forward: frames not shown)
+                    else
+                    {
+                        wideOutW = GBA_VIDEO_HORIZONTAL_PIXELS + 2 * std::max(0, extra);
+                        wideOut.resize((size_t)wideOutW * kHeight);
+                        pk_wide_frame(core, frame240.data(), wideOut.data(), std::max(0, extra), nullptr);
+                    }
+                }
             }
             frameCount += runs;
             fpsFrames += runs;
@@ -759,6 +794,14 @@ bool Play(const std::string& romPath, Options& o)
 
         unsigned w = 0, h = 0;
         core->currentVideoSize(core, &w, &h);
+        const uint32_t* show = pixels.data();
+        int showPitch = kMaxWidth;
+        if (expand && wideOutW)
+        {
+            w = (unsigned)wideOutW;
+            show = wideOut.data();
+            showPitch = wideOutW;
+        }
         if (testDump && page == PAGE_NONE && frameCount % testDumpEvery == 0 && frameCount >= testDumpFrom && frameCount > 0)
         {
             const std::string path = std::string(testDump) + "-" + std::to_string(frameCount) + ".ppm";
@@ -768,7 +811,7 @@ bool Play(const std::string& romPath, Options& o)
                 for (unsigned y = 0; y < h; y++)
                     for (unsigned x = 0; x < w; x++)
                     {
-                        const uint32_t c = pixels[(size_t)y * kMaxWidth + x];
+                        const uint32_t c = show[(size_t)y * showPitch + x];
                         const unsigned char rgb[3] = { (unsigned char)c, (unsigned char)(c >> 8), (unsigned char)(c >> 16) };
                         fwrite(rgb, 1, 3, f);
                     }
@@ -777,7 +820,8 @@ bool Play(const std::string& romPath, Options& o)
         }
         if (testLimit && (frameCount >= testLimit || loops >= 2 * testLimit)) running = false;
 
-        SDL_UpdateTexture(texture, nullptr, pixels.data(), kMaxWidth * 4);
+        const SDL_Rect area = { 0, 0, (int)w, (int)h };
+        SDL_UpdateTexture(texture, &area, show, showPitch * 4);
         int outW = 0, outH = 0;
         SDL_GetRendererOutputSize(renderer, &outW, &outH);
         const SDL_Rect src = { 0, 0, (int)w, (int)h };
@@ -803,7 +847,7 @@ bool Play(const std::string& romPath, Options& o)
                 menu.items.push_back(it);
             };
             add(ROW_RESUME, "RESUME");
-            if (profile) add(ROW_WIDE, "WIDESCREEN", Upper(shape));
+            if (profile || expand) add(ROW_WIDE, "WIDESCREEN", Upper(shape));
             add(ROW_SCALING, "SCALING", ScalingLabel(scaling));
             add(ROW_VOLUME, "VOLUME", std::to_string(volume) + "%", volume / 10);
             add(ROW_FPS, "FPS COUNTER", showFps ? "ON" : "OFF");
@@ -812,7 +856,7 @@ bool Play(const std::string& romPath, Options& o)
             add(ROW_RESET, "RESET GAME");
             add(ROW_QUIT, "QUIT");
             menu.selected = std::min(menu.selected, (int)menu.items.size() - 1);
-            menu.Draw(canvas, name, profile ? "ESC OR B: BACK TO THE GAME" : "NO WIDESCREEN FOR THIS ROM");
+            menu.Draw(canvas, name, profile || expand ? "ESC OR B: BACK TO THE GAME" : "NO WIDESCREEN FOR THIS ROM");
         }
         else if (page == PAGE_RA)
         {

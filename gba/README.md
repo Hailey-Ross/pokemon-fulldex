@@ -13,6 +13,10 @@ This folder lets a Pokemon Fulldex build list and play Game Boy Advance games. F
 - `frontend/`: what Fulldex calls (`embed.h`): `Find` for its game list and `Play`, our player
   (SDL2). A patch goes on a copy of the ROM in memory, and only when the ROM's code matches the check
   list. Otherwise the game plays at 3:2. When wide stops, the sides fade out over 12 frames.
+- Where our patch doesn't fit (Ruby, Sapphire, other languages, romhacks), PokeDaisy's EXPAND widens the overworld
+  for the games it knows by CRC32: it draws the sides from the game's memory, with stock mGBA at 240 px
+  (`third_party/pokedaisy`, unchanged, GPL-3.0; `third_party/pokedaisy_compat.h` adapts it to our mGBA).
+  Based on PokeDaisy by Lidor Itzhari - https://github.com/lidor30/pokedaisy
 - Ultra Violet (a FireRed 1.0 hack), as Fulldex has it: its `.gba`, or its `.ips` with a clean FireRed
   1.0 beside it (or given with `--base`), told by the file's name; saved as `ultraviolet.sav`, wide when
   it passes FireRed's check.
