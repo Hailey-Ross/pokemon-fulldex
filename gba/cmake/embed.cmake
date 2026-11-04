@@ -1,0 +1,18 @@
+# Writes OUT, a C++ file with each of FILES as bytes: gGbawFiles[] { name, data, size }.
+# SPDX-License-Identifier: GPL-3.0-or-later
+set(body "#include <cstddef>\nstruct GbawFile { const char* name; const unsigned char* data; size_t size; };\n")
+set(table "")
+set(i 0)
+foreach(f ${FILES})
+    get_filename_component(name "${f}" NAME)
+    file(READ "${f}" hex HEX)
+    string(LENGTH "${hex}" len)
+    math(EXPR size "${len} / 2")
+    string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," bytes "${hex}")
+    string(APPEND body "static const unsigned char d${i}[] = { ${bytes} 0 };\n")
+    string(APPEND table "    { \"${name}\", d${i}, ${size} },\n")
+    math(EXPR i "${i} + 1")
+endforeach()
+string(APPEND body "extern const GbawFile gGbawFiles[] = {\n${table}};\nextern const size_t gGbawFileCount = ${i};\n")
+file(WRITE "${OUT}.new" "${body}")
+configure_file("${OUT}.new" "${OUT}" COPYONLY)
