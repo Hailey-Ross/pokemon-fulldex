@@ -17,6 +17,8 @@ This folder lets a Pokemon Fulldex build list and play Game Boy Advance games. F
   for the games it knows by CRC32: it draws the sides from the game's memory, with stock mGBA at 240 px
   (`third_party/pokedaisy`, unchanged, GPL-3.0; `third_party/pokedaisy_compat.h` adapts it to our mGBA).
   Based on PokeDaisy by Lidor Itzhari - https://github.com/lidor30/pokedaisy
+  We added BugLime v1.2 and Adventure Red Chapter Beta 15 to its table (FireRed hacks edited in place: FireRed's
+  addresses mapped through the literal pools by nativeMons' gba-test-tools/wide_map.py; checked on real saves).
 - Ultra Violet (a FireRed 1.0 hack), as Fulldex has it: its `.gba`, or its `.ips` with a clean FireRed
   1.0 beside it (or given with `--base`), told by the file's name; saved as `ultraviolet.sav`, wide when
   it passes FireRed's check.
