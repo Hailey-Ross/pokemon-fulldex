@@ -5,15 +5,21 @@
 cmake_minimum_required(VERSION 3.16)
 project(gbawide C CXX)
 
+# Fulldex's localised copy of this folder (tools/localisation/prepare_gba.py) leaves out cmake/, third_party/, wide-patches/
+set(GBAW_SRC "${CMAKE_CURRENT_SOURCE_DIR}")
+if(NOT EXISTS "${GBAW_SRC}/third_party" AND SSR_GBA_DIR)
+    set(GBAW_SRC "${SSR_GBA_DIR}")
+endif()
+
 set(GBAW_MGBA_DIR "" CACHE PATH "An mGBA checkout with patches/mgba-wide.patch already applied (empty: fetched)")
 if(NOT GBAW_MGBA_DIR)
-    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/patches/mgba.commit" GBAW_MGBA_COMMIT)
+    file(READ "${GBAW_SRC}/patches/mgba.commit" GBAW_MGBA_COMMIT)
     string(STRIP "${GBAW_MGBA_COMMIT}" GBAW_MGBA_COMMIT)
     include(FetchContent)
     FetchContent_Declare(gbaw_mgba
         GIT_REPOSITORY https://github.com/mgba-emu/mgba.git
         GIT_TAG ${GBAW_MGBA_COMMIT}
-        PATCH_COMMAND git apply "${CMAKE_CURRENT_SOURCE_DIR}/patches/mgba-wide.patch"
+        PATCH_COMMAND git apply "${GBAW_SRC}/patches/mgba-wide.patch"
         UPDATE_DISCONNECTED ON)
     FetchContent_GetProperties(gbaw_mgba)
     if(NOT gbaw_mgba_POPULATED)
@@ -35,10 +41,10 @@ add_subdirectory("${GBAW_MGBA_DIR}" mgba EXCLUDE_FROM_ALL)
 
 # Our widescreen patches and check lists, as data in the program
 set(GBAW_EMBED "${CMAKE_CURRENT_BINARY_DIR}/gbaw_files.cpp")
-file(GLOB GBAW_DATA "${CMAKE_CURRENT_SOURCE_DIR}/wide-patches/prebuilt/*.ips" "${CMAKE_CURRENT_SOURCE_DIR}/wide-patches/versions/*.check")
+file(GLOB GBAW_DATA "${GBAW_SRC}/wide-patches/prebuilt/*.ips" "${GBAW_SRC}/wide-patches/versions/*.check")
 add_custom_command(OUTPUT "${GBAW_EMBED}"
-    COMMAND ${CMAKE_COMMAND} -D "OUT=${GBAW_EMBED}" -D "FILES=${GBAW_DATA}" -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake"
-    DEPENDS ${GBAW_DATA} "${CMAKE_CURRENT_SOURCE_DIR}/cmake/embed.cmake"
+    COMMAND ${CMAKE_COMMAND} -D "OUT=${GBAW_EMBED}" -D "FILES=${GBAW_DATA}" -P "${GBAW_SRC}/cmake/embed.cmake"
+    DEPENDS ${GBAW_DATA} "${GBAW_SRC}/cmake/embed.cmake"
     VERBATIM)
 
 # Inside Fulldex (GBAW_EMBEDDED, set by its CMakeLists) the library; on its own also gbawide.exe (frontend/main.cpp).
@@ -48,7 +54,7 @@ if(NOT GBAW_EMBEDDED)
 endif()
 # Fulldex's ui.h (the pause menu's look): Fulldex's own frontend folder, or the fork's beside this one
 set(GBAW_FULLDEX_FRONTEND "${CMAKE_SOURCE_DIR}/frontend")
-if(NOT EXISTS "${GBAW_FULLDEX_FRONTEND}/ui.h")
+if(NOT EXISTS "${GBAW_FULLDEX_FRONTEND}/ui_text.h")
     set(GBAW_FULLDEX_FRONTEND "${CMAKE_CURRENT_SOURCE_DIR}/../frontend")
 endif()
 # A stand-alone Windows build links SDL2 and the C++ runtime in: one .exe to ship
@@ -58,9 +64,9 @@ if(NOT GBAW_EMBEDDED AND WIN32 AND TARGET SDL2::SDL2-static)
 endif()
 
 # PokeDaisy's EXPAND (GPL-3.0, third_party/pokedaisy, unchanged): widescreen for what our patches don't fit
-set(GBAW_PD "${CMAKE_CURRENT_SOURCE_DIR}/third_party/pokedaisy")
+set(GBAW_PD "${GBAW_SRC}/third_party/pokedaisy")
 set(GBAW_PD_SOURCES "${GBAW_PD}/pk_wide.c" "${GBAW_PD}/pk_wide_gb.c" "${GBAW_PD}/pk_cheats.c")
-set(GBAW_PD_COMPAT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/pokedaisy_compat.h")
+set(GBAW_PD_COMPAT "${GBAW_SRC}/third_party/pokedaisy_compat.h")
 if(MSVC)
     set_source_files_properties(${GBAW_PD_SOURCES} PROPERTIES COMPILE_OPTIONS "/w;/FI${GBAW_PD_COMPAT}")
 else()
@@ -78,6 +84,7 @@ endif()
 target_compile_features(gbawide PRIVATE cxx_std_17)
 target_include_directories(gbawide PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/frontend"
     PRIVATE "${GBAW_MGBA_DIR}/include" "${CMAKE_CURRENT_BINARY_DIR}/mgba/include" "${GBAW_FULLDEX_FRONTEND}")
+target_compile_definitions(gbawide PRIVATE "GBAW_FULLDEX_UI=\"${GBAW_FULLDEX_FRONTEND}/ui.h\"")
 target_compile_definitions(gbawide PRIVATE BUILD_STATIC ENABLE_DIRECTORIES ENABLE_VFS ENABLE_VFS_FD M_CORE_GB M_CORE_GBA)
 if(TARGET ${GBAW_SDL})
     target_link_libraries(gbawide PRIVATE ${GBAW_SDL})

@@ -18,7 +18,7 @@ extern "C" {
 
 #include <SDL.h>
 
-#include "ui.h" // Fulldex's: the pause menu looks like the DS games' one
+#include GBAW_FULLDEX_UI // Fulldex's ui.h: the pause menu looks like the DS games' one
 
 #include <algorithm>
 #include <cmath>
