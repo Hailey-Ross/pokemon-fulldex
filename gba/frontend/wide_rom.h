@@ -24,5 +24,7 @@ std::string GameCode(const std::vector<uint8_t>& rom);
 const Profile* FindProfile(const std::vector<uint8_t>& rom);
 // Puts the profile's patch on the ROM (in memory). False when the patch would not fit.
 bool ApplyWidePatch(const Profile& profile, std::vector<uint8_t>& rom);
+// An IPS patch on the ROM in memory (a game's own, such as Ultra Violet's: it may grow the ROM). False when broken.
+bool ApplyIps(const uint8_t* ips, size_t size, std::vector<uint8_t>& rom, bool widePatch = false);
 
 }

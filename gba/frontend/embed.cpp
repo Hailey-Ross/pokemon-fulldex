@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "embed.h"
 #include "wide_rom.h"
+#include "box_art.h"
 
 #include <mgba/core/core.h>
 #include <mgba/core/config.h>
@@ -98,9 +99,69 @@ std::string Slug(const std::string& s)
     return out.empty() ? "game" : out;
 }
 
+bool IsIps(const std::string& path)
+{
+    return path.size() > 4 && Lower(path.substr(path.size() - 4)) == ".ips";
+}
+
+// Ultra Violet (a FireRed 1.0 hack), as Fulldex has it: its .gba, or its .ips over FireRed 1.0; told by its file's name.
+bool IsUltraViolet(const std::string& path)
+{
+    std::string s;
+    for (unsigned char c : Stem(path))
+        if (isalnum(c)) s += (char)tolower(c);
+    return s.find("ultraviolet") != std::string::npos;
+}
+
+// A clean FireRed 1.0 in the folder, for an .ips beside it.
+std::string FireRedIn(const std::string& folder)
+{
+    std::string found;
+    DIR* d = opendir(folder.c_str());
+    if (!d) return found;
+    while (dirent* e = readdir(d))
+    {
+        const std::string n = e->d_name;
+        if (n.size() <= 4 || Lower(n.substr(n.size() - 4)) != ".gba") continue;
+        uint8_t head[0xC0];
+        FILE* f = fopen((folder + "/" + n).c_str(), "rb");
+        if (!f) continue;
+        const bool read = fread(head, 1, sizeof head, f) == sizeof head;
+        fclose(f);
+        if (!read || memcmp(head + 0xAC, "BPRE", 4) || head[0xBC] != 0) continue;
+        std::vector<uint8_t> rom;
+        const Profile* p = ReadWhole(folder + "/" + n, rom) ? FindProfile(rom) : nullptr;
+        if (p && !strcmp(p->version, "firered"))
+        {
+            found = folder + "/" + n;
+            break;
+        }
+    }
+    closedir(d);
+    return found;
+}
+
+// The game as it is played before widescreen: the ROM, or an .ips put on FireRed 1.0 (`base`, else one beside it).
+bool LoadGame(const std::string& path, const std::string& base, std::vector<uint8_t>& rom)
+{
+    if (!IsIps(path)) return ReadWhole(path, rom);
+    std::vector<uint8_t> ips;
+    if (!ReadWhole(path, ips)) return false;
+    const size_t slash = path.find_last_of("/\\");
+    const std::string from = !base.empty() ? base : FireRedIn(slash == std::string::npos ? "." : path.substr(0, slash));
+    if (from.empty() || !ReadWhole(from, rom)) return false;
+    return ApplyIps(ips.data(), ips.size(), rom);
+}
+
 // A ROM's save name and list name: the patch's when it fits, the file's own otherwise.
 void KeyAndName(const std::string& path, const std::vector<uint8_t>& rom, std::string& key, std::string& name)
 {
+    if (IsUltraViolet(path))
+    {
+        key = "ultraviolet";
+        name = "Pokemon Ultra Violet";
+        return;
+    }
     if (const Profile* p = FindProfile(rom))
     {
         key = p->key;
@@ -299,36 +360,41 @@ std::vector<ListGame> Find(const std::string& roms, const std::string& saves)
     while (dirent* e = readdir(d))
     {
         const std::string n = e->d_name;
-        if (n.size() > 4 && Lower(n.substr(n.size() - 4)) == ".gba") files.push_back(roms + "/" + n);
+        if (n.size() > 4 && (Lower(n.substr(n.size() - 4)) == ".gba" || (IsIps(n) && IsUltraViolet(n))))
+            files.push_back(roms + "/" + n);
     }
     closedir(d);
     std::sort(files.begin(), files.end());
     for (const std::string& file : files)
     {
         std::vector<uint8_t> rom;
-        if (!ReadWhole(file, rom)) continue;
+        if (!LoadGame(file, "", rom)) continue;
         ListGame g;
         g.file = file;
         KeyAndName(file, rom, g.key, g.name);
         g.hasSave = Exists(saves + "/" + g.key + ".sav");
+        if (!IsUltraViolet(file) && FindProfile(rom)) g.art = g.key;
         out.push_back(std::move(g));
     }
+    std::vector<const char*> art;
+    for (const ListGame& g : out)
+        if (!g.art.empty()) art.push_back(g.art.c_str());
+    FetchBoxArt(art.data(), art.size(), 2000);
     return out;
 }
 
-bool Art(const std::string&, const unsigned char*& jpeg, size_t& size)
+bool Art(const std::string& name, const unsigned char*& jpeg, size_t& size)
 {
-    jpeg = nullptr;
-    size = 0;
-    return false;
+    return CachedBoxArt(name, jpeg, size);
 }
 
 bool Play(const std::string& romPath, Options& o)
 {
     std::vector<uint8_t> original;
-    if (!ReadWhole(romPath, original))
+    if (!LoadGame(romPath, o.base, original))
     {
-        fprintf(stderr, "[gba] can't read %s\n", romPath.c_str());
+        fprintf(stderr, IsIps(romPath) ? "[gba] %s needs a clean FireRed 1.0 beside it\n" : "[gba] can't read %s\n",
+                romPath.c_str());
         return false;
     }
     std::string key, name;
@@ -450,6 +516,39 @@ bool Play(const std::string& romPath, Options& o)
     const long testLimit = testFrames ? atol(testFrames) : 0;
     const long testMenuAt = testMenu ? atol(testMenu) : -1;
     const bool testMenuRa = testMenu && strstr(testMenu, "ra");
+    // GBAW_TEST_KEYS="<frame>:<KEY>[+<KEY>][:<frames held>],...", GBAW_TEST_DUMP_EVERY=<frames> (default 300)
+    struct TestKey { long at, hold; uint32_t keys; };
+    std::vector<TestKey> testKeys;
+    if (const char* s = getenv("GBAW_TEST_KEYS"))
+    {
+        static const char* const names[] = { "A", "B", "SELECT", "START", "RIGHT", "LEFT", "UP", "DOWN", "R", "L" };
+        std::string all = s;
+        for (size_t at = 0; at < all.size();)
+        {
+            size_t end = all.find(',', at);
+            if (end == std::string::npos) end = all.size();
+            const std::string item = all.substr(at, end - at);
+            at = end + 1;
+            TestKey k{ atol(item.c_str()), 4, 0 };
+            const size_t c1 = item.find(':'), c2 = item.find(':', c1 + 1);
+            if (c1 == std::string::npos) continue;
+            const std::string keyList = item.substr(c1 + 1, c2 == std::string::npos ? std::string::npos : c2 - c1 - 1);
+            if (c2 != std::string::npos) k.hold = atol(item.c_str() + c2 + 1);
+            for (size_t p = 0; p <= keyList.size();)
+            {
+                size_t q = keyList.find('+', p);
+                if (q == std::string::npos) q = keyList.size();
+                for (int i = 0; i < 10; i++)
+                    if (keyList.compare(p, q - p, names[i]) == 0) k.keys |= 1u << i;
+                p = q + 1;
+            }
+            testKeys.push_back(k);
+        }
+    }
+    const char* testEvery = getenv("GBAW_TEST_DUMP_EVERY");
+    const long testDumpEvery = std::max(1L, testEvery ? atol(testEvery) : 300L);
+    const char* testFrom = getenv("GBAW_TEST_DUMP_FROM"); // only frames from this one on
+    const long testDumpFrom = testFrom ? atol(testFrom) : 1;
     long frameCount = 0, loops = 0;
 
     // Pause menu state
@@ -610,6 +709,8 @@ bool Play(const std::string& romPath, Options& o)
             const bool fast = kb[SDL_SCANCODE_TAB] || (pad && SDL_GameControllerGetAxis(pad, SDL_CONTROLLER_AXIS_TRIGGERRIGHT) > 16000);
             uint32_t keys = KeyboardKeys(kb) | PadKeys(pad, byLabel);
             if (testPress && frameCount % 120 >= 60 && frameCount % 120 < 64) keys |= 1u << KEY_A;
+            for (const TestKey& k : testKeys)
+                if (frameCount >= k.at && frameCount < k.at + k.hold) keys |= k.keys;
             core->setKeys(core, keys);
 
             const int runs = fast ? ffSpeed : 1;
@@ -658,7 +759,7 @@ bool Play(const std::string& romPath, Options& o)
 
         unsigned w = 0, h = 0;
         core->currentVideoSize(core, &w, &h);
-        if (testDump && page == PAGE_NONE && frameCount % 300 == 0 && frameCount > 0)
+        if (testDump && page == PAGE_NONE && frameCount % testDumpEvery == 0 && frameCount >= testDumpFrom && frameCount > 0)
         {
             const std::string path = std::string(testDump) + "-" + std::to_string(frameCount) + ".ppm";
             if (FILE* f = fopen(path.c_str(), "wb"))

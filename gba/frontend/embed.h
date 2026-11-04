@@ -23,7 +23,7 @@ struct ListGame
 // The GBA games in a folder (not its subfolders), their saves in `saves`.
 std::vector<ListGame> Find(const std::string& roms, const std::string& saves);
 
-// Built-in box art by ListGame::art. We have none: always false.
+// Box art by ListGame::art: official art fetched by Find into a cache (box_art.h), none until it has arrived.
 bool Art(const std::string& name, const unsigned char*& jpeg, size_t& size);
 
 // RetroAchievements, run by the program that embeds us (frontend/gba_ra.h in Fulldex).
@@ -63,6 +63,7 @@ struct Options
     int w = 0, h = 0;   // the window's size when not fullscreen (0: our own)
     AchievementsHost* achievements = nullptr;
     std::string save;   // a save file to use instead of <saves>/<key>.sav (the stand-alone player's --save)
+    std::string base;   // the FireRed 1.0 an .ips goes on ("": one beside it)
 };
 
 // Plays the game until the player quits. False when it could not start.

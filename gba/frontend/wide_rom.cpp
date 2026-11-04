@@ -82,16 +82,16 @@ const Profile* FindProfile(const std::vector<uint8_t>& rom)
     return nullptr;
 }
 
-bool ApplyWidePatch(const Profile& profile, std::vector<uint8_t>& rom)
+bool ApplyIps(const uint8_t* d, size_t size, std::vector<uint8_t>& rom, bool widePatch)
 {
-    const GbawFile* ips = File(std::string(profile.version) + ".ips");
-    if (!ips || ips->size < 8 || memcmp(ips->data, "PATCH", 5)) return false;
+    if (!d || size < 8 || memcmp(d, "PATCH", 5)) return false;
     std::vector<uint8_t> out = rom;
-    const uint8_t* d = ips->data;
     size_t i = 5;
-    while (i + 3 <= ips->size && memcmp(d + i, "EOF", 3))
+    bool ended = false;
+    while (i + 3 <= size)
     {
-        if (i + 5 > ips->size) return false;
+        if (!memcmp(d + i, "EOF", 3)) { ended = true; i += 3; break; }
+        if (i + 5 > size) return false;
         const size_t off = (size_t)d[i] << 16 | d[i + 1] << 8 | d[i + 2];
         size_t n = d[i + 3] << 8 | d[i + 4];
         i += 5;
@@ -99,7 +99,7 @@ bool ApplyWidePatch(const Profile& profile, std::vector<uint8_t>& rom)
         std::vector<uint8_t> run;
         if (n == 0)
         {
-            if (i + 3 > ips->size) return false;
+            if (i + 3 > size) return false;
             run.assign(d[i] << 8 | d[i + 1], d[i + 2]);
             src = run.data();
             n = run.size();
@@ -107,18 +107,35 @@ bool ApplyWidePatch(const Profile& profile, std::vector<uint8_t>& rom)
         }
         else
         {
-            if (i + n > ips->size) return false;
+            if (i + n > size) return false;
             i += n;
         }
-        if (off + n > out.size()) return false;
-        // The code block goes in free space only (0xFF); the 8-byte jumps go over the checked game code.
-        if (n > 8)
+        if (off + n > out.size())
+        {
+            if (widePatch || off + n > 32u << 20) return false;
+            out.resize(off + n, 0xFF);
+        }
+        // Ours: the code block goes in free space only (0xFF); the 8-byte jumps go over the checked game code.
+        if (widePatch && n > 8)
             for (size_t k = 0; k < n; k++)
                 if (out[off + k] != 0xFF) return false;
         memcpy(out.data() + off, src, n);
     }
+    if (!ended) return false;
+    // (IPS's size extension: three bytes after EOF cut the ROM to that size.)
+    if (!widePatch && i + 3 <= size)
+    {
+        const size_t cut = (size_t)d[i] << 16 | d[i + 1] << 8 | d[i + 2];
+        if (cut && cut < out.size()) out.resize(cut);
+    }
     rom.swap(out);
     return true;
+}
+
+bool ApplyWidePatch(const Profile& profile, std::vector<uint8_t>& rom)
+{
+    const GbawFile* ips = File(std::string(profile.version) + ".ips");
+    return ips && ApplyIps(ips->data, ips->size, rom, true);
 }
 
 }

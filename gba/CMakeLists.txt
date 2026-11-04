@@ -57,7 +57,7 @@ if(NOT GBAW_EMBEDDED AND WIN32 AND TARGET SDL2::SDL2-static)
     set(GBAW_SDL SDL2::SDL2-static)
 endif()
 
-add_library(gbawide STATIC frontend/embed.cpp frontend/wide_rom.cpp "${GBAW_EMBED}")
+add_library(gbawide STATIC frontend/embed.cpp frontend/wide_rom.cpp frontend/box_art.cpp "${GBAW_EMBED}")
 target_compile_features(gbawide PRIVATE cxx_std_17)
 target_include_directories(gbawide PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/frontend"
     PRIVATE "${GBAW_MGBA_DIR}/include" "${CMAKE_CURRENT_BINARY_DIR}/mgba/include" "${GBAW_FULLDEX_FRONTEND}")
@@ -69,7 +69,7 @@ else()
 endif()
 target_link_libraries(gbawide PRIVATE mgba)
 if(WIN32)
-    target_link_libraries(gbawide PRIVATE ws2_32 iphlpapi shlwapi ole32 uuid winmm)
+    target_link_libraries(gbawide PRIVATE ws2_32 iphlpapi shlwapi ole32 uuid winmm winhttp)
 endif()
 
 if(NOT GBAW_EMBEDDED)
