@@ -1,4 +1,4 @@
-﻿diff --git a/include/mgba/gba/interface.h b/include/mgba/gba/interface.h
+diff --git a/include/mgba/gba/interface.h b/include/mgba/gba/interface.h
 index 6edb38e..3513e0a 100644
 --- a/include/mgba/gba/interface.h
 +++ b/include/mgba/gba/interface.h
