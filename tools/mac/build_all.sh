@@ -74,7 +74,8 @@ cp tools/platinum/CPUE.txt "$DATA/funcs/CPUE.txt"
 cp tools/platinum/ADAE.txt "$DATA/funcs/ADAE.txt" # Diamond: Platinum's names (tools/port_family.py)
 # The other languages' tables (tools/versions: Spanish White, Platinum, ...), from the English ones.
 python3 tools/shift_table.py --all "$DATA/funcs"
-cp tools/regions/{IREF,IRDF,CPUF,IRBF,IRAF}.txt "$DATA/funcs/"
+cp tools/regions/*.txt "$DATA/funcs/"
+python3 tools/regions/package_profiles.py --funcs "$DATA/funcs" --portable "$TABLES/rc_portable.cpp"
 
 say "Compiling for the Mac ($ARCH)"
 # (SSR_PORTABLE_X86: no AVX2 for an Intel Mac without it, and no x86 test when building for
@@ -101,6 +102,7 @@ cp build-mac/ssrecomp "$APP/Contents/MacOS/pokemon-ds-wide"
 strip -x "$APP/Contents/MacOS/pokemon-ds-wide"
 cp -r "$DATA/funcs" "$APP/Contents/Resources/data/funcs"
 cp LICENSE "$APP/Contents/Resources/LICENSE.txt"
+cp LICENSE-Noto.txt "$APP/Contents/Resources/LICENSE-Noto.txt"
 GBA_DOCS=""
 if [ -n "${SSR_GBA_DIR:-}" ]; then
     MGBA_SRC="${GBAW_MGBA:-${GBAW_WORK:-$HOME/pokemon-gba-wide}/mgba}"
@@ -171,7 +173,8 @@ ZIP="$DIST/pokemon-ds-wide-pc-macos-$ARCH.zip"
 # Only the program, its tables, notes, licence and icon: never a ROM, save or game code.
 python3 - "$ZIP" <<'PY'
 import re, sys, zipfile
-ok = re.compile(r'^Pokemon Fulldex\.app/(Contents/(Info\.plist|MacOS/(pokemon-ds-wide)?|_CodeSignature/(CodeResources)?|Resources/(AppIcon\.icns|README\.txt|LICENSE\.txt|LICENSE-mGBA\.txt|data/|data/funcs/|data/funcs/(IREO|IRDO|IRBO|IRAO|CPUE|ADAE|APAE|ADAS|IRAS|CPUS|IREF|IRDF|CPUF|IRBF|IRAF)\.txt)?)?)?$')
+regional_codes = '|'.join(p['code'] for p in __import__('json').loads(__import__('pathlib').Path('tools/regions/profiles.json').read_text())['profiles'] if p['kind']=='functions')
+ok = re.compile(r'^Pokemon Fulldex\.app/(Contents/(Info\.plist|MacOS/(pokemon-ds-wide)?|_CodeSignature/(CodeResources)?|Resources/(AppIcon\.icns|README\.txt|LICENSE\.txt|LICENSE-mGBA\.txt|LICENSE-Noto\.txt|data/|data/funcs/|data/funcs/(?:IREO|IRDO|IRBO|IRAO|CPUE|ADAE|APAE|ADAS|IRAS|CPUS|IREF|IRDF|CPUF|IRBF|IRAF|' + regional_codes + r')\.txt)?)?)?$')
 names = zipfile.ZipFile(sys.argv[1]).namelist()
 bad = [n for n in names if not ok.match(n)]
 if bad: sys.exit('unexpected files in the Mac download: %s' % bad)

@@ -265,7 +265,9 @@ void SetRomFolder(Folders& fo)
 // the emulator, which reads them by file name.
 void ExtractFuncs(const Folders& fo)
 {
-    for (const char* code : { "IREO", "IRDO", "IRBO", "IRAO", "CPUE", "ADAE", "IRAS", "CPUS", "ADAS", "APAE", "IREF", "IRDF", "CPUF", "IRBF", "IRAF" })
+    std::vector<const char*> codes = { "IREO", "IRDO", "IRBO", "IRAO", "CPUE", "ADAE", "IRAS", "CPUS", "ADAS", "APAE", "IREF", "IRDF", "CPUF", "IRBF", "IRAF" };
+    for (const auto& p : RegionalProfiles::profiles) if (p.functions) codes.push_back(p.code);
+    for (const char* code : codes)
     {
         SDL_RWops* rw = SDL_RWFromFile((std::string("funcs/") + code + ".txt").c_str(), "rb");
         if (!rw) continue;
@@ -1646,7 +1648,8 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                                     asking ? "WITH YOUR .NDS FILES. SAVES GO IN A SAVES FOLDER INSIDE IT." : fo.roms.c_str(),
                                     "",
                                     "IT PLAYS POKEMON BLACK / WHITE / BLACK 2 / WHITE 2,",
-                                    "SOULSILVER / HEARTGOLD / PLATINUM (ENGLISH OR FRENCH)" };
+                                    "SOULSILVER / HEARTGOLD / PLATINUM",
+                                    "SUPPORTED REGIONAL VERSIONS: SEE THE README" };
             const char* heading = lines[0];
 #elif defined(SSR_IOS)
             const char* lines[] = { "NO GAMES FOUND", "",
@@ -1654,13 +1657,15 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                                     "> POKEMON DS WIDESCREEN > ROMS. TAP FOLDER AT THE TOP TO GO THERE.",
                                     "THEY SHOW UP HERE BY THEMSELVES.", "",
                                     "IT PLAYS POKEMON BLACK / WHITE / BLACK 2 / WHITE 2,",
-                                    "SOULSILVER / HEARTGOLD / PLATINUM (ENGLISH OR FRENCH)" };
+                                    "SOULSILVER / HEARTGOLD / PLATINUM",
+                                    "SUPPORTED REGIONAL VERSIONS: SEE THE README" };
             const char* heading = lines[0];
 #else
             const char* lines[] = { "NO GAMES FOUND", "",
                                     "PUT YOUR ROMS IN THE ROMS FOLDER BESIDE THIS PROGRAM.", "THEY SHOW UP HERE BY THEMSELVES.", "",
                                     "IT PLAYS POKEMON BLACK / WHITE / BLACK 2 / WHITE 2,",
-                                    "SOULSILVER / HEARTGOLD / PLATINUM (ENGLISH OR FRENCH)" };
+                                    "SOULSILVER / HEARTGOLD / PLATINUM",
+                                    "SUPPORTED REGIONAL VERSIONS: SEE THE README" };
             const char* heading = lines[0];
 #endif
             int y = canvas.h / 3;

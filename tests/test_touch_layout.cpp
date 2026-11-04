@@ -6,7 +6,7 @@
 enum { PAD_A, PAD_B, PAD_X, PAD_Y, PAD_BACK, PAD_GUIDE, PAD_START, PAD_LS, PAD_RS, PAD_LB, PAD_RB, PAD_UP, PAD_DOWN, PAD_LEFT, PAD_RIGHT, PAD_COUNT };
 #include "touchpad.h"
 
-int main()
+int main(int, char**)
 {
     const std::string path = (std::filesystem::temp_directory_path() / ("fulldex-touch-test-" + std::to_string(SDL_GetPerformanceCounter()) + ".cfg")).string();
     TouchLayout::Profile profile;
@@ -20,6 +20,7 @@ int main()
     assert(std::fabs(adjusted[1].x - 600) < 0.01f);
     assert(std::fabs(adjusted[1].rx / a.rx - 1.5f) < 0.01f);
     assert(profile.Save(path));
+    assert(profile.Save(path)); // Replacing an existing layout must work on Windows too.
     TouchLayout::Profile loaded; loaded.Load(path);
     auto roundtrip = loaded.Apply(defaults, 1280, 720);
     assert(std::fabs(roundtrip[1].x - 600) < 0.01f);
@@ -42,6 +43,12 @@ int main()
     SDL_Window* window = SDL_CreateWindow("Touch layout test", 0, 0, 1280, 720, SDL_WINDOW_HIDDEN);
     assert(window);
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE); assert(renderer);
+    for(const auto* language:UiLang::Codes) {
+        UiLang::Set(language);pad.MakeLabels(renderer);
+        assert(pad.labelsLanguage==UiLang::lang && pad.labels);
+        assert(pad.labelRect.at("MENU").h >= (UiLang::Tall()?42:21));
+    }
+    UiLang::Set("en");
     SDL_FlushEvents(SDL_FIRSTEVENT, SDL_LASTEVENT);
     auto tap = [](float x, float y) {
         SDL_Event e{}; e.type = SDL_FINGERDOWN; e.tfinger.fingerId = 123; e.tfinger.x = x; e.tfinger.y = y; SDL_PushEvent(&e);
@@ -64,4 +71,5 @@ int main()
     assert(edited.orientations[0].empty());
     SDL_DestroyRenderer(renderer); SDL_DestroyWindow(window); SDL_Quit(); std::remove(path.c_str());
     puts("Touch layout persistence, bounds, DS hit detection, editor save/cancel/reset passed");
+    return 0;
 }
