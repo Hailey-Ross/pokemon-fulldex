@@ -46,7 +46,8 @@ It looks like the DS games' menu (Fulldex's `frontend/ui.h`).
 
 Test hooks (environment): `GBAW_TEST_FRAMES=<n>` quits after n frames; `GBAW_TEST_DUMP=<prefix>` saves
 a PPM every `GBAW_TEST_DUMP_EVERY` frames (300) from `GBAW_TEST_DUMP_FROM`; `GBAW_TEST_KEYS=<frame>:<KEY>[+<KEY>][:<held>],...`
-presses keys; `GBAW_TEST_PRESS=1` taps A; `GBAW_TEST_MENU=<loop>[ra]` opens the pause menu (its achievements page).
+presses keys; `GBAW_TEST_PRESS=1` taps A; `GBAW_TEST_MENU=<loop>[ra]` opens the pause menu (its achievements page); `GBAW_TEST_NO_PATCH=1`
+plays the ROM as it is (no patch, no EXPAND), to compare.
 
 Credits: Pokemon GBA Widescreen by mamesj (the idea and the protocol, in Pokemon Fulldex), mGBA by
 endrift and contributors (MPL-2.0; `patches/mgba-wide.patch` is MPL-2.0), the pret decompilations

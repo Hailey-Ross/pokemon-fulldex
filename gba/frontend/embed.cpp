@@ -405,7 +405,8 @@ bool Play(const std::string& romPath, Options& o)
     std::string key, name;
     KeyAndName(romPath, original, key, name);
     std::vector<uint8_t> rom = original;
-    const Profile* profile = FindProfile(rom);
+    const bool testClean = getenv("GBAW_TEST_NO_PATCH") != nullptr; // (test: the game as it is, no widescreen at all)
+    const Profile* profile = testClean ? nullptr : FindProfile(rom);
     if (profile && !ApplyWidePatch(*profile, rom))
     {
         fprintf(stderr, "[gba] the widescreen patch doesn't fit: plays at 3:2\n");
@@ -413,7 +414,7 @@ bool Play(const std::string& romPath, Options& o)
         profile = nullptr;
     }
     // Our patch where it fits; otherwise PokeDaisy's EXPAND draws the sides for the games and hacks it knows
-    const bool expand = !profile && pk_wide_configure(doCrc32(rom.data(), rom.size()));
+    const bool expand = !profile && !testClean && pk_wide_configure(doCrc32(rom.data(), rom.size()));
     struct ExpandOff
     {
         bool on;
