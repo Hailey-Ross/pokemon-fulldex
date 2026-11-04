@@ -265,7 +265,7 @@ void SetRomFolder(Folders& fo)
 // the emulator, which reads them by file name.
 void ExtractFuncs(const Folders& fo)
 {
-    std::vector<const char*> codes = { "IREO", "IRDO", "IRBO", "IRAO", "CPUE", "ADAE", "IRAS", "CPUS", "ADAS", "APAE", "IREF", "IRDF", "CPUF", "IRBF", "IRAF" };
+    std::vector<const char*> codes = { "IREO", "IRDO", "IRBO", "IRAO", "CPUE", "ADAE", "IRAS", "CPUS", "ADAS", "APAE", "APAF", "APAS", "APAD", "ADAD", "ADAI", "IREF", "IRDF", "CPUF", "IRBF", "IRAF" };
     for (const auto& p : RegionalProfiles::profiles) if (p.functions) codes.push_back(p.code);
     for (const char* code : codes)
     {
@@ -543,6 +543,9 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
         SDL_Quit();
         return -1;
     }
+    // Back from a game, the list is a new window: take the focus (as the game's window does),
+    // so that the keyboard and controllers work without a click first.
+    SDL_RaiseWindow(window);
 #ifdef SSR_IOS
     // The window exists now: ask iOS to turn, in case the device was already sideways.
     IosOrientLauncher();
@@ -2015,6 +2018,11 @@ void Finish()
     STARTUPINFOW si = {};
     si.cb = sizeof si;
     PROCESS_INFORMATION pi = {};
+    // The game list comes back as a new process, and Windows gives a new process's window
+    // the focus only if the one that had it allows it: without this the list opened behind
+    // or without the focus, and a controller did nothing until it was clicked. (This process
+    // had the last input, the menu's QUIT, so it may allow it.)
+    AllowSetForegroundWindow(ASFW_ANY);
     if (CreateProcessW(self, &cmd[0], nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi))
     {
         CloseHandle(pi.hThread);
