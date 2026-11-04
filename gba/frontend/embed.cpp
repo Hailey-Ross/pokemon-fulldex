@@ -441,13 +441,15 @@ bool Play(const std::string& romPath, Options& o)
     AchievementsHost* ra = o.achievements;
     const bool raOn = ra && ra->begin && ra->begin(ra->ud, original.data(), original.size(), core, ReadMemory);
 
-    // Test hooks: quit after a number of frames, save a frame every 300, tap A now and then, open the menu.
+    // Test hooks: quit after a number of frames (or loops, menu open), save a frame every 300, tap A now and then,
+    // open the menu ("600ra": its achievements page).
     const char* testFrames = getenv("GBAW_TEST_FRAMES");
     const char* testDump = getenv("GBAW_TEST_DUMP");
     const bool testPress = getenv("GBAW_TEST_PRESS") != nullptr;
     const char* testMenu = getenv("GBAW_TEST_MENU");
     const long testLimit = testFrames ? atol(testFrames) : 0;
     const long testMenuAt = testMenu ? atol(testMenu) : -1;
+    const bool testMenuRa = testMenu && strstr(testMenu, "ra");
     long frameCount = 0, loops = 0;
 
     // Pause menu state
@@ -538,7 +540,11 @@ bool Play(const std::string& romPath, Options& o)
         loops++;
         if (toggle)
         {
-            if (page == PAGE_NONE) openMenu();
+            if (page == PAGE_NONE)
+            {
+                openMenu();
+                if (testMenuRa && loops == testMenuAt + 1 && ra) page = PAGE_RA;
+            }
             else if (page == PAGE_RA) { page = PAGE_MAIN; menu.selected = 0; menu.scroll = 0; }
             else closeMenu();
         }
@@ -668,7 +674,7 @@ bool Play(const std::string& romPath, Options& o)
                 fclose(f);
             }
         }
-        if (testLimit && frameCount >= testLimit) running = false;
+        if (testLimit && (frameCount >= testLimit || loops >= 2 * testLimit)) running = false;
 
         SDL_UpdateTexture(texture, nullptr, pixels.data(), kMaxWidth * 4);
         int outW = 0, outH = 0;
@@ -763,7 +769,7 @@ bool Play(const std::string& romPath, Options& o)
         }
         // (Test: our window's picture once while the menu is open; only this window is read.)
         static bool menuShot = false;
-        if (testDump && page == PAGE_MAIN && !menuShot && loops > testMenuAt + 2)
+        if (testDump && page != PAGE_NONE && !menuShot && loops > testMenuAt + 2)
         {
             menuShot = true;
             std::vector<uint32_t> shot((size_t)outW * outH);

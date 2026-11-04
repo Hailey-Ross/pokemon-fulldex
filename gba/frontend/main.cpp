@@ -4,6 +4,9 @@
 // (data: the program's folder). Exit code 0 when the game ran.
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "embed.h"
+#ifdef GBAW_RA
+#include "gba_ra.h" // RetroAchievements: Fulldex's account (ra=, ra_user=, ra_token= in <data>/settings.cfg)
+#endif
 
 #include <SDL.h>
 
@@ -58,7 +61,11 @@ int main(int argc, char** argv)
         fprintf(stderr, "gbawide: SDL: %s\n", SDL_GetError());
         return 1;
     }
+#ifdef GBAW_RA
+    const bool ok = GbaRa::Play(rom, o, o.data + "/settings.cfg");
+#else
     const bool ok = GbaWide::Play(rom, o);
+#endif
     SDL_Quit();
     return ok ? 0 : 1;
 }
