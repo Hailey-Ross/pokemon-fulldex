@@ -62,6 +62,7 @@ struct Options
     bool fullscreen = false;
     int w = 0, h = 0;   // the window's size when not fullscreen (0: our own)
     AchievementsHost* achievements = nullptr;
+    std::string save;   // a save file to use instead of <saves>/<key>.sav (the stand-alone player's --save)
 };
 
 // Plays the game until the player quits. False when it could not start.

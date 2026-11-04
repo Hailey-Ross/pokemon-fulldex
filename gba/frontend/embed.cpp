@@ -85,6 +85,19 @@ std::string Stem(const std::string& path)
     return dot == std::string::npos ? name : name.substr(0, dot);
 }
 
+// The file's name as a save name, as Pokemon Fulldex names them: lower case, other characters as one '-'.
+std::string Slug(const std::string& s)
+{
+    std::string out;
+    for (unsigned char c : s)
+    {
+        if (isalnum(c)) out += (char)tolower(c);
+        else if (!out.empty() && out.back() != '-') out += '-';
+    }
+    while (!out.empty() && out.back() == '-') out.pop_back();
+    return out.empty() ? "game" : out;
+}
+
 // A ROM's save name and list name: the patch's when it fits, the file's own otherwise.
 void KeyAndName(const std::string& path, const std::vector<uint8_t>& rom, std::string& key, std::string& name)
 {
@@ -94,8 +107,8 @@ void KeyAndName(const std::string& path, const std::vector<uint8_t>& rom, std::s
         name = p->name;
         return;
     }
-    key = Stem(path);
-    name = key;
+    key = Slug(Stem(path));
+    name = Upper(Stem(path));
 }
 
 // gba-settings.ini: key=value lines
@@ -366,8 +379,8 @@ bool Play(const std::string& romPath, Options& o)
         fprintf(stderr, "[gba] %s isn't a ROM mGBA can load\n", romPath.c_str());
         return false;
     }
-    MKDIR(o.saves.c_str());
-    const std::string savePath = o.saves + "/" + key + ".sav";
+    if (o.save.empty()) MKDIR(o.saves.c_str());
+    const std::string savePath = o.save.empty() ? o.saves + "/" + key + ".sav" : o.save;
     mCoreLoadSaveFile(core, savePath.c_str(), false);
 
     SDL_InitSubSystem(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER | SDL_INIT_EVENTS);

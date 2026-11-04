@@ -13,6 +13,10 @@ This folder lets a Pokemon Fulldex build list and play Game Boy Advance games. F
 - `frontend/`: what Fulldex calls (`embed.h`): `Find` for its game list and `Play`, our player
   (SDL2). A patch goes on a copy of the ROM in memory, and only when the ROM's code matches the check
   list. Otherwise the game plays at 3:2.
+- On its own (`cmake -S gba`, no `GBAW_EMBEDDED`): `gbawide.exe`, the same player for launchers:
+  `gbawide [--rom] <file.gba> [--save <file.sav>] [--saves <folder>] [--data <folder>] [--fullscreen]
+  [--size WxH]`. On Windows it is one static program. RetroAchievements are only there inside Fulldex.
+  Hacks' saves are named as Fulldex names them (the file's name, lower case, `-` between words).
 - CMake: target `gbawide`. mGBA is fetched at `mgba.commit` and patched, or taken from
   `-DGBAW_MGBA_DIR=<a patched checkout>`.
 
