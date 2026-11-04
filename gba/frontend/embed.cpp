@@ -570,6 +570,15 @@ bool Play(const std::string& romPath, Options& o)
     const char* testEvery = getenv("GBAW_TEST_DUMP_EVERY");
     const long testDumpEvery = std::max(1L, testEvery ? atol(testEvery) : 300L);
     const char* testFrom = getenv("GBAW_TEST_DUMP_FROM"); // only frames from this one on
+    // GBAW_TEST_RAM=<frame>,...: EWRAM and IWRAM written to <dump prefix>-ram-<frame>-{ewram,iwram}.bin (finding addresses)
+    std::vector<long> testRam;
+    if (const char* s = getenv("GBAW_TEST_RAM"))
+        for (const char* p = s; *p;)
+        {
+            testRam.push_back(atol(p));
+            while (*p && *p != ',') p++;
+            if (*p) p++;
+        }
     const long testDumpFrom = testFrom ? atol(testFrom) : 1;
     long frameCount = 0, loops = 0;
 
@@ -819,6 +828,20 @@ bool Play(const std::string& romPath, Options& o)
                 fclose(f);
             }
         }
+        if (testDump && page == PAGE_NONE)
+            for (long at : testRam)
+                if (frameCount == at)
+                {
+                    const struct { const char* name; uint32_t base, size; } areas[] = { { "ewram", 0x02000000, 0x40000 }, { "iwram", 0x03000000, 0x8000 } };
+                    for (const auto& a : areas)
+                        if (FILE* f = fopen((std::string(testDump) + "-ram-" + std::to_string(at) + "-" + a.name + ".bin").c_str(), "wb"))
+                        {
+                            std::vector<uint8_t> buf(a.size);
+                            for (uint32_t i = 0; i < a.size; i++) buf[i] = (uint8_t)core->busRead8(core, a.base + i);
+                            fwrite(buf.data(), 1, buf.size(), f);
+                            fclose(f);
+                        }
+                }
         if (testLimit && (frameCount >= testLimit || loops >= 2 * testLimit)) running = false;
 
         const SDL_Rect area = { 0, 0, (int)w, (int)h };

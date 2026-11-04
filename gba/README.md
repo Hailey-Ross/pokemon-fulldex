@@ -18,7 +18,10 @@ This folder lets a Pokemon Fulldex build list and play Game Boy Advance games. F
   (`third_party/pokedaisy`, unchanged, GPL-3.0; `third_party/pokedaisy_compat.h` adapts it to our mGBA).
   Based on PokeDaisy by Lidor Itzhari - https://github.com/lidor30/pokedaisy
   We added BugLime v1.2 and Adventure Red Chapter Beta 15 to its table (FireRed hacks edited in place: FireRed's
-  addresses mapped through the literal pools by nativeMons' gba-test-tools/wide_map.py; checked on real saves).
+  addresses mapped through the literal pools by nativeMons' gba-test-tools/wide_map.py; checked on real saves), and
+  FireRed Evolved v0.2.31 (a recompiled FireRed: its addresses found in RAM snapshots, `GBAW_TEST_RAM`, by
+  gba-test-tools/find_wide.py; checked on a real save), and Elite Redux v2.65-beta2 (PokeDaisy's 2.65.3b RAM
+  addresses, which held in its snapshots, with its own map table; checked on a real save).
 - Ultra Violet (a FireRed 1.0 hack), as Fulldex has it: its `.gba`, or its `.ips` with a clean FireRed
   1.0 beside it (or given with `--base`), told by the file's name; saved as `ultraviolet.sav`, wide when
   it passes FireRed's check.
@@ -49,7 +52,8 @@ It looks like the DS games' menu (Fulldex's `frontend/ui.h`).
 Test hooks (environment): `GBAW_TEST_FRAMES=<n>` quits after n frames; `GBAW_TEST_DUMP=<prefix>` saves
 a PPM every `GBAW_TEST_DUMP_EVERY` frames (300) from `GBAW_TEST_DUMP_FROM`; `GBAW_TEST_KEYS=<frame>:<KEY>[+<KEY>][:<held>],...`
 presses keys; `GBAW_TEST_PRESS=1` taps A; `GBAW_TEST_MENU=<loop>[ra]` opens the pause menu (its achievements page); `GBAW_TEST_NO_PATCH=1`
-plays the ROM as it is (no patch, no EXPAND), to compare.
+plays the ROM as it is (no patch, no EXPAND), to compare; `GBAW_TEST_RAM=<frame>,...` writes EWRAM and IWRAM to
+`<dump prefix>-ram-<frame>-{ewram,iwram}.bin` at those frames.
 
 Credits: Pokemon GBA Widescreen by mamesj (the idea and the protocol, in Pokemon Fulldex), mGBA by
 endrift and contributors (MPL-2.0; `patches/mgba-wide.patch` is MPL-2.0), the pret decompilations

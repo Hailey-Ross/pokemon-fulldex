@@ -2,3 +2,7 @@ PokeDaisy's EXPAND, unchanged, from https://github.com/lidor30/pokedaisy at 54f4
 (app/src/main/cpp: pk_wide.c/.h, pk_wide_games.h, pk_wide_gb.c, pk_cheats.c/.h, pk_coop_emerald.h; LICENSE, NOTICE).
 Based on PokeDaisy by Lidor Itzhari - https://github.com/lidor30/pokedaisy
 To update: copy those files from a newer commit and change the commit above. ../pokedaisy_compat.h adapts them to our mGBA.
+Changed by nativeMons: pk_wide_games.h has four rows added at the end of PK_WIDE_ROMS: BugLime v1.2 and Adventure Red
+Chapter Beta 15 (mapped from FireRed rev 1 by gba-test-tools/wide_map.py) and FireRed Evolved v0.2.31 (found in RAM
+snapshots by gba-test-tools/find_wide.py), Elite Redux v2.65-beta2 (2.65.3b's RAM, checked in snapshots;
+its own gMapGroups); everything else is as PokeDaisy has it.
