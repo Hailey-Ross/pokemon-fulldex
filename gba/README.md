@@ -27,7 +27,7 @@ This folder lets a Pokemon Fulldex build list and play Game Boy Advance games. F
   it passes FireRed's check.
 - Box art: `Find` fetches the official art for FireRed, LeafGreen and Emerald from
   [libretro-thumbnails](https://github.com/libretro-thumbnails/Nintendo_-_Game_Boy_Advance) into a cache
-  (`SDL_GetPrefPath("gbawide", "box-art")`, Windows only for now). None is shipped here.
+  (`SDL_GetPrefPath("gbawide", "box-art")`), through Fulldex's own requests on every platform (WinHTTP when built without them). None is shipped here.
 - On its own (`cmake -S gba`, no `GBAW_EMBEDDED`): `gbawide.exe`, the same player for launchers:
   `gbawide [--rom] <file.gba|file.ips> [--base <firered.gba>] [--save <file.sav>] [--saves <folder>] [--data <folder>] [--fullscreen]
   [--config <settings.cfg>] [--size WxH]`. On Windows it is one static program. RetroAchievements come from

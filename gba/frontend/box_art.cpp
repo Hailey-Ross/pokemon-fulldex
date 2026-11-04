@@ -79,7 +79,30 @@ bool ReadAll(const std::string& path, std::vector<unsigned char>& out)
     return !out.empty();
 }
 
-#ifdef _WIN32
+#if defined(GBAW_FULLDEX_HTTP)
+}
+}
+// Fulldex's own way to the internet on each platform (frontend/achievements_http.cpp; an empty post is a GET).
+namespace Achievements
+{
+bool HttpPost(const std::string& url, const std::string& post, const std::string& contentType,
+              const std::string& userAgent, int& status, std::string& body, std::string& error);
+}
+namespace GbaWide
+{
+namespace
+{
+bool Download(const std::string& path, std::vector<unsigned char>& out)
+{
+    int status = 0;
+    std::string body, error;
+    if (!Achievements::HttpPost(std::string("https://") + kHost + path, "", "", "gbawide", status, body, error) || status != 200)
+        return false;
+    if (body.size() <= 8 || body.size() > (8u << 20) || memcmp(body.data(), "\x89PNG", 4)) return false;
+    out.assign(body.begin(), body.end());
+    return true;
+}
+#elif defined(_WIN32)
 bool Download(const std::string& path, std::vector<unsigned char>& out)
 {
     bool ok = false;
