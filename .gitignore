@@ -8,8 +8,16 @@
 /android/
 /*.apk
 # Game files, saves and save states
+/roms/
+/saves/
 *.nds
+*.gba
+*.gb
+*.gbc
+*.3ds
 *.sav
+*.srm
+*.dsv
 *.sav.state
 *.state
 *.st

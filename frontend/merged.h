@@ -462,6 +462,74 @@ inline Element Crop(int screen, int sx, int sy, int sw, int sh)
     return { screen, sx, sy, sw, sh, 0, 0, 1.0f, 0, 255, false };
 }
 
+// A battle's question ("Use next Pokemon?") stays at full size on the top screen. The two
+// answers from the touch screen sit at the right end of the message bar, under the text,
+// so nothing covers the battle or the question.
+inline Scene BattleChoiceScene(float viewWidth)
+{
+    Scene sc;
+    sc.name = "battle-choice";
+    sc.wide = viewWidth >= 300;
+    sc.smartEdges = true;
+    sc.items = { FullScreen(0) };
+    const float right = 128 + viewWidth / 2 - 4;    // the bar's right end
+    const float room = right - 170;                 // the question's text ends near x 166
+    const float k = std::max(0.3f, std::min(0.42f, room / 252));
+    const float h = 47 * k, gap = 2;
+    float y = 148 + (41 - (2 * h + gap)) / 2;       // the bar: rows 147 to 189
+    for (int top : { 33, 80 })                      // SWITCH POKEMON, then KEEP BATTLING
+    {
+        Element b = Crop(1, 2, top, 252, 47); // with the red cursor brackets
+        b.scale = k;
+        b.dx = right - 252 * k;
+        b.dy = y;
+        sc.items.push_back(b);
+        y += h + gap;
+    }
+    return sc;
+}
+
+// Black and Black 2's Bag: the touch screen alone while browsing the pockets; once an item is
+// chosen (its card on the top screen), both screens side by side.
+inline Scene BagScene(float viewWidth, const ScreenImage* screens)
+{
+    const float viewLeft = 128 - viewWidth / 2, viewRight = 128 + viewWidth / 2;
+    int text = 0;
+    if (screens && screens[0].pixels)
+        for (int y = 28; y < 152; y += 2)
+            for (int x = 8; x < 248; x += 2)
+            {
+                const uint32_t c = screens[0].pixels[y * 256 + x];
+                text += ((c >> 16) & 0xFF) > 200 && ((c >> 8) & 0xFF) > 200 && (c & 0xFF) > 200;
+            }
+    Scene sc;
+    sc.name = "bag";
+    Element list = FullScreen(1);
+    sc.items = { list };
+    if (text >= 12)
+    {
+        // An item chosen: both screens side by side, as the DS shows them (the card on the
+        // top screen, the message and the choices on the touch screen), so that neither covers
+        // the other; the rest of the view in the card's own blue.
+        const float k = std::min(1.0f, viewWidth / 512);
+        Element top = Crop(0, 0, 0, 256, 192), touch = Crop(1, 0, 0, 256, 192);
+        top.scale = touch.scale = k;
+        top.dx = 128 - 256 * k;
+        touch.dx = 128;
+        top.dy = touch.dy = 96 - 96 * k;
+        top.crisp = touch.crisp = k == 1.0f;
+        sc.name = "bag";
+        sc.items = { top, touch };
+        const uint32_t blue = screens && screens[0].pixels ? screens[0].pixels[100 * 256 + 4] & 0xFFFFFF : 0x103070;
+        sc.items.insert(sc.items.begin(), FillRect(viewLeft - 1, -1, (int)std::ceil(viewWidth) + 3, 194, blue));
+        return sc;
+    }
+    sc.bgScreen = 1;
+    sc.bgX = 2;
+    sc.bgY = 2;
+    return sc;
+}
+
 // Arranges crops as one column (or one row), scaled together to fill the view.
 // Black and Black 2's save screen (SAVE in the X menu): the question, YES / NO, the card of the
 // saved game and the progress of the save are all on the touch screen, laid out alike in both
