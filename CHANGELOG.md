@@ -3,6 +3,78 @@
 
 ## Unreleased
 
+- **GBA games: the pause menu works like the DS games'.** On the Switch, + is the GBA's START and
+  + and - together open the pause menu (START BUTTON in CONTROLS swaps them); a lone + or - reaches
+  the game a moment later, so the pair is never taken for one of them. The menu has the DS games'
+  DISPLAY, SOUND and CONTROLS pages and CHEATS, and the settings the DS games share (ASPECT RATIO,
+  smooth scaling, VOLUME in tens, FAST FORWARD SOUND, FPS COUNTER, BORDERLESS FULLSCREEN) are the
+  same setting in both.
+- **GBA games: fast forward like the DS games'.** The music carries on at its normal speed while
+  the game runs ahead (FAST FORWARD SOUND off: silent), and a quick tap of a direction moves a menu
+  cursor once (#73).
+- **GBA games: new display options.** HD FILTER redraws the pixel art with smooth edges (xBRZ by
+  Zenju, GPLv3), LCD EFFECT adds a faint grid like a GBA's screen, and COLOUR CORRECTION shows the
+  colours as a GBA's screen did. SCALING keeps SHARP, SMOOTH and PIXEL PERFECT (whole-number zooms
+  only), now explained, and ASPECT RATIO (AUTO, 16:9, 16:10, 3:2, 4:3) replaces WIDESCREEN.
+- **Switch: the GBA games' sound is no longer crackly or sped up.** They asked the Switch for
+  512-sample sound buffers, which ran dry between them: it played about 41,000 samples a second
+  instead of 48,000, so sound piled up and was thrown away. Now 2048, as big as the DS games' and more.
+- **LOAD STATE: a damaged state is refused, not half-loaded.** A state that fails partway
+  (corrupt or from another version) used to report "STATE LOADED" over a half-restored
+  console. It now says so, keeps your save as it was, and restarts the game on it.
+  (Follow-up to #34.)
+- **Settings file with Windows line endings** (edited in Notepad, or copied from Windows) is read
+  properly: before, every on/off and view setting in it was ignored and the next save overwrote them.
+- **Setup program: an incomplete or wrong ROM gets a clear message** instead of a Python error, and `--rom` with a missing file or value stops with a usage line.
+- **Steadier frame times on screens that are not 60 Hz** (such as 144 Hz): each picture is now
+  handed over at its even time, instead of after the next frame's drawing, which took a
+  different time from one frame to the next. Measured on SoulSilver in the overworld at
+  144 Hz: the spread of the time between pictures fell from 0.6 ms to 0.03 ms.
+- **Keyboard: the key that closes the pause menu no longer reaches the game.** Choosing RESUME
+  with the A key (or backing out with B, or START's Enter) passed that key on to the game for
+  as long as it was held, as a controller's buttons already did not.
+- **Game list: importing a save no longer destroys the one already there.** A dropped `.sav`
+  with the name of an existing save now keeps the old one as `<name>.sav.before-import.bak`;
+  `file://` paths with `%20` and the like import, and `--rom x.gba` is imported once, not twice.
+- **Hybrid layout: a click on the small top-screen inset no longer touches the game.** With the
+  touch screen large and the top screen drawn over its corner (4:3 windows), clicking the inset
+  tapped the touch screen hidden under it.
+- **A save that cannot be read is no longer started over.** If the save file is there but unreadable
+  (wrong permissions, a failing drive), the game now stops with a message instead of starting a
+  new game and writing over it at the first in-game save.
+- **Pause menu: the mouse can click its rows** (PC), as a finger taps them on a touch screen;
+  clicking beside the box closes it.
+- **Forgetting a move (TM, level-up): the new move and the Cancel button show** on the
+  widescreen summary. They were cut off below the moves list.
+
+- **HeartGold and SoulSilver: the Apricorn Box, Pal Pad and Berry Pots screens are whole again.**
+  Opened from the Bag, they were shown as a cropped start-menu panel (the Apricorn Box's message
+  cut off and its CLOSE button missing, the Pal Pad's menu and the pots' row cut at the edge);
+  they now show the touch screen like the other bottom-screen applications.
+- **HeartGold and SoulSilver: the Vs. Recorder is whole.** Used from the Bag's Key Items, its
+  "TOUCH HERE!" title and its menu (Battle Videos, Frontier Record) were shown as a cropped
+  start-menu panel beside a green top screen; they now show the touch screen like the other
+  bottom-screen applications.
+- **Widescreen overworld: the door wipe covers the whole view.** Coming out of a building the world's 4:3 middle showed at once while only the sides were wiped open; now the black rows of the wipe cross the full width.
+- **SoulSilver and HeartGold: the Running Shoes button beside the X menu has a right edge.** The game
+  draws the button past the edge of its screen, so the copy was cut off flat; its outline is now
+  closed on the right as on the left.
+- **Cheats page: the details strip fits on small screens.** At 800x480 (Android handhelds) or
+  smaller the cheat list was as tall as the screen, so a cheat's full name and the database's
+  note under it were cut off the bottom. The list now leaves room for the strip.
+- **HeartGold and SoulSilver: Fly's sky band fills the whole width.** The sky behind the player
+  during the fly-away and landing stopped at the screen's right edge on a wide view, with the
+  world showing beside it (its outermost column belongs to the world); it now goes on to both edges.
+- **Graphics-chip 3D at DS resolution (`--wide-gpu`, the Switch default): shapes and textures
+  sit on the same pixels as the software renderer's** (signs keep their top row, floors no
+  longer shift by a pixel).
+
+- **Pokémon summary view: the backing panel's corners are rounded in the window too.** The
+  graphics-card drawing filled the panel square over its rounded outline, so the corners showed
+  the panel's colour outside the curve; the headless pictures were right.
+- **Smooth scaling: the Summary screen's lower half no longer loses its EXP bar** (and other
+  trimmed rims): the filtered compose now honours the same rim and corner-sprite trimming as the
+  sharp one and the GPU path.
 - **Black 2 and White 2: battle questions keep their buttons** until you answer ("Will you
   switch your Pokémon?", "Use next Pokémon?"), in every language. The question stays full size
   with the battle, and both answers sit at the end of the message bar (Black and White too).

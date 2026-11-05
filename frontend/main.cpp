@@ -1157,7 +1157,7 @@ struct AutoFocus
             "Bag", "PartyMenu", "NamingScreen", "Pokegear", "GearConfigure", "GearMap", "GearPhone", "GearRadio",
             "TownMap", "PCBox", "EasyChat", "VoltorbFlip", "Pokedex", "ScratchOffCards", "AlphPuzzle",
             "TrainerCard", "TrainerCardSignature", "BugContestSwapMon", "WirelessTradeSelectMon", "OptionsMenu",
-            "MainMenu", "CheckSave", "DeleteSave",
+            "MainMenu", "CheckSave", "DeleteSave", "ApricornBox", "PalPad", "BerryPots",
         };
         for (unsigned i = 0; i < rc_num_apps; i++)
             for (const char* n : names)
@@ -1628,6 +1628,8 @@ struct Settings
             size_t eq = line.find('=');
             if (eq == std::string::npos) return;
             std::string k = line.substr(0, eq), v = line.substr(eq + 1);
+            // A file saved with Windows line endings (or edited in Notepad) leaves a "\r" on every value.
+            while (!v.empty() && (v.back() == '\r' || v.back() == '\n')) v.pop_back();
             if (controls.Apply(k, v)) return;
             // "view" replaced the older "layout" key when the merged view became the default.
             if (k == "view") layout = v;
@@ -1779,12 +1781,17 @@ static bool WriteSnapshot(NDS& nds, const std::string& path, uint32_t frame)
 }
 
 // Snapshot file: 4-byte frame number, then the core's savestate.
-static bool ReadSnapshot(NDS& nds, const std::string& path, uint32_t* frame)
+// *touched is set once the core has started to take the state in: a failure after that
+// leaves the console half-loaded (and its save replaced by the state's).
+static bool ReadSnapshot(NDS& nds, const std::string& path, uint32_t* frame, bool* touched = nullptr)
 {
+    if (touched) *touched = false;
     std::vector<uint8_t> blob = ReadFile(path);
     if (blob.size() <= 4) return false;
     Savestate st(blob.data() + 4, (u32)blob.size() - 4, false);
-    if (st.Error || !nds.DoSavestate(&st)) return false;
+    if (st.Error) return false;
+    if (touched) *touched = true;
+    if (!nds.DoSavestate(&st) || st.Error) return false;
     if (frame) memcpy(frame, blob.data(), 4);
     rc_reset();
     return true;
@@ -1875,6 +1882,22 @@ int main(int argc, char** argv)
 
     std::vector<uint8_t> sav = ReadFile(opt.save);
     fprintf(stderr, "ROM %s: %zu bytes; save %s: %zu bytes\n", opt.rom.c_str(), rom.size(), opt.save.c_str(), sav.size());
+    // A save that is there but cannot be read (permissions, a failing drive) is not an empty one:
+    // starting fresh would write over it at the first in-game save, and the backup at start
+    // could not copy it either.
+    if (!opt.noSave && sav.empty())
+    {
+        std::error_code ec;
+        const auto size = std::filesystem::file_size(std::filesystem::u8path(opt.save), ec);
+        if (!ec && size > 0)
+        {
+            char msg[1024];
+            snprintf(msg, sizeof msg, "The save %s (%ju bytes) cannot be read, so the game was not started: a new game would write over it. Check the file's permissions.", opt.save.c_str(), (uintmax_t)size);
+            fprintf(stderr, "%s\n", msg);
+            if (!opt.headless && !opt.testRun) SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Save could not be read", msg, nullptr);
+            return 1;
+        }
+    }
     // (RETROACHIEVEMENTS from the settings file now: the console is made differently with it on.)
     if (!opt.headless && !opt.lockstep && Achievements::Available())
     {
@@ -3700,8 +3723,15 @@ int main(int argc, char** argv)
             const uint32_t* lpx = screens[1].pixels;
             const bool moveDetails = (lpx[5 * 256 + 140] & 0xFFFFFF) == frame &&
                 (lpx[6 * 256 + 200] & 0xFFFFFF) == frame && (lpx[161 * 256 + 140] & 0xFFFFFF) == frame;
+            // Choosing a move to forget for a new one (a TM, a level-up): the new move has a
+            // panel of its own below the list and the details have a Cancel button under them,
+            // both beyond the card's usual bottom edge.
+            const bool learning = moveDetails && (lpx[185 * 256 + 60] & 0xFFFFFF) == frame &&
+                (lpx[185 * 256 + 10] & 0xFFFFFF) == frame;
             if (moveDetails)
                 lower.sw = 130; // the list and its right edge, not the details beside it
+            if (learning)
+                lower.sh = 190;
             const float pad = 4, gap = 6, margin = 6, h = 189;
             const int cardW = upper.sw;
             const float card = cardW + 2 * pad;
@@ -3853,7 +3883,7 @@ int main(int argc, char** argv)
                 back.borderColor = frame;
                 back.borderRadius = 3;
                 sc.items.push_back(back);
-                Element details = Crop(1, 128, 5, 128, 158);
+                Element details = Crop(1, 128, 5, 128, learning ? 186 : 158);
                 details.scale = scale;
                 details.dx = x + (pad + (cardW - details.sw - 2) / 2.0f) * scale;
                 details.dy = y + (h - details.sh) / 2.0f * scale;
@@ -5038,6 +5068,10 @@ int main(int argc, char** argv)
     auto saveQuick = [&]() {
         say(WriteSnapshot(*nds, quickState, frame) ? "STATE SAVED" : "SAVE STATE FAILED");
     };
+    auto resetGame = [&]() {
+        nds->Reset(); nds->SetupDirectBoot("game.nds"); nds->Start();
+        rc_reset(); Achievements::Reset(); SetClock(*nds, false);
+    };
     auto loadQuickNow = [&]() {
         // LOAD STATE: back where the state was made, the in-game save kept as it is. A state
         // carries the save as it was then, which would otherwise replace the newer one on the
@@ -5045,9 +5079,18 @@ int main(int argc, char** argv)
         std::vector<u8> keep;
         if (const u8* cur = nds->GetNDSSave(); cur && nds->GetNDSSaveLength())
             keep.assign(cur, cur + nds->GetNDSSaveLength());
-        if (!ReadSnapshot(*nds, quickState, nullptr))
+        bool touched = false;
+        if (!ReadSnapshot(*nds, quickState, nullptr, &touched))
         {
-            say("NO STATE TO LOAD");
+            if (touched)
+            {
+                // The state may have put its older save in, and a half-loaded console is not
+                // one to carry on with: the save stays, and the game restarts on it.
+                if (!keep.empty()) nds->SetNDSSave(keep.data(), (u32)keep.size());
+                resetGame();
+                say("STATE COULD NOT BE LOADED");
+            }
+            else say("NO STATE TO LOAD");
             return;
         }
         if (!keep.empty()) nds->SetNDSSave(keep.data(), (u32)keep.size());
@@ -5058,10 +5101,6 @@ int main(int argc, char** argv)
     auto loadQuick = [&]() {
         menu.open = true;
         goPage(PAGE_LOAD_CONFIRM, M_BACK);
-    };
-    auto resetGame = [&]() {
-        nds->Reset(); nds->SetupDirectBoot("game.nds"); nds->Start();
-        rc_reset(); Achievements::Reset(); SetClock(*nds, false);
     };
 #if defined(__ANDROID__) && !defined(SSR_PC_LAUNCHER)
     bool updateSaid = false;
@@ -5121,6 +5160,7 @@ int main(int argc, char** argv)
     bool prevComboMenu = false;
     bool ctrlStart = false, touchStart = false, prevCtrlStart = false; // see cfg.startMenu
     bool swallowMenuButtons = false; // keeps the buttons that closed the menu from reaching the game
+    uint32_t kbKeysHeld = 0; // the keyboard's DS buttons held this frame
     const double frameTime = 1.0 / 59.8261;
     uint64_t perfFreq = opt.headless ? 1 : SDL_GetPerformanceFrequency();
     uint64_t nextTick = opt.headless ? 0 : SDL_GetPerformanceCounter();
@@ -5305,6 +5345,8 @@ int main(int argc, char** argv)
     }
 
     uint64_t lastShownAt = 0, shownGaps = 0, shownGapsLong = 0;
+    uint64_t lastPresentRet = 0; // when the last SDL_RenderPresent returned (what a frame-time graph sees)
+    std::vector<double> presentIntervals; // ms between returns, for the perf line
     // Showing a frame in two steps: drawn (renderFrame), then handed to the screen
     // (presentFrame), which with `ahead` happens at the frame's own time, a while after.
     auto renderFrame = [&](DrawJob& j) {
@@ -5423,6 +5465,38 @@ int main(int argc, char** argv)
                 while (SDL_GetPerformanceCounter() < nextTick) {}
             }
         }
+        // At their own times (no vsync): the wait that keeps frames 1/60 s apart comes before
+        // handing the picture over, so the pictures leave at even times. (After it, they left
+        // when the next frame's drawing was done, and that takes a different time from one
+        // frame to the next, the in-between frames' scenes costing more than the others: the
+        // frame-time graph of a 144 Hz screen alternated 16.1 and 17.2 ms.)
+        if (pace && !syncToDisplay)
+        {
+            uint64_t now = SDL_GetPerformanceCounter();
+            if (now < nextTick)
+            {
+                // Sleep for most of the wait and spin for the last part of a millisecond.
+                // (With the pipeline only the sleep, leaving the core to the widescreen thread.)
+                const double left = (double)(nextTick - now) / perfFreq;
+                if (pipelined) std::this_thread::sleep_for(std::chrono::duration<double>(left));
+                else
+                {
+                    if (left > 0.0008) std::this_thread::sleep_for(std::chrono::duration<double>(left - 0.0006));
+                    while (SDL_GetPerformanceCounter() < nextTick) {}
+                }
+            }
+            else
+            {
+                // Never faster than the DS (59.8 frames a second). A frame that ran late may take
+                // up to a quarter of a frame back from the next one, so that frames a little late
+                // and a little early in turn still average out to full speed, but a longer stall
+                // is not won back.
+                const uint64_t carry = (uint64_t)(frameTime * perfFreq / 4);
+                if (now - nextTick > carry) nextTick = now - carry;
+            }
+            nextTick += (uint64_t)(frameTime * perfFreq);
+            perfMark(4);
+        }
         // How evenly the frames are handed to the screen, for the timing lines: gaps between
         // them of more than 17.5 ms (a frame takes 16.7). (Taken before presenting: how long
         // that takes depends on the screen's own refresh.)
@@ -5436,6 +5510,12 @@ int main(int argc, char** argv)
             lastShownAt = t;
         }
         SDL_RenderPresent(renderer);
+        if (perfOn)
+        {
+            const uint64_t r = SDL_GetPerformanceCounter();
+            if (lastPresentRet && !j.wantShot) presentIntervals.push_back((double)(r - lastPresentRet) * 1000.0 / perfFreq);
+            lastPresentRet = r;
+        }
         perfMark(4);
         // Frames shown in the last whole second, for the FPS counter.
         presented++;
@@ -5483,32 +5563,6 @@ int main(int argc, char** argv)
             nextTick = returned + (uint64_t)(untilNext * (double)perfFreq);
             perfMark(5);
             return;
-        }
-        nextTick += (uint64_t)(frameTime * perfFreq);
-        uint64_t now = SDL_GetPerformanceCounter();
-        if (now < nextTick)
-        {
-            // Sleep for most of the wait and spin for the last part of a millisecond:
-            // frames then start within a few microseconds of an even 16.7 ms apart.
-            double left = (double)(nextTick - now) / perfFreq;
-            // (With the pipeline the start of the next emulation does not depend on this
-            // to the microsecond: only the sleep, leaving the core to the widescreen thread.)
-            if (pipelined) std::this_thread::sleep_for(std::chrono::duration<double>(left));
-            else
-            {
-                if (left > 0.0008) std::this_thread::sleep_for(std::chrono::duration<double>(left - 0.0006));
-                while (SDL_GetPerformanceCounter() < nextTick) {}
-            }
-        }
-        else
-        {
-            // Never faster than the DS (59.8 frames a second). A frame that ran late may take
-            // up to a quarter of a frame back from the next one, so that frames a little late
-            // and a little early in turn still average out to full speed, but a longer stall
-            // is not won back: up to 250 ms used to be, as frames run back to back, and the
-            // game and its music sped up for a moment after every stall.
-            const uint64_t carry = (uint64_t)(frameTime * perfFreq / 4);
-            if (now - nextTick > carry) nextTick = now - carry;
         }
         perfMark(5);
     };
@@ -5660,6 +5714,19 @@ int main(int argc, char** argv)
                     snprintf(extra, sizeof(extra), "; pipeline: waited for the emulation %.2f ms", perfAcc[1] / perfN);
                     tail += extra;
                 }
+                if (presentIntervals.size() > 10)
+                {
+                    std::sort(presentIntervals.begin(), presentIntervals.end());
+                    double sum = 0, sq = 0;
+                    for (double v : presentIntervals) sum += v;
+                    const double mean = sum / presentIntervals.size();
+                    for (double v : presentIntervals) sq += (v - mean) * (v - mean);
+                    snprintf(extra, sizeof(extra), "; present interval mean %.3f sd %.3f p99 %.2f max %.2f ms",
+                        mean, std::sqrt(sq / presentIntervals.size()),
+                        presentIntervals[presentIntervals.size() * 99 / 100], presentIntervals.back());
+                    tail += extra;
+                }
+                presentIntervals.clear();
                 if (shownGaps)
                 {
                     snprintf(extra, sizeof(extra), "; shown over 17.5 ms after the last: %llu of %llu",
@@ -5916,6 +5983,16 @@ int main(int argc, char** argv)
                 // A quick click can go down and up between two frames, and the game, which reads the
                 // touch screen once a frame, never saw it (the Pokeathlon's START did nothing): a
                 // click lasts at least 4 frames.
+                // A mouse click in the pause menu is a tap on it (a finger's is taken above; SDL's
+                // mouse events made from a finger are skipped so a tap is not used twice).
+                else if (ev.type == SDL_MOUSEBUTTONDOWN && ev.button.button == SDL_BUTTON_LEFT && menu.open &&
+                         ev.button.which != SDL_TOUCH_MOUSEID)
+                {
+                    int ow = 0, oh = 0, ww = 0, wh = 0;
+                    SDL_GetRendererOutputSize(renderer, &ow, &oh);
+                    SDL_GetWindowSize(window, &ww, &wh);
+                    if (ww > 0 && wh > 0) menuTap(float(ev.button.x) * ow / ww, float(ev.button.y) * oh / wh);
+                }
                 else if (ev.type == SDL_MOUSEBUTTONDOWN && ev.button.button == SDL_BUTTON_LEFT) { mouseDown = true; mouseTapHold = 4; }
                 else if (ev.type == SDL_MOUSEBUTTONUP && ev.button.button == SDL_BUTTON_LEFT) mouseDown = false;
                 // (Every joystick is announced by SDL_JOYDEVICEADDED, game controllers also
@@ -5989,9 +6066,12 @@ int main(int argc, char** argv)
             }
 
             const Uint8* kb = SDL_GetKeyboardState(nullptr);
+            // (Read with the menu open too: the key that closes it must not reach the game until
+            // it is let go, as with a controller's buttons.)
+            kbKeysHeld = KeyboardKeys(cfg.controls);
             if (!menu.open)
             {
-                keys |= KeyboardKeys(cfg.controls);
+                if (!swallowMenuButtons) keys |= kbKeysHeld;
                 // (The touch cursor's keys, unless CONTROLS gave one of them to something.)
                 auto keyFree = [&](int s) { return kb[s] && cfg.controls.ActionOfKey(s) < 0; };
                 if (keyFree(SDL_SCANCODE_J)) curDX -= 1;
@@ -6656,6 +6736,7 @@ int main(int argc, char** argv)
 
         bool anyHeld = false;
         for (int i = 0; i < PAD_COUNT; i++) anyHeld |= ps.btn[i];
+        anyHeld |= kbKeysHeld != 0;
         if (swallowMenuButtons && !anyHeld) swallowMenuButtons = false;
 
         // RETROACHIEVEMENTS: the server's answers and what it has to say (one message at a time),
@@ -6990,7 +7071,7 @@ int main(int argc, char** argv)
                         fprintf(stderr, "[touch] %d,%d: picture %.0f,%.0f, scene %s: %s %d,%d\n", mouseX, mouseY, bx, by,
                                 scene.name, touching ? "touch screen" : "nothing", touching ? touchX : -1, touching ? touchY : -1);
                 }
-                else if (LayoutTouch(rects[1], mouseX, mouseY, touchX, touchY)) touching = true;
+                else if (LayoutTouch(layout, rects, mouseX, mouseY, touchX, touchY)) touching = true;
             }
             wasMouseDown = !opt.headless && mouseNow;
             if (curDX != 0 || curDY != 0 || curPress)
@@ -7149,6 +7230,10 @@ int main(int argc, char** argv)
             {
                 for (int y = 0; y < SHOES_H; y++)
                     for (int x = 0; x < SHOES_W; x++) shoesPix[y * SHOES_W + x] = tb[(SHOES_Y + y) * 256 + SHOES_X + x] | 0xFF000000u;
+                // (The game draws the button off the right edge of the screen, so its right side is cut flat:
+                // the left side's outline, rim and corners mirrored over it, to close it.)
+                for (int y = 0; y < SHOES_H; y++)
+                    for (int k = 0; k < 3; k++) shoesPix[y * SHOES_W + SHOES_W - 1 - k] = shoesPix[y * SHOES_W + 2 + k];
                 if (!shoesSeen) fprintf(stderr, "[shoes] frame %u: the Running Shoes button seen\n", frame);
                 shoesSeen = true;
                 shoesOn = nearC(200, 120, 0xBA6910); // (off: the shoes grey on the orange)
@@ -7556,6 +7641,9 @@ int main(int argc, char** argv)
         bool appBottom = false;
         for (const RcApp* app : focus.bottomApps)
             if (appActive(app->name)) appBottom = true;
+        // The Vs. Recorder (overlay 40, not in the applications table): its title and menus are
+        // all on the touch screen.
+        if (sectionActive("OVY_40")) appBottom = true;
         {
             bool athlon = false;
             for (const RcApp* app : focus.athlonApps)
