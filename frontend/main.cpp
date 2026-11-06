@@ -2471,6 +2471,7 @@ int main(int argc, char** argv)
         focusProbe("TouchscreenHitbox_FindHitboxAtTouchNew"), focusProbe("TouchscreenHitbox_FindHitboxAtTouchHeld"),
         focusProbe("TouchscreenHitbox_TouchHeldIsIn"), focusProbe("TouchscreenHitbox_TouchNewIsIn") };
     const int probeFieldMap = focusProbe("FieldMap_Main");
+    const int probeEvolution = focusProbe("EvolutionScene_Task");
     // Writing the save: for the seconds this takes the game sits in its flash write loop
     // and the code of the screen it shows (the save question, the overworld) runs only now
     // and then, so nothing on screen changes but the probes go quiet.
@@ -2541,6 +2542,11 @@ int main(int argc, char** argv)
     // running (see where it is counted).
     std::vector<int> appOwnSection(rc_num_apps, -1);
     std::vector<unsigned> sectionStreak(rc_num_sections, 0);
+    // The last frame overlay 8 (the in-battle Bag and party screens) ran without overlay 6 or 7 (the
+    // battle's own effects; 7 runs with 8 while a Pokemon is sent out after a switch). Some battle effects (a wild Pokemon breaking out of a ball, an
+    // enemy's Vine Whip) call into overlay 8 in passing, and the Bag layout flashed up at 4:3
+    // for about ten frames each time.
+    unsigned battleSubmenuLast = 0;
     for (unsigned i = 0; i < rc_num_apps; i++)
     {
         if (!strcmp(rc_apps[i].section, "main") || !strcmp(rc_apps[i].section, "field")) continue;
@@ -3665,7 +3671,14 @@ int main(int argc, char** argv)
         // not running during a door transition, so its condition has to hold for a while.
         static int spreadFrames = 0;
         const bool topFading = screens && screens[0].pixels && AutoFocus::Blank(screens[0].pixels);
-        if (std::any_of(std::begin(probeTouch), std::end(probeTouch), probeActive) && !fieldActive() && !topFading &&
+        // Fly lands with the X menu's task gone quiet and the field map not yet running for about a
+        // second, the world already drawn on the top screen: that is not a screen without a layout
+        // (the two screens joined at 4:3 flashed up for a second after every Fly).
+        static unsigned lastMenuTask = 0;
+        if (probeActive(probeStartMenu)) lastMenuTask = rc_current_frame();
+        const bool worldAfterMenu = lastMenuTask && rc_current_frame() - lastMenuTask < 900 && screens && screens[0].flags &&
+            LayerClass(screens[0].flags[60 * 256 + 128]) == LAYER_3D && LayerClass(screens[0].flags[100 * 256 + 20]) == LAYER_3D;
+        if (std::any_of(std::begin(probeTouch), std::end(probeTouch), probeActive) && !fieldActive() && !topFading && !worldAfterMenu &&
             !appActive("Battle") && !appActive("TitleScreen") && !appActive("IntroMovie") && !appActive("Credits"))
             spreadFrames++;
         else
@@ -4397,7 +4410,7 @@ int main(int argc, char** argv)
         else if (probeActive(probeMart))
             // Poke Mart: the item's description from the other screen above the list of goods.
         {
-            sc = Stack("mart", { Crop(0, 0, 140, 256, 52), Crop(1, 0, 0, 256, 192) }, false, viewWidth);
+            sc = Stack("mart", { Crop(0, 0, 141, 256, 51), Crop(1, 0, 0, 256, 192) }, false, viewWidth);
             sc.bgScreen = 1;
             sc.bgX = 6;
             sc.bgY = 100;
@@ -4453,11 +4466,11 @@ int main(int argc, char** argv)
         }
         else if (focus.wantBottom || appBottomNow)
             only("bottom", 1);
-        else if (sectionActive("OVY_8") ||
+        else if ((battleSubmenuLast && battleSubmenuLast + 3 >= rc_current_frame()) ||
                  // (Opening, the Bag or the party pauses for about 5 frames after it has started,
                  // with neither it nor the battle running: without this the battle would flash
                  // up at 4:3 in between.)
-                 (sectionWithin("OVY_8", 12) && !sectionActive("OVY_12")))
+                 (battleSubmenuLast && battleSubmenuLast + 12 >= rc_current_frame() && !sectionActive("OVY_12")))
             // In-battle bag and party screens (overlay 8) fill the bottom screen.
             only("battle-submenu", 1);
         else if (probeActive(probeBattleInput) ||
@@ -4491,6 +4504,18 @@ int main(int argc, char** argv)
                 // A battle outside its menus: messages and animations.
                 sc.name = "battle";
                 sc.edgeFill = true;
+            }
+            else if (probeActive(probeEvolution))
+            {
+                // An evolution (from a Rare Candy in the Bag it runs with no battle overlay):
+                // its bars are the scene's colours too, and its text box reaches across the view.
+                sc.edgeFill = true;
+                int y0, y1;
+                if (screens && screens[0].pixels && WideBoxFind(screens[0], y0, y1))
+                {
+                    sc.wideBox[0] = y0;
+                    sc.wideBox[1] = y1;
+                }
             }
         }
         // The overworld is drawn across the whole wide view by the widescreen 3D renderer.
@@ -7676,6 +7701,8 @@ int main(int argc, char** argv)
             if (!last || last + 3 < rc_current_frame()) sectionStreak[sec] = 0;
             else if (last == rc_current_frame()) sectionStreak[sec]++;
         }
+        if (sectionWithin("OVY_8", 0) && !sectionWithin("OVY_6", 0) && !sectionWithin("OVY_7", 0))
+            battleSubmenuLast = rc_current_frame();
         if (top && bot && !paused) focus.Update(top, bot, fieldNow, appBottom);
         sceneMark(0);
         layout.swapped = focus.Swapped();

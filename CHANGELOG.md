@@ -3,6 +3,25 @@
 
 ## Unreleased
 
+- **Launcher: a save named after the ROM is found.** A save brought from another emulator or a flashcart
+  (`Pokemon - Edicion Negra 2.sav` beside `Pokemon - Edicion Negra 2.nds`) is used when the game's own save
+  (`black2-es.sav`) is not there. Another game's save name is never borrowed.
+- **SoulSilver: the wild Pokémon's slide to the right of a wide battle follows the game's frames.** It was
+  timed by how many pictures were drawn, so the display rate, skipped frames or screenshots changed
+  when (and whether) it happened.
+- **SoulSilver and HeartGold battles: no more flash of the touch screen in the middle of a battle.** A wild
+  Pokemon breaking out of a Poke Ball, an enemy's Vine Whip, or your own Pokemon being sent out after a
+  switch briefly ran code of the Bag and party screens, and the view jumped to the 4:3 touch-screen
+  picture (a Poke Ball background) for about ten frames. The Bag and party layout now waits for the
+  Bag or party itself.
+- **HeartGold and SoulSilver: Fly no longer flashes both screens at 4:3 when you land.** For about
+  half a second after the flight the two screens were joined at 4:3 (the overworld above the start
+  menu) before the wide view came back; the world now stays up instead.
+- **SoulSilver and HeartGold: an evolution from a Rare Candy in the Bag fills the wide view.** Its
+  sides carry on the scene's colours instead of black bars (only a battle had its edges continued),
+  and its text box reaches across the view instead of stopping at 4:3.
+- **SoulSilver/HeartGold: the Poke Mart's item panel no longer shows a sliver of the map above it.** The
+  description strip taken from the top screen started a row too high.
 - **GBA games: the pause menu works like the DS games'.** On the Switch, + is the GBA's START and
   + and - together open the pause menu (START BUTTON in CONTROLS swaps them); a lone + or - reaches
   the game a moment later, so the pair is never taken for one of them. The menu has the DS games'

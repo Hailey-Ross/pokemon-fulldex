@@ -86,9 +86,10 @@ struct KnownGame
     const char* name;
     const char* save;
 };
-inline const KnownGame* Known(const std::string& code)
+inline const std::vector<KnownGame>& KnownGames()
 {
-    static const KnownGame games[] = {
+    static const std::vector<KnownGame> games = [] {
+    std::vector<KnownGame> list = {
         { "IRBO", "Pokemon Black", "black.sav" },
         { "IRBS", "Pokemon Black (ES)", "black-es.sav" },
         { "IRBF", "Pokemon Black (FR)", "black-fr.sav" },
@@ -120,14 +121,15 @@ inline const KnownGame* Known(const std::string& code)
         { "IPKI", "Pokemon HeartGold (IT)", "heartgold-it.sav" },
         { "CPUF", "Pokemon Platinum (FR)", "platinum-fr.sav" },
     };
-    for (const KnownGame& g : games)
-        if (code == g.code) return &g;
-    static const std::vector<KnownGame> regional = [] {
-        std::vector<KnownGame> result;
-        for (const auto& p : RegionalProfiles::profiles) result.push_back({p.code,p.name,p.save});
-        return result;
+    for (const auto& p : RegionalProfiles::profiles) list.push_back({p.code,p.name,p.save});
+    return list;
     }();
-    for (const auto& g : regional) if (code == g.code) return &g;
+    return games;
+}
+inline const KnownGame* Known(const std::string& code)
+{
+    for (const KnownGame& g : KnownGames())
+        if (code == g.code) return &g;
     return nullptr;
 }
 inline int Order(const std::string& code)
@@ -233,6 +235,24 @@ inline bool ReadGame(const std::string& rom, const std::string& folder, Game& g)
     for (char& c : g.name) c = (char)toupper((unsigned char)c);
     struct stat st;
     g.hasSave = stat((folder + "/" + g.saveName).c_str(), &st) == 0;
+    if (!g.hasSave && g.known)
+    {
+        // A save brought from another emulator or a flashcart is usually named after the ROM
+        // (Pokemon - Edicion Negra 2.sav): used when this game's own save is not there yet. Not
+        // a name another game's save has (a ROM called black2.nds beside English Black 2's
+        // black2.sav), and never black2.sav or game.sav for another language's game: two games
+        // writing one file would lose one of them.
+        const std::string romBase = rom.substr(rom.find_last_of('/') + 1);
+        const size_t dot = romBase.find_last_of('.');
+        const std::string stemSave = (dot != std::string::npos ? romBase.substr(0, dot) : romBase) + ".sav";
+        bool taken = stemSave == "game.sav";
+        for (const KnownGame& k : KnownGames()) taken = taken || stemSave == k.save;
+        if (!taken && stemSave != g.saveName && stat((folder + "/" + stemSave).c_str(), &st) == 0)
+        {
+            g.saveName = stemSave;
+            g.hasSave = true;
+        }
+    }
     return true;
 }
 

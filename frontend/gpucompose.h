@@ -180,6 +180,11 @@ public:
             Uploads++;
             DrawPiece(tex, dst, el);
         }
+        if (!useWide && scene.edgeFill && !scene.items.empty() && scene.items[0].screen >= 0)
+        {
+            DrawEdgeCover(screens[scene.items[0].screen], v);
+            if (scene.wideBox[0] >= 0) DrawWideBox(screens[scene.items[0].screen], v, scene.wideBox[0], scene.wideBox[1], smooth);
+        }
     }
 
 private:
@@ -481,6 +486,63 @@ private:
         }
     }
 
+    // After the screen: its own black outermost columns beside an edge fill take the bar's
+    // colour (EdgeFillInset, as MergedCompose does), two columns a side, the rest left clear.
+    void DrawEdgeCover(const ScreenImage& top, const MergedView& v)
+    {
+        const int left = (int)v.originX, right = (int)(v.originX + 256 * v.unit);
+        if (left <= 0) return;
+        const int y0 = (int)v.originY, h = (int)(192 * v.unit + 0.5f), w = (int)(2 * v.unit + 0.5f);
+        for (int side = 0; side < 2; side++)
+        {
+            bool any = false;
+            for (int y = 0; y < 192; y++)
+            {
+                const int inset = EdgeFillInset(top, y, side);
+                const uint32_t c = EdgeFillColour(top, y, side) & 0xFFFFFF;
+                for (int x = 0; x < 2; x++)
+                {
+                    // Column 0 is the screen's column 0 on the left side, its column 254 on the right.
+                    const bool on = side ? x >= 2 - inset : x < inset;
+                    Cover[y * 2 + x] = on ? 0xFF000000 | c : 0;
+                    any |= on;
+                }
+            }
+            if (!any) continue;
+            SDL_Texture* t = Make(CoverTex[side], 2, 192);
+            if (!t) continue;
+            SDL_SetTextureBlendMode(t, SDL_BLENDMODE_BLEND);
+            SDL_SetTextureScaleMode(t, SDL_ScaleModeNearest);
+            SDL_UpdateTexture(t, nullptr, Cover, 2 * 4);
+            const SDL_Rect dst = side == 0 ? SDL_Rect { left, y0, w, h } : SDL_Rect { right - w, y0, w, h };
+            SDL_RenderCopy(R, t, nullptr, &dst);
+        }
+    }
+
+    // A text box widened to the view (Scene::wideBox), over the screen: its rows as WideBoxPixel
+    // gives them, one texture from `shift` columns left of the screen to as far right of it.
+    void DrawWideBox(const ScreenImage& top, const MergedView& v, int y0, int y1, bool smooth)
+    {
+        const int shift = WideBoxShift(v.originX, v.unit);
+        if (shift <= 0 || y0 < 0 || y1 >= 192 || y1 < y0) return;
+        const int w = 256 + 2 * shift, h = y1 - y0 + 1;
+        BoxBuf.resize((size_t)w * h);
+        for (int y = 0; y < h; y++)
+        {
+            const WideBoxRow f = WideBoxFill(top, y0 + y);
+            for (int x = 0; x < w; x++)
+                BoxBuf[(size_t)y * w + x] = 0xFF000000 | WideBoxPixel(top, y0 + y, x - shift, shift, f);
+        }
+        SDL_Texture* t = Make(BoxTex, w, h);
+        if (!t) return;
+        SDL_SetTextureBlendMode(t, SDL_BLENDMODE_NONE);
+        SDL_SetTextureScaleMode(t, smooth ? SDL_ScaleModeLinear : SDL_ScaleModeNearest);
+        SDL_UpdateTexture(t, nullptr, BoxBuf.data(), w * 4);
+        const SDL_Rect dst = { (int)(v.originX - shift * v.unit), (int)(v.originY + y0 * v.unit),
+                               (int)(w * v.unit + 0.5f), (int)(h * v.unit + 0.5f) };
+        SDL_RenderCopy(R, t, nullptr, &dst);
+    }
+
 public:
     // Time spent handing the widescreen picture to the renderer (for the frontend's timing line).
     double WideUploadMs = 0;
@@ -495,8 +557,11 @@ private:
     SDL_BlendMode Premultiplied;
     std::vector<Tex> Slots;
     std::vector<bool> CachedPremul; // (each slot's last blend mode, for a texture not uploaded again)
-    Tex WideTex, EdgeTex[2], EdgeInTex[2], FillTex[2], NarrowTex[2], WeatherTex[2];
+    Tex WideTex, EdgeTex[2], EdgeInTex[2], FillTex[2], CoverTex[2], NarrowTex[2], WeatherTex[2];
     uint32_t Fill[16 * 192];
+    uint32_t Cover[2 * 192];
+    Tex BoxTex;
+    std::vector<uint32_t> BoxBuf;
     std::vector<SDL_Rect> Spans;
     std::vector<uint32_t> Buf, WideFilled;
     uint32_t Edge[16 * 192];
