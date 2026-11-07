@@ -98,8 +98,11 @@ endif()
 
 if(NOT GBAW_EMBEDDED)
     add_executable(gbawide-player frontend/main.cpp)
-    set_target_properties(gbawide-player PROPERTIES OUTPUT_NAME gbawide)
+    set_target_properties(gbawide-player PROPERTIES OUTPUT_NAME gbawide CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON) # as Fulldex: its u8 strings are char
     target_compile_features(gbawide-player PRIVATE cxx_std_17)
+    if(EXISTS "${GBAW_FULLDEX_FRONTEND}/launcher_cjk.cpp") # ui.h's Japanese and Korean fonts
+        target_sources(gbawide-player PRIVATE "${GBAW_FULLDEX_FRONTEND}/launcher_cjk.cpp")
+    endif()
     if(TARGET SDL2::SDL2main)
         target_link_libraries(gbawide-player PRIVATE SDL2::SDL2main)
     endif()
