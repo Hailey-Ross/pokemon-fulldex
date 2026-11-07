@@ -3650,6 +3650,7 @@ void NDS::ARM9IOWrite32(u32 addr, u32 val)
             else
             {
                 bool wasempty = IPCFIFO9.IsEmpty();
+                if (IPCSendHook) IPCSendHook(IPCSendUser, val);
                 IPCFIFO9.Write(val);
                 if ((IPCFIFOCnt7 & 0x0400) && wasempty)
                     SetIRQ(1, IRQ_IPCRecv);

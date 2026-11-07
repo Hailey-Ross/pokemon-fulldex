@@ -6,6 +6,7 @@
 //   Mac, iOS achievements_http_apple.mm (NSURLSession)
 //   Switch   devkitPro's libcurl over libnx's sockets
 #include <string>
+#include "net_http.h"
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -24,6 +25,7 @@
 #include <curl/curl.h>
 #endif
 
+namespace SwitchPlatform { void ExitTrace(const char* step); }
 namespace Achievements
 {
 
@@ -41,9 +43,11 @@ static std::wstring Wide(const std::string& s)
     return w;
 }
 
-bool HttpPost(const std::string& url, const std::string& post, const std::string& contentType,
-              const std::string& userAgent, int& status, std::string& body, std::string& error)
+bool HttpRequest(const HttpCall& call, int& status, std::string& body, std::string& error)
 {
+    const std::string& url = call.url;
+    const std::string& post = call.body;
+    const std::string& userAgent = call.userAgent;
     const std::wstring wurl = Wide(url);
     URL_COMPONENTS parts = {};
     parts.dwStructSize = sizeof parts;
@@ -65,16 +69,17 @@ bool HttpPost(const std::string& url, const std::string& post, const std::string
         session = WinHttpOpen(Wide(userAgent).c_str(), WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME,
                               WINHTTP_NO_PROXY_BYPASS, 0);
     if (!session) { error = "no internet access (WinHttpOpen)"; return false; }
-    WinHttpSetTimeouts(session, 10000, 10000, 30000, 30000);
+    WinHttpSetTimeouts(session, 10000, 10000, (int)call.timeout * 1000, (int)call.timeout * 1000);
     bool ok = false;
     HINTERNET connect = WinHttpConnect(session, host, parts.nPort, 0);
-    HINTERNET request = connect ? WinHttpOpenRequest(connect, post.empty() ? L"GET" : L"POST", target.c_str(), nullptr,
+    HINTERNET request = connect ? WinHttpOpenRequest(connect, Wide(call.method).c_str(), target.c_str(), nullptr,
                                                      WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
                                                      https ? WINHTTP_FLAG_SECURE : 0)
                                 : nullptr;
     if (request)
     {
-        const std::wstring header = post.empty() ? std::wstring() : L"Content-Type: " + Wide(contentType) + L"\r\n";
+        std::wstring header;
+        for (const std::string& h : call.headers) header += Wide(h) + L"\r\n";
         if (WinHttpSendRequest(request, header.empty() ? WINHTTP_NO_ADDITIONAL_HEADERS : header.c_str(), (DWORD)-1L,
                                post.empty() ? WINHTTP_NO_REQUEST_DATA : (LPVOID)post.data(), (DWORD)post.size(),
                                (DWORD)post.size(), 0) &&
@@ -89,6 +94,7 @@ bool HttpPost(const std::string& url, const std::string& post, const std::string
             {
                 DWORD avail = 0;
                 if (!WinHttpQueryDataAvailable(request, &avail) || avail == 0) break;
+                if (body.size() + avail > call.limit) break;
                 const size_t at = body.size();
                 body.resize(at + avail);
                 DWORD got = 0;
@@ -108,10 +114,31 @@ bool HttpPost(const std::string& url, const std::string& post, const std::string
     return ok;
 }
 
+// RetroAchievements' requests: a GET, or a POST of a form, as before.
+static HttpCall PostCall(const std::string& url, const std::string& post, const std::string& contentType,
+                         const std::string& userAgent, long timeout)
+{
+    HttpCall c;
+    c.method = post.empty() ? "GET" : "POST";
+    c.url = url;
+    if (!post.empty()) c.headers.push_back("Content-Type: " + contentType);
+    c.body = post;
+    c.userAgent = userAgent;
+    c.timeout = timeout;
+    c.limit = 512u << 20;
+    return c;
+}
+
+bool HttpPost(const std::string& url, const std::string& post, const std::string& contentType,
+              const std::string& userAgent, int& status, std::string& body, std::string& error)
+{
+    return HttpRequest(PostCall(url, post, contentType, userAgent, 30), status, body, error);
+}
+
 // (The updater's download, updater.cpp: WinHTTP's time limits are for each step, not the whole.)
 bool HttpDownload(const std::string& url, const std::string& userAgent, int& status, std::string& body, std::string& error)
 {
-    return HttpPost(url, "", "", userAgent, status, body, error);
+    return HttpRequest(PostCall(url, "", "", userAgent, 30), status, body, error);
 }
 
 #elif defined(__linux__) && !defined(__ANDROID__)
@@ -126,7 +153,7 @@ enum
 {
     CURLOPT_WRITEDATA = 10001, CURLOPT_URL = 10002, CURLOPT_POSTFIELDS = 10015, CURLOPT_USERAGENT = 10018,
     CURLOPT_HTTPHEADER = 10023, CURLOPT_WRITEFUNCTION = 20011, CURLOPT_TIMEOUT = 13, CURLOPT_FOLLOWLOCATION = 52,
-    CURLOPT_POSTFIELDSIZE = 60, CURLOPT_NOSIGNAL = 99, CURLOPT_CONNECTTIMEOUT = 78,
+    CURLOPT_POSTFIELDSIZE = 60, CURLOPT_NOSIGNAL = 99, CURLOPT_CONNECTTIMEOUT = 78, CURLOPT_CUSTOMREQUEST = 10036,
     CURLINFO_RESPONSE_CODE = 0x200002, CURL_GLOBAL_DEFAULT = 3,
 };
 struct Curl
@@ -182,10 +209,13 @@ size_t Write(char* data, size_t size, size_t n, void* user)
 }
 }
 
-bool Request(const std::string& url, const std::string& post, const std::string& contentType,
-             const std::string& userAgent, long timeout, int& status, std::string& body, std::string& error)
+bool HttpRequest(const HttpCall& call, int& status, std::string& body, std::string& error)
 {
-    if (!LoadCurl()) { error = "libcurl not found (install curl to use RetroAchievements)"; return false; }
+    const std::string& url = call.url;
+    const std::string& post = call.body;
+    const std::string& userAgent = call.userAgent;
+    const long timeout = call.timeout;
+    if (!LoadCurl()) { error = "libcurl not found (install curl to go online)"; return false; }
     void* c = g_curl.easy_init();
     if (!c) { error = "curl_easy_init failed"; return false; }
     body.clear();
@@ -198,14 +228,17 @@ bool Request(const std::string& url, const std::string& post, const std::string&
     g_curl.easy_setopt(c, CURLOPT_TIMEOUT, timeout);
     g_curl.easy_setopt(c, CURLOPT_WRITEFUNCTION, (size_t (*)(char*, size_t, size_t, void*))Write);
     g_curl.easy_setopt(c, CURLOPT_WRITEDATA, (void*)&body);
-    if (!post.empty())
+    for (const std::string& h : call.headers) headers = g_curl.slist_append(headers, h.c_str());
+    if (headers) g_curl.easy_setopt(c, CURLOPT_HTTPHEADER, headers);
+    const bool sends = !post.empty() || call.method == "POST" || call.method == "PUT" || call.method == "PATCH";
+    if (sends)
     {
-        headers = g_curl.slist_append(nullptr, ("Content-Type: " + contentType).c_str());
-        g_curl.easy_setopt(c, CURLOPT_HTTPHEADER, headers);
-        g_curl.easy_setopt(c, CURLOPT_POSTFIELDS, post.c_str());
         g_curl.easy_setopt(c, CURLOPT_POSTFIELDSIZE, (long)post.size());
+        g_curl.easy_setopt(c, CURLOPT_POSTFIELDS, post.data());
     }
+    if (call.method != (sends ? "POST" : "GET")) g_curl.easy_setopt(c, CURLOPT_CUSTOMREQUEST, call.method.c_str());
     const int res = g_curl.easy_perform(c);
+    if (body.size() > call.limit) body.resize(call.limit);
     long code = 0;
     if (res == 0) g_curl.easy_getinfo(c, CURLINFO_RESPONSE_CODE, &code);
     else error = g_curl.easy_strerror ? g_curl.easy_strerror(res) : "curl error " + std::to_string(res);
@@ -215,16 +248,30 @@ bool Request(const std::string& url, const std::string& post, const std::string&
     return res == 0;
 }
 
+static HttpCall PostCall(const std::string& url, const std::string& post, const std::string& contentType,
+                         const std::string& userAgent, long timeout)
+{
+    HttpCall c;
+    c.method = post.empty() ? "GET" : "POST";
+    c.url = url;
+    if (!post.empty()) c.headers.push_back("Content-Type: " + contentType);
+    c.body = post;
+    c.userAgent = userAgent;
+    c.timeout = timeout;
+    c.limit = 512u << 20;
+    return c;
+}
+
 bool HttpPost(const std::string& url, const std::string& post, const std::string& contentType,
               const std::string& userAgent, int& status, std::string& body, std::string& error)
 {
-    return Request(url, post, contentType, userAgent, 30L, status, body, error);
+    return HttpRequest(PostCall(url, post, contentType, userAgent, 30L), status, body, error);
 }
 
 // (The updater's download, updater.cpp: a whole program, which may take minutes.)
 bool HttpDownload(const std::string& url, const std::string& userAgent, int& status, std::string& body, std::string& error)
 {
-    return Request(url, "", "", userAgent, 900L, status, body, error);
+    return HttpRequest(PostCall(url, "", "", userAgent, 900L), status, body, error);
 }
 
 #elif defined(__ANDROID__)
@@ -232,9 +279,11 @@ bool HttpDownload(const std::string& url, const std::string& userAgent, int& sta
 const char* SystemName() { return "Android"; }
 bool Available() { return true; }
 
-bool HttpPost(const std::string& url, const std::string& post, const std::string& contentType,
-              const std::string& userAgent, int& status, std::string& body, std::string& error)
+bool HttpRequest(const HttpCall& call, int& status, std::string& body, std::string& error)
 {
+    const std::string& url = call.url;
+    const std::string& post = call.body;
+    const std::string& userAgent = call.userAgent;
     // (SDL attaches this thread, the requests' own, to Java and detaches it when it ends.)
     JNIEnv* env = (JNIEnv*)SDL_AndroidGetJNIEnv();
     if (!env) { error = "no Java"; return false; }
@@ -272,14 +321,32 @@ bool HttpPost(const std::string& url, const std::string& post, const std::string
         jobject conn = env->CallObjectMethod(u, env->GetMethodID(urlClass, "openConnection", "()Ljava/net/URLConnection;"));
         if (failed() || !conn) break;
         env->CallVoidMethod(conn, env->GetMethodID(connClass, "setConnectTimeout", "(I)V"), 10000);
-        env->CallVoidMethod(conn, env->GetMethodID(connClass, "setReadTimeout", "(I)V"), 30000);
+        env->CallVoidMethod(conn, env->GetMethodID(connClass, "setReadTimeout", "(I)V"), (jint)(call.timeout * 1000));
         const jmethodID prop = env->GetMethodID(connClass, "setRequestProperty", "(Ljava/lang/String;Ljava/lang/String;)V");
         env->CallVoidMethod(conn, prop, jstr("User-Agent"), jstr(userAgent));
         if (failed()) break;
-        if (!post.empty())
+        for (const std::string& h : call.headers)
         {
-            env->CallVoidMethod(conn, env->GetMethodID(connClass, "setRequestMethod", "(Ljava/lang/String;)V"), jstr("POST"));
-            env->CallVoidMethod(conn, prop, jstr("Content-Type"), jstr(contentType));
+            const size_t colon = h.find(':');
+            if (colon == std::string::npos) continue;
+            size_t v = colon + 1;
+            while (v < h.size() && h[v] == ' ') v++;
+            env->CallVoidMethod(conn, prop, jstr(h.substr(0, colon)), jstr(h.substr(v)));
+        }
+        if (failed()) break;
+        const jmethodID setMethod = env->GetMethodID(connClass, "setRequestMethod", "(Ljava/lang/String;)V");
+        env->CallVoidMethod(conn, setMethod, jstr(call.method));
+        if (failed())
+        {
+            // (A method this Android's HttpURLConnection does not know, PATCH on some: sent as a
+            // POST that tells the server which it is, as Google's servers understand.)
+            env->CallVoidMethod(conn, setMethod, jstr("POST"));
+            env->CallVoidMethod(conn, prop, jstr("X-HTTP-Method-Override"), jstr(call.method));
+            if (failed()) break;
+        }
+        const bool sends = !post.empty() || call.method == "POST" || call.method == "PUT" || call.method == "PATCH";
+        if (sends)
+        {
             env->CallVoidMethod(conn, env->GetMethodID(connClass, "setDoOutput", "(Z)V"), JNI_TRUE);
             if (failed()) break;
             jobject out = env->CallObjectMethod(conn, env->GetMethodID(connClass, "getOutputStream", "()Ljava/io/OutputStream;"));
@@ -301,7 +368,7 @@ bool HttpPost(const std::string& url, const std::string& post, const std::string
         {
             const jmethodID read = env->GetMethodID(inClass, "read", "([BII)I");
             jbyteArray buf = env->NewByteArray(8192);
-            while (body.size() < (8u << 20))
+            while (body.size() < call.limit)
             {
                 const jint n = env->CallIntMethod(in, read, buf, 0, 8192);
                 if (failed() || n < 0) break;
@@ -322,6 +389,19 @@ bool HttpPost(const std::string& url, const std::string& post, const std::string
     return ok;
 }
 
+bool HttpPost(const std::string& url, const std::string& post, const std::string& contentType,
+              const std::string& userAgent, int& status, std::string& body, std::string& error)
+{
+    HttpCall c;
+    c.method = post.empty() ? "GET" : "POST";
+    c.url = url;
+    if (!post.empty()) c.headers.push_back("Content-Type: " + contentType);
+    c.body = post;
+    c.userAgent = userAgent;
+    c.limit = 8u << 20;
+    return HttpRequest(c, status, body, error);
+}
+
 #elif defined(__SWITCH__)
 
 const char* SystemName() { return "Nintendo Switch"; }
@@ -332,6 +412,7 @@ namespace
 std::once_flag g_curlInit;
 bool g_curlOk = false;
 std::atomic<bool> g_stop{ false };
+std::atomic<int> g_busy{ 0 }; // (transfers going on now)
 
 int Progress(void*, curl_off_t, curl_off_t, curl_off_t, curl_off_t)
 {
@@ -343,8 +424,27 @@ int Progress(void*, curl_off_t, curl_off_t, curl_off_t, curl_off_t)
 void CloseNetwork()
 {
     g_stop = true;
+    ::SwitchPlatform::ExitTrace("network: closing");
+    // (Transfers end at once with g_stop; curl is cleaned up when none is left, else left be.)
+    for (int i = 0; i < 200 && g_busy > 0; i++) svcSleepThread(10000000ULL);
+    if (g_busy == 0 && g_curlOk) { curl_global_cleanup(); g_curlOk = false; ::SwitchPlatform::ExitTrace("network: curl cleaned up"); }
     socketExit();
+    ::SwitchPlatform::ExitTrace("network: closed");
 }
+
+// The console's network, opened once for everything that uses it (RetroAchievements, cloud saves,
+// trades: hub_link.cpp) and closed as the program ends (CloseNetwork). Opened twice it fails, and
+// left open the next .nro never starts.
+bool OpenNetworkOnce()
+{
+    std::call_once(g_curlInit, [] {
+        if (R_FAILED(socketInitializeDefault())) return;
+        g_curlOk = curl_global_init(CURL_GLOBAL_DEFAULT) == CURLE_OK;
+        atexit(CloseNetwork);
+    });
+    return g_curlOk;
+}
+
 
 struct Sink
 {
@@ -359,24 +459,25 @@ size_t Write(char* data, size_t size, size_t count, void* user)
     return size * count;
 }
 
-bool Request(const std::string& url, const std::string& post, const std::string& contentType,
-             const std::string& userAgent, long timeout, size_t limit, int& status, std::string& body, std::string& error)
+bool Request(const HttpCall& call, int& status, std::string& body, std::string& error)
 {
+    const std::string& url = call.url;
+    const std::string& post = call.body;
+    const std::string& userAgent = call.userAgent;
+    const long timeout = call.timeout;
+    const size_t limit = call.limit;
     // The console's network (libnx's sockets), started the first time it is needed and closed
     // as the program ends. It must be closed: the Homebrew Menu's loader starts the next .nro
     // (the game chosen, the list again, a new version) in this same process, and with the
     // sockets left open that start never came (a black screen).
-    std::call_once(g_curlInit, [] {
-        if (R_FAILED(socketInitializeDefault())) return;
-        g_curlOk = curl_global_init(CURL_GLOBAL_DEFAULT) == CURLE_OK;
-        atexit(CloseNetwork);
-    });
+    OpenNetworkOnce();
     if (!g_curlOk) { error = "no network (sockets)"; return false; }
+    struct Busy { Busy() { g_busy++; } ~Busy() { g_busy--; } } busy;
     if (g_stop) { error = "stopped"; return false; }
     CURL* c = curl_easy_init();
     if (!c) { error = "no curl"; return false; }
     curl_slist* headers = nullptr;
-    if (!post.empty()) headers = curl_slist_append(headers, ("Content-Type: " + contentType).c_str());
+    for (const std::string& h : call.headers) headers = curl_slist_append(headers, h.c_str());
     body.clear();
     curl_easy_setopt(c, CURLOPT_URL, url.c_str());
     curl_easy_setopt(c, CURLOPT_USERAGENT, userAgent.c_str());
@@ -384,11 +485,13 @@ bool Request(const std::string& url, const std::string& post, const std::string&
     curl_easy_setopt(c, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(c, CURLOPT_CONNECTTIMEOUT, 10L);
     curl_easy_setopt(c, CURLOPT_TIMEOUT, timeout);
-    if (!post.empty())
+    const bool sends = !post.empty() || call.method == "POST" || call.method == "PUT" || call.method == "PATCH";
+    if (sends)
     {
-        curl_easy_setopt(c, CURLOPT_POSTFIELDS, post.c_str());
         curl_easy_setopt(c, CURLOPT_POSTFIELDSIZE, (long)post.size());
+        curl_easy_setopt(c, CURLOPT_POSTFIELDS, post.data());
     }
+    if (call.method != (sends ? "POST" : "GET")) curl_easy_setopt(c, CURLOPT_CUSTOMREQUEST, call.method.c_str());
     if (headers) curl_easy_setopt(c, CURLOPT_HTTPHEADER, headers);
     Sink sink = { &body, limit };
     curl_easy_setopt(c, CURLOPT_WRITEFUNCTION, Write);
@@ -406,16 +509,35 @@ bool Request(const std::string& url, const std::string& post, const std::string&
 }
 }
 
+static HttpCall PostCall(const std::string& url, const std::string& post, const std::string& contentType,
+                         const std::string& userAgent, long timeout, size_t limit)
+{
+    HttpCall c;
+    c.method = post.empty() ? "GET" : "POST";
+    c.url = url;
+    if (!post.empty()) c.headers.push_back("Content-Type: " + contentType);
+    c.body = post;
+    c.userAgent = userAgent;
+    c.timeout = timeout;
+    c.limit = limit;
+    return c;
+}
+
+bool HttpRequest(const HttpCall& call, int& status, std::string& body, std::string& error)
+{
+    return Request(call, status, body, error);
+}
+
 bool HttpPost(const std::string& url, const std::string& post, const std::string& contentType,
               const std::string& userAgent, int& status, std::string& body, std::string& error)
 {
-    return Request(url, post, contentType, userAgent, 30L, 8u << 20, status, body, error);
+    return Request(PostCall(url, post, contentType, userAgent, 30L, 8u << 20), status, body, error);
 }
 
 // (The updater's download, updater.cpp: the whole program, which may take minutes.)
 bool HttpDownload(const std::string& url, const std::string& userAgent, int& status, std::string& body, std::string& error)
 {
-    return Request(url, "", "", userAgent, 900L, 512u << 20, status, body, error);
+    return Request(PostCall(url, "", "", userAgent, 900L, 512u << 20), status, body, error);
 }
 
 // (While on, a transfer going on another thread ends at once, failing, and none starts.)
@@ -423,6 +545,8 @@ void HttpStop(bool on)
 {
     g_stop = on;
 }
+
+bool EnsureNetwork() { return OpenNetworkOnce(); }
 
 #elif defined(__APPLE__)
 
@@ -435,6 +559,12 @@ bool Available() { return false; }
 
 bool HttpPost(const std::string&, const std::string&, const std::string&, const std::string&, int&, std::string&,
               std::string& error)
+{
+    error = "not in this version";
+    return false;
+}
+
+bool HttpRequest(const HttpCall&, int&, std::string&, std::string& error)
 {
     error = "not in this version";
     return false;

@@ -118,6 +118,12 @@ if [ ! -f "$DEPS/$SDL_NAME/CMakeLists.txt" ]; then
     tar -xzf "$DEPS/$SDL_NAME.tar.gz" -C "$DEPS"
 fi
 
+# The launcher's online parts, when given: the Hub (cloud saves, moving Pokemon), the theme Gallery's
+# relay and the Google sign-in client for cloud saves (a file of two lines; never in the repository).
+ONLINE=()
+[ "${SSR_POKEMON_HUB:-}" = ON ] && ONLINE+=(-DSSR_POKEMON_HUB=ON)
+[ -n "${FULLDEX_RELAY_URL:-}" ] && ONLINE+=(-DFULLDEX_RELAY_URL="$FULLDEX_RELAY_URL")
+[ -n "${FULLDEX_GOOGLE_CLIENT_FILE:-}" ] && ONLINE+=(-DFULLDEX_GOOGLE_CLIENT_FILE="$FULLDEX_GOOGLE_CLIENT_FILE")
 STRIP="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
 FILES=()
 for abi in $ABIS; do
@@ -136,7 +142,7 @@ for abi in $ABIS; do
     # the building machine's AVX2.
     cmake -S . -B "build-android-all-$abi" "${ARGS[@]}" -DSDL2_DIR="$SDL_PREFIX/lib/cmake/SDL2" \
         -DSSR_JIT=ON -DSSR_PC_ALL_GAMES=ON -DSSR_PNG=OFF -DSSR_GPU3D=OFF -DSSR_PORTABLE_X86=ON \
-        -DSSR_GENERATED_DIR="$HERE/build-gen-tables" -DSSR_PC_ART="$ART" -DSSR_GBA_DIR="${SSR_GBA_DIR:-}" >/dev/null
+        -DSSR_GENERATED_DIR="$HERE/build-gen-tables" -DSSR_PC_ART="$ART" -DSSR_GBA_DIR="${SSR_GBA_DIR:-}" ${ONLINE[@]+"${ONLINE[@]}"} >/dev/null
     ninja -C "build-android-all-$abi" ssrecomp
     mkdir -p "build-android-dist/lib/$abi"
     "$STRIP" -o "build-android-dist/lib/$abi/libmain.so" "build-android-all-$abi/libmain.so"
@@ -147,6 +153,7 @@ for f in "$FUNCS"/*.txt; do FILES+=("assets/funcs/$(basename "$f")=$f"); done
 # The licences: this program's (GPL-3) and, with the GBA games built in, mGBA's (MPL-2.0).
 FILES+=("assets/LICENSE.txt=$HERE/LICENSE")
 FILES+=("assets/LICENSE-Noto.txt=$HERE/LICENSE-Noto.txt")
+FILES+=("assets/FONT-LICENSES.txt=$HERE/frontend/fonts/FONT-LICENSES.txt")
 GBA_WORK="${GBAW_WORK:-$HOME/pokemon-gba-wide}"
 if [ -n "${SSR_GBA_DIR:-}" ]; then
     [ -f "$GBA_WORK/mgba/LICENSE" ] || fail "no mGBA in $GBA_WORK (Pokemon GBA Widescreen's setup.sh makes it; GBAW_WORK if elsewhere)"
@@ -226,7 +233,7 @@ PY
 SSR_SRC="$HERE" python3 - "$APK" <<'PY'
 import re, sys, zipfile
 regional_codes = '|'.join(p['code'] for p in __import__('json').loads(__import__('pathlib').Path(__import__('os').environ['SSR_SRC'], 'tools/regions/profiles.json').read_text())['profiles'] if p['kind']=='functions')
-ok = re.compile(r'^(AndroidManifest\.xml|resources\.arsc|classes\.dex|res/.*\.png|res/mipmap-anydpi-v26/ic_launcher\.xml|lib/(arm64-v8a|x86_64)/lib(main|SDL2)\.so|assets/funcs/(?:IREO|IRDO|IRBO|IRAO|CPUE|ADAE|APAE|ADAS|APAF|APAS|APAD|ADAD|ADAI|IRAS|CPUS|IREF|IRDF|CPUF|IRBF|IRAF|IRBS|IRES|IRDS|' + regional_codes + r')\.txt|assets/LICENSE(-mGBA|-Noto)?\.txt)$')
+ok = re.compile(r'^(AndroidManifest\.xml|resources\.arsc|classes\.dex|res/.*\.png|res/mipmap-anydpi-v26/ic_launcher\.xml|lib/(arm64-v8a|x86_64)/lib(main|SDL2)\.so|assets/funcs/(?:IREO|IRDO|IRBO|IRAO|CPUE|ADAE|APAE|ADAS|APAF|APAS|APAD|ADAD|ADAI|IRAS|CPUS|IREF|IRDF|CPUF|IRBF|IRAF|IRBS|IRES|IRDS|' + regional_codes + r')\.txt|assets/FONT-LICENSES\.txt|assets/LICENSE(-mGBA|-Noto)?\.txt)$')
 bad = [n for n in zipfile.ZipFile(sys.argv[1]).namelist() if not ok.match(n)]
 if bad: sys.exit('unexpected files in the APK: %s' % bad)
 PY

@@ -23,6 +23,12 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
 
+    <!-- NOW PLAYING: the names of the music apps (Spotify...), which Android otherwise hides. -->
+    <queries>
+        <intent>
+            <action android:name="android.media.browse.MediaBrowserService" />
+        </intent>
+    </queries>
     <application
         android:label="Pokémon Fulldex"
         android:icon="@mipmap/ic_launcher"
@@ -51,6 +57,17 @@
                 <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
             </intent-filter>
         </activity>
+        <!-- NOW PLAYING (NowPlaying.java): what notification access is given to, so the pause menu
+             can show the player's music app's song; it reads no notifications. -->
+        <service
+            android:name=".NowPlayingListener"
+            android:label="Fulldex: show your music in the pause menu"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
         <activity
             android:name=".Restart"
             android:process=":restart"

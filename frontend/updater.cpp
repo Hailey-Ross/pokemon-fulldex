@@ -510,6 +510,7 @@ void RunCheck(bool quiet)
         S().release = r;
         S().digest = digest;
         S().status.page = r.page;
+        S().status.notes = r.notes;
         S().status.canInstall = canInstall;
         S().status.currentBuild = (long long)SSR_BUILT_AT;
         S().status.availableBuild = remoteBuild > 0 ? remoteBuild : r.updated;
@@ -895,6 +896,7 @@ bool FindRelease(const std::string& json, const std::string& asset, const std::s
         if (r.url.empty() || (found && r.updated <= out.updated)) continue;
         r.page = rel.Str("html_url");
         r.tag = rel.Str("tag_name");
+        r.notes = rel.Str("body");
         out = r;
         found = true;
     }

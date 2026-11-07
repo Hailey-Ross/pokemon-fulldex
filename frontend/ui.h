@@ -2,6 +2,8 @@
 // Drawn into an ARGB buffer the size of the output, so the window and the
 // headless screenshots show the same thing.
 #pragma once
+#include <array>
+#include <chrono>
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
@@ -14,6 +16,24 @@ struct Canvas
 {
     int w = 0, h = 0;
     std::vector<uint32_t> px; // ARGB; alpha 0 means "show the game underneath"
+    // The paused game blurred (glass.h, Glass::MakeBackdrop) while the menu is open; empty otherwise.
+    std::vector<uint32_t> backdrop;
+    // (Which backdrop this is, from a few of its pixels: a new one can be given the same memory as
+    // the last, so its address does not tell them apart. For drawings kept while it stays.)
+    uint64_t BackdropSig() const
+    {
+        uint64_t h = backdrop.size() * 1099511628211ull;
+        if (!backdrop.empty())
+            for (size_t i = 0; i < 97; i++) h = (h ^ backdrop[(i * 2654435761u) % backdrop.size()]) * 1099511628211ull;
+        return h;
+    }
+    // The same moment unblurred (w x h), and the DS's two screens (256 x 192 each, top then bottom):
+    // the pictures in a settings page's preview (ui_settings.h) are made from them. Empty when
+    // there is nothing to read (the preview then draws plain shapes).
+    std::vector<uint32_t> sharp, dsTop, dsBottom;
+    // Where the top screen was shown in `sharp` (output pixels; w 0: not shown), so a part of it can
+    // be set beside the same part of dsTop (3D RESOLUTION's preview: the DS's own against now).
+    int baseX = 0, baseY = 0, baseW = 0, baseH = 0;
 
     void Resize(int nw, int nh)
     {
@@ -149,7 +169,16 @@ inline uint32_t AccentNamed(const std::string& name)
     return colours[0].argb;
 }
 
+#include "glass.h"
+#include "art_smooth.h"
+#include "ui_clean_font.h"
+
 // Button presses the menu understands, edge-triggered.
+// (Where a settings page's drawing time goes, for the log's [menu] line: the panel, the header,
+// the rows, the preview, the choices, the rest.)
+inline double* MenuProf() { static double p[8] = {}; return p; }
+inline double MenuProfNow() { return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now().time_since_epoch()).count(); }
+
 struct MenuInput
 {
     bool up = false, down = false, left = false, right = false, accept = false, back = false;
@@ -161,6 +190,22 @@ struct MenuItem
     std::string value; // shown right-aligned; empty for plain actions
     bool info = false; // the value is only shown (no < > around it): nothing to change here
     int slider = -1;   // 0 to 10: also drawn as a bar of ten blocks, that many lit (VOLUME)
+    int icon = -1;     // Glass::Icon, for a tile (Menu::columns)
+    bool disabled = false; // shown greyed; choosing it does nothing (this game or engine has no such thing)
+    // Settings pages (Menu::style 1, ui_settings.h): what the row is (Menu::K_*), its choices as the
+    // preview names them and which is on now, the picture drawn for each (Menu::P_*, art: the
+    // picture's variant for each choice), and the preview's description and tip.
+    int kind = 0;
+    std::string sub; // (Menu::tallRows: a short line under the row's name)
+    std::vector<std::string> choices;
+    std::vector<int> art;
+    int choice = -1;
+    int preview = -1;
+    std::string desc, tip;
+    int indent = 0; // (settings pages: a row inside an open folder, K_FOLDER, drawn further in)
+    std::vector<uint32_t> thumb; int thumbW = 0, thumbH = 0; // (K_SLOT: the state's picture, ARGB)
+    bool noArt = false; // (a row of a page about one Pokemon or item: its icon not drawn in the row again)
+    int keyRow = -1, keyCol = 0, keySpan = 2; // (K_KEY: its row of the keyboard, where it starts and how wide, in half keys)
 };
 
 struct Menu
@@ -168,6 +213,130 @@ struct Menu
     bool open = false;
     int selected = 0;
     std::vector<MenuItem> items;
+    // 0: a list (every page but one). More: the items are tiles in rows of that many (the pause
+    // menu's first page: eight glass tiles, four to a row; two to a row on a portrait screen).
+    int columns = 0;
+    mutable int drawnColumns = 0; // (as last drawn: Update moves up and down by this many)
+    // 1: a settings page (ui_settings.h): a header with a back button, the page's icon and title,
+    // rows in sections on the left and a preview of the chosen row on the right.
+    int style = 0;
+    int pageIcon = -1;
+    enum { K_PLAIN, K_TOGGLE, K_PICKER, K_LINK, K_SECTION, K_BACK, K_FOLDER, K_SLOT, K_KEY };
+    std::string headerNote; // (settings pages: a few words at the header's right, CHEATS' counts)
+    // A preview's pictures (MenuItem::preview), one per choice (its art: which variant).
+    enum { P_NONE, P_LAYOUT, P_LARGE, P_SECOND, P_ASPECT, P_FULLSCREEN, P_SMOOTH, P_BATTLE, P_FPS, P_COMPANION, P_PARTY, P_FILTER, P_MOTION, P_WIDE, P_RES, P_PAD, P_KEY, P_SHORTCUTS, P_TOUCH, P_CPARTY, P_CBAG, P_CDEX, P_CPLACE, P_CBATTLE, P_CMON, P_CITEM, P_CDEXMON, P_CGUIDE, P_CBFOE, P_CBMOVE, P_CBCOVER };
+    // P_PAD and P_KEY (CONTROLS): the controller drawn in its maker's layout (padStyle: Controls::Style;
+    // a choice's art is the input lit, Controls::IN_*), the inputs held now lit too (padLive, a bit
+    // per input), or a keyboard's key.
+    int padStyle = 0;
+    uint32_t padLive = 0;
+    float padAxes[6] = {}; // (the sticks, -1 to 1: left x, y, right x, y; the triggers, 0 to 1: left, right)
+    // (P_PAD: what each input does, Controls::IN_* order, drawn beside it with a line to it, as
+    // KEYS AND BUTTONS; empty: no labels.) And how much of the panel the rows take (wide screens).
+    std::vector<std::string> padLabels;
+    std::string padNote; // (under the labelled controller: how else the menu opens, START + SELECT)
+    float listShare = 0.605f;
+    // (Settings pages inside the launcher's own page: the whole area, the list's width and where the
+    // preview starts; no panel, header or hint of their own. laneX -1: the usual panel.)
+    int laneX = -1, laneY = 0, laneW = 0, laneH = 0, laneListW = 0, lanePvX = 0, laneListH = 0, lanePvY = 0; // (laneListH > 0: a tall window, the preview under the rows)
+    float touchRows = 1.0f; // (phones: the settings rows this much larger, for a finger)
+    float laneK = 0; // (the launcher's settings page on a phone: its own size for the page, 0 for the usual)
+    bool freeScroll = false; // (a finger has scrolled the list: the chosen row need not be in view)
+    bool tallRows = false;
+    float rowTall = 1.0f; // (a settings page's rows this many times as high, their text and icons a little larger: BAG)
+    // COMPANION's previews (P_CPARTY, P_CBAG, P_CDEX, P_CPLACE): what the game holds now, read by
+    // the companion (companion_data.h); icons and the map from the player's own ROM, ARGB.
+    struct CompanionView
+    {
+        struct Mon
+        {
+            std::string name, item; int level = 0, hp = 0, maxHp = 0, status = 0; bool egg = false; std::vector<uint32_t> icon; int iconW = 0, iconH = 0;
+            // (PARTY's summary, P_CMON: its types (CompanionTypes numbers, -1 none), nature, ability,
+            // stats with IVs and EVs (HP, Attack, Defence, Speed, Sp. Atk, Sp. Def), moves.)
+            int type1 = -1, type2 = -1;
+            std::string nature, ability;
+            int stats[6] = {}, iv[6] = {}, ev[6] = {};
+            struct Move { std::string name; int type = -1, pp = 0, maxPp = 0; };
+            std::vector<Move> moves;
+            std::vector<std::string> upcoming; // (moves it learns next: "Lv 40 Flamethrower")
+        };
+        std::vector<Mon> party;
+        struct Pocket { std::string name; int stacks = 0, total = 0; };
+        std::vector<Pocket> pockets;
+        // (BAG's items in the pocket shown, P_CITEM: what the game says of each, how many, and
+        // which of the party hold one.)
+        struct BagItem { std::string name, desc, pocket; int quantity = 0; std::vector<int> heldBy; std::vector<uint32_t> icon; }; // (icon: 32 x 32 from the ROM, or none)
+        std::vector<BagItem> bag;
+        // (POKEDEX's entries as listed, P_CDEXMON: number, types, seen or caught, the Pokedex's
+        // words, base stats, abilities, how it evolves, its icon from the ROM.)
+        struct DexEntry
+        {
+            int id = 0, type1 = -1, type2 = -1, base[6] = {}; bool seen = false, caught = false, hidden = false; // (hidden: not seen, not yet shown)
+            std::string name, desc; std::vector<std::string> abilities, evolutions; std::vector<uint32_t> icon;
+            struct Learn { int level = 0, type = -1; std::string move; };
+            std::vector<Learn> learns; // (moves it learns by level, in order)
+        };
+        std::vector<DexEntry> dex;
+        // (GUIDE's answers, P_CGUIDE: each shown once chosen with Enter or a tap.)
+        struct GuideAnswer { std::string text; bool shown = false; };
+        std::vector<GuideAnswer> guide;
+        bool dexMoves = false;
+        // (BATTLE INFO, in a battle: the foe (P_CBFOE: its types, ability, item, HP and what hits it
+        // hard), your Pokemon's moves against it (P_CBMOVE) and how each of your party matches up
+        // (P_CBCOVER: its best move against the foe, the foe's worst known move against it).
+        // Percentages as CompanionTypes': 200 twice as strong; -1 not known.)
+        Mon foe;
+        std::string mine;
+        struct BattleMove { std::string name, note; int type = -1, category = -1, power = 0, accuracy = 0, pp = 0, maxPp = 0, percent = -1; };
+        std::vector<BattleMove> moves;
+        struct Coverage { int party = -1, out = -1, in = -1; };
+        std::vector<Coverage> coverage; // (P_CDEXMON shows the moves it learns, not its entry: Enter on a seen one)
+        int seen = 0, caught = 0, dexTotal = 0, badges = -1;
+        std::string place, area;
+        std::vector<uint32_t> map; int mapW = 0, mapH = 0;
+        float markerX = -1, markerY = -1; // (the player on the map, in parts of it; -1: not known)
+        int balls = -1; // (Poke Balls carried, for the status bar; -1: not known)
+        long long money = -1; // (the trainer's money, for the status bar and BAG; -1: not known)
+        std::vector<Mon> battle; // (in a battle: the foe first, then yours)
+        std::vector<std::string> battleLines; // (how the types match up, CompanionBattle::Lines)
+    } companion;
+    // (Touch: the preview's choice cards as drawn, each x, y, w, h and the choice it shows; one tapped
+    // is pickWanted, which the caller reaches by pressing left or right on the row, a step a frame.)
+    mutable std::vector<std::array<int, 5>> pickRects;
+    int pickWanted = -1;
+    int pickY = 0; // (the tap's y, for SettingsTap)  // (a page of a few links, as SETTINGS: rows sharing the list's height, a line under each name)
+    // P_SHORTCUTS (CONTROLS): Fulldex's four shortcuts, FAST, SWAP, SAVE, LOAD, each with its key
+    // and its controller button ("" where there is none). P_TOUCH: the on-screen controls, each
+    // a circle (r) or a pill (w, h), in parts of the screen.
+    std::vector<std::string> shortcutKeys, shortcutPads;
+    struct TouchShape { float x, y, r, w, h; std::string label; };
+    std::vector<TouchShape> touchShapes;
+
+    // CLEAN text (on: Noto Sans, ui_clean_font.h, in title case) or the pixel font (the Retro look).
+    // Japanese and Korean menus keep the pixel font, which has their letters.
+    static inline bool Clean = true;
+    static bool UseClean() { return Clean && (UiLang::lang < 5 || CleanFont::Cjk()); }
+    static int Px(int scale, bool big = false) { return (big ? 14 : 12) * scale; }
+    static int TW(const std::string& s, int scale, bool big = false)
+    {
+        return UseClean() ? CleanFont::Width(CleanFont::Title(UiLang::Tr(s)), Px(scale, big), big) : Canvas::TextWidth(s, scale);
+    }
+    // (y: the top of a pixel-font line; clean text sits on the same baseline as its capitals.)
+    static void TX(Canvas& c, int x, int y, const std::string& s, int scale, uint32_t col, bool big = false)
+    {
+        if (UseClean()) CleanFont::Draw(c, x, y + 7 * scale, CleanFont::Title(UiLang::Tr(s)), Px(scale, big), col, big);
+        else c.Text(x, y, s, scale, col);
+    }
+    static void TXRaw(Canvas& c, int x, int y, const std::string& s, int scale, uint32_t col, bool big = false)
+    {
+        if (UseClean()) CleanFont::Draw(c, x, y + 7 * scale, s, Px(scale, big), col, big);
+        else c.TextRaw(x, y, s, scale, col);
+    }
+    // (Text as it is given: a song's name, not put in title case or translated.)
+    static int TWRaw(const std::string& s, int scale, bool big = false)
+    {
+        return UseClean() ? CleanFont::Width(s, Px(scale, big), big) : Canvas::TextWidth(s, scale);
+    }
 
     // Returns the index of an item that was activated this frame, or -1.
     // dir is -1/+1 when left/right was used on it, 0 for accept.
@@ -176,15 +345,42 @@ struct Menu
         dir = 0;
         if (!open || items.empty()) return -1;
         int n = (int)items.size();
+        if (style == 1) return UpdateSettings(in, dir);
+        if (style == 2)
+        {
+            // (Two buttons side by side: any direction goes to the other.)
+            if (in.left || in.right || in.up || in.down) selected = selected == 0 ? n - 1 : 0;
+            return in.accept ? selected : -1;
+        }
+        if (columns > 0)
+        {
+            const int columns = drawnColumns > 0 ? drawnColumns : this->columns;
+            if (!nowPlaying.shown || nowPlaying.idle) npFocus = -1;
+            if (npFocus >= 0)
+            {
+                // (On the NOW PLAYING bar: left and right between its buttons, up back to the tiles.)
+                if (in.left) npFocus = std::max(0, npFocus - 1);
+                if (in.right) npFocus = std::min(2, npFocus + 1);
+                if (in.up) npFocus = -1;
+                if (in.accept) npAction = npFocus;
+                return -1;
+            }
+            if (in.down && nowPlaying.shown && !nowPlaying.idle && selected + columns >= n) { npFocus = 1; return -1; }
+            if (in.left) selected = (selected + n - 1) % n;
+            if (in.right) selected = (selected + 1) % n;
+            if (in.up) selected = (selected + n - columns % n) % n;
+            if (in.down) selected = (selected + columns) % n;
+            return in.accept && !items[selected].disabled ? selected : -1;
+        }
         if (in.up) selected = (selected + n - 1) % n;
         if (in.down) selected = (selected + 1) % n;
-        if (in.accept) return selected;
-        if (in.left && !items[selected].value.empty())
+        if (in.accept) return items[selected].disabled ? -1 : selected;
+        if (in.left && !items[selected].value.empty() && !items[selected].disabled)
         {
             dir = -1;
             return selected;
         }
-        if (in.right && !items[selected].value.empty())
+        if (in.right && !items[selected].value.empty() && !items[selected].disabled)
         {
             dir = 1;
             return selected;
@@ -198,6 +394,9 @@ struct Menu
     mutable int scroll = 0;
     // Where a slider's bar was drawn (the same on every row): its left edge and one block's step.
     mutable int barX = 0, barStep = 0;
+    // Where each tile was drawn (columns > 0): x, y, size.
+    mutable std::vector<int> tileX, tileY;
+    mutable int tileSize = 0;
 
     // The value a tap at x on a slider's row stands for (0 to 10: the block tapped and those
     // before it; left of the bar, 0), or -1 for a tap beside the bar.
@@ -208,39 +407,286 @@ struct Menu
         return std::min(10, (x - barX) / barStep + 1);
     }
 
-    // The row at (x, y) of the canvas the menu was drawn on (touch screens): its index, -1 for
-    // a point in the box but on no row, -2 for a point outside the box.
+    // The row (or tile) at (x, y) of the canvas the menu was drawn on (touch screens): its index,
+    // -1 for a point in the box but on no row, -2 for a point outside the box.
     int ItemAt(int x, int y) const
     {
+        if (style == 1) return SettingsItemAt(x, y);
         if (drawnW <= 0 || x < drawnX || x >= drawnX + drawnW || y < drawnY || y >= drawnY + drawnH) return -2;
+        if (columns > 0)
+        {
+            for (size_t i = 0; i < tileX.size() && i < items.size(); i++)
+                if (x >= tileX[i] && x < tileX[i] + tileSize && y >= tileY[i] && y < tileY[i] + tileSize) return (int)i;
+            return -1;
+        }
         if (drawnLineH <= 0 || y < drawnFirstY) return -1;
         const int i = scroll + (y - drawnFirstY) / drawnLineH;
         return i < (int)items.size() ? i : -1;
     }
 
+    // Informational values describe a row; they are not left/right settings. A tap
+    // activates the row (party details, dated state slots, backup details) like Enter.
+    void Tap(int x,int y,MenuInput& input,int& sliderValue)
+    {
+        if(style!=1&&columns>0&&!nowPlaying.idle){const int b=NowPlayingAt(x,y);if(b>=0){npFocus=-1;npAction=b;return;}}
+        if(style==2)
+        {
+            // (On a button: it is chosen and pressed. Outside the card: CANCEL.)
+            for(int b=0;b<2;b++)
+                if(dialogW>0&&x>=dialogX[b]&&x<dialogX[b]+dialogW&&y>=dialogY&&y<dialogY+dialogH){selected=b==0?(int)items.size()-1:0;input.accept=true;return;}
+            return;
+        }
+        const int item=ItemAt(x,y);
+        if(style==1){pickY=y;SettingsTap(item,x,input);return;}
+        if(item==-2)input.back=true;
+        else if(item>=0)
+        {
+            selected=item;
+            if(columns>0)input.accept=true;
+            else if(items[item].slider>=0 && SliderAt(x)>=0){sliderValue=SliderAt(x);input.accept=true;}
+            else if(items[item].value.empty()||items[item].info)input.accept=true;
+            else if(x<drawnX+drawnW/3)input.left=true;
+            else input.right=true;
+        }
+    }
+
     // note: a few lines of text in a strip under the box (CHEATS: what the database says about
     // the chosen cheat), wrapped to the box's width.
-    // The chosen row's colour (COLOUR, AccentNamed); the box, text and bars are shaded from it.
+    // The accent (COLOUR, AccentNamed): kept for the game list; the glass menu is white on the game.
     static inline uint32_t Accent = 0xFFE0242C;
+
+    // The glass colours (glass.h): panels a little lighter than the blurred game, the chosen row
+    // or tile lighter still with a bright edge, text white, hints a soft grey.
+    static constexpr uint32_t GlassPanel = 0x2BFFFFFF, GlassEdge = 0x3DFFFFFF;
+    static constexpr uint32_t GlassChosen = 0x4AFFFFFF, GlassChosenEdge = 0xF2FFFFFF;
+    static inline uint32_t GlassText = 0xFFF2F5F9, GlassHint = 0xFFB9C3CF, GlassOff = 0xFF7E8894; // (the launcher's Text Colour changes them: Look, launcher.h)
+    // Lists: a little shade under the glass so white text reads over bright parts of the game,
+    // and the chosen row an outline with a faint fill (a bright fill hid its text).
+    static constexpr uint32_t GlassShade = 0x4D000000, GlassRow = 0x1FFFFFFF;
+    // Frosted glass (Glass::Frost, the blurred game made lighter and more colourful) with a faint
+    // white over it and a bright edge; the old grey shade where there is no blurred game to frost.
+    static constexpr uint32_t FrostTint = 0x0FFFFFFF, FrostEdge = 0x5CFFFFFF, FrostChosen = 0x2EFFFFFF;
+    // over: drawn again over itself as already drawn (Menu::DrawChosenTile): its shadow is there,
+    // and its frost made from the game rather than from the frost.
+    static void FrostBox(Canvas& c, bool solid, int x, int y, int w, int h, float r, bool chosen = false, float edge = 1.0f, bool over = false)
+    {
+        // (Raised glass, as the settings pages': a soft shadow, the frost with a deep tint, a lit rim.)
+        if (!over) Glass::Shadow(c, x, y, w, h, r, std::max(6.0f, h * 0.06f), 0x70);
+        if (solid) Glass::Frost(c, x, y, w, h, r, over ? &c.backdrop : nullptr);
+        else Glass::Round(c, x, y, w, h, r, GlassShade);
+        if (chosen) Glass::Round(c, x, y, w, h, r, FrostChosen);
+        else Glass::Surface(c, 0, x, y, w, h, r, Glass::PanelTint()); // (the launcher's Panels: a colour or a picture)
+        if (chosen) Glass::Round(c, x, y, w, h, r, 0, Glass::ChosenEdge(), edge); // (the accent: white unless chosen)
+        else Glass::Rim(c, x, y, w, h, r, std::max(1.2f, edge * 1.4f));
+    }
+
+    // The first page's tiles (columns > 0): rows of glass squares, each an icon over its name,
+    // centred on the blurred game with no panel round them; "FULLDEX" and "PAUSED" above.
+    // NOW PLAYING: what the player's own music app is playing (frontend/now_playing.h), shown in
+    // a bar under the tiles with its controls; nothing when no music app is playing.
+    struct NowPlaying
+    {
+        bool shown = false, playing = false, canPrev = true, canNext = true;
+        bool idle = false; // no music app playing: "No music playing", the buttons dimmed
+        bool blind = false; // the buttons work but the song cannot be seen (Android without notification access)
+        std::string title, artist, app;
+        std::vector<uint32_t> art; int artW = 0, artH = 0; // the album art, ARGB, if the app gives it
+    } nowPlaying;
+    // The bar's buttons as drawn (previous, play / pause, next), for taps; -1 none.
+    mutable int npX[3] = {}, npY = 0, npS = 0;
+    int npFocus = -1;  // the bar's button chosen with the pad or keys (down from the tiles), -1: a tile
+    int npAction = -1; // a button pressed this frame (0 previous, 1 play / pause, 2 next), for the caller
+    int NowPlayingAt(int x, int y) const
+    {
+        if (!nowPlaying.shown || !npS) return -1;
+        for (int i = 0; i < 3; i++)
+            if (x >= npX[i] - npS && x < npX[i] + npS && y >= npY - npS && y < npY + npS) return i;
+        return -1;
+    }
+
+    void DrawNowPlaying(Canvas& c, bool solid, int x, int y, int w, int h, int scale) const
+    {
+        const bool idle = nowPlaying.idle;
+        const float r = h * 0.3f;
+        FrostBox(c, solid, x, y, w, h, r);
+        // (The album art, or a note on dark glass.)
+        const int pad = h / 7, a = h - 2 * pad, ax = x + pad, ay = y + pad;
+        Glass::Round(c, ax, ay, a, a, r * 0.6f, 0x400A111C, 0x2EFFFFFF, 1.0f);
+        if (!idle && !nowPlaying.art.empty() && nowPlaying.artW > 0 && nowPlaying.artH > 0)
+        {
+            const float rr = r * 0.6f;
+            for (int py = 0; py < a; py++)
+                for (int px = 0; px < a; px++)
+                {
+                    const int X = ax + px, Y = ay + py;
+                    if (X < 0 || Y < 0 || X >= c.w || Y >= c.h) continue;
+                    // (Its rounded corners: outside them left as it is.)
+                    const float qx = std::max(0.0f, std::fabs(px + 0.5f - a * 0.5f) - (a * 0.5f - rr)), qy = std::max(0.0f, std::fabs(py + 0.5f - a * 0.5f) - (a * 0.5f - rr));
+                    const float cover = std::clamp(rr + 0.5f - Glass::Hyp(qx, qy), 0.0f, 1.0f);
+                    if (cover <= 0) continue;
+                    const uint32_t s = ArtSmooth::At(nowPlaying.art, nowPlaying.artW, nowPlaying.artH, px, py, a);
+                    c.px[(size_t)Y * c.w + X] = Glass::Over(c.px[(size_t)Y * c.w + X], s | 0xFF000000u, (int)(cover * 255));
+                }
+            Glass::Mark(c, ax, ay, ax + a, ay + a);
+        }
+        else Glass::DrawIcon(c, Glass::I_NOTE, ax + a * 0.5f, ay + a * 0.5f, a * 0.3f, idle ? GlassHint : GlassText);
+        // (Controls at the right: previous, play / pause, next.)
+        const int bs = (int)(h * 0.17f), gap = (int)(h * 0.78f);
+        const int cy = y + h / 2, cxN = x + w - pad - bs * 2, cxP = cxN - gap, cxB = cxP - gap;
+        npX[0] = cxB; npX[1] = cxP; npX[2] = cxN; npY = cy; npS = (int)(gap * 0.5f);
+        // (The button chosen with the pad or keys: a ring round it, as a chosen tile's glow.)
+        if (npFocus >= 0)
+        {
+            const int fx = npX[npFocus], rr = (int)(bs * 2.5f);
+            Glass::Glow(c, fx - rr, cy - rr, 2 * rr, 2 * rr, (float)rr, h / 90.0f);
+            Glass::Round(c, fx - rr, cy - rr, 2 * rr, 2 * rr, (float)rr, npFocus == 1 ? 0 : 0x2EFFFFFF, 0xFFFFFFFF, std::max(2.0f, h / 34.0f));
+        }
+        Glass::Round(c, cxP - (int)(bs * 1.9f), cy - (int)(bs * 1.9f), (int)(bs * 3.8f), (int)(bs * 3.8f), bs * 1.9f, idle ? 0x1EFFFFFF : 0xF7FFFFFF, idle ? 0x33FFFFFF : 0, 1.0f);
+        Glass::DrawIcon(c, nowPlaying.playing && !idle ? Glass::I_PAUSE : Glass::I_PLAY, cxP + (nowPlaying.playing && !idle ? 0 : bs * 0.12f), cy, bs * 0.9f, idle ? GlassOff : 0xFF0B1018);
+        Glass::DrawIcon(c, Glass::I_PREV, cxB, cy, bs * 1.2f, nowPlaying.canPrev && !idle ? GlassText : GlassOff);
+        Glass::DrawIcon(c, Glass::I_NEXT, cxN, cy, bs * 1.2f, nowPlaying.canNext && !idle ? GlassText : GlassOff);
+        // (The song and who it is by, cut short to fit before the controls; the app beneath, dimmer.
+        // Sized from the bar, as the text of a row.)
+        const int tx = ax + a + pad, tw = cxB - (int)(bs * 2.4f) - tx;
+        const int pxTitle = std::max(8, (int)(h * 0.4f)), pxSub = std::max(7, (int)(h * 0.32f));
+        auto width = [&](const std::string& t, int px, bool bold) { return UseClean() ? CleanFont::Width(t, px, bold) : Canvas::TextWidth(t, scale); };
+        auto fit = [&](std::string t, int px, bool bold) {
+            if (width(t, px, bold) <= tw) return t;
+            while (!t.empty() && width(t + "...", px, bold) > tw) { t.pop_back(); while (!t.empty() && (t.back() & 0xC0) == 0x80) t.pop_back(); }
+            return t + "...";
+        };
+        const bool blind = nowPlaying.blind && !idle;
+        const std::string line1 = idle ? UiLang::Tr("No music playing") : blind ? UiLang::Tr("Your music") : nowPlaying.title;
+        const std::string line2 = idle ? UiLang::Tr("Play something in any music app to control it here")
+            : blind ? UiLang::Tr("To see the song: Settings, Sound, Show Song Names")
+            : nowPlaying.artist.empty() ? nowPlaying.app : nowPlaying.artist + "  \xC2\xB7  " + nowPlaying.app;
+        if (UseClean())
+        {
+            CleanFont::Draw(c, tx, y + (int)(h * 0.45f), fit(line1, pxTitle, true), pxTitle, GlassText, true);
+            CleanFont::Draw(c, tx, y + (int)(h * 0.79f), fit(line2, pxSub, false), pxSub, GlassHint);
+        }
+        else
+        {
+            c.TextRaw(tx, y + h / 2 - 9 * scale, fit(line1, 0, true), scale, GlassText);
+            c.TextRaw(tx, y + h / 2 + 1 * scale, fit(line2, 0, false), scale, GlassHint);
+        }
+    }
+
+    // (The page without its highlight, kept: moving between tiles puts it back and draws only the
+    // chosen tile over it. Drawn whole each time, the Switch took about 200 ms a press.)
+    mutable std::vector<uint32_t> tilesBase;
+    mutable std::string tilesBaseKey;
+    void DrawTiles(Canvas& c, const std::string& hint) const
+    {
+        std::string key = std::to_string(c.w) + "x" + std::to_string(c.h) + " " + std::to_string(c.BackdropSig()) + " " + std::to_string(columns) + " " + std::to_string(npFocus) + " " + hint + "|" +
+            std::to_string(nowPlaying.shown) + std::to_string(nowPlaying.playing) + std::to_string(nowPlaying.idle) + std::to_string(nowPlaying.blind) +
+            std::to_string(nowPlaying.canPrev) + std::to_string(nowPlaying.canNext) + nowPlaying.title + "|" + nowPlaying.artist + "|" + nowPlaying.app + "|" +
+            std::to_string(nowPlaying.art.size()) + std::to_string(UiLang::lang);
+        for (const auto& it : items) key += "|" + it.label + "|" + it.value + std::to_string(it.icon) + std::to_string(it.disabled);
+        const bool reuse = key == tilesBaseKey && tilesBase.size() == c.px.size() && tileX.size() == items.size() && tileSize > 0;
+        if (reuse)
+        {
+            std::copy(tilesBase.begin(), tilesBase.end(), c.px.begin());
+            Glass::Mark(c, 0, 0, c.w, c.h);
+            DrawChosenTile(c);
+            return;
+        }
+        const bool solid = Glass::Backdrop(c);
+        int scale = std::min(c.w, c.h) / 240;
+        if (scale < 1) scale = 1;
+        // (Two to a row on a portrait screen, so the tiles stay large enough to tap.)
+        const int cols = c.h > c.w ? std::min(2, columns) : columns;
+        drawnColumns = cols;
+        const int n = (int)items.size(), rows = (n + cols - 1) / cols;
+        const bool np = nowPlaying.shown;
+        // (With the bar the tiles are a little smaller, to make room for it: 0.42 of a tile.)
+        const float avW = c.w * 0.86f, avH = c.h * (c.h > c.w ? 0.7f : 0.6f);
+        const float barRows = np ? 0.42f + 0.1f : 0.0f;
+        const int s = (int)std::min(avW / (cols + 0.1f * (cols - 1)), avH / (rows + 0.1f * (rows - 1) + barRows));
+        const int gap = s / 10;
+        const int barH = np ? (int)(s * 0.42f) : 0;
+        const int gridW = cols * s + (cols - 1) * gap, gridH = rows * s + (rows - 1) * gap;
+        const int gx = (c.w - gridW) / 2, gy = (c.h - gridH - (np ? barH + gap : 0)) / 2;
+        tileX.assign(n, 0); tileY.assign(n, 0); tileSize = s;
+        drawnX = gx - gap; drawnY = gy - gap; drawnW = gridW + 2 * gap; drawnH = gridH + 2 * gap;
+        drawnLineH = 0; drawnFirstY = 0; scroll = 0;
+        const int headY = gy - 9 * scale - gap;
+        TXRaw(c, gx, headY, "Fulldex", scale, GlassText);
+        // (One size for every tile's name: the largest at which the longest still fits.)
+        int ls = scale;
+        for (int i = 0; i < n; i++)
+            while (ls > 1 && TW(items[i].label, ls, true) > s * 0.88f) ls--;
+        TX(c, gx + gridW - TW("PAUSED", scale), headY, "PAUSED", scale, GlassHint);
+        for (int i = 0; i < n; i++)
+        {
+            const int x = gx + (i % cols) * (s + gap), y = gy + (i / cols) * (s + gap);
+            tileX[i] = x; tileY[i] = y;
+            const bool sel = false, off = items[i].disabled; // (the highlight: DrawChosenTile, over this)
+            if (sel) Glass::Glow(c, x, y, s, s, s * 0.09f, s / 200.0f);
+            FrostBox(c, solid, x, y, s, s, s * 0.09f, sel, sel ? (float)std::max(2, scale) : 1.0f);
+            const uint32_t ink = off ? GlassOff : GlassText;
+            if (items[i].icon >= 0) Glass::DrawIcon(c, items[i].icon, x + s * 0.5f, y + s * 0.4f, s * 0.19f, ink);
+            TX(c, x + (s - TW(items[i].label, ls, true)) / 2, y + (int)(s * 0.72f), items[i].label, ls, ink, true);
+            if (!items[i].value.empty())
+            {
+                const int vs = std::max(1, ls - 1);
+                TX(c, x + s - TW(items[i].value, vs) - s / 14, y + s / 14, items[i].value, vs, off ? GlassOff : GlassHint);
+            }
+        }
+        int below = gy + gridH + gap;
+        if (np)
+        {
+            DrawNowPlaying(c, solid, gx, below, gridW, barH, scale);
+            below += barH + gap;
+        }
+        else npS = 0;
+        TX(c, (c.w - TW(hint, scale)) / 2, below + 2 * scale, hint, scale, GlassHint);
+        if (solid) Glass::Opaque(c);
+        tilesSolid = solid;
+        tilesLabelScale = ls;
+        tilesScale = scale;
+        tilesBase = c.px;
+        tilesBaseKey = key;
+        DrawChosenTile(c);
+    }
+    mutable bool tilesSolid = false;
+    mutable int tilesLabelScale = 1, tilesScale = 1;
+    // The chosen tile, lit, over the page as DrawTiles left it.
+    void DrawChosenTile(Canvas& c) const
+    {
+        const int i = selected;
+        if (npFocus >= 0 || i < 0 || i >= (int)items.size() || i >= (int)tileX.size()) return;
+        const int s = tileSize, x = tileX[i], y = tileY[i], ls = tilesLabelScale, scale = tilesScale;
+        const bool off = items[i].disabled;
+        Glass::Glow(c, x, y, s, s, s * 0.09f, s / 200.0f);
+        FrostBox(c, tilesSolid, x, y, s, s, s * 0.09f, true, (float)std::max(2, scale), true);
+        const uint32_t ink = off ? GlassOff : GlassText;
+        if (items[i].icon >= 0) Glass::DrawIcon(c, items[i].icon, x + s * 0.5f, y + s * 0.4f, s * 0.19f, ink);
+        TX(c, x + (s - TW(items[i].label, ls, true)) / 2, y + (int)(s * 0.72f), items[i].label, ls, ink, true);
+        if (!items[i].value.empty())
+        {
+            const int vs = std::max(1, ls - 1);
+            TX(c, x + s - TW(items[i].value, vs) - s / 14, y + s / 14, items[i].value, vs, off ? GlassOff : GlassHint);
+        }
+        // (Made solid, as Glass::Opaque does the whole page: here only round the tile and its glow.)
+        if (tilesSolid)
+        {
+            const int m = s / 4;
+            for (int yy = std::max(0, y - m); yy < std::min(c.h, y + s + m); yy++)
+                for (int xx = std::max(0, x - m); xx < std::min(c.w, x + s + m); xx++) c.px[(size_t)yy * c.w + xx] |= 0xFF000000u;
+        }
+    }
 
     // boxUnits: the box's width at scale 1 (0: 190, as the other pages). CHEATS passes 260 so a
     // code's name (32 letters) fits beside "< OFF >".
     void Draw(Canvas& c, const std::string& title, const std::string& hint, const std::string& note = "", int boxUnits = 0) const
     {
-        // (Each channel of the accent c: f(c) per part. With blue, 0xFF3D6FD1, it is the menu as
-        // it was: the box 0x1C2A44, the text 0xC8D0E0, the hints 0x8FA0C0.)
-        auto shade = [](uint32_t a, auto f) {
-            const int r = f((int)(a >> 16 & 0xFF)), g = f((int)(a >> 8 & 0xFF)), b = f((int)(a & 0xFF));
-            return 0xFF000000u | (uint32_t)std::clamp(r, 0, 255) << 16 | (uint32_t)std::clamp(g, 0, 255) << 8 | (uint32_t)std::clamp(b, 0, 255);
-        };
-        const uint32_t boxCol = shade(Accent, [](int v) { return v * 30 / 100; });
-        const uint32_t noteBox = shade(Accent, [](int v) { return v * 22 / 100; });
-        const uint32_t textCol = shade(Accent, [](int v) { return 180 + v * 17 / 100; });
-        const uint32_t hintCol = shade(Accent, [](int v) { return 110 + v * 35 / 100; });
-        const uint32_t barOffSel = shade(Accent, [](int v) { return v + (255 - v) * 3 / 10; });
-        const uint32_t barOff = shade(Accent, [](int v) { return v / 2; });
+        if (style == 1) { DrawSettings(c, title, hint); return; }
+        if (style == 2) { DrawDialog(c, title, note, hint); return; }
+        if (columns > 0) { DrawTiles(c, hint); return; }
         int scale = std::min(c.w, c.h) / 240;
         if (scale < 1) scale = 1;
+        if (touchRows > 1.0f) scale = std::max(scale, (int)std::lround(scale * touchRows * 0.9f)); // (phones: bigger for a finger)
         int lineH = (UiLang::Tall() ? 16 : 11) * scale;
         // (Rows closer together if they would not all fit on the screen, down to 9 * scale.)
         // With no title the box starts with the first item.
@@ -251,7 +697,7 @@ struct Menu
         int boxW = (boxUnits > 0 ? boxUnits : 190) * scale;
         if (UiLang::lang)
             for (const auto& item : items)
-                boxW = std::max(boxW, Canvas::TextWidth(item.label, scale) + (item.value.empty() ? 0 : Canvas::TextWidth(shownValue(item), scale)) + 20 * scale);
+                boxW = std::max(boxW, TW(item.label, scale) + (item.value.empty() ? 0 : TW(shownValue(item), scale)) + 20 * scale);
         if (boxW > c.w - 8) boxW = c.w - 8;
         // The note's lines (up to 4, the last cut short), and the box moved up to make room.
         std::vector<std::string> noteLines;
@@ -282,47 +728,100 @@ struct Menu
         drawnLineH = lineH;
         drawnFirstY = by + (hasTitle ? lineH : 0) + 5 * scale - 2 * scale;
 
-        c.Fill(0, 0, c.w, c.h, 0xA0000000);
-        c.Fill(bx - scale, by - scale, boxW + 2 * scale, boxH + 2 * scale, 0xFFE8E8E8);
-        c.Fill(bx, by, boxW, boxH, boxCol);
-        if (hasTitle) c.Text(bx + (boxW - Canvas::TextWidth(title, scale)) / 2, by + 3 * scale, title, scale, 0xFFFFD75E);
+        // (The glass boxes over the game, the same while the page is up: drawn once and copied after,
+        // the rows drawn over them each press.)
+        const float radius = 5.0f * scale;
+        const int noteY = by + boxH + 3 * scale;
+        const std::string listKey = std::to_string(c.w) + "x" + std::to_string(c.h) + " " + std::to_string(c.BackdropSig()) + " " + std::to_string(bx) + "," +
+            std::to_string(by) + "," + std::to_string(boxW) + "," + std::to_string(boxH) + "," + std::to_string(noteLines.empty() ? 0 : noteH);
+        bool solid;
+        if (listKey == listBaseKey && listBase.size() == c.px.size())
+        {
+            std::copy(listBase.begin(), listBase.end(), c.px.begin());
+            Glass::Mark(c, 0, 0, c.w, c.h);
+            solid = listBaseSolid;
+        }
+        else
+        {
+            solid = Glass::Backdrop(c);
+            FrostBox(c, solid, bx, by, boxW, boxH, radius);
+            if (!noteLines.empty()) FrostBox(c, solid, bx, noteY, boxW, noteH, radius);
+            listBase = c.px; listBaseKey = listKey; listBaseSolid = solid;
+        }
+        if (hasTitle) TX(c, bx + (boxW - TW(title, scale, true)) / 2, by + 3 * scale, title, scale, GlassText, true);
 
         int y = by + (hasTitle ? lineH : 0) + 5 * scale;
         // (Marks at the box's right edge where rows are scrolled out of view, above or below.)
-        if (scroll > 0) c.Text(bx + boxW - 8 * scale, y - lineH + 2 * scale, "+", scale, hintCol);
-        if (scroll + shown < (int)items.size()) c.Text(bx + boxW - 8 * scale, y + shown * lineH - 2 * scale, "+", scale, hintCol);
+        if (scroll > 0) TX(c, bx + boxW - 8 * scale, y - lineH + 2 * scale, "+", scale, GlassHint);
+        if (scroll + shown < (int)items.size()) TX(c, bx + boxW - 8 * scale, y + shown * lineH - 2 * scale, "+", scale, GlassHint);
         for (int i = scroll; i < scroll + shown; i++)
         {
             bool sel = i == selected;
-            if (sel) c.Fill(bx + 2 * scale, y - 2 * scale, boxW - 4 * scale, lineH, Accent);
-            uint32_t col = sel ? 0xFFFFFFFF : textCol;
-            c.Text(bx + 6 * scale, y, items[i].label, scale, col);
+            if (sel) Glass::Round(c, bx + 2 * scale, y - 2 * scale, boxW - 4 * scale, lineH, 3.0f * scale, GlassRow, GlassChosenEdge, (float)std::max(1, scale / 2));
+            uint32_t col = items[i].disabled ? GlassOff : sel ? 0xFFFFFFFF : GlassText;
+            TX(c, bx + 6 * scale, y, items[i].label, scale, col);
             if (!items[i].value.empty())
             {
                 const std::string v = shownValue(items[i]);
                 // (A slider's value right-aligned in room for its widest, "< 100% >", the bar left
                 // of it, so the bar stays put as the number changes.)
-                const int vx = bx + boxW - 6 * scale - Canvas::TextWidth(items[i].slider >= 0 ? "< 100% >" : v, scale);
-                c.Text(items[i].slider >= 0 ? bx + boxW - 6 * scale - Canvas::TextWidth(v, scale) : vx, y, v, scale, col);
+                const int vx = bx + boxW - 6 * scale - TW(items[i].slider >= 0 ? "< 100% >" : v, scale);
+                TX(c, items[i].slider >= 0 ? bx + boxW - 6 * scale - TW(v, scale) : vx, y, v, scale, col);
                 if (items[i].slider >= 0)
                 {
                     barStep = 5 * scale;
                     barX = vx - 4 * scale - 10 * barStep;
                     for (int k = 0; k < 10; k++)
                         c.Fill(barX + k * barStep, y, 4 * scale, 7 * scale,
-                               k < items[i].slider ? (sel ? 0xFFFFFFFF : textCol) : (sel ? barOffSel : barOff));
+                               k < items[i].slider ? 0xFFFFFFFF : (sel ? 0xFF9AA5B1 : 0xFF5C6672));
                 }
             }
             y += lineH;
         }
-        c.Text(bx + (boxW - Canvas::TextWidth(hint, scale)) / 2, y + 4 * scale, hint, scale, hintCol);
+        TX(c, bx + (boxW - TW(hint, scale)) / 2, y + 4 * scale, hint, scale, GlassHint);
         if (!noteLines.empty())
         {
-            const int ny = by + boxH + 3 * scale;
-            c.Fill(bx - scale, ny - scale, boxW + 2 * scale, noteH + 2 * scale, 0xFFE8E8E8);
-            c.Fill(bx, ny, boxW, noteH, noteBox);
+            const int ny = noteY;
             for (size_t i = 0; i < noteLines.size(); i++)
-                c.TextRaw(bx + 6 * scale, ny + 4 * scale + (int)i * UiLang::LineUnits() * scale, noteLines[i], scale, textCol);
+                TXRaw(c, bx + 6 * scale, ny + 4 * scale + (int)i * UiLang::LineUnits() * scale, noteLines[i], scale, GlassText);
         }
+        if (solid) Glass::Opaque(c);
     }
+
+    mutable std::vector<uint32_t> listBase; // (a list page's boxes over the game, as drawn: Draw)
+    mutable std::string listBaseKey;
+    mutable bool listBaseSolid = false;
+    // Settings pages (style 1): ui_settings.h.
+    int UpdateSettings(const MenuInput& in, int& dir);
+    int SettingsItemAt(int x, int y) const;
+    void SettingsTap(int item, int x, MenuInput& input);
+    void DrawSettings(Canvas& c, const std::string& title, const std::string& hint) const;
+    // style 2: a question in a card over the paused game ("Quit Game?"): items[0] the action, the
+    // last item CANCEL, drawn side by side as pills (CANCEL first); dialogIcon above the title.
+    int dialogIcon = -1;
+    mutable int dialogX[2] = {}, dialogY = 0, dialogW = 0, dialogH = 0;
+    void DrawDialog(Canvas& c, const std::string& title, const std::string& text, const std::string& hint) const;
+    void DrawDialogButtons(Canvas& c, int py, int ph, float k, bool solid) const;
+    // (A settings page of state slots, SAVE and LOAD: its other rows as pills across the top, the
+    // K_SLOT rows as cards in a grid, each with its picture and date. Where each was drawn:
+    // slotRects {x, y, w, h, item}; the grid's columns: slotCols.)
+    bool slotGrid = false;
+    mutable std::vector<std::array<int, 5>> slotRects;
+    mutable int slotCols = 5;
+    void DrawSlotGrid(Canvas& c, int x0, int w0, int top, int bottom, float k) const;
+    // (A settings page that is a keyboard, SEARCH and RetroAchievements' log in: what is typed in a
+    // box across the top (keyText; dots when keySecret; keyPrompt while empty), then the K_KEY rows as
+    // keys, chosen with the stick or a tap. Where each was drawn: keyRects {x, y, w, h, item}.)
+    bool keyGrid = false, keySecret = false;
+    std::string keyText, keyPrompt;
+    mutable std::vector<std::array<int, 5>> keyRects;
+    void DrawKeyGrid(Canvas& c, int x0, int w0, int top, int bottom, float k) const;
+    int FirstRow() const; // the first row that can be chosen (not a section's heading or the back button)
+    // Where the settings page was last drawn: each item's row (y, -1 when not shown), the rows' x
+    // and size, the controls' box on the right of them, and the back button.
+    mutable std::vector<int> rowY;
+    mutable int rowX = 0, rowW = 0, rowH = 0, ctlX = 0, ctlW = 0, backX = 0, backY = 0, backS = 0, scrollPx = 0;
 };
+
+#include "ui_settings.h"
+

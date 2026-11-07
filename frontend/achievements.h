@@ -85,8 +85,16 @@ struct Row
     bool unlocked = false;
     int64_t unlockTime = 0; // when it was unlocked (seconds since 1970), 0: not known
     float rarity = 0;       // the share of players who have it, in percent (0: not known)
+    std::string badge;      // its badge's name on the server ("123456"), for Badge
 };
 std::vector<Row> List();
+// Each achievement's badge, a small square picture (64 x 64) from RetroAchievements' server, kept
+// in `folder` once it has come (SetBadgeFolder, before a game). Badge gives it in ARGB (locked:
+// in grey, as the server shows one not yet earned), or false while it is on its way: asked for the
+// first time it is wanted. BadgeVersion goes up as each comes, for the pause menu to draw again.
+void SetBadgeFolder(const std::string& folder);
+bool Badge(const std::string& name, bool locked, std::vector<uint32_t>& argb, int& w, int& h);
+unsigned BadgeVersion();
 bool Busy();               // a login or the game's set is on its way
 
 // A login from the game list, with no game running (pc_launcher.cpp): the user name and password

@@ -100,6 +100,9 @@ if [ "$JIT" = 1 ]; then
         -DSSR_ALL_GAMES="${SSR_ALL_GAMES:-OFF}" \
         -DSSR_PC_ART="${SSR_PC_ART:-}" \
         -DSSR_GBA_DIR="${SSR_GBA_DIR:-}" \
+        -DSSR_POKEMON_HUB="${SSR_POKEMON_HUB:-OFF}" \
+        -DFULLDEX_RELAY_URL="${FULLDEX_RELAY_URL:-}" \
+        -DFULLDEX_GOOGLE_CLIENT_FILE="${FULLDEX_GOOGLE_CLIENT_FILE:-}" \
         -DSSR_JIT=ON
 elif [ ! -f "$BUILD/build.ninja" ]; then
     cmake -S . -B "$BUILD" -G Ninja "${PKGCONF[@]}" \

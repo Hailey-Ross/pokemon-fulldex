@@ -87,6 +87,17 @@ BUILD="build-ios-$TARGET"
 OPTS=(-G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT="$SDK"
       -DCMAKE_OSX_ARCHITECTURES="$ARCH" -DCMAKE_OSX_DEPLOYMENT_TARGET="$MIN_IOS"
       -DSSR_JIT=OFF -DSSR_PC_ALL_GAMES=ON -DSSR_PNG=OFF -DSSR_GPU3D=OFF -DSSR_GENERATED_DIR="$TABLES")
+# (On GitHub these come with the inputs: online.env and fulldex-google-client.txt beside the tables.)
+if [ -f "$(dirname "$TABLES")/online.env" ]; then . "$(dirname "$TABLES")/online.env"; fi
+if [ -z "${FULLDEX_GOOGLE_CLIENT_FILE:-}" ] && [ -f "$(dirname "$TABLES")/fulldex-google-client.txt" ]; then
+    FULLDEX_GOOGLE_CLIENT_FILE="$(cd "$(dirname "$TABLES")" && pwd)/fulldex-google-client.txt"; fi
+# The launcher's online parts, when given: the Hub (cloud saves, moving Pokemon), the theme Gallery's
+# relay and the Google sign-in client for cloud saves (a file of two lines; never in the repository).
+ONLINE=()
+[ "${SSR_POKEMON_HUB:-}" = ON ] && ONLINE+=(-DSSR_POKEMON_HUB=ON)
+[ -n "${FULLDEX_RELAY_URL:-}" ] && ONLINE+=(-DFULLDEX_RELAY_URL="$FULLDEX_RELAY_URL")
+[ -n "${FULLDEX_GOOGLE_CLIENT_FILE:-}" ] && ONLINE+=(-DFULLDEX_GOOGLE_CLIENT_FILE="$FULLDEX_GOOGLE_CLIENT_FILE")
+OPTS+=(${ONLINE[@]+"${ONLINE[@]}"})
 [ -n "$ART" ] && OPTS+=(-DSSR_PC_ART="$ART")
 if [ -n "${SSR_GBA_DIR:-}" ]; then
     [ -f "$SSR_GBA_DIR/frontend/embed.h" ] || fail "SSR_GBA_DIR: not Pokemon GBA Widescreen: $SSR_GBA_DIR"
@@ -111,6 +122,7 @@ strip -x "$APP/pokemon-ds-wide"
 cp -r "$DATA/funcs" "$APP/data/funcs"
 cp LICENSE "$APP/LICENSE.txt"
 cp LICENSE-Noto.txt "$APP/LICENSE-Noto.txt"
+cp frontend/fonts/FONT-LICENSES.txt "$APP/FONT-LICENSES.txt"
 GBA_DOCS=""
 if [ -n "${SSR_GBA_DIR:-}" ]; then
     MGBA_SRC="${GBAW_MGBA:-${GBAW_WORK:-$HOME/pokemon-gba-wide}/mgba}"
@@ -194,7 +206,7 @@ rm -rf "$DIST/Payload"
 SSR_SRC="$HERE" python3 - "$IPA" <<'PY'
 import re, sys, zipfile
 regional_codes = '|'.join(p['code'] for p in __import__('json').loads(__import__('pathlib').Path(__import__('os').environ['SSR_SRC'], 'tools/regions/profiles.json').read_text())['profiles'] if p['kind']=='functions')
-ok = re.compile(r'^Payload/(Pokemon Fulldex\.app/(pokemon-ds-wide|Info\.plist|LICENSE\.txt|LICENSE-mGBA\.txt|LICENSE-Noto\.txt|AppIcon[0-9.x@~a-z]+\.png|_CodeSignature/(CodeResources)?|data/|data/funcs/|data/funcs/(?:IREO|IRDO|IRBO|IRAO|CPUE|ADAE|APAE|ADAS|APAF|APAS|APAD|ADAD|ADAI|IRAS|CPUS|IREF|IRDF|CPUF|IRBF|IRAF|IRBS|IRES|IRDS|' + regional_codes + r')\.txt)?)?$')
+ok = re.compile(r'^Payload/(Pokemon Fulldex\.app/(pokemon-ds-wide|Info\.plist|LICENSE\.txt|LICENSE-mGBA\.txt|LICENSE-Noto\.txt|FONT-LICENSES\.txt|AppIcon[0-9.x@~a-z]+\.png|_CodeSignature/(CodeResources)?|data/|data/funcs/|data/funcs/(?:IREO|IRDO|IRBO|IRAO|CPUE|ADAE|APAE|ADAS|APAF|APAS|APAD|ADAD|ADAI|IRAS|CPUS|IREF|IRDF|CPUF|IRBF|IRAF|IRBS|IRES|IRDS|' + regional_codes + r')\.txt)?)?$')
 names = zipfile.ZipFile(sys.argv[1]).namelist()
 bad = [n for n in names if not ok.match(n)]
 if bad: sys.exit('unexpected files in the iOS download: %s' % bad)

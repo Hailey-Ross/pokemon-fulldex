@@ -1,0 +1,24 @@
+name = "fulldex-relay"
+main = "worker.js"
+compatibility_date = "2026-11-01"
+
+# Theme Gallery storage (create it once: npx wrangler r2 bucket create fulldex-themes).
+[[r2_buckets]]
+binding = "THEMES"
+bucket_name = "fulldex-themes"
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+[[durable_objects.bindings]]
+name = "LIMITER"
+class_name = "Limiter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["Limiter"]

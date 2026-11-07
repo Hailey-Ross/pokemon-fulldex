@@ -295,6 +295,10 @@ public: // TODO: Encapsulate the rest of these members
 
     u8* MainRAM;
     u32 MainRAMMask;
+    // (Fulldex) Called with each word the ARM9 sends through the IPC FIFO, before the ARM7 can
+    // read it: the game's sound command lists (frontend/game_music.h).
+    void (*IPCSendHook)(void* user, u32 word) = nullptr;
+    void* IPCSendUser = nullptr;
     // ssrecomp: 8 MB of main RAM in DS mode, as the DS's development units have, set before
     // Reset (Pokemon Black 2's wider map, frontend/bw2map.h). A save state remembers which it was
     // made with (LargeMainRAMMark), so states made with 4 MB still load as they were.

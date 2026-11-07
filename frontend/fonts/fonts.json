@@ -1,0 +1,242 @@
+[
+ {
+  "id": "noto-sans",
+  "name": "Noto Sans",
+  "group": "Clean",
+  "scale": 1.0
+ },
+ {
+  "id": "inter",
+  "name": "Inter",
+  "group": "Clean",
+  "scale": 0.936
+ },
+ {
+  "id": "open-sans",
+  "name": "Open Sans",
+  "group": "Clean",
+  "scale": 1.006
+ },
+ {
+  "id": "lato",
+  "name": "Lato",
+  "group": "Clean",
+  "scale": 0.971
+ },
+ {
+  "id": "source-sans-3",
+  "name": "Source Sans 3",
+  "group": "Clean",
+  "scale": 1.084
+ },
+ {
+  "id": "nunito",
+  "name": "Nunito",
+  "group": "Rounded",
+  "scale": 1.015
+ },
+ {
+  "id": "quicksand",
+  "name": "Quicksand",
+  "group": "Rounded",
+  "scale": 0.968
+ },
+ {
+  "id": "varela-round",
+  "name": "Varela Round",
+  "group": "Rounded",
+  "scale": 0.928
+ },
+ {
+  "id": "m-plus-rounded-1c",
+  "name": "M PLUS Rounded 1c",
+  "group": "Rounded",
+  "scale": 1.017
+ },
+ {
+  "id": "comfortaa",
+  "name": "Comfortaa",
+  "group": "Rounded",
+  "scale": 0.863
+ },
+ {
+  "id": "poppins",
+  "name": "Poppins",
+  "group": "Bold",
+  "scale": 0.992
+ },
+ {
+  "id": "montserrat",
+  "name": "Montserrat",
+  "group": "Bold",
+  "scale": 0.913
+ },
+ {
+  "id": "raleway",
+  "name": "Raleway",
+  "group": "Bold",
+  "scale": 0.933
+ },
+ {
+  "id": "oswald",
+  "name": "Oswald",
+  "group": "Bold",
+  "scale": 1.19
+ },
+ {
+  "id": "bebas-neue",
+  "name": "Bebas Neue",
+  "group": "Bold",
+  "scale": 1.119
+ },
+ {
+  "id": "rubik",
+  "name": "Rubik",
+  "group": "Bold",
+  "scale": 0.935
+ },
+ {
+  "id": "press-start-2p",
+  "name": "Press Start 2P",
+  "group": "Retro",
+  "scale": 0.65
+ },
+ {
+  "id": "vt323",
+  "name": "VT323",
+  "group": "Retro",
+  "scale": 0.96
+ },
+ {
+  "id": "silkscreen",
+  "name": "Silkscreen",
+  "group": "Retro",
+  "scale": 0.827
+ },
+ {
+  "id": "pixelify-sans",
+  "name": "Pixelify Sans",
+  "group": "Retro",
+  "scale": 0.933
+ },
+ {
+  "id": "fredoka",
+  "name": "Fredoka",
+  "group": "Fun",
+  "scale": 0.963
+ },
+ {
+  "id": "baloo-2",
+  "name": "Baloo 2",
+  "group": "Fun",
+  "scale": 1.142
+ },
+ {
+  "id": "lilita-one",
+  "name": "Lilita One",
+  "group": "Fun",
+  "scale": 0.968
+ },
+ {
+  "id": "bungee",
+  "name": "Bungee",
+  "group": "Fun",
+  "scale": 0.875
+ },
+ {
+  "id": "patrick-hand",
+  "name": "Patrick Hand",
+  "group": "Handwritten",
+  "scale": 1.14
+ },
+ {
+  "id": "caveat",
+  "name": "Caveat",
+  "group": "Handwritten",
+  "scale": 1.142
+ },
+ {
+  "id": "kalam",
+  "name": "Kalam",
+  "group": "Handwritten",
+  "scale": 1.138
+ },
+ {
+  "id": "atkinson-hyperlegible",
+  "name": "Atkinson Hyperlegible",
+  "group": "Easy To Read",
+  "scale": 0.982
+ },
+ {
+  "id": "lexend",
+  "name": "Lexend",
+  "group": "Easy To Read",
+  "scale": 0.943
+ },
+ {
+  "id": "lora",
+  "name": "Lora",
+  "group": "Serif",
+  "scale": 0.977
+ },
+ {
+  "id": "shojumaru",
+  "name": "Shojumaru",
+  "group": "Brush",
+  "scale": 0.832
+ },
+ {
+  "id": "potta-one",
+  "name": "Potta One",
+  "group": "Brush",
+  "scale": 0.96
+ },
+ {
+  "id": "reggae-one",
+  "name": "Reggae One",
+  "group": "Brush",
+  "scale": 0.964
+ },
+ {
+  "id": "kaisei-tokumin",
+  "name": "Kaisei Tokumin",
+  "group": "Brush",
+  "scale": 1.012
+ },
+ {
+  "id": "zen-antique",
+  "name": "Zen Antique",
+  "group": "Brush",
+  "scale": 1.016
+ },
+ {
+  "id": "kaushan-script",
+  "name": "Kaushan Script",
+  "group": "Brush",
+  "scale": 1.111
+ },
+ {
+  "id": "knewave",
+  "name": "Knewave",
+  "group": "Brush",
+  "scale": 1.084
+ },
+ {
+  "id": "caveat-brush",
+  "name": "Caveat Brush",
+  "group": "Brush",
+  "scale": 1.121
+ },
+ {
+  "id": "mr-dafoe",
+  "name": "Mr Dafoe",
+  "group": "Brush",
+  "scale": 1.148
+ },
+ {
+  "id": "sedgwick-ave-display",
+  "name": "Sedgwick Ave Display",
+  "group": "Brush",
+  "scale": 1.025
+ }
+]

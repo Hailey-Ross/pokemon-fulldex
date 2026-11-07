@@ -106,11 +106,35 @@ set(SSRECOMP_SOURCES
     frontend/main.cpp
     frontend/achievements.cpp
     frontend/achievements_http.cpp
+    frontend/cloud_saves.cpp
+    frontend/cloud_autosync.cpp
+    frontend/hub_link.cpp
+    frontend/theme_pack.cpp
+    frontend/launcher_fonts.cpp
+    frontend/launcher_cjk.cpp
+    frontend/trade_evolutions.cpp
     frontend/platform.cpp
     runtime/recomp_rt.cpp
     runtime/recomp_mem.cpp
     "${SSR_GENERATED_DIR}/apps_table.cpp"
     $<TARGET_OBJECTS:gamecode>)
+
+# Cloud saves' Google sign-in (frontend/cloud_saves.cpp): the client's id and secret from a file of
+# two lines, given at build time, so they are never in the code. Without it, Google is not offered.
+set(FULLDEX_GOOGLE_CLIENT_FILE "" CACHE FILEPATH "Google sign-in client for cloud saves: a file of two lines, id and secret")
+if(FULLDEX_GOOGLE_CLIENT_FILE)
+    file(STRINGS "${FULLDEX_GOOGLE_CLIENT_FILE}" _fulldex_google LIMIT_COUNT 2)
+    list(LENGTH _fulldex_google _fulldex_google_n)
+    if(NOT _fulldex_google_n EQUAL 2)
+        message(FATAL_ERROR "FULLDEX_GOOGLE_CLIENT_FILE needs two lines: the client id, then its secret")
+    endif()
+    list(GET _fulldex_google 0 _fulldex_google_id)
+    list(GET _fulldex_google 1 _fulldex_google_secret)
+    string(STRIP "${_fulldex_google_id}" _fulldex_google_id)
+    string(STRIP "${_fulldex_google_secret}" _fulldex_google_secret)
+    set_property(SOURCE frontend/cloud_saves.cpp APPEND PROPERTY COMPILE_DEFINITIONS
+        "FULLDEX_GOOGLE_CLIENT_ID=\"${_fulldex_google_id}\"" "FULLDEX_GOOGLE_CLIENT_SECRET=\"${_fulldex_google_secret}\"")
+endif()
 
 # The app's version (Android: for its check for a newer release; Switch: shown in the
 # Homebrew Menu): the newest one in CHANGELOG.md.
@@ -353,7 +377,7 @@ set(SSR_PC_ART "" CACHE PATH "a folder of pictures for the game list, built into
 if((SSR_PC_ALL_GAMES OR SSR_ALL_GAMES) AND SSR_PC_ART AND IS_DIRECTORY "${SSR_PC_ART}")
     set(_art_body "")
     set(_art_table "")
-    foreach(code IRBO IRAO IREO IRDO IPKE IPGE CPUE ADAE APAE ECRA)
+    foreach(code IRBO IRAO IREO IRDO IPKE IPGE CPUE ADAE APAE ECRA ECLA)
         foreach(ext jpg png)
             if(EXISTS "${SSR_PC_ART}/${code}.${ext}")
                 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${SSR_PC_ART}/${code}.${ext}")
@@ -445,4 +469,47 @@ if(SSR_GPU3D)
         target_sources(ssrecomp PRIVATE frontend/glcontext.cpp)
     endif()
     target_compile_definitions(ssrecomp PRIVATE SSR_GPU3D)
+endif()
+
+# PokeDaisy's guarded DS field-action recipes. These extend the frontend, not either core.
+target_sources(ssrecomp PRIVATE frontend/pokedaisy/pk_nds_field.cpp frontend/pokedaisy/pk_nds_call.cpp)
+# The Pokémon hub (frontend/pokemon_hub.cpp): moving Pokémon between the player's games, on
+# PKSM-Core (third_party/PKSM-Core: FlagBrew, GPL-3.0), whose data files are built in by
+# tools/pksm/embed_data.py. C++20, as PKSM-Core wants; the rest of the program sees only
+# pokemon_hub.h. Off until its screens are in the launcher.
+option(SSR_POKEMON_HUB "Build the Pokémon hub (PKSM-Core) in" OFF)
+if(SSR_POKEMON_HUB)
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    set(PKSMCORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/PKSM-Core")
+    file(GLOB_RECURSE PKSMCORE_SOURCES CONFIGURE_DEPENDS "${PKSMCORE_DIR}/source/*.cpp" "${PKSMCORE_DIR}/memecrypto/*.c")
+    file(GLOB_RECURSE PKSMCORE_DATA CONFIGURE_DEPENDS "${PKSMCORE_DIR}/personals/*" "${PKSMCORE_DIR}/strings/*.txt")
+    file(GLOB_RECURSE _pksm_include_items LIST_DIRECTORIES true "${PKSMCORE_DIR}/include/*")
+    set(PKSMCORE_INCLUDE_DIRS "${PKSMCORE_DIR}/include")
+    foreach(_item ${_pksm_include_items})
+        if(IS_DIRECTORY "${_item}")
+            list(APPEND PKSMCORE_INCLUDE_DIRS "${_item}")
+        endif()
+    endforeach()
+    add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/pksmcore_data_builtin.cpp"
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/pksm/embed_data.py" "${PKSMCORE_DIR}"
+                "${CMAKE_CURRENT_BINARY_DIR}/pksmcore_data_builtin.cpp"
+        DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/pksm/embed_data.py" ${PKSMCORE_DATA} VERBATIM)
+    add_library(pokemonhub STATIC ${PKSMCORE_SOURCES} "${CMAKE_CURRENT_BINARY_DIR}/pksmcore_data_builtin.cpp"
+        frontend/pokemon_hub.cpp)
+    set_target_properties(pokemonhub PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+    target_include_directories(pokemonhub PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/third_party/pksmcore-config"
+        ${PKSMCORE_INCLUDE_DIRS} "${PKSMCORE_DIR}/memecrypto" "${PKSMCORE_DIR}/pcg-cpp/include")
+    target_link_libraries(ssrecomp PRIVATE pokemonhub)
+    target_compile_definitions(ssrecomp PRIVATE SSR_POKEMON_HUB)
+endif()
+
+# Trades over Wi-Fi (frontend/hub_link.cpp): Windows' sockets.
+if(WIN32)
+    target_link_libraries(ssrecomp PRIVATE ws2_32)
+endif()
+
+# Online trades' meeting point (tools/relay, a Cloudflare Worker): its address, built in.
+set(FULLDEX_RELAY_URL "" CACHE STRING "The trade relay's address, e.g. https://fulldex-relay.example.workers.dev")
+if(FULLDEX_RELAY_URL)
+    target_compile_definitions(ssrecomp PRIVATE "FULLDEX_RELAY_URL=\"${FULLDEX_RELAY_URL}\"")
 endif()

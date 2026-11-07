@@ -130,6 +130,13 @@ python3 tools/regions/package_profiles.py --funcs "$DATA/funcs" --portable "$HER
 # (SSR_PORTABLE_X86), so that it runs on any 64-bit PC.
 COMMON=(-G Ninja -DCMAKE_BUILD_TYPE=Release -DSSR_JIT=ON -DSSR_PC_ALL_GAMES=ON -DSSR_PNG=OFF -DSSR_GPU3D=ON
         -DSSR_PORTABLE_X86=ON -DSSR_GENERATED_DIR="$HERE/build-gen-tables")
+# The launcher's online parts, when given: the Hub (cloud saves, moving Pokemon), the theme Gallery's
+# relay and the Google sign-in client for cloud saves (a file of two lines; never in the repository).
+ONLINE=()
+[ "${SSR_POKEMON_HUB:-}" = ON ] && ONLINE+=(-DSSR_POKEMON_HUB=ON)
+[ -n "${FULLDEX_RELAY_URL:-}" ] && ONLINE+=(-DFULLDEX_RELAY_URL="$FULLDEX_RELAY_URL")
+[ -n "${FULLDEX_GOOGLE_CLIENT_FILE:-}" ] && ONLINE+=(-DFULLDEX_GOOGLE_CLIENT_FILE="$FULLDEX_GOOGLE_CLIENT_FILE")
+COMMON+=(${ONLINE[@]+"${ONLINE[@]}"})
 ART="${SSR_PC_ART:-}"
 [ -n "$ART" ] && { [ -d "$ART" ] || fail "SSR_PC_ART: no such folder: $ART"; ART="$(realpath "$ART")"; say "Pictures for the game list: $ART"; }
 COMMON+=(-DSSR_PC_ART="$ART")
@@ -152,6 +159,7 @@ stage() {
     cp -r "$DATA/funcs" "$dir/data/funcs"
     cp LICENSE "$dir/LICENSE.txt"
     cp LICENSE-Noto.txt "$dir/LICENSE-Noto.txt"
+    cp frontend/fonts/FONT-LICENSES.txt "$dir/FONT-LICENSES.txt"
     if [ -n "$GBA" ]; then
         # (With the GBA games: their part of the notes before SOURCE AND LICENCE, and mGBA's licence.)
         awk -v gba=tools/pc/README-GBA.txt '/^SOURCE AND LICENCE$/ { while ((getline l < gba) > 0) print l } { print }' \
@@ -168,7 +176,7 @@ check_contents() { # list of paths, one per line, relative to the download's top
     python3 -c "
 import re, sys
 regional_codes = '|'.join(p['code'] for p in __import__('json').loads(__import__('pathlib').Path('$HERE/tools/regions/profiles.json').read_text())['profiles'] if p['kind']=='functions')
-ok = re.compile(r'^pokemon-ds-wide/(pokemon-ds-wide|Pokemon Fulldex\.exe|SDL2\.dll|libSDL2-2\.0\.so\.0|LICENSE\.txt|LICENSE-SDL2\.txt|LICENSE-mGBA\.txt|LICENSE-Noto\.txt|README\.txt|roms/|data/|data/funcs/|data/funcs/(?:IREO|IRDO|IRBO|IRAO|CPUE|ADAE|APAE|ADAS|APAF|APAS|APAD|ADAD|ADAI|IRAS|CPUS|IREF|IRDF|CPUF|IRBF|IRAF|IRBS|IRES|IRDS|' + regional_codes + r')\.txt)?$')
+ok = re.compile(r'^pokemon-ds-wide/(pokemon-ds-wide|Pokemon Fulldex\.exe|SDL2\.dll|libSDL2-2\.0\.so\.0|LICENSE\.txt|LICENSE-SDL2\.txt|LICENSE-mGBA\.txt|LICENSE-Noto\.txt|FONT-LICENSES\.txt|README\.txt|roms/|data/|data/funcs/|data/funcs/(?:IREO|IRDO|IRBO|IRAO|CPUE|ADAE|APAE|ADAS|APAF|APAS|APAD|ADAD|ADAI|IRAS|CPUS|IREF|IRDF|CPUF|IRBF|IRAF|IRBS|IRES|IRDS|' + regional_codes + r')\.txt)?$')
 bad = [l for l in sys.stdin.read().splitlines() if l and not ok.match(l)]
 if bad: sys.exit('unexpected files in the download: %s' % bad)
 "

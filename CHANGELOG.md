@@ -3,6 +3,10 @@
 
 ## Unreleased
 
+- **RetroAchievements: a wrong clock is named when logging in fails.** A device whose date is
+  wrong (a Switch set years ahead, often) cannot check the server's certificate, and the settings
+  only said LOGIN FAILED. They now say CHECK THE CLOCK, and the message asks whether the date and
+  time are right.
 - **Launcher: a save named after the ROM is found.** A save brought from another emulator or a flashcart
   (`Pokemon - Edicion Negra 2.sav` beside `Pokemon - Edicion Negra 2.nds`) is used when the game's own save
   (`black2-es.sav`) is not there. Another game's save name is never borrowed.
@@ -133,6 +137,43 @@
 - iPhone and iPad: wait for the active app scene before opening the game list, and keep rendering aligned when the available display changes.
 
 - iPhone and iPad: adopt the modern app lifecycle to fix launch failures on iOS 27, and size the game window to the available display when folding, unfolding or resizing.
+
+- Companion text keeps readable Latin letters when the game uses accents, rather than leaving gaps in names and descriptions.
+
+- Battle reference pages account for selected ability/item immunities and show party move-coverage comparisons. Variable-type and special-damage moves are marked for separate checks. These are static matchups, not damage or safe-switch predictions.
+
+- On-screen game buttons no longer cover native pause menus or intercept taps on their top rows. Game controls return when the menu closes.
+
+- Browse regular encounter tables from Location or a searched place, including time/season and conditional tables where mapped. These are reference lists; scripted events and slot probabilities are not included.
+
+- Location pages now open the reference map without enabling a permanent companion window. Supported games show mapped place names and a player-block or area/exit marker where verified data is available.
+- Correct live Gen4 map IDs so the displayed coordinates and map refer to the same location.
+
+- Search companion reference data for Pokémon, items, moves, places and trainer teams. Names, move values and trainer teams come from the loaded game; results can include spoilers. Search supports typing or selecting letters with a controller.
+- Expand authored, reveal-on-request guide hints to 37 per HGSS version, 23 for Platinum and 12 for Black, including field-move locations and common story obstacles.
+
+- Correct Platinum battle-scene detection and reject empty battlers. Correct Black's Pokédex ability fields, including hidden abilities; companion Pokédex pages also show base stats and abilities.
+
+- The companion Position tab can show a full reference region map read from supported DS games. Showing it is explicit because it includes places not yet visited; unlock progress is not applied. Black also shows mapped place names.
+
+- Bag entries now open descriptions read from the supported game's own text, with current bag quantities and party holders. Item use stays in the game.
+
+- Companion Pokédex and guide navigation now opens each new entry at the top, so a previous entry's text page cannot hide its introduction.
+
+- Evolution conditions are also shown in the optional companion Pokédex, using the same game data as the pause menu.
+
+- The optional companion display now browses bag pockets, shows stack and item totals, and identifies empty pockets. Use the bottom arrows to change pockets and the text paging control for longer lists.
+
+- Touching party rows, dated save slots and other rows with informational values opens them correctly, matching keyboard/controller selection.
+
+- Optional Features in the launcher and pause menu lets you enable live companion updates, quick-action shortcuts, save-state thumbnails, recent-play history, second-screen artwork and GBA mirroring individually. These extras start off; existing display choices and save protections are retained.
+- Save-state previews are hidden when they are older than the state, so turning thumbnails off cannot leave a misleading old picture.
+
+- Add read-only companion party summaries, bag pockets and Pokédex progress/details for verified English DS profiles. Names and reference data are read from the player's own ROM; other revisions show an unsupported notice.
+
+- Android DS games: optional second-display touchscreen, with merged gameplay or separate DS top/bottom screens. The normal layout is retained when no second display is available. Hardware validation is pending.
+
+- TYPE MATCHUPS in the DS pause menu shows attack effectiveness against one or two manually selected types, adapted from PokeDaisy. It uses the original Gen 3-5 chart; abilities, items and move-specific exceptions are not included.
 
 - Android launcher defaults to landscape with rotation locked, follows device orientation with auto-rotate enabled, and uses larger settings text in both orientations with wrapped values.
 

@@ -3,6 +3,7 @@
 // thread (achievements.cpp's worker), so nothing else waits.
 #import <Foundation/Foundation.h>
 #include <string>
+#include "net_http.h"
 
 namespace Achievements
 {
@@ -18,9 +19,11 @@ const char* SystemName()
 
 bool Available() { return true; }
 
-bool HttpPost(const std::string& url, const std::string& post, const std::string& contentType,
-              const std::string& userAgent, int& status, std::string& body, std::string& error)
+bool HttpRequest(const HttpCall& call, int& status, std::string& body, std::string& error)
 {
+    const std::string& url = call.url;
+    const std::string& post = call.body;
+    const std::string& userAgent = call.userAgent;
     @autoreleasepool
     {
         NSURL* address = [NSURL URLWithString:[NSString stringWithUTF8String:url.c_str()]];
@@ -31,17 +34,24 @@ bool HttpPost(const std::string& url, const std::string& post, const std::string
         }
         NSMutableURLRequest* request = [NSMutableURLRequest requestWithURL:address
                                                                cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
-                                                           timeoutInterval:30];
+                                                           timeoutInterval:(NSTimeInterval)call.timeout];
         [request setValue:[NSString stringWithUTF8String:userAgent.c_str()] forHTTPHeaderField:@"User-Agent"];
-        if (!post.empty())
+        request.HTTPMethod = [NSString stringWithUTF8String:call.method.c_str()];
+        for (const std::string& h : call.headers)
         {
-            request.HTTPMethod = @"POST";
-            [request setValue:[NSString stringWithUTF8String:contentType.c_str()] forHTTPHeaderField:@"Content-Type"];
-            request.HTTPBody = [NSData dataWithBytes:post.data() length:post.size()];
+            const size_t colon = h.find(':');
+            if (colon == std::string::npos) continue;
+            size_t v = colon + 1;
+            while (v < h.size() && h[v] == ' ') v++;
+            [request setValue:[NSString stringWithUTF8String:h.substr(v).c_str()]
+                forHTTPHeaderField:[NSString stringWithUTF8String:h.substr(0, colon).c_str()]];
         }
+        if (!post.empty() || call.method == "POST" || call.method == "PUT" || call.method == "PATCH")
+            request.HTTPBody = [NSData dataWithBytes:post.data() length:post.size()];
         // (What comes back is copied out inside the handler: with or without ARC, nothing of it
         // has to outlive the handler.)
         std::string* gotBody = &body;
+        const size_t limit = call.limit;
         std::string* gotError = &error;
         __block NSInteger code = 0;
         __block bool failed = false;
@@ -58,6 +68,7 @@ bool HttpPost(const std::string& url, const std::string& post, const std::string
                 else
                 {
                     if (data) gotBody->assign((const char*)data.bytes, data.length);
+                    if (gotBody->size() > limit) gotBody->resize(limit);
                     if ([response isKindOfClass:[NSHTTPURLResponse class]]) code = ((NSHTTPURLResponse*)response).statusCode;
                 }
                 dispatch_semaphore_signal(done);
@@ -71,6 +82,19 @@ bool HttpPost(const std::string& url, const std::string& post, const std::string
         status = (int)code;
         return true;
     }
+}
+
+
+bool HttpPost(const std::string& url, const std::string& post, const std::string& contentType,
+              const std::string& userAgent, int& status, std::string& body, std::string& error)
+{
+    HttpCall c;
+    c.method = post.empty() ? "GET" : "POST";
+    c.url = url;
+    if (!post.empty()) c.headers.push_back("Content-Type: " + contentType);
+    c.body = post;
+    c.userAgent = userAgent;
+    return HttpRequest(c, status, body, error);
 }
 
 }

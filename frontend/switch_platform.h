@@ -39,6 +39,9 @@ void MoveMainThread();
 // Called last: the next start (the game list again, or the next test run).
 void Finish();
 
+// The system's software keyboard: the text typed, or false if closed without.
+bool Keyboard(const char* guide, bool password, std::string& out);
+
 // Ends the program at once (after Finish), for an exit that has got stuck.
 [[noreturn]] void ForceExit();
 }

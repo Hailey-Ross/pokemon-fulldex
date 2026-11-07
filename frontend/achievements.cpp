@@ -6,15 +6,27 @@
 #include <condition_variable>
 #include <cstdio>
 #include <cstring>
+#include <ctime>
 #include <deque>
+#include <map>
 #include <mutex>
 #include <thread>
+#include <sys/stat.h>
+#ifdef _WIN32
+#include <direct.h>
+#endif
 
 #include "NDS.h"
 #include "thirdparty/rcheevos/include/rc_client.h"
 #include "thirdparty/rcheevos/include/rc_consoles.h"
 #include "thirdparty/rcheevos/include/rc_hash.h"
 #include "thirdparty/rcheevos/include/rc_api_user.h"
+// (The badges' PNGs: stb_image's own copy here, its functions this file's alone (static), PNG only.)
+#define STB_IMAGE_STATIC
+#define STBI_ONLY_PNG
+#define STB_IMAGE_IMPLEMENTATION
+#include "thirdparty/stb_image.h"
+#undef STB_IMAGE_IMPLEMENTATION
 
 namespace Achievements
 {
@@ -41,6 +53,7 @@ std::atomic<bool> g_cheats{false};
 std::atomic<bool> g_loggingIn{false}, g_loading{false};
 std::string g_gameLine;          // what GameLine says (main thread)
 std::string g_loginError;
+bool g_loginClock = false; // (the login failed on the server's certificate or the clock: see LoggedIn)
 
 std::mutex g_msgMutex;
 std::deque<std::string> g_messages;
@@ -74,6 +87,59 @@ void Say(const std::string& m)
     fprintf(stderr, "[achievements] %s\n", m.c_str());
     std::lock_guard<std::mutex> lock(g_msgMutex);
     g_messages.push_back(m);
+}
+
+// ---------------------------------------------------------------- the badges (main thread)
+std::string g_badgeDir;
+struct BadgePixels
+{
+    int state = 0; // 0 not asked for, 1 on its way, 2 here, 3 could not be had
+    int w = 0, h = 0;
+    std::vector<uint32_t> px, grey;
+};
+std::map<std::string, BadgePixels> g_badges;
+std::atomic<unsigned> g_badgeVersion{0};
+
+bool DecodeBadge(const std::string& bytes, BadgePixels& b)
+{
+    int w = 0, h = 0, n = 0;
+    unsigned char* p = stbi_load_from_memory((const unsigned char*)bytes.data(), (int)bytes.size(), &w, &h, &n, 4);
+    if (!p) return false;
+    if (w <= 0 || h <= 0 || w > 512 || h > 512) { stbi_image_free(p); return false; }
+    b.w = w; b.h = h;
+    b.px.resize((size_t)w * h);
+    b.grey.resize((size_t)w * h);
+    for (size_t i = 0; i < b.px.size(); i++)
+    {
+        const uint32_t r = p[i * 4], g = p[i * 4 + 1], bl = p[i * 4 + 2], a = p[i * 4 + 3];
+        b.px[i] = a << 24 | r << 16 | g << 8 | bl;
+        const uint32_t y = 24 + ((r * 77 + g * 150 + bl * 29) >> 8) * 5 / 10; // (dimmed grey: not yet earned)
+        b.grey[i] = a << 24 | y << 16 | y << 8 | y;
+    }
+    stbi_image_free(p);
+    b.state = 2;
+    return true;
+}
+
+// (Only a plain name, as the server's are: digits, letters, _ and -.)
+bool BadgeNameOk(const std::string& name)
+{
+    if (name.empty() || name.size() > 32) return false;
+    for (char c : name)
+        if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' || c == '-')) return false;
+    return true;
+}
+
+bool ReadBadgeFile(const std::string& path, std::string& out)
+{
+    FILE* f = fopen(path.c_str(), "rb");
+    if (!f) return false;
+    char buf[8192];
+    size_t n;
+    out.clear();
+    while ((n = fread(buf, 1, sizeof buf, f)) > 0 && out.size() < (1u << 20)) out.append(buf, n);
+    fclose(f);
+    return !out.empty();
 }
 
 // ---------------------------------------------------------------- the server's requests
@@ -253,6 +319,15 @@ void LoadGame()
     rc_client_begin_load_game(g_client, g_hash.c_str(), GameLoaded, nullptr);
 }
 
+// The device's clock is plainly wrong (a year before this program or far after it).
+static bool ClockLooksWrong()
+{
+    const time_t now = time(nullptr);
+    const struct tm* t = gmtime(&now);
+    const int year = t ? t->tm_year + 1900 : 0;
+    return year < 2026 || year > 2040;
+}
+
 void RC_CCONV LoggedIn(int result, const char* error, rc_client_t*, void*)
 {
     g_loggingIn = false;
@@ -270,8 +345,16 @@ void RC_CCONV LoggedIn(int result, const char* error, rc_client_t*, void*)
         LoadGame();
         return;
     }
+    // The server's certificate not taken, or the secure connection refused: most often the
+    // device's clock is wrong (a Switch set years ahead makes every certificate look out of
+    // date). Also any failed connection while the clock is plainly wrong.
+    const bool credentials = result == RC_INVALID_CREDENTIALS || result == RC_EXPIRED_TOKEN;
+    g_loginClock = !credentials && ((error && (strstr(error, "certificate") || strstr(error, "SSL"))) || ClockLooksWrong());
     g_loginError = result == RC_INVALID_CREDENTIALS ? "WRONG USER NAME OR PASSWORD"
-                 : result == RC_EXPIRED_TOKEN ? "LOGIN EXPIRED: LOG IN AGAIN" : Shown(error, 30);
+                 : result == RC_EXPIRED_TOKEN ? "LOGIN EXPIRED: LOG IN AGAIN"
+                 : g_loginClock ? "COULD NOT CHECK THE SERVER: IS THIS DEVICE'S DATE AND TIME RIGHT?"
+                 : Shown(error, 30);
+    if (g_loginClock) fprintf(stderr, "[achievements] login failed, the clock may be wrong: %s\n", error ? error : "");
     if (g_loginError.empty()) g_loginError = "ERROR " + std::to_string(result);
     // (A token the server no longer takes: logged out, to log in again with the password.)
     if ((result == RC_INVALID_CREDENTIALS || result == RC_EXPIRED_TOKEN) && g_account)
@@ -447,6 +530,36 @@ void Pump(bool paused)
             r = std::move(g_responses.front());
             g_responses.pop_front();
         }
+        if (!r.callback)
+        {
+            // (A badge: kept in the folder and made ready, or noted as not to be had.)
+            std::string* name = (std::string*)r.data;
+            BadgePixels& b = g_badges[*name];
+            if (r.status == 200 && DecodeBadge(r.body, b))
+            {
+                if (!g_badgeDir.empty())
+                {
+#ifdef _WIN32
+                    _mkdir(g_badgeDir.c_str());
+#else
+                    mkdir(g_badgeDir.c_str(), 0777);
+#endif
+                    if (FILE* f = fopen((g_badgeDir + "/" + *name + ".png").c_str(), "wb"))
+                    {
+                        fwrite(r.body.data(), 1, r.body.size(), f);
+                        fclose(f);
+                    }
+                }
+            }
+            else
+            {
+                b.state = 3;
+                fprintf(stderr, "[achievements] badge %s: not had (%d)\n", name->c_str(), r.status);
+            }
+            delete name;
+            g_badgeVersion++;
+            continue;
+        }
         rc_api_server_response_t a;
         memset(&a, 0, sizeof a);
         a.body = r.body.c_str();
@@ -526,7 +639,7 @@ std::string AccountLine()
     if (g_loggingIn) return "LOGGING IN...";
     if (const rc_client_user_t* u = rc_client_get_user_info(g_client))
         return Shown(u->display_name ? u->display_name : u->username, 18);
-    if (!g_loginError.empty()) return "LOGIN FAILED";
+    if (!g_loginError.empty()) return g_loginClock ? "CHECK THE CLOCK" : "LOGIN FAILED";
     if (g_account && !g_account->token.empty()) return Shown(g_account->user.c_str(), 18);
     return "NOT LOGGED IN";
 }
@@ -581,11 +694,48 @@ std::vector<Row> List()
             r.unlocked = a->unlocked != RC_CLIENT_ACHIEVEMENT_UNLOCKED_NONE;
             r.unlockTime = (int64_t)a->unlock_time;
             r.rarity = a->rarity;
+            r.badge = a->badge_name;
             (r.unlocked ? unlocked : locked).push_back(std::move(r));
         }
     rc_client_destroy_achievement_list(list);
     unlocked.insert(unlocked.end(), locked.begin(), locked.end());
     return unlocked;
+}
+
+void SetBadgeFolder(const std::string& folder)
+{
+    g_badgeDir = folder;
+}
+
+unsigned BadgeVersion()
+{
+    return g_badgeVersion.load();
+}
+
+bool Badge(const std::string& name, bool locked, std::vector<uint32_t>& argb, int& w, int& h)
+{
+    if (!BadgeNameOk(name)) return false;
+    BadgePixels& b = g_badges[name];
+    if (b.state == 0)
+    {
+        // (First from the folder; else asked of the server, on the requests' thread.)
+        std::string bytes;
+        if (!g_badgeDir.empty() && ReadBadgeFile(g_badgeDir + "/" + name + ".png", bytes) && DecodeBadge(bytes, b)) {}
+        else if (g_client)
+        {
+            b.state = 1;
+            Request r{"https://media.retroachievements.org/Badge/" + name + ".png", "", "", nullptr, new std::string(name)};
+            std::lock_guard<std::mutex> lock(g_queueMutex);
+            g_requests.push_back(std::move(r));
+            g_queueWake.notify_one();
+        }
+        else b.state = 3;
+    }
+    if (b.state != 2) return false;
+    argb = locked ? b.grey : b.px;
+    w = b.w;
+    h = b.h;
+    return true;
 }
 
 bool LoginForToken(const std::string& user, const std::string& password, const std::string& product,
@@ -644,7 +794,26 @@ void Stop()
         g_queueWake.notify_all();
     }
     // (A request on its way is left to finish on its own: the program is ending.)
+    fprintf(stderr, "[exit] achievements: letting the request thread go%s\n", g_busy.load() ? " (it is in a request)" : "");
+    fflush(stderr);
+#ifdef __SWITCH__
+    // (On the Switch, letting it go (detach) never returned: the program stopped there for good
+    // when it ended. The thread is kept instead, in an object never destroyed, so that nothing
+    // waits for it: the program's end takes it down.)
+    // (Idle, it ends by itself the moment it is told to quit: joined, so no thread of ours is
+    // still running when the program hands back to the Homebrew Menu. In a request, given two
+    // seconds, then kept as before.)
+    if (g_worker.joinable())
+    {
+        for (int i = 0; i < 40 && g_busy.load(); i++) std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        if (!g_busy.load()) g_worker.join();
+        else new std::thread(std::move(g_worker));
+    }
+#else
     if (g_worker.joinable()) g_worker.detach();
+#endif
+    fprintf(stderr, "[exit] achievements: the game's set%s\n", g_loaded ? " unloaded" : "");
+    fflush(stderr);
     if (g_loaded) rc_client_unload_game(g_client);
     g_nds = nullptr;
     g_read.store(nullptr);

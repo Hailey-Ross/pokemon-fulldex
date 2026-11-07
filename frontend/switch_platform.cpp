@@ -23,6 +23,7 @@
 #include "thirdparty/stb_image.h"
 #undef STB_IMAGE_IMPLEMENTATION
 #include "launcher.h"
+#include "cloud_autosync.h"
 #include "ui_lang_sdl.h"
 #include "controls.h"
 #ifdef SSR_GBA
@@ -50,6 +51,8 @@ bool rc_portable_knows(const char code[4]); // (runtime/recomp_api.h)
 
 namespace SwitchPlatform
 {
+void ExitTrace(const char* step);
+void ExitTraceIn(const std::string& dir);
 namespace
 {
 std::vector<std::string> g_args;
@@ -198,8 +201,26 @@ std::string InstallHomeIcons(const std::vector<Launcher::Game>& games)
 // autoFrames > 0: the list is shown that many frames and the selected game played (test runs:
 // "arg --show-list" in test.txt, to time a game started after the list).
 // cfgPath: the settings file, for the settings page (Y).
-int PickGame(const std::vector<Launcher::Game>& games, int selected, const std::string& cfgPath, int autoFrames = 0)
+#include "library_history.h"
+#include "save_backups.h"
+
+// The Updates page: the updater's state, as the list draws it (working: CHECKING... until the work runs).
+static void FillUpdateStatus(bool working)
 {
+#ifdef SSR_UPDATER
+    const Updater::Status st = Updater::Get();
+    Launcher::GlassFocus& F = Launcher::Focus();
+    F.upState = working ? (st.state == Updater::State::Available ? 4 : 1) : (int)st.state; F.upCan = st.canInstall; F.upText = st.text; F.upNotes = st.notes;
+    F.upHave = st.currentBuild ? Updater::BuildLabel(st.currentBuild) : std::string();
+    F.upNew = st.availableBuild ? Updater::BuildLabel(st.availableBuild) : std::string();
+#else
+    (void)working;
+#endif
+}
+
+int PickGame(const std::vector<Launcher::Game>& gamesIn, int selected, const std::string& cfgPath, int autoFrames = 0)
+{
+    bool pageUpdateWork = false; // (Check Now / Install Now on the Updates page: done at the next pass)
     Framebuffer fb;
     if (R_FAILED(framebufferCreate(&fb, nwindowGetDefault(), 1280, 720, PIXEL_FORMAT_RGBA_8888, 2))) return selected;
     framebufferMakeLinear(&fb);
@@ -208,6 +229,43 @@ int PickGame(const std::vector<Launcher::Game>& games, int selected, const std::
     padInitializeDefault(&pad);
     Canvas canvas;
     canvas.Resize(1280, 720);
+    Launcher::PhoneUi() = true; // (the same bigger text and buttons as a phone, so the menus read in handheld)
+    // The list as shown (the glass launcher's, as the PC's): the games with the player's names,
+    // pictures and Home (favourites), those taken off the list left out; kept beside the settings.
+    // The chosen game is handed back as its place in gamesIn.
+    const std::string home = cfgPath.substr(0, cfgPath.find_last_of('/'));
+    ExitTraceIn(home);
+    std::vector<Launcher::Game> games;
+    LibraryHistory library;
+    auto refresh = [&](int& sel) {
+        const std::string keep = sel >= 0 && sel < (int)games.size() ? games[sel].rom : std::string();
+        games = gamesIn;
+        Launcher::BuildRomList(games, home); // (the ROMs page: before those taken off the list are left out)
+        if (PlayTime::AskNow(home)) Launcher::OpenBeer(); // (twenty hours played: the one Support message)
+        library.Load(home + "/fulldex-library.txt");
+        Launcher::ApplyLocal(games, home);
+        Launcher::ApplyArt(games, home);
+        Launcher::SortKey() = Launcher::ConfigValue(cfgPath, "list_sort");
+        Launcher::LoadTabs(home);
+        library.Apply(games, Launcher::ConfigValue(cfgPath, "list_sort"));
+        sel = -1;
+        for (size_t i = 0; i < games.size(); i++)
+            if (games[i].rom == keep) sel = (int)i;
+    };
+    {
+        const std::string keep = selected >= 0 && selected < (int)gamesIn.size() ? gamesIn[selected].rom : std::string();
+        int s = -1;
+        refresh(s);
+        selected = -1;
+        for (size_t i = 0; i < games.size(); i++)
+            if (games[i].rom == keep) selected = (int)i;
+        if (selected < 0 && !games.empty()) selected = 0;
+    }
+    // (Rename: the pause menu's keyboard page; kbLayer capitals, small letters or signs.)
+    Menu kb;
+    std::vector<int> kbIds;
+    int kbLayer = 0;
+    auto kbBuild = [&]() { Launcher::BuildKeyboard(kb, kbIds, Launcher::Focus().text, kbLayer, Launcher::KbPrompt(), Launcher::KbDone()); };
     // The touch screen (handheld): SETTINGS at the right of the title band, BACK at its left in
     // the settings, as on a PC or a phone (pc_launcher.cpp). A tap counts as the finger lifts.
     hidInitializeTouchScreen();
@@ -222,6 +280,8 @@ int PickGame(const std::vector<Launcher::Game>& games, int selected, const std::
     auto view = [&]() { return Launcher::MakeView(canvas, games, tab); };
     bool guide = false; // the settings page (Launcher::SettingsPage)
     Launcher::SettingsPage page;
+    Menu setMenu;             // (the glass launcher: the page as the pause menu's settings pages)
+    std::vector<int> setMap;
     // The buttons changed in KEYS AND BUTTONS (controls.h): the list follows them (A plays, Y the
     // settings, B leaves), and the settings page's CONTROLS changes them here too. A controller's
     // buttons by their labels, as main.cpp reads them on the Switch (Controls::IN_*).
@@ -268,6 +328,7 @@ int PickGame(const std::vector<Launcher::Game>& games, int selected, const std::
     auto change = [&](int d) {
         const char* key = page.Change(d);
         if (key && !strncmp(key, "list_", 5)) Launcher::LoadLook(cfgPath, listDir, theme, background);
+        if (key && !strcmp(key, "!releases")) { page.items[page.selected].values[0].second = "PHONE OR PC"; return; } // (No browser here: the release page is for another device.)
         if (key && !strcmp(key, "!keys"))
         {
             ctl.Load(cfgPath);
@@ -321,6 +382,16 @@ int PickGame(const std::vector<Launcher::Game>& games, int selected, const std::
         }
 #endif
 #endif
+#ifdef SSR_UPDATER
+        // (The Updates page's Check Now / Install Now, after the pass that showed it working.)
+        if (pageUpdateWork)
+        {
+            const std::string url = Updater::Choose();
+            if (!url.empty()) note = "NEW VERSION: GITHUB.COM/MAMESJ/POKEMON-FULLDEX/RELEASES";
+            pageUpdateWork = false;
+            if (Updater::Get().state == Updater::State::Installed && Updater::RestartPending()) break;
+        }
+#endif
         if (autoFrames > 0 && ++shown > autoFrames)
         {
             result = selected;
@@ -354,18 +425,29 @@ int PickGame(const std::vector<Launcher::Game>& games, int selected, const std::
         const u64 down = padGetButtonsDown(&pad), now = padGetButtons(&pad);
         int tapX = -1, tapY = -1;
         {
+            // (A finger dragging What's New on the Updates page scrolls it, and is not a tap.)
+            static bool dragNotes = false, dragMoved = false;
+            static int dragY0 = 0, dragS0 = 0;
             HidTouchScreenState ts = {};
             if (hidGetTouchScreenStates(&ts, 1) && ts.count > 0)
             {
+                const bool fresh = !touching;
                 touching = true;
                 touchX = (int)ts.touches[0].x;
                 touchY = (int)ts.touches[0].y;
+                Launcher::GlassFocus& NF = Launcher::Focus();
+                if (fresh) { dragNotes = !guide && Launcher::NotesAt(touchX, touchY); dragMoved = false; dragY0 = touchY; dragS0 = NF.nScroll; }
+                if (dragNotes && NF.nLine > 0)
+                {
+                    if (std::abs(touchY - dragY0) > 12) dragMoved = true;
+                    if (dragMoved) NF.nScroll = std::max(0, std::min(NF.nMax, dragS0 - (touchY - dragY0) / NF.nLine));
+                }
             }
             else if (touching)
             {
                 touching = false;
-                tapX = touchX;
-                tapY = touchY;
+                if (!(dragNotes && dragMoved)) { tapX = touchX; tapY = touchY; }
+                dragNotes = false;
             }
         }
         const int bandH = 22 * std::max(1, canvas.h / 240);
@@ -453,17 +535,497 @@ int PickGame(const std::vector<Launcher::Game>& games, int selected, const std::
             if (step && (lf || rt)) change(lf ? -1 : 1);
             if (down & HidNpadButton_A) change(1);
             // (B: from a group back to the groups first; Y closes the page.)
-            if (((down & HidNpadButton_B) || tapBack) && !page.Back()) guide = false;
+            if (((down & HidNpadButton_B) || (tapBack && !Launcher::Glassy(canvas))) && !page.Back()) guide = false;
+            // (The glass settings page: a tap chooses a row, again changes it; BACK goes back.)
+            if (tapX >= 0 && Launcher::Glassy(canvas))
+            {
+                // (A picture card of the preview tapped: that choice, stepping the row on until it shows.)
+                bool cardHit = false;
+                if (page.selected >= 0 && page.selected < (int)page.items.size() && page.items[page.selected].key && page.items[page.selected].key[0] != '!')
+                    for (const auto& r : setMenu.pickRects)
+                        if (tapX >= r[0] && tapX < r[0] + r[2] && tapY >= r[1] && tapY < r[1] + r[3])
+                        {
+                            for (size_t k = 0; k < page.items[page.selected].values.size() && page.ValueIndex(page.items[page.selected]) != r[4]; k++) change(1);
+                            cardHit = true;
+                            break;
+                        }
+                const int hit = cardHit ? -1 : setMenu.SettingsItemAt(tapX, tapY);
+                if (hit >= 0 && hit < (int)setMap.size())
+                {
+                    const int item = setMap[hit];
+                    if (item < 0) { if (!page.Back()) guide = false; }
+                    else if (page.items[item].key) { if (item == page.selected) change(1); else page.selected = item; }
+                }
+            }
             if (down & HidNpadButton_Y) guide = false;
             if (down & HidNpadButton_Plus) break;
         }
-        else if ((down & (ctl.PadCustom() ? action(Controls::Y) : (u64)HidNpadButton_Y)) || tapSettings ||
+        else if ((down & (ctl.PadCustom() ? action(Controls::Y) : (u64)HidNpadButton_Y)) || (tapSettings && !Launcher::Glassy(canvas)) ||
                  (onSettings && (down & (ctl.PadCustom() ? action(Controls::A) : (u64)HidNpadButton_A))))
         {
             guide = true;
             onSettings = false;
             page.Open(cfgPath);
             held = 0;
+        }
+        else if (Launcher::Glassy(canvas))
+        {
+            // The glass launcher, as the PC's (pc_launcher.cpp): the sidebar (left from the first column,
+            // the first tab or Continue), the banner's Continue and Game Options, the tabs and the games;
+            // A on a game opens its menu, whose rows open the dialogs and the keyboard.
+            Launcher::GlassFocus& F = Launcher::Focus();
+            const u64 bA = ctl.PadCustom() ? action(Controls::A) : (u64)HidNpadButton_A;
+            const u64 bB = ctl.PadCustom() ? action(Controls::B) : (u64)HidNpadButton_B;
+            const u64 tl = ctl.PadCustom() ? action(Controls::L) : (u64)HidNpadButton_L;
+            const u64 tr = ctl.PadCustom() ? action(Controls::R) : (u64)HidNpadButton_R;
+            const bool step = held == 1 || (held > 20 && held % 6 == 0);
+            const int dir = !step ? 0 : lf ? 1 : rt ? 2 : up ? 3 : dn ? 4 : 0;
+            bool aDown = (down & bA) != 0;
+            const bool bDown = (down & bB) != 0;
+            const bool valid = selected >= 0 && selected < (int)games.size();
+            const bool banner = Launcher::ContinueGame(games, selected) >= 0;
+            const bool panel = Launcher::PanelHome(); const bool tiles = Launcher::TilesHome(); const bool alt = panel || tiles;
+            bool play = false, quitList = false;
+            auto setTab = [&](int by) {
+                tab = Launcher::TabStep(tab, by); // (in the order shown)
+                scroll = 0;
+                const Launcher::View v = view();
+                if (v.SpotOf(selected) < 0) selected = Launcher::FirstIn(v);
+                if (Launcher::FirstIn(v) < 0) onTabs = true;
+                note.clear();
+            };
+            auto intoGames = [&]() {
+                const Launcher::View v = view();
+                if (Launcher::FirstIn(v) < 0) { if (banner) F.banner = 1; else onTabs = true; return; }
+                if (v.SpotOf(selected) < 0) selected = Launcher::FirstIn(v);
+            };
+            auto settle = [&]() { const Launcher::View v = view(); if (v.SpotOf(selected) < 0) selected = Launcher::FirstIn(v); };
+            auto closeDialog = [&]() { F.dialog = 0; kb.open = false; };
+            // The glass launcher by touch: what a tap lands on is chosen and used, as A would (a tap on a
+            // game that is not the chosen one only chooses it); a tap beside the menu or a dialog closes it.
+            if (tapX >= 0)
+            {
+                if (F.dialog == 3 && kb.open) { const int hit = kb.ItemAt(tapX, tapY); if (hit >= 0) { kb.selected = hit; aDown = true; } }
+                else if (F.dialog) { const int row = Launcher::DialogAt(tapX, tapY); if (row >= 0) { F.drow = row; aDown = true; } else closeDialog(); }
+                else if (F.popup >= 0) { const int row = Launcher::PopupAt(tapX, tapY); if (row >= 0) { F.popup = row; aDown = true; } else F.popup = -1; }
+                else
+                {
+                    const int side = Launcher::SideAt(canvas, tapX, tapY), t = Launcher::TabAt(canvas, tapX, tapY);
+                    const int tile = Launcher::TileAt(view(), scroll, tapX, tapY);
+                    if (side >= 0) { F.side = side; F.banner = 0; onTabs = false; aDown = true; }
+                    else if (F.page == Launcher::SIDE_ROMS || F.page == Launcher::SIDE_HUB)
+                    {
+                        const int a = Launcher::RomActionAt(tapX, tapY), r = Launcher::RomRowAt(tapX, tapY);
+                        if (a >= 0) { F.side = -1; F.pact = a; aDown = true; }
+                        else if (r >= 0) { if (F.page == Launcher::SIDE_HUB && Launcher::HubTop() && F.prow == r && F.side < 0) aDown = true; F.side = -1; F.pact = -1; F.prow = r; }
+                    }
+                    else if (F.page == Launcher::SIDE_LAUNCHER && Launcher::LookTap(tapX, tapY)) {} // (the colour wheel)
+                    else if (F.page >= 0 && Launcher::NotesAt(tapX, tapY)) { if (F.prow == 2 && F.side < 0) aDown = true; F.side = -1; F.prow = 2; }
+                    else if (F.page >= 0)
+                    {
+                        const int r = Launcher::PageRowAt(tapX, tapY);
+                        if (r >= 0) { if (F.prow == r && F.side < 0) aDown = true; F.side = -1; F.prow = r; }
+                    }
+                    else if (const int tl = Launcher::ToolAt(tapX, tapY)) { F.side = -1; F.banner = 0; onTabs = true; F.onSort = true; F.tool = tl; aDown = true; }
+                    else if (Launcher::GameOptionsAt(canvas, tapX, tapY)) { F.side = -1; onTabs = false; F.banner = 2; aDown = true; }
+                    else if (Launcher::ContinueAt(canvas, tapX, tapY)) { F.side = -1; onTabs = false; F.banner = 1; aDown = true; }
+                    else if (t >= 0)
+                    {
+                        F.side = -1; F.banner = 0; onTabs = false;
+                        if (t != tab) setTab(Launcher::TabDistance(tab, t));
+                        else { onTabs = true; F.onSort = false; aDown = true; } // (the tab shown: its menu)
+                    }
+                    else if (tile >= 0)
+                    {
+                        F.side = -1; F.banner = 0; onTabs = false;
+                        if (tile == selected) aDown = true;
+                        else { selected = tile; note.clear(); }
+                    }
+                }
+            }
+            if (F.dialog == 3)
+            {
+                // Rename: the keyboard. A types, X deletes, + saves, B cancels.
+                if (!kb.open) { kbLayer = 0; kbBuild(); }
+                auto erase = [&]() {
+                    while (!F.text.empty() && ((unsigned char)F.text.back() & 0xC0) == 0x80) F.text.pop_back();
+                    if (!F.text.empty()) F.text.pop_back();
+                };
+                auto save = [&]() {
+                    std::string name = F.text;
+                    closeDialog();
+                    if (F.kbFor) { Launcher::KeyboardDone(tab, note); refresh(selected); scroll = 0; settle(); return; } // (a new tab, the search, a tab's name)
+                    if (!valid) return;
+                    while (!name.empty() && name.back() == ' ') name.pop_back();
+                    while (!name.empty() && name.front() == ' ') name.erase(0, 1);
+                    Launcher::Game own = games[selected];
+                    own.customName.clear();
+                    if (name == Launcher::ShortName(own)) name.clear();
+                    const bool ok = Launcher::SetPair(home + "/fulldex-names.txt", games[selected].rom, name);
+                    refresh(selected);
+                    note = !ok ? "COULD NOT SAVE THE NAME" : name.empty() ? "NAME RESET" : "RENAMED";
+                };
+                if (bDown) closeDialog();
+                else if (down & HidNpadButton_X) { erase(); kbBuild(); }
+                else if (down & HidNpadButton_Plus) save();
+                else if (dir || aDown)
+                {
+                    MenuInput nav;
+                    nav.up = dir == 3; nav.down = dir == 4; nav.left = dir == 1; nav.right = dir == 2; nav.accept = aDown;
+                    int d = 0;
+                    const int hit = kb.Update(nav, d);
+                    const int id = hit >= 0 && hit < (int)kbIds.size() ? kbIds[hit] : -2;
+                    if (id == Launcher::KB_BACK) closeDialog();
+                    else if (id == Launcher::KB_DONE) save();
+                    else if (id != -2)
+                    {
+                        if (id == Launcher::KB_LAYER) kbLayer = kbLayer == 0 ? 1 : 0;
+                        else if (id == Launcher::KB_SYMBOLS) kbLayer = kbLayer == 2 ? 1 : 2;
+                        else if (id == Launcher::KB_DEL) erase();
+                        else if (id == Launcher::KB_SPACE) { if (F.text.size() < 48) F.text += ' '; }
+                        else if (id >= Launcher::KB_KEY0 && id < Launcher::KB_LAYER)
+                        {
+                            if (F.text.size() < 48) F.text += kb.items[hit].label;
+                            if (kbLayer == 0 && isupper((unsigned char)kb.items[hit].label[0])) kbLayer = 1;
+                        }
+                        kbBuild();
+                    }
+                }
+            }
+            else if (F.dialog)
+            {
+                // The dialogs' rows: up and down, A does it, B closes.
+                const int rows = F.dialog >= 5 ? std::max(1, (int)F.dItems.size()) : F.dialog == 1 ? 3 : F.dialog == 4 ? 5 : 2;
+                if (dir == 3 || dir == 4) F.drow = (F.drow + (dir == 3 ? rows - 1 : 1)) % rows;
+                if (bDown) closeDialog();
+                else if (aDown && valid)
+                {
+                    const std::string rom = games[selected].rom;
+                    if (F.dialog == 1)
+                    {
+                        if (F.drow == 0)
+                        {
+                            closeDialog();
+                            const bool ok = Launcher::SetPair(home + "/fulldex-hidden.txt", rom, "1");
+                            refresh(selected);
+                            settle();
+                            note = ok ? "REMOVED FROM THE LIST. THE ROM IS STILL ON THE SD CARD" : "COULD NOT SAVE THE LIST";
+                        }
+                        else if (F.drow == 1) { F.dialog = 2; F.drow = 1; }
+                        else closeDialog();
+                    }
+                    else if (F.dialog == 2)
+                    {
+                        closeDialog();
+                        if (F.drow == 0)
+                        {
+                            std::error_code ec;
+                            std::filesystem::remove(std::filesystem::u8path(rom), ec);
+                            fprintf(stderr, "[launcher] delete %s: %s\n", rom.c_str(), ec ? ec.message().c_str() : "deleted");
+                            if (ec) note = "COULD NOT DELETE THE ROM FILE";
+                            else
+                            {
+                                Launcher::SetPair(home + "/fulldex-hidden.txt", rom, "1"); // (gone from this list until the next start too)
+                                refresh(selected);
+                                settle();
+                                note = "ROM FILE DELETED. ITS SAVES ARE KEPT";
+                            }
+                        }
+                    }
+                    else if (F.dialog == 4)
+                    {
+                        if (F.drow == 0)
+                        {
+                            // Import: the pictures in the artwork folder beside the settings (PNG or JPG,
+                            // put there from a PC or phone), in name order; up to 7 shown.
+                            std::vector<std::string> pics;
+                            std::error_code ec;
+                            for (const auto& e : std::filesystem::directory_iterator(std::filesystem::u8path(home + "/artwork"), ec))
+                            {
+                                std::string n = e.path().filename().string(), low = n;
+                                for (char& ch : low) ch = (char)tolower((unsigned char)ch);
+                                if (e.is_regular_file(ec) && low.size() > 4 && (low.compare(low.size() - 4, 4, ".png") == 0 || low.compare(low.size() - 4, 4, ".jpg") == 0 || low.compare(low.size() - 5, 5, ".jpeg") == 0)) pics.push_back(n);
+                            }
+                            std::sort(pics.begin(), pics.end());
+                            if (pics.size() > 7) pics.resize(7);
+                            std::string where = home + "/artwork";
+                            if (where.rfind("sdmc:", 0) == 0) where = where.substr(5);
+                            F.dTitle = "Import A Picture";
+                            F.dMsg = pics.empty() ? "No pictures yet. Put PNG or JPG files in " + where + " on the SD card, then come back here."
+                                                  : "Pictures in " + where + " on the SD card.";
+                            F.dItems = pics;
+                            F.dPaths = pics;
+                            F.dItems.push_back("Cancel");
+                            F.dPaths.push_back("#close");
+                            F.dialog = 7;
+                            F.drow = 0;
+                        }
+                        else if (F.drow == 1) note = "FIND ARTWORK ON YOUR PHONE OR PC";
+                        else if (F.drow == 2 || F.drow == 3)
+                        {
+                            const bool ok = Launcher::SetPair(home + "/fulldex-art.txt", rom, F.drow == 2 ? "placeholder" : "");
+                            closeDialog();
+                            refresh(selected);
+                            note = !ok ? "COULD NOT SAVE THE PICTURE" : F.drow == 2 ? "PLAIN CARD" : "ORIGINAL PICTURE BACK";
+                        }
+                        else closeDialog();
+                    }
+                    else if (F.dialog == 15) { const std::string pick = F.drow < (int)F.dPaths.size() ? F.dPaths[F.drow] : std::string("#close"); if (Launcher::ThemePick(pick) != 1) closeDialog(); } // (a theme: Apply, Delete)
+                    else if (F.dialog >= 10 && F.dialog <= 12) { const bool yes = F.dialog == 11 && F.drow == 0; closeDialog(); if (yes) quitList = true; } // (the beer message: its code is scanned; Quit Fulldex?: Quit)
+                    else if (F.dialog >= 5)
+                    {
+                        const std::string pick = F.drow < (int)F.dPaths.size() ? F.dPaths[F.drow] : std::string("#close");
+                        const std::string save = games[selected].folder + "/" + games[selected].saveName;
+                        if (pick == "#close" || pick.empty()) closeDialog();
+                        else if (F.dialog == 8 || F.dialog == 9 || F.dialog == 13 || F.dialog == 14)
+                        {
+                            // (Add To Tab, or a tab of your own's menu.)
+                            const int r = Launcher::TabDialogPick(pick, tab, note);
+                            if (r == 2) { kbLayer = 0; kbBuild(); }
+                            if (r != 1) { scroll = 0; settle(); }
+                        }
+                        else if (F.dialog == 7)
+                        {
+                            // (Checked before it is kept: one that does not read is not chosen.)
+                            std::vector<unsigned char> data;
+                            std::vector<uint32_t> test;
+                            closeDialog();
+                            if (!Launcher::ReadFile(home + "/artwork/" + pick, data) || !Launcher::LoadSquareArt(data.data(), data.size(), test))
+                                note = "THAT PICTURE COULD NOT BE READ: PNG OR JPG ONLY";
+                            else
+                            {
+                                const bool ok = Launcher::SetPair(home + "/fulldex-art.txt", rom, pick);
+                                refresh(selected);
+                                note = ok ? "PICTURE CHANGED" : "COULD NOT SAVE THE PICTURE";
+                            }
+                        }
+                        else if (F.dialog == 5)
+                        {
+                            F.dTitle = "Go Back To This Backup?";
+                            F.dMsg = F.dItems[F.drow].substr(8) + ". Your save as it is now is kept beside it as a .before-restore copy.";
+                            F.dItems = { "Restore Backup", "Cancel" };
+                            F.dPaths = { pick, "#close" };
+                            F.dialog = 6;
+                            F.drow = 1;
+                        }
+                        else
+                        {
+                            std::error_code ec;
+                            const auto now = std::filesystem::file_size(std::filesystem::u8path(save), ec);
+                            const auto was = std::filesystem::file_size(std::filesystem::u8path(pick), ec);
+                            std::vector<unsigned char> restored;
+                            std::string error;
+                            const bool ok = SaveBackups::Restore(save, pick, now > 0 ? (size_t)now : (size_t)was, restored, error);
+                            closeDialog();
+                            note = ok ? "SAVE RESTORED. THE ONE BEFORE IS KEPT AS A .BEFORE-RESTORE COPY" : error;
+                        }
+                    }
+                }
+            }
+            else if (F.popup >= 0)
+            {
+                // The game's menu: up and down, A does it, B closes.
+                if (dir == 3) F.popup = std::max(0, F.popup - 1);
+                else if (dir == 4) F.popup = std::min(Launcher::PopupCount() - 1, F.popup + 1);
+                if (bDown) F.popup = -1;
+                else if (aDown && valid)
+                {
+                    const int item = F.popup;
+                    F.popup = -1;
+                    const Launcher::Game& g = games[selected];
+                    if (item == 0) play = true;
+                    else if (item == 1)
+                    {
+                        const bool ok = library.Toggle(g.rom);
+                        const bool now = library.Favourite(g.rom);
+                        refresh(selected);
+                        settle();
+                        note = !ok ? "COULD NOT SAVE HOME" : now ? "ADDED TO HOME" : "REMOVED FROM HOME";
+                    }
+                    else if (item == 2) { F.kbFor = 0; F.text = Launcher::ShortName(g); F.dialog = 3; F.drow = 0; kbLayer = 0; kbBuild(); }
+                    else if (item == 3) { F.dialog = 4; F.drow = 0; }
+                    else if (item == 4)
+                    {
+                        if (g.saveName.empty()) note = "THIS GAME'S SAVES CANNOT BE MANAGED HERE YET";
+                        else
+                        {
+                            const std::string save = g.folder + "/" + g.saveName;
+                            const auto list = SaveBackups::List(save);
+                            std::error_code ec;
+                            const bool has = std::filesystem::exists(std::filesystem::u8path(save), ec);
+                            static const char* months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+                            F.dTitle = "Manage Saves";
+                            F.dMsg = !has ? "There is no save for this game yet."
+                                   : list.empty() ? "Fulldex backs up this save every time the game starts. There are no backups yet."
+                                                  : "Fulldex backs up this save every time the game starts. Choose one to go back to it.";
+                            F.dItems.clear();
+                            F.dPaths.clear();
+                            for (size_t k = 0; k < list.size() && k < 5; k++)
+                            {
+                                const std::string& l = list[k].label;
+                                const int m = std::max(1, std::min(12, atoi(l.substr(5, 2).c_str())));
+                                F.dItems.push_back("Restore " + std::to_string(atoi(l.substr(8, 2).c_str())) + " " + months[m - 1] + " " + l.substr(0, 4) + ", " + l.substr(11, 5));
+                                F.dPaths.push_back(list[k].path);
+                            }
+                            F.dItems.push_back("Close");
+                            F.dPaths.push_back("#close");
+                            F.dialog = 5;
+                            F.drow = 0;
+                        }
+                    }
+                    else if (item == 5) Launcher::OpenAddToTab(g.rom);
+                    else if (item == 6) { F.dialog = 1; F.drow = 0; }
+                }
+            }
+            else
+            {
+                if (!onTabs) F.onSort = false;
+                // A page of the sidebar open (About): its arrows, A and B.
+                if (F.page >= 0)
+                {
+                    Launcher::PageMove(dir);
+                    if (aDown)
+                    {
+                        if (F.side == Launcher::SIDE_SETTINGS) { guide = true; page.Open(cfgPath); held = 0; }
+                        else if (F.side >= 0) { if (!Launcher::OpenSide(F.side)) note = std::string(Launcher::SideName(F.side)) + ": COMING SOON"; }
+                        else if (F.page == Launcher::SIDE_ROMS)
+                        {
+                            // (The ROMs page: A on the list goes to the chosen ROM's actions; on those, does it.)
+                            const std::vector<Launcher::Game>& roms = Launcher::RomList();
+                            if (F.pact < 0) { if (!roms.empty()) F.pact = 0; }
+                            else if (F.pact == 0 && F.prow >= 0 && F.prow < (int)roms.size())
+                            {
+                                const std::string rom = roms[F.prow].rom;
+                                const bool was = roms[F.prow].hidden;
+                                const bool ok = Launcher::SetPair(home + "/fulldex-hidden.txt", rom, was ? "" : "1");
+                                refresh(selected);
+                                if (selected < 0 && !games.empty()) selected = 0;
+                                note = !ok ? "COULD NOT SAVE THE LIST" : was ? "BACK IN THE LIST" : "HIDDEN FROM THE LIST";
+                            }
+                        }
+                        else if (F.page == Launcher::SIDE_LAUNCHER) { if (Launcher::LookDo(F.prow, 1) == 2) { kbLayer = 0; kbBuild(); } } // (2: My Themes' keyboard)
+                        else if (F.page == Launcher::SIDE_HUB)
+                        {
+                            // (The Hub: A on the list goes to the chosen row's actions; on those, does it.)
+                            if (F.pact < 0) { if (!Launcher::HubEnter(F.prow) && !Launcher::HubActions(F.prow).empty()) F.pact = 0; else if (Launcher::HubTop() && F.prow == 3) note = "SCAN THE CODE WITH YOUR PHONE"; }
+                            else { const std::string said = Launcher::HubDo(F.prow, F.pact); if (!said.empty()) note = said; if (F.dialog == 3) { kbLayer = 0; kbBuild(); } }
+                        }
+                        else if (!Launcher::PageUrl(F.page, F.prow).empty()) note = "OPEN IT ON YOUR PHONE OR PC";
+                    }
+                    if (bDown) Launcher::PageBack();
+                    if (down & HidNpadButton_Plus) quitList = true;
+                }
+                else
+                {
+                if (down & (tl | tr)) setTab((down & tr) ? 1 : -1);
+                if (F.side >= 0)
+                {
+                    if (panel || tiles)
+                    {
+                        // (The Panel home's sections along the top: left and right along them, down to the tabs.)
+                        if (dir == 1) F.side = std::max(0, F.side - 1);
+                        else if (dir == 2) F.side = std::min((int)Launcher::SIDES - 1, F.side + 1);
+                        else if (dir == 4 && panel) { F.side = -1; onTabs = true; }
+                    else if (dir == 3 && tiles) { F.side = -1; if (banner) F.banner = 1; else intoGames(); }
+                    }
+                    else if (dir == 3) F.side = std::max(0, F.side - 1);
+                    else if (dir == 4) F.side = std::min((int)Launcher::SIDES - 1, F.side + 1);
+                    else if (dir == 2) { F.side = -1; intoGames(); }
+                    if (aDown)
+                    {
+                        if (F.side == Launcher::SIDE_SETTINGS) { guide = true; page.Open(cfgPath); held = 0; }
+                        else if (!Launcher::OpenSide(F.side)) note = std::string(Launcher::SideName(F.side)) + ": COMING SOON";
+                    }
+                }
+                else if (onTabs)
+                {
+                    if (F.onSort)
+                    {
+                        // (Sort on the tab bar: left back to the tabs, down to the games, A the next order.)
+                        if (panel && dir == 3) { F.onSort = false; onTabs = false; F.side = Launcher::SIDE_HOME; }
+                    else if (dir == 1) { if (F.tool > 1) F.tool--; else F.onSort = false; }
+                        else if (dir == 2) F.tool = std::min(3, F.tool + 1);
+                        else if (dir == 4) { F.onSort = false; onTabs = false; if (banner && !alt) F.banner = 1; else intoGames(); }
+                        else if (aDown && F.tool == 1 && !Launcher::TabHidden().empty()) Launcher::OpenPlusMenu(); // (+: new, or one hidden shown)
+                        else if (aDown && F.tool != 3)
+                        {
+                            // (+ and Search: the keyboard, for a new tab or the search.)
+                            F.kbFor = F.tool == 1 ? 1 : 2;
+                            F.kbRom.clear();
+                            F.text = F.tool == 2 ? Launcher::SearchText() : std::string();
+                            F.dialog = 3; F.drow = 0; kbLayer = 0; kbBuild();
+                        }
+                        else if (aDown)
+                        {
+                            if (!Launcher::SetConfigLine(cfgPath, "list_sort", Launcher::NextSort(Launcher::ConfigValue(cfgPath, "list_sort")))) note = "COULD NOT SAVE THE SETTINGS";
+                            refresh(selected);
+                            settle();
+                        }
+                    }
+                    else if (panel && dir == 3) { onTabs = false; F.side = Launcher::SIDE_HOME; }
+                else if (dir == 1 && tab == Launcher::FirstTab()) { if (!alt) { onTabs = false; F.side = Launcher::SIDE_HOME; } }
+                    else if (dir == 2 && tab == Launcher::LastTab()) { F.onSort = true; F.tool = 1; }
+                    else if (dir == 1 || dir == 2) setTab(dir == 2 ? 1 : -1);
+                    else if (aDown) Launcher::OpenTabMenu(tab); // (a tab: move, hide; one of your own also rename, delete)
+                    else if (dir == 4 || aDown) { onTabs = false; if (banner && !alt) F.banner = 1; else intoGames(); }
+                }
+                else if (F.banner)
+                {
+                    if (dir == 1) { if (F.banner == 2) F.banner = 1; else { F.banner = 0; if (alt) intoGames(); else F.side = Launcher::SIDE_HOME; } }
+                    else if (dir == 2) F.banner = 2;
+                    else if (dir == 3) { F.banner = 0; if (tiles) intoGames(); else onTabs = true; }
+                else if (tiles && dir == 4) { F.banner = 0; F.side = Launcher::SIDE_HOME; }
+                    else if (dir == 4 && Launcher::FirstIn(view()) >= 0) { F.banner = 0; intoGames(); }
+                    else if (aDown)
+                    {
+                        if (F.banner == 2) { const int cg = Launcher::ContinueGame(games, selected); if (cg >= 0) { selected = cg; F.banner = 0; F.popup = 0; } } // (Game Options: its menu)
+                        else
+                        {
+                            const int cg = Launcher::ContinueGame(games, selected);
+                            F.banner = 0;
+                            if (cg >= 0) { selected = cg; play = true; }
+                        }
+                    }
+                }
+                else
+                {
+                    if (dir)
+                    {
+                        const Launcher::View v = view();
+                        const int k = v.SpotOf(selected);
+                        if (tiles)
+                        {
+                            if (dir == 3) onTabs = true;
+                            else if (dir == 4) { if (banner) F.banner = 1; else F.side = Launcher::SIDE_HOME; }
+                            else { const int to2 = v.spots.empty() ? -1 : Launcher::Step(v, selected, dir == 1 ? 3 : 4); if (to2 >= 0 && to2 != selected) { selected = to2; note.clear(); } }
+                        }
+                        else if (panel && dir == 1) {}
+                        else if (panel && dir == 2 && banner) F.banner = 1;
+                        else if (dir == 1 && (k < 0 || v.spots[k].x == v.g.gx)) F.side = Launcher::SIDE_HOME;
+                        else
+                        {
+                            const int to = v.spots.empty() ? -1 : Launcher::Step(v, selected, dir);
+                            if (to < 0) { if (dir == 3) { if (banner && !alt) F.banner = 1; else onTabs = true; } }
+                            else if (to != selected) { selected = to; note.clear(); }
+                        }
+                    }
+                    if (aDown && valid)
+                    {
+                        if (games[selected].known && !games[selected].comingSoon) { F.popup = 0; note.clear(); }
+                        else note = games[selected].comingSoon ? games[selected].name + ": COMING SOON" : "THIS GAME IS NOT ONE THAT THIS PLAYS";
+                    }
+                }
+                if (down & HidNpadButton_Plus) quitList = true;
+                else if (bDown && F.side < 0 && !F.banner && !onTabs) Launcher::OpenQuitAsk(); // (B: asked first)
+                if (bDown && (F.side >= 0 || F.banner || onTabs)) { F.side = -1; F.banner = 0; onTabs = false; intoGames(); }
+                }
+            }
+            if (play && selected >= 0 && selected < (int)games.size())
+            {
+                if (Playable(games[selected])) { result = selected; break; }
+                note = games[selected].known ? "THIS DOWNLOAD DOES NOT HAVE THIS GAME" : "THIS GAME IS NOT ONE THAT THIS PLAYS";
+            }
+            if (quitList) break;
         }
         else
         {
@@ -472,7 +1034,7 @@ int PickGame(const std::vector<Launcher::Game>& games, int selected, const std::
             const u64 tl = ctl.PadCustom() ? action(Controls::L) : (u64)HidNpadButton_L;
             const u64 tr = ctl.PadCustom() ? action(Controls::R) : (u64)HidNpadButton_R;
             auto setTab = [&](int by) {
-                tab = (tab + by + Launcher::TABS) % Launcher::TABS;
+                tab = Launcher::TabStep(tab, by); // (in the order shown)
                 scroll = 0;
                 const Launcher::View v = view();
                 if (v.SpotOf(selected) < 0) selected = Launcher::FirstIn(v);
@@ -532,10 +1094,30 @@ int PickGame(const std::vector<Launcher::Game>& games, int selected, const std::
         }
         // (The game list only when the settings page is not open: drawn over it, the page was
         // hidden while it took the buttons, and the list seemed frozen.)
+        // (The glass list is drawn again only when something on it changed: the Switch draws in
+        // software about 20 times slower than a PC. Anything else drawn on the canvas forgets it.)
+        static std::string glassKey;
+        static std::string setKey; // (the glass settings page as last drawn: drawn again only when it changes)
         if (guide)
         {
-            page.Draw(canvas, page.group < 0 ? "UP / DOWN: CHOOSE    A: OPEN    B: BACK"
-                                             : "UP / DOWN: CHOOSE    LEFT / RIGHT / A: CHANGE    B: BACK", theme);
+            glassKey.clear();
+            const char* hint = page.group < 0 ? "UP / DOWN: CHOOSE    A: OPEN    B: BACK" : "UP / DOWN: CHOOSE    LEFT / RIGHT / A: CHANGE    B: BACK";
+            std::string setNow = std::to_string(page.group) + "/" + std::to_string(page.selected) + "/" + std::to_string(keysOpen) + "/";
+            for (const std::string& l : page.lines) setNow += l + "\n";
+            if (Launcher::Glassy(canvas) && !keysOpen && setNow == setKey) {}
+            else if (Launcher::Glassy(canvas))
+            {
+                setKey = keysOpen ? std::string() : setNow;
+                const u64 t0 = armGetSystemTick();
+                // (The pause menu's glass settings pages, ui_settings.h, over the chosen game's picture blurred.)
+                setMenu.touchRows = 1.5f; // (as on a phone: bigger rows, the page larger)
+                setMenu.laneK = std::max(0.42f, Launcher::GU(canvas) * (480.0f / 720.0f) * 0.94f * 1.3f);
+                Launcher::BuildSettingsMenu(setMenu, setMap, page, false);
+                Launcher::DrawSettingsPage(canvas, setMenu, games, tab, scroll, page.group < 0 ? "Settings" : Launcher::SettingsGroups()[page.group].name,
+                                           page.group < 0 ? "A: OPEN    B: BACK" : "A: CHANGE    B: BACK", theme);
+                fprintf(stderr, "[launcher] glass settings drawn in %d ms\n", (int)(armTicksToNs(armGetSystemTick() - t0) / 1000000));
+            }
+            else page.Draw(canvas, hint, theme);
             if (keysOpen)
             {
                 std::string kh = keysCapture >= 0 ? "OR WAIT 5 SECONDS: AS IT WAS" : "A: CHANGE   B: BACK";
@@ -544,7 +1126,46 @@ int PickGame(const std::vector<Launcher::Game>& games, int selected, const std::
                 keysMenu.Draw(canvas, "KEYS AND BUTTONS", kh);
             }
         }
-        else Launcher::Draw(canvas, games, tab, onSettings || onTabs ? -1 : selected, scroll, note, std::string(), theme, true, onTabs);
+        else
+        {
+            {
+                setKey.clear();
+                FillUpdateStatus(pageUpdateWork);
+                // (The blurred background follows the chosen game once it has stayed on it 0.4 s.)
+                static int bgSel = -2;
+                static u64 bgSince = 0;
+                const u64 now = armGetSystemTick();
+                if (selected != bgSel) { bgSel = selected; bgSince = now; }
+                const std::string want = selected >= 0 && selected < (int)games.size() ? games[selected].rom : std::string();
+                if (!want.empty() && want != Launcher::BackdropRom() && (Launcher::BackdropRom().empty() || armTicksToNs(now - bgSince) > 400000000ULL))
+                    Launcher::BackdropRom() = want;
+            }
+            auto keyNow = [&]() { const Launcher::GlassFocus& F = Launcher::Focus();
+                                  return std::to_string(F.side) + "," + std::to_string(F.banner) + "," + std::to_string(F.popup) + "," + std::to_string(F.dialog) + ","
+                                         + std::to_string(F.drow) + "," + std::to_string(F.page) + "," + std::to_string(F.prow) + "," + std::to_string(F.upState) + F.upText + "," + std::to_string(F.nScroll) + "," + std::to_string(F.onSort) + std::to_string(F.tool) + Launcher::SortKey() + Launcher::SearchText() + Launcher::TabsSig() + "," + std::to_string(F.pact) + "," + Launcher::HubSig() + "," + std::to_string(Launcher::RomList().size()) + ","
+                                         + std::to_string(std::count_if(Launcher::RomList().begin(), Launcher::RomList().end(), [](const Launcher::Game& g) { return g.hidden; })) + "," + F.text + "," + std::to_string(kb.selected) + std::to_string(kbLayer) + "," + std::to_string(games.size()) + "/"
+                                         + Launcher::BackdropRom() + "/" + std::to_string(tab) + "/" + std::to_string(selected) + "/" + std::to_string(scroll) + "/" + note + "/"
+                                         + std::to_string(onTabs) + std::to_string(onSettings); };
+            bool overlay = false;
+#ifdef SSR_UPDATER
+            overlay = updateMenu.open;
+#endif
+            if (!Launcher::Glassy(canvas) || overlay || keyNow() != glassKey)
+            {
+                const u64 t0 = armGetSystemTick();
+                if (Launcher::Focus().dialog == 3 && kb.open && Launcher::Glassy(canvas))
+                {
+                    // (Rename: the pause menu's keyboard page over the whole screen.)
+                    Launcher::GlassBackdrop(canvas, selected >= 0 && selected < (int)games.size() ? &games[selected] : nullptr);
+                    kb.Draw(canvas, Launcher::KbTitle(), "A: TYPE    X: DELETE    +: SAVE    B: CANCEL");
+                }
+                else Launcher::Draw(canvas, games, tab, !Launcher::TilesOn() && (onSettings || onTabs || Launcher::Focus().side >= 0 || Launcher::Focus().banner) ? -1 : selected,
+                                    scroll, note, Launcher::Focus().popup >= 0 || Launcher::Focus().dialog || Launcher::Focus().page >= 0 ? "A: CHOOSE    B: BACK" : "A: PLAY    L / R: TABS    +: QUIT",
+                                    theme, true, onTabs, onSettings);
+                glassKey = overlay ? std::string() : keyNow();
+                if (Launcher::Glassy(canvas)) fprintf(stderr, "[launcher] glass list drawn in %d ms\n", (int)(armTicksToNs(armGetSystemTick() - t0) / 1000000));
+            }
+        }
 #ifdef SSR_UPDATER
         if (updateMenu.open)
             updateMenu.Draw(canvas, Updater::PopupTitle(), "A: CHOOSE    B: LATER",
@@ -558,8 +1179,8 @@ int PickGame(const std::vector<Launcher::Game>& games, int selected, const std::
                 if (on) canvas.Fill(x - 3 * s, 4 * s, Canvas::TextWidth(text, s) + 5 * s, 13 * s, th.frame);
                 canvas.Text(x, 7 * s, text, s, on ? th.title : th.hint);
             };
-            if (guide && !keysOpen) button(8 * s, "< BACK", false);
-            else if (!guide) button(canvas.w - 8 * s - Canvas::TextWidth("SETTINGS", s), "SETTINGS", onSettings);
+            if (guide && !keysOpen && !Launcher::Glassy(canvas)) button(8 * s, "< BACK", false); // (the glass page has its own)
+            else if (!guide && !Launcher::Glassy(canvas)) button(canvas.w - 8 * s - Canvas::TextWidth("SETTINGS", s), "SETTINGS", onSettings);
         }
         u32 stride;
         u32* out = (u32*)framebufferBegin(&fb, &stride);
@@ -597,7 +1218,16 @@ int PickGame(const std::vector<Launcher::Game>& games, int selected, const std::
             framebufferEnd(&fb);
         }
     }
+    ExitTrace("the list's screen closed");
     framebufferClose(&fb);
+    // (The chosen game handed back as its place in gamesIn: the list shown may be in another order.)
+    if (result >= 0 && result < (int)games.size())
+    {
+        const std::string rom = games[result].rom;
+        result = -1;
+        for (size_t i = 0; i < gamesIn.size(); i++)
+            if (gamesIn[i].rom == rom) result = (int)i;
+    }
     return result;
 }
 
@@ -747,8 +1377,28 @@ bool g_canChange = false, g_changeGame = false;
 // seconds (see JitStarted).
 static std::string g_jitMarker, g_fastMemMarker;
 
+// (A trace of the closing down, in exit-trace.txt beside the program: each step written and
+// closed at once, so the last line says where it stopped.)
+static char g_exitTrace[512];
+void ExitTrace(const char* step)
+{
+    if (!g_exitTrace[0]) return;
+    if (FILE* f = fopen(g_exitTrace, "a")) { fprintf(f, "%llu %s\n", (unsigned long long)(armTicksToNs(armGetSystemTick()) / 1000000), step); fclose(f); }
+}
+static void ExitTraceAtExit() { ExitTrace("atexit: the last handler"); }
+static void ExitTraceStart() { atexit(ExitTraceAtExit); }
+// (Begun once the list knows its folder: exit-trace.txt beside the settings.)
+void ExitTraceIn(const std::string& dir)
+{
+    snprintf(g_exitTrace, sizeof g_exitTrace, "%s/exit-trace.txt", dir.c_str());
+    if (FILE* f = fopen(g_exitTrace, "w")) fclose(f);
+    ExitTrace("started");
+}
+extern "C" void userAppExit(void) { ExitTrace("libnx: closing the services"); }
+
 bool Start(int& argc, char**& argv)
 {
+    ExitTraceStart();
     // The folder the .nro was started from (the Homebrew Menu passes its path), or the usual one.
     std::string dir = "sdmc:/switch/ssrecomp";
     if (argc > 0 && argv[0] && strncmp(argv[0], "sdmc:/", 6) == 0)
@@ -880,6 +1530,7 @@ bool Start(int& argc, char**& argv)
         }
         for (size_t i = 0; i < games.size(); i++)
             if (games[i].rom == last) chosen = (int)i;
+        Launcher::ContinueRom() = last;
         const auto showList = std::find(testArgs.begin(), testArgs.end(), "--show-list");
         if (testRun && showList != testArgs.end())
         {
@@ -934,7 +1585,7 @@ bool Start(int& argc, char**& argv)
                 // (Installed: the new .nro started as this one ends.)
                 if (chosen < 0 && Updater::RestartPending()) Updater::Restart();
 #endif
-                if (chosen < 0) return false;
+                if (chosen < 0) { ExitTrace("the list closed with no game"); return false; }
                 if (FILE* f = fopen(lastPath.c_str(), "w"))
                 {
                     fprintf(f, "%s\n", games[chosen].rom.c_str());
@@ -969,7 +1620,14 @@ bool Start(int& argc, char**& argv)
         o.fullscreen = true;
         Launcher::SyncGbaSettings(SettingsPath(dir), o.data);
         fprintf(stderr, "[switch] GBA: %s, saves in %s\n", game.rom.c_str(), game.folder.c_str());
+        // (Cloud saves: a newer save comes down first; the save goes up when the game closes.)
+        const std::string cfgAt = SettingsPath(dir);
+        CloudAuto::Start(cfgAt.substr(0, cfgAt.find_last_of('/')), game.folder + "/" + game.saveName);
+        const u64 gbaStart = armGetSystemTick();
         GbaRa::Play(game.rom, o, SettingsPath(dir));
+        PlayTime::Add(cfgAt.substr(0, cfgAt.find_last_of('/')), (long long)(armTicksToNs(armGetSystemTick() - gbaStart) / 1000000000ULL));
+        CloudAuto::Saved();
+        CloudAuto::Finish();
         if (!g_self.empty() && envHasNextLoad())
         {
             const std::string cmd = g_self.find(' ') == std::string::npos ? g_self : "\"" + g_self + "\"";
@@ -1225,6 +1883,25 @@ std::string Status()
     return buf;
 }
 
+// The Switch's own keyboard (the system's software keyboard, full screen): the text typed, or false
+// if it was closed without. (SDL's text input brought the console down on SEARCH.)
+bool Keyboard(const char* guide, bool password, std::string& out)
+{
+    SwkbdConfig kbd;
+    if (R_FAILED(swkbdCreate(&kbd, 0))) return false;
+    if (password) swkbdConfigMakePresetPassword(&kbd);
+    else swkbdConfigMakePresetDefault(&kbd);
+    if (guide && *guide) swkbdConfigSetGuideText(&kbd, guide);
+    swkbdConfigSetStringLenMax(&kbd, 128);
+    char text[512] = {};
+    const Result rc = swkbdShow(&kbd, text, sizeof(text));
+    swkbdClose(&kbd);
+    fprintf(stderr, "[switch] keyboard: 0x%x\n", (unsigned)rc);
+    if (R_FAILED(rc)) return false;
+    out = text;
+    return true;
+}
+
 void ForceExit()
 {
     fflush(stderr);
@@ -1232,9 +1909,23 @@ void ForceExit()
     for (;;) {}
 }
 
+extern "C" void SsrJitRelease();
+
 void Finish()
 {
     JitStarted(); // (an ordinary exit: the JIT did start)
+    SsrJitRelease(); // (the JIT's code memory given back: without that the Homebrew Menu cannot start the game list again)
+    // (A game chosen from the list: its own closing down traced, in exit-trace-game.txt beside the program.)
+    if (g_changeGame && !g_self.empty())
+    {
+        const size_t sl = g_self.find_last_of('/');
+        if (sl != std::string::npos)
+        {
+            snprintf(g_exitTrace, sizeof g_exitTrace, "%s/exit-trace-game.txt", g_self.substr(0, sl).c_str());
+            if (FILE* f = fopen(g_exitTrace, "w")) fclose(f);
+            ExitTrace("game: finish");
+        }
+    }
     // QUIT in the pause menu, for a game chosen from the game list: the Homebrew Menu's loader
     // starts the program again, which shows the list.
     if (g_changeGame && !g_self.empty())

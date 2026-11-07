@@ -12,6 +12,7 @@
 #include <cstdint>
 #include "ui_translations.h"
 #include "ui_font.h"
+#include "companion_translations.h"
 
 namespace UiLang
 {
@@ -152,6 +153,7 @@ inline std::string Tr(const std::string& s) {
         const auto rest=s.substr(digits);if(const auto* value=direct(rest))return s.substr(0,digits)+*value;
         if(rest.rfind(" OF ",0)==0)if(const auto* value=direct(" OF "))return s.substr(0,digits)+*value+rest.substr(4);
     }
-    return s;
+    // Companion pages (PokeDaisy) keep their own es/it/fr/de text; ja/ko fall back to English.
+    return lang <= 4 ? CompanionTranslation(lang, s) : s;
 }
 } // namespace UiLang

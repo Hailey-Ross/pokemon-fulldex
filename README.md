@@ -691,3 +691,10 @@ open an issue and it will be taken out.
 ---
 
 Built with the help of [Claude](https://claude.ai), Anthropic's AI.
+
+## Custom touch controls and regional profiles
+
+Android players can move and resize on-screen controls in the paused layout editor.
+The launcher and Fulldex menus offer AUTO, English, Spanish, Italian, French, German, Japanese and Korean interface languages. Embedded GBA menus follow the launcher language too. See [controls, regional games and build notes](docs/REGIONAL-AND-TOUCH-CONTROLS.md).
+
+Companion additions: Based on PokeDaisy by Lidor Itzhari - https://github.com/lidor30/pokedaisy

@@ -82,6 +82,17 @@ say "Compiling for the Mac ($ARCH)"
 # Apple silicon on an Intel Mac. melonDS takes its JIT, ARM64 or x86-64, from the compiler's target.)
 OPTS=(-G Ninja -DCMAKE_BUILD_TYPE=Release -DSSR_JIT=ON -DSSR_PC_ALL_GAMES=ON -DSSR_PNG=OFF -DSSR_GPU3D=OFF
       -DSSR_GENERATED_DIR="$TABLES" -DCMAKE_OSX_ARCHITECTURES="$ARCH" -DSSR_PORTABLE_X86=ON)
+# (On GitHub these come with the inputs: online.env and fulldex-google-client.txt beside the tables.)
+if [ -f "$(dirname "$TABLES")/online.env" ]; then . "$(dirname "$TABLES")/online.env"; fi
+if [ -z "${FULLDEX_GOOGLE_CLIENT_FILE:-}" ] && [ -f "$(dirname "$TABLES")/fulldex-google-client.txt" ]; then
+    FULLDEX_GOOGLE_CLIENT_FILE="$(cd "$(dirname "$TABLES")" && pwd)/fulldex-google-client.txt"; fi
+# The launcher's online parts, when given: the Hub (cloud saves, moving Pokemon), the theme Gallery's
+# relay and the Google sign-in client for cloud saves (a file of two lines; never in the repository).
+ONLINE=()
+[ "${SSR_POKEMON_HUB:-}" = ON ] && ONLINE+=(-DSSR_POKEMON_HUB=ON)
+[ -n "${FULLDEX_RELAY_URL:-}" ] && ONLINE+=(-DFULLDEX_RELAY_URL="$FULLDEX_RELAY_URL")
+[ -n "${FULLDEX_GOOGLE_CLIENT_FILE:-}" ] && ONLINE+=(-DFULLDEX_GOOGLE_CLIENT_FILE="$FULLDEX_GOOGLE_CLIENT_FILE")
+OPTS+=(${ONLINE[@]+"${ONLINE[@]}"})
 [ -n "$ART" ] && OPTS+=(-DSSR_PC_ART="$ART")
 if [ -n "${SSR_GBA_DIR:-}" ]; then
     [ -f "$SSR_GBA_DIR/frontend/embed.h" ] || fail "SSR_GBA_DIR: not Pokemon GBA Widescreen: $SSR_GBA_DIR"
@@ -103,6 +114,7 @@ strip -x "$APP/Contents/MacOS/pokemon-ds-wide"
 cp -r "$DATA/funcs" "$APP/Contents/Resources/data/funcs"
 cp LICENSE "$APP/Contents/Resources/LICENSE.txt"
 cp LICENSE-Noto.txt "$APP/Contents/Resources/LICENSE-Noto.txt"
+cp frontend/fonts/FONT-LICENSES.txt "$APP/Contents/Resources/FONT-LICENSES.txt"
 GBA_DOCS=""
 if [ -n "${SSR_GBA_DIR:-}" ]; then
     MGBA_SRC="${GBAW_MGBA:-${GBAW_WORK:-$HOME/pokemon-gba-wide}/mgba}"
@@ -174,7 +186,7 @@ ZIP="$DIST/pokemon-ds-wide-pc-macos-$ARCH.zip"
 SSR_SRC="$HERE" python3 - "$ZIP" <<'PY'
 import re, sys, zipfile
 regional_codes = '|'.join(p['code'] for p in __import__('json').loads(__import__('pathlib').Path(__import__('os').environ['SSR_SRC'], 'tools/regions/profiles.json').read_text())['profiles'] if p['kind']=='functions')
-ok = re.compile(r'^Pokemon Fulldex\.app/(Contents/(Info\.plist|MacOS/(pokemon-ds-wide)?|_CodeSignature/(CodeResources)?|Resources/(AppIcon\.icns|README\.txt|LICENSE\.txt|LICENSE-mGBA\.txt|LICENSE-Noto\.txt|data/|data/funcs/|data/funcs/(?:IREO|IRDO|IRBO|IRAO|CPUE|ADAE|APAE|ADAS|APAF|APAS|APAD|ADAD|ADAI|IRAS|CPUS|IREF|IRDF|CPUF|IRBF|IRAF|IRBS|IRES|IRDS|' + regional_codes + r')\.txt)?)?)?$')
+ok = re.compile(r'^Pokemon Fulldex\.app/(Contents/(Info\.plist|MacOS/(pokemon-ds-wide)?|_CodeSignature/(CodeResources)?|Resources/(AppIcon\.icns|README\.txt|LICENSE\.txt|LICENSE-mGBA\.txt|LICENSE-Noto\.txt|FONT-LICENSES\.txt|data/|data/funcs/|data/funcs/(?:IREO|IRDO|IRBO|IRAO|CPUE|ADAE|APAE|ADAS|APAF|APAS|APAD|ADAD|ADAI|IRAS|CPUS|IREF|IRDF|CPUF|IRBF|IRAF|IRBS|IRES|IRDS|' + regional_codes + r')\.txt)?)?)?$')
 names = zipfile.ZipFile(sys.argv[1]).namelist()
 bad = [n for n in names if not ok.match(n)]
 if bad: sys.exit('unexpected files in the Mac download: %s' % bad)

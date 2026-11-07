@@ -109,6 +109,39 @@ inline int StyleOf(SDL_GameController* c)
     }
 }
 
+// Which controller to draw (CONTROLS' preview, ui_settings.h DrawPad): its shape and where its
+// buttons are. Plain shapes, not any maker's design.
+enum Kind { K_XBOX, K_PLAYSTATION, K_PRO, K_JOYCONS, K_JOYCON, K_HANDHELD };
+
+inline int KindOf(SDL_GameController* c)
+{
+#ifdef __SWITCH__
+    // (The Switch's own controllers: SDL names no type for them. Held as one, or a Pro Controller.)
+    if (c && SDL_GameControllerGetType(c) == SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_PRO) return K_PRO;
+    return K_HANDHELD;
+#endif
+    if (!c) return K_XBOX;
+    switch (SDL_GameControllerGetType(c))
+    {
+    case SDL_CONTROLLER_TYPE_PS3:
+    case SDL_CONTROLLER_TYPE_PS4:
+    case SDL_CONTROLLER_TYPE_PS5:
+        return K_PLAYSTATION;
+    case SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_PRO: return K_PRO;
+#if SDL_VERSION_ATLEAST(2, 24, 0)
+    case SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_JOYCON_PAIR: return K_JOYCONS;
+    case SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_JOYCON_LEFT:
+    case SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT: return K_JOYCON;
+#endif
+    default: return K_XBOX;
+    }
+}
+inline const char* KindName(int k)
+{
+    static const char* n[] = { "XBOX-STYLE CONTROLLER", "PLAYSTATION-STYLE CONTROLLER", "PRO CONTROLLER", "JOY-CON PAIR", "ONE JOY-CON", "SWITCH HANDHELD" };
+    return k >= 0 && k <= K_HANDHELD ? n[k] : n[0];
+}
+
 // As printed on the controller. (SDL gives A to the bottom button of an Xbox or PlayStation pad
 // and to the button labelled A of a Nintendo one, as does main.cpp's ReadPad on the Switch.)
 inline const char* InputName(int i, int style = XBOX)
@@ -265,6 +298,7 @@ struct Bindings
     // The action a key does, or -1.
     int ActionOfKey(int sc) const
     {
+        if (sc <= 0) return -1; // (0: an action's key cleared, ClearKey)
         for (int a = 0; a < COUNT; a++)
             if (Key(a) == sc) return a;
         return -1;
@@ -294,6 +328,11 @@ struct Bindings
             }
         pad[a] = in;
     }
+    // No key or button at all (CONTROLS' CLEAR BINDING; only Fulldex's own shortcuts: FAST, SWAP,
+    // SAVE, LOAD). A key of 0 is SDL's unknown one, never pressed, shown as "-".
+    static bool Clearable(int a) { return a == FAST || a == SWAP || a == SAVE || a == LOAD; }
+    void ClearKey(int a) { if (Clearable(a)) key[a] = 0; }
+    void ClearPad(int a) { if (Clearable(a)) pad[a] = PAD_NONE; }
     void SetKey(int a, int sc)
     {
         const int old = Key(a);
@@ -314,7 +353,7 @@ struct Bindings
                 if (isKey)
                 {
                     const int sc = atoi(v.c_str());
-                    key[a] = sc > 0 && sc < SDL_NUM_SCANCODES ? sc : -1;
+                    key[a] = v == "0" && Clearable(a) ? 0 : sc > 0 && sc < SDL_NUM_SCANCODES ? sc : -1;
                 }
                 else if (v == "none") pad[a] = PAD_NONE;
                 else pad[a] = InputFromKey(v);

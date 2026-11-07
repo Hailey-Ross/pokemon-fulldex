@@ -15,6 +15,7 @@ namespace Updater
 struct Release
 {
     std::string asset, url, sumsUrl, page, tag;
+    std::string notes; // the release's notes as written on GitHub (Markdown)
     long long updated = 0; // the asset's upload time (seconds since 1970, UTC)
 };
 std::string Sha256Hex(const std::string& data);
@@ -44,6 +45,7 @@ struct Status
     State state = State::Idle;
     std::string text;  // for the settings page's CHECK FOR UPDATES (the list's font: capitals)
     std::string page;  // the release's page
+    std::string notes; // the newest release's notes (Markdown), for What's New
     bool canInstall = false;
     long long currentBuild = 0, availableBuild = 0;
     unsigned serial = 0; // changes with every new state

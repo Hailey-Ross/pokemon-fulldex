@@ -1,0 +1,564 @@
+# Fulldex launcher: 日本語. One line each: the English, a tab, the 日本語. {} stands for a name or number.
+Game Options	ゲームオプション
+A theme of your own.	あなただけのテーマ。
+Apply	適用
+Delete	削除
+Close	閉じる
+Show In Folder	フォルダで表示
+Favourites First	お気に入りを先に
+Recently Played	最近プレイした順
+Original	オリジナル
+Your Theme's Name	テーマの名前
+The Other Player's Code	相手のコード
+Tab Name	タブの名前
+Part Of A Game's Name	ゲーム名の一部
+The Game's Own Name	ゲーム本来の名前
+Join	参加
+Make Tab	タブを作る
+Search	検索
+Save	保存
+Add To Tab	タブに追加
+You have no tabs of your own yet. Make one and this game goes in it.	自分のタブはまだありません。作るとこのゲームが入ります。
+Choose a tab to put this game in, or to take it out.	このゲームを入れる、または外すタブを選んでください。
+New Tab	新しいタブ
+A tab of your own. Deleting it keeps its games.	自分だけのタブ。削除してもゲームは残ります。
+Rename Tab	タブ名を変更
+Move Left	左へ移動
+Move Right	右へ移動
+Hide Tab	タブを隠す
+Delete Tab	タブを削除
+A built-in tab: it can be moved or hidden, never deleted. + shows a hidden one again.	標準のタブ：移動や非表示はできますが、削除はできません。+ で隠したタブを再表示します。
+Tabs	タブ
+Make a new tab, or show one you hid.	新しいタブを作る、または隠したタブを表示します。
+Show A Hidden Tab	隠したタブを表示
+Cancel	キャンセル
+It goes back where it was.	元の場所に戻ります。
+Off	オフ
+On	オン
+Party	手持ち
+Box {}	ボックス {}
+First Free Place	最初の空き
+Next Box	次のボックス
+Previous Box	前のボックス
+Cancel Swap	交換を取り消す
+Swap	交換
+Swap And Evolve	交換して進化
+Move To {}	{} へ移動
+Move And Evolve	移動して進化
+Swap With One In {}	{} の1匹と交換
+Swap With	交換相手
+Now choose the Pokémon in {}	{} のポケモンを選んでください
+Could not swap them. {}	交換できませんでした。{}
+Could not move it. {}	移動できませんでした。{}
+It could not be written: {}	書き込めませんでした：{}
+Traded! {}	交換成功！{}
+Sent. The save was backed up first.	送信しました。先にセーブをバックアップしました。
+Done: {}	完了：{}
+Done.	完了。
+A Trainer	トレーナー
+Open A Room	ルームを開く
+Join A Room	ルームに参加
+Make An Online Code	オンラインコードを作る
+Enter An Online Code	オンラインコードを入力
+Stop	停止
+Close The Room	ルームを閉じる
+Join {}	{} に参加
+Stop Looking	検索をやめる
+Accept The Gift	贈り物を受け取る
+Accept The Trade	交換を受ける
+Not Yet	まだ
+Take Back My Offer	オファーを取り下げる
+Leave	退出
+Offer For A Trade	交換を申し込む
+Send As A Gift	贈り物として送る
+Online trades are not set up in this build of Fulldex.	このバージョンのFulldexではオンライン交換は使えません。
+It cannot be sent. {}	送れません。{}
+Game Art	ゲームの画像
+Your Picture	自分の画像
+Custom	カスタム
+Theme	テーマ
+Delete {}	{} を削除
+Sign In With Google	Googleでログイン
+Sync All Now	今すぐすべて同期
+Sign Out	ログアウト
+Keep This Device's	この端末のものを残す
+Keep The Cloud's	クラウドのものを残す
+Sync Now	今すぐ同期
+Cloud saves are not set up.	クラウドセーブは設定されていません。
+Could not reach {}	{} に接続できませんでした
+Synced.	同期しました。
+This build of Fulldex has no Google sign-in built in.	このバージョンのFulldexにはGoogleログインがありません。
+Could not reach Google. Check the internet connection and try again.	Googleに接続できませんでした。ネット接続を確認してもう一度お試しください。
+Signed in. Syncing your saves...	ログインしました。セーブを同期しています...
+Sign-in was turned down on the phone.	スマホ側でログインが拒否されました。
+The code ran out. Choose Sign In again for a new one.	コードの期限が切れました。もう一度ログインを選んで新しいコードを取得してください。
+Sign-in did not work. Try again.	ログインできませんでした。もう一度お試しください。
+Sign-in cancelled.	ログインをキャンセルしました。
+Asking Google for a code...	Googleにコードを要求中...
+Signed out. Your saves stay here, and in your Drive.	ログアウトしました。セーブはここと、あなたのDriveに残ります。
+Could not save the cloud settings.	クラウド設定を保存できませんでした。
+Syncing...	同期中...
+Not Synced Yet	未同期
+Only Here	ここだけ
+Up To Date	最新
+Sent Up	送信済み
+Brought Down	取得済み
+No Save Yet	セーブなし
+Changed On Both	両方で変更
+Could Not Reach	接続不可
+Enjoying Fulldex?	Fulldexは楽しめていますか？
+You've played for over 20 hours. Fulldex is free, made by one dude in his spare time: if it's given you some good hours, consider buying me a beer. Scan the code with your phone. Cheers, James	20時間以上プレイしてくれました。Fulldexは無料で、1人の男が空き時間に作っています。楽しい時間を過ごせたなら、ビールをおごってもらえると嬉しいです。スマホでコードを読み取ってください。James
+Done	完了
+Buy Me A Beer	ビールをおごる
+Maybe Later	あとで
+Quit Fulldex?	Fulldexを終了しますか？
+Are you sure you want to quit?	本当に終了しますか？
+Quit	終了
+Support Fulldex	Fulldexを応援
+Thank you! Which would you like to open in your browser?	ありがとう！ブラウザでどちらを開きますか？
+What's new in this update	このアップデートの新機能
+Updates	アップデート
+Move Pokémon	ポケモンを移動
+Cloud Saves	クラウドセーブ
+Trade	交換
+Settings	設定
+Theme Editor	テーマエディター
+My Themes	マイテーマ
+Theme Library	テーマライブラリ
+Launcher	ランチャー
+About	情報
+Hidden	非表示
+Not Playable	プレイ不可
+Ready	準備完了
+No ROMs found yet. Put your ROMs in the roms folder beside Fulldex.	ROMが見つかりません。Fulldexの横のromsフォルダにROMを入れてください。
+Size	サイズ
+Found	見つかった
+None Yet	まだなし
+Game Code	ゲームコード
+Save File	セーブファイル
+File	ファイル
+Folder	フォルダ
+Show In List Again	リストに再表示
+Hide From List	リストから隠す
+Open Folder	フォルダを開く
+Not Linked	未接続
+Same Wi-Fi	同じWi-Fi
+Room {}	ルーム {}
+Waiting	待機中
+Looking For Rooms	ルームを検索中
+Linked With {}	{} とリンク中
+Code {}	コード {}
+Waiting Online	オンライン待機中
+Game	ゲーム
+Link	リンク
+Egg	タマゴ
+Lv {}	Lv {}
+Sending	送信中
+Offered	オファー済み
+Nothing yet	まだなし
+Trade with a friend, or send Pokémon to another of your own devices, on the same Wi-Fi.	友達と交換するか、同じWi-Fi上の自分の別の端末へポケモンを送れます。
+Same Wi-Fi: one device chooses Open A Room, the other Join A Room. Online: one makes a code, the other enters it. Then each offers a Pokémon, or sends one as a gift.	同じWi-Fi：一方がルームを開く、もう一方がルームに参加を選びます。オンライン：一方がコードを作り、もう一方が入力します。その後、お互いにポケモンを出すか、贈り物として送ります。
+Your code:	あなたのコード：
+The other player chooses Hub, Trade, Enter An Online Code, and types it. Share it on Discord or in a message. It works for a few minutes.	相手はハブ、交換、オンラインコードを入力を選んで入力します。Discordやメッセージでコードを共有してください。数分間有効です。
+This device: {}	この端末：{}
+Looking for rooms on this network. Open one on the other device.	このネットワークでルームを検索中。もう一方の端末で開いてください。
+Rooms on this network are listed below: choose one to join.	このネットワークのルームを下に表示しています。参加するものを選んでください。
+Waiting for {}	{} を待っています
+Their game can't take it: {}	相手のゲームでは受け取れません：{}
+Your game can't take it: {}	あなたのゲームでは受け取れません：{}
+You Send	送る
+You Offer	出す
+You said yes. {}	「はい」と答えました。{}
+Leave the link to change the game.	ゲームを変えるにはリンクを解除してください。
+The game to trade from and into.	交換元と交換先のゲーム。
+Next Box and Previous Box go through its boxes; Party shows the Pokémon with you.	次のボックスと前のボックスでボックスを切り替え、手持ちは一緒にいるポケモンを表示します。
+Link with the other device first: the Link row above.	先に上のリンク行でもう一方の端末とリンクしてください。
+Offer it for a trade (one each way, both say yes), or send it as a gift.	交換に出す（お互い1匹ずつ、両方が承諾）か、贈り物として送ります。
+No Picture	画像なし
+Page {} Of {}	{} / {} ページ
+No Themes Yet	テーマはまだありません
+Save This Look on My Themes makes one.	マイテーマの「この見た目を保存」で作れます。
+Press A to apply it or delete it.	Aで適用または削除します。
+Choose it to apply it, show its file, or delete it.	選んで適用、ファイル表示、または削除します。
+Colours, pictures, blur and the rest of the launcher's look	色、画像、ぼかしなど、ランチャーの見た目すべて
+Save this look, switch between your looks, share them as files	この見た目を保存し、切り替え、ファイルで共有します
+Theme Gallery	テーマギャラリー
+Themes other players have shared, ready to try	他のプレイヤーが共有したテーマを試せます
+Soon	近日公開
+Change the launcher's look: the accent, the panels, the sidebar and the top bar, the buttons, the background, its blur and dim, and the glass's grain. Each can be a colour or a picture.	ランチャーの見た目を変えます：アクセント、パネル、サイドバーと上部バー、ボタン、背景、そのぼかしと暗さ、ガラスのざらつき。それぞれ色か画像にできます。
+Keep the look you have now as a theme, with its pictures, and switch between your themes. Each is one .zip file you can send to a friend.	今の見た目を画像ごとテーマとして保存し、テーマを切り替えます。それぞれ1つの.zipファイルで、友達に送れます。
+Save This Look	この見た目を保存
+Keep the look you have now as a theme	今の見た目をテーマとして保存
+Import A Theme	テーマを読み込む
+From the themes folder on the SD card	SDカードのテーマフォルダから
+A .zip theme someone sent you	誰かから送られた.zipテーマ
+All your saved themes, as pictures	保存したテーマを画像で一覧
+Keeps your accent, panels, bars, buttons, background, blur, dim and grain, with their pictures (up to 4K), as one .zip in the themes folder, with a picture of your Home screen wearing it.	アクセント、パネル、バー、ボタン、背景、ぼかし、暗さ、ざらつきを画像（最大4K）ごと、テーマフォルダの1つの.zipに保存します。その見た目のホーム画面の画像も付きます。
+You name it next. A theme can be up to 20 MB.	次に名前を付けます。テーマは最大20 MBです。
+Put .zip themes in /switch/pokemon-ds-wide/themes/ on the SD card and they show in this list.	.zipテーマをSDカードの /switch/pokemon-ds-wide/themes/ に入れると、このリストに表示されます。
+Choose a .zip theme someone sent you. It is copied into your themes folder and shows in this list.	誰かから送られた.zipテーマを選んでください。テーマフォルダにコピーされ、このリストに表示されます。
+All your saved themes as pictures of Home wearing them, a page at a time. Choose one to apply it.	保存したテーマを、その見た目のホーム画面の画像で1ページずつ表示します。選んで適用します。
+No themes yet: Save This Look makes one.	テーマはまだありません：この見た目を保存で作れます。
+Accent	アクセント
+Panels	パネル
+Sidebar	サイドバー
+Top Bar	上部バー
+Buttons	ボタン
+Background	背景
+Grain	ざらつき
+Cloud Badges	クラウドバッジ
+The frame round what is chosen, and its glow	選択中のものを囲む枠と、その輝き
+The glass panels: a colour or a picture, see-through to solid	ガラスのパネル：色か画像、透明から不透明まで
+The bar down the left: a colour or a picture	左側のバー：色か画像
+The bar along the top: a colour or a picture	上側のバー：色か画像
+Play, Continue, the chosen tab and the button marks at the bottom	プレイ、続ける、選択中のタブ、下のボタンの記号
+Game art, your own picture or a colour; its blur and dim	ゲームの画像、自分の画像、または色。ぼかしと暗さ
+The fine speckle in the glass panels	ガラスパネルの細かいざらつき
+A cloud on the cards of games whose saves sync	セーブが同期されるゲームのカードに付く雲
+Picture	画像
+The fine speckle in the frosted glass panels: 0% makes them smooth, 25% is as they were, 100% is four times as strong.	すりガラスパネルの細かいざらつき：0%でなめらか、25%で従来どおり、100%で4倍の強さ。
+Show	表示
+Preset	プリセット
+Hue	色相
+Saturation	彩度
+Brightness	明るさ
+Opacity {}	不透明度 {}
+Blur {}	ぼかし {}
+Dim {}	暗さ {}
+Grain {}	ざらつき {}
+None	なし
+Up and down choose a row, left and right change it.	上下で行を選び、左右で変更します。
+Arrows choose and change, or click.	矢印で選択と変更、またはクリックします。
+The colour of the frame round what is chosen, and its glow, on every page of the launcher.	ランチャーのすべてのページで、選択中のものを囲む枠の色と輝き。
+A colour or a picture over every glass panel. Opacity sets how much: low lets the background through, 100% makes them solid.	すべてのガラスパネルにかける色か画像。不透明度で強さを決めます：低いと背景が透け、100%で不透明になります。
+A colour or a picture for the sidebar, see-through to solid.	サイドバーの色か画像、透明から不透明まで。
+A colour or a picture for the bar along the top, see-through to solid.	上部バーの色か画像、透明から不透明まで。
+Used for Play and Continue, the chosen tab, and the button marks along the bottom (Choose, Back and the rest). Their words and marks turn dark or light to stay readable.	プレイと続ける、選択中のタブ、下のボタンの記号（選ぶ、戻るなど）に使われます。文字や記号は読みやすいよう暗くなるか明るくなります。
+Game Art: the chosen game's picture. Your Picture: one of your own. Colour: one colour. Plain: a calm blue. Its page also sets how blurred and how dim it is.	ゲームの画像：選択中のゲームの画像。自分の画像：自分で選んだもの。色：単色。無地：落ち着いた青。そのページでぼかしと暗さも設定できます。
+The fine speckle in the frosted glass panels: 0% makes them smooth, 25% is as they were.	すりガラスパネルの細かいざらつき：0%でなめらか、25%で従来どおり。
+With Cloud Saves on, a cloud shows in the corner of each game whose save syncs. Amber: it changed on two devices and needs a choice.	クラウドセーブがオンだと、セーブが同期されるゲームの隅に雲が表示されます。琥珀色：2台の端末で変更されたので選択が必要です。
+Press A to change it.	Aで変更します。
+Press A to open its page.	Aでそのページを開きます。
+Choose it to change it.	選んで変更します。
+Choose it to open its page.	選んでそのページを開きます。
+Keep your saves the same on every device	すべての端末でセーブを同じに保ちます
+Signing In	ログイン中
+Syncing	同期中
+With a friend online or on the same Wi-Fi, or to another of your devices	オンラインやWi-Fi上の友達と、または自分の別の端末へ
+Linked	リンク中
+Room Open	ルーム公開中
+Looking	検索中
+Fulldex Discord	Fulldex Discord
+Find people to trade with, get help and hear what's coming	交換相手を探し、ヘルプを受け、今後の予定を知ろう
+Between your own games, as a trade would	交換のように、自分のゲーム間で
+Saved To	保存先
+This Device	この端末
+Saves sync when a game starts and when it closes, and the DS games after each save too. Open it to sync now, see each game, or choose which save to keep.	セーブはゲームの開始時と終了時に同期され、DSのゲームはセーブのたびにも同期されます。開くと今すぐ同期、各ゲームの確認、残すセーブの選択ができます。
+Keep your saves the same on every device: play on your PC, then carry on on the Switch.	すべての端末でセーブを同じに保ちます：PCで遊んで、Switchで続きから。
+Open it to sign in with Google. Your saves go to your own Drive, in a folder called Fulldex Cloud Saves.	開いてGoogleでログインします。セーブはあなたのDriveの「Fulldex Cloud Saves」フォルダに保存されます。
+Trade with a friend, online or on the same Wi-Fi, or send Pokémon to another of your own devices: a PC and a Switch, say.	友達とオンラインや同じWi-Fiで交換するか、自分の別の端末（PCとSwitchなど）へポケモンを送れます。
+Trades follow the real games' rules: one each way, both say yes, and those that evolve by trading evolve, Karrablast and Shelmet too. Each save is backed up before it is written.	交換は本物のゲームのルールに従います：お互い1匹ずつ、両方が承諾、通信交換で進化するポケモンはちゃんと進化します（カブルモとチョボマキも）。各セーブは書き込み前にバックアップされます。
+Join the Fulldex Discord: find someone to trade with, get help with a game, report a bug and see what's coming next.	Fulldex Discordに参加：交換相手を探し、ゲームのヘルプを受け、バグを報告し、今後の予定を知ろう。
+Scan the code with your phone's camera.	スマホのカメラでコードを読み取ってください。
+Choose it to open Discord in your browser, or scan the code with your phone.	選んでブラウザでDiscordを開くか、スマホでコードを読み取ってください。
+Move a Pokémon from one of your games to another, as a trade between them would.	交換のように、自分のゲームから別のゲームへポケモンを移動します。
+They can go to a newer game, never an older one. Fulldex says first what one would lose on the way, and backs up both saves before it writes them.	新しいゲームへは行けますが、古いゲームへは行けません。途中で失うものを先にお知らせし、書き込む前に両方のセーブをバックアップします。
+Games With A Save	セーブのあるゲーム
+That game's save could not be read.	そのゲームのセーブを読み込めませんでした。
+Choose two different games.	異なる2つのゲームを選んでください。
+From	移動元
+To	移動先
+Swap In	交換で入れる
+Put In	入れる先
+Swapping {}	{} を交換中
+Can Swap, Evolves	交換可能、進化します
+Can Swap	交換可能
+Can Move, Evolves	移動可能、進化します
+Can Move	移動可能
+Can't Swap	交換できません
+Can't Move	移動できません
+Take From	取り出し元
+Send To	送り先
+This save could not be read. {}	このセーブを読み込めませんでした。{}
+Trainer	トレーナー
+Generation	世代
+Pokémon can be looked at in this game but not moved in or out yet.	このゲームではポケモンを見ることはできますが、まだ出し入れはできません。
+Choose the game to take Pokémon from.	ポケモンを取り出すゲームを選んでください。
+Choose the game to send them to. They can go to a newer game, never an older one, as in the real games.	送り先のゲームを選んでください。新しいゲームへは行けますが、古いゲームへは行けません。本物のゲームと同じです。
+Choose the box in {}	{} のボックスを選ぶ
+Where it goes in {}	{} のどこに入るか
+Level	レベル
+Swap For {}	{} と交換
+To {}	{} へ
+They can swap, and keep everything.	交換でき、すべて引き継がれます。
+It can move, and keeps everything.	移動でき、すべて引き継がれます。
+They can swap, but on the way:	交換できますが、途中で：
+It can move, but on the way:	移動できますが、途中で：
+It can't go to that game.	そのゲームへは送れません。
+Moving Pokémon is not in this build of Fulldex.	ポケモンの移動はこのバージョンのFulldexにはありません。
+Chosen	選択済み
+Account	アカウント
+On your phone or computer, go to	スマホかパソコンで、次へ
+Fulldex is waiting for you to say yes. It only sees the saves it puts in your Drive.	Fulldexは「はい」と言うまで待ちます。Driveに置いたセーブだけが見えます。
+Saves go to your own Google Drive, in a folder called Fulldex Cloud Saves. Fulldex sees only the files it made there.	セーブはあなたのGoogle Driveの「Fulldex Cloud Saves」フォルダに保存されます。Fulldexはそこで作ったファイルだけを見ます。
+If a save changed on two devices, Fulldex asks which one to keep, and puts the other in the backups.	2台の端末でセーブが変わった場合、Fulldexはどちらを残すか尋ね、もう一方をバックアップに入れます。
+Synced Folder	同期フォルダ
+Choose a game in the list to sync it on its own, or to choose which save to keep.	リストからゲームを選ぶと、個別に同期したり、残すセーブを選べます。
+Cloud saves are off. Sign in on the Cloud Saves row first.	クラウドセーブはオフです。先にクラウドセーブの行でログインしてください。
+Not synced yet. Choose Sync Now to send it up, or bring down a newer one.	まだ同期されていません。今すぐ同期を選ぶと送信、またはより新しいものを取得します。
+This save is the same here and in the cloud.	このセーブはここでもクラウドでも同じです。
+This save was sent up to the cloud.	このセーブをクラウドに送信しました。
+There is no save for this game yet, here or in the cloud.	このゲームのセーブは、ここにもクラウドにもまだありません。
+Could not reach the cloud. The save here is kept, and syncs next time.	クラウドに接続できませんでした。ここのセーブは残り、次回同期されます。
+Unknown	不明
+Not Checked Yet	まだ確認していません
+This Version: {}	このバージョン：{}
+Checking...	確認中...
+Fulldex Is Up To Date	Fulldexは最新です
+Version {}	バージョン {}
+A New Version Is Ready	新しいバージョンの準備ができました
+You Have {}	現在 {}
+Downloading...	ダウンロード中...
+New: {}	新バージョン：{}
+Installed	インストール済み
+The new version starts when you close the list	リストを閉じると新バージョンが起動します
+Could Not Check	確認できませんでした
+Check For Updates	アップデートを確認
+Fulldex looks for a new version on GitHub	FulldexはGitHubで新しいバージョンを探します
+What's New	新機能
+The changes in each version are listed on its release page on GitHub.	各バージョンの変更点は、GitHubのリリースページにあります。
+Your ROMs, saves and settings stay when Fulldex updates.	Fulldexをアップデートしても、ROM、セーブ、設定は残ります。
+The version before is kept, in case you need to go back.	念のため前のバージョンも残されます。
+On this device, Open Download takes you to the release page to get it.	この端末では、ダウンロードを開くとリリースページへ移動して入手できます。
+The rest, and the downloads, are on the release page.	その他とダウンロードはリリースページにあります。
+Working...	処理中...
+Install Now	今すぐインストール
+Open Download	ダウンロードを開く
+Check Now	今すぐ確認
+Release Page	リリースページ
+Fulldex checks once each time it starts. Your ROMs, saves and settings stay when it updates, and the version before is kept.	Fulldexは起動するたびに1回確認します。アップデートしてもROM、セーブ、設定は残り、前のバージョンも保存されます。
+Fulldex checks once each time it starts.	Fulldexは起動するたびに1回確認します。
+Support	サポート
+Credits	クレジット
+Report A Bug	不具合を報告
+Licences	ライセンス
+Website	ウェブサイト
+Fulldex doesn't include any games. Play with ROMs from games you own.	Fulldexにはゲームは含まれていません。お持ちのゲームのROMで遊んでください。
+Open it on your phone or PC	スマホかPCで開く
+Choose it to open it in your browser	選んでブラウザで開きます
+Hi, I'm James, AKA Mamesj, the mind behind Fulldex. I'm just a dude who wanted to play some Pokémon and got a bit carried away.	こんにちは、Fulldexの生みの親のJames、通称Mamesjです。ポケモンを遊びたかっただけなのに、ちょっと熱中してしまったただの男です。
+Fulldex is free and always will be. If it's given you some good hours, a coffee or a beer is always appreciated, never expected.	Fulldexは無料で、これからもずっとそうです。楽しい時間になったなら、コーヒーやビールはいつでも嬉しいですが、期待はしていません。
+Scan a code with your phone's camera.	スマホのカメラでコードを読み取ってください。
+Choose Support to open Buy Me A Coffee, or scan a code with your phone.	サポートを選んでBuy Me A Coffeeを開くか、スマホでコードを読み取ってください。
+Credits And Acknowledgements	クレジットと謝辞
+The single-screen and widescreen view Fulldex grew from	Fulldexの元になった、1画面・ワイド表示
+The DS emulation	DSエミュレーション
+Companion readers and text decoders	補助リーダーとテキストデコーダー
+Function names from their decompilations	逆コンパイル由来の関数名
+The built-in DS cheats, via libretro-database	libretro-database経由で内蔵されたDSチート
+How the HOME Menu icons are made	HOMEメニューのアイコンの作り方
+Cheats menu ideas (PR #16)	チートメニューのアイデア（PR #16）
+Everyone who reported bugs and helped test	バグを報告し、テストを手伝ってくれたみなさん
+Thank you	ありがとう
+Found something wrong? Open an issue on the GitHub page: say which game, which device, and what happened just before.	問題がありますか？GitHubのページでissueを立て、どのゲーム、どの端末か、直前に何があったかを書いてください。
+A screenshot helps, and so does game.log from the folder Fulldex runs from.	スクリーンショットと、Fulldexを実行しているフォルダのgame.logがあると助かります。
+Not affiliated with or endorsed by Nintendo, Game Freak, The Pokémon Company or the melonDS project. Pokémon is a trademark of its owners. The full licence texts are on the GitHub page.	任天堂、ゲームフリーク、株式会社ポケモン、melonDSプロジェクトとは提携・承認関係にありません。ポケモンは各権利者の登録商標です。ライセンス全文はGitHubのページにあります。
+Downloads, the latest changes and the full instructions are on the GitHub page.	ダウンロード、最新の変更、詳しい手順はGitHubのページにあります。
+Tips are welcome but never expected: see Support, at the top of this page.	投げ銭は嬉しいですが期待はしていません：このページ上部のサポートをご覧ください。
+Coming Soon	近日公開
+Continue	続ける
+Play	プレイ
+Continue Playing	続きから遊ぶ
+Ready To Play	プレイ準備完了
+Cloud Save: Changed On Both	クラウドセーブ：両方で変更
+Cloud Save	クラウドセーブ
+Save Found	セーブが見つかりました
+New Game	新しいゲーム
+Your Games	あなたのゲーム
+Results For "{}"	「{}」の結果
+No Games Match "{}"	「{}」に一致するゲームはありません
+Add Games To This Tab From A Game's Menu (A On A Game)	ゲームのメニュー（ゲーム上でA）から、このタブにゲームを追加できます
+Add Games To Home From A Game's Menu (A On A Game)	ゲームのメニュー（ゲーム上でA）から、ホームにゲームを追加できます
+No Romhacks Yet	ROMハックはまだありません
+Sort: {}	並び順：{}
+Remove {}	{} を外す
+Remove From List hides it here and keeps the ROM in your folder. Your saves are never deleted.	リストから外すとここでは見えなくなりますが、ROMはフォルダに残ります。セーブは削除されません。
+Remove From List	リストから外す
+Delete ROM File	ROMファイルを削除
+Delete The ROM File?	ROMファイルを削除しますか？
+This deletes {}	{} を削除します
+Change Picture	画像を変更
+Pictures stay on this device. Only use pictures you have permission to use.	画像はこの端末に保存されます。使用を許可された画像だけを使ってください。
+Import A Picture	画像を読み込む
+Find Artwork Online	オンラインで画像を探す
+Plain Card	無地のカード
+Restore Original	元に戻す
+Rename {}	{} の名前を変更
+Type a new name. Leave it empty to go back to the game's own name.	新しい名前を入力してください。空にするとゲーム本来の名前に戻ります。
+Home	ホーム
+All	すべて
+Romhacks	ROMハック
+Plain	無地
+Colour	色
+Choose	選ぶ
+Back	戻る
+Quit	終了
+Tabs	タブ
+Play	プレイ
+Sort	並べ替え
+Favourite	お気に入り
+Rename	名前を変更
+Manage Saves	セーブを管理
+Add To Home	ホームに追加
+Remove Game	ゲームを外す
+Choose a theme	テーマを選ぶ
+# The notes along the bottom.
+COULD NOT SAVE THE TABS	タブを保存できませんでした
+TAKEN OUT OF {}	{} から外しました
+ADDED TO {}	{} に追加しました
+TAB SHOWN AGAIN	タブを再表示しました
+AS FAR LEFT AS IT GOES	これ以上左へは行けません
+AS FAR RIGHT AS IT GOES	これ以上右へは行けません
+ONE TAB MUST STAY SHOWN	タブは1つ以上表示しておく必要があります
+TAB HIDDEN. + SHOWS IT AGAIN	タブを隠しました。+ で再表示します
+TAB DELETED. ITS GAMES ARE KEPT	タブを削除しました。ゲームは残ります
+TAB MADE	タブを作成しました
+SEARCH CLEARED	検索を消去しました
+TAB RENAMED	タブ名を変更しました
+THE THEME GALLERY IS COMING SOON	テーマギャラリーは近日公開
+TYPE A NAME FOR THE THEME (LETTERS AND NUMBERS)	テーマの名前を入力してください（文字と数字）
+SAVING...	保存中...
+OVER 20 MB: USE SMALLER PICTURES	20 MBを超えています：小さい画像を使ってください
+COULD NOT SAVE THE THEME	テーマを保存できませんでした
+SAVED: {}	保存しました：{}
+COULD NOT READ THAT THEME	そのテーマを読み込めませんでした
+THAT IS NOT A FULLDEX THEME	Fulldexのテーマではありません
+THEME ON: {}	テーマを適用しました：{}
+COULD NOT COPY THE THEME	テーマをコピーできませんでした
+IMPORTED: {}	読み込みました：{}
+COULD NOT DELETE IT	削除できませんでした
+DELETED: {}	削除しました：{}
+ADDED TO HOME	ホームに追加しました
+REMOVED FROM HOME	ホームから外しました
+COULD NOT SAVE HOME	ホームを保存できませんでした
+COULD NOT SAVE THE LIST	リストを保存できませんでした
+BACK IN THE LIST	リストに戻しました
+HIDDEN FROM THE LIST	リストから隠しました
+COULD NOT USE THAT PICTURE	その画像は使えません
+{}: COMING SOON	{}：近日公開
+THIS GAME'S SAVES CANNOT BE MANAGED HERE YET	このゲームのセーブはまだここでは管理できません
+THIS DOWNLOAD DOES NOT HAVE THIS GAME	このダウンロードにはこのゲームが含まれていません
+THIS GAME IS NOT ONE THAT THIS PLAYS	このゲームは、これで実行できる種類ではありません
+REMOVED FROM THE LIST. THE ROM IS STILL IN YOUR FOLDER	リストから外しました。ROMはフォルダに残っています
+COULD NOT DELETE THE ROM FILE	ROMファイルを削除できませんでした
+ROM FILE DELETED. ITS SAVES ARE KEPT	ROMファイルを削除しました。セーブは残っています
+SAVES FOLDER OPENED	セーブフォルダを開きました
+SAVE RESTORED. THE ONE BEFORE IS KEPT AS A .BEFORE-RESTORE COPY	セーブを復元しました。前のセーブは .BEFORE-RESTORE のコピーとして残っています
+THAT PICTURE COULD NOT BE READ: PNG OR JPG ONLY	その画像を読み込めません：PNGまたはJPGのみ
+PICTURE CHANGED	画像を変更しました
+COULD NOT KEEP THE PICTURE	画像を保持できませんでした
+OPENED IN YOUR BROWSER: SAVE A PICTURE, THEN IMPORT IT HERE	ブラウザで開きました：画像を保存して、ここに読み込んでください
+COULD NOT SAVE THE PICTURE	画像を保存できませんでした
+PLAIN CARD	無地のカード
+ORIGINAL PICTURE BACK	元の画像に戻しました
+COULD NOT SAVE THE NAME	名前を保存できませんでした
+NAME RESET	名前を元に戻しました
+RENAMED	名前を変更しました
+OPEN THE DOWNLOAD IN YOUR BROWSER	ブラウザでダウンロードを開いてください
+REMOVED FROM THE LIST. THE ROM IS STILL ON THE SD CARD	リストから外しました。ROMはSDカードに残っています
+FIND ARTWORK ON YOUR PHONE OR PC	スマホかPCで画像を探してください
+SCAN THE CODE WITH YOUR PHONE	スマホでコードを読み取ってください
+OPEN IT ON YOUR PHONE OR PC	スマホかPCで開いてください
+COULD NOT SAVE THE SETTINGS	設定を保存できませんでした
+# Counts, and the colours' names.
+{#} Games	{#} 本のゲーム
+{#} Game	{#} 本のゲーム
+{#} Saves	{#} 件のセーブ
+{#} Save	{#} 件のセーブ
+{#} Themes	{#} 件のテーマ
+{#} Theme	{#} 件のテーマ
+{#} of {#} up to date	{#} / {#} が最新
+{#} of {#}	{#} / {#}
+Clear	透明
+Dark	ダーク
+White	白
+Red	赤
+Blue	青
+Green	緑
+Purple	紫
+Gold	金
+Pink	ピンク
+Teal	ターコイズ
+Your Picture	自分の画像
+Default Look	デフォルトの見た目
+Frosted glass over the game's art, as Fulldex starts	ゲームの画像にすりガラス、Fulldex起動時の見た目
+Go back to frosted glass over the game's art, as Fulldex starts? Your themes stay in the library: save this look first to keep it.	ゲームの画像にすりガラスのFulldex起動時の見た目に戻しますか？テーマはライブラリに残ります。残したい場合は先にこの見た目を保存してください。
+Use The Default Look	デフォルトの見た目を使う
+Puts back the look Fulldex starts with: frosted glass over the chosen game's art, white highlights, the usual blur and dim.	Fulldex起動時の見た目に戻します：選んだゲームの画像にすりガラス、白いハイライト、いつものぼかしと暗さ。
+Your saved themes and pictures stay. Save This Look first if you want to come back to the look you have now.	保存したテーマと画像は残ります。今の見た目に戻りたい場合は先に保存してください。
+THE DEFAULT LOOK IS BACK	デフォルトの見た目に戻しました
+Font	フォント
+Text Size	文字サイズ
+The letters everywhere in the launcher	ランチャー全体の文字
+How big the writing is	文字の大きさ
+How big the writing is in the launcher, from 85% to 120%. Each font is already sized to fill a line as the others do.	ランチャーの文字の大きさ、85%から120%。各フォントは1行にほぼ同じ幅で収まるよう調整済みです。
+The letters everywhere in the launcher: 30 to choose from, clean, rounded, bold, retro, fun, handwritten and easy to read. The pause menu keeps its own.	ランチャー全体の文字：シンプル、丸み、太字、レトロ、楽しい、手書き、読みやすいなど30種類から選べます。ポーズメニューは独自のフォントのままです。
+How big the writing is in the launcher, from 85% to 120%.	ランチャーの文字の大きさ、85%から120%。
+Size {}	サイズ {}
+In Use	使用中
+Clean	シンプル
+Rounded	丸み
+Bold	太字
+Retro	レトロ
+Fun	楽しい
+Handwritten	手書き
+Easy To Read	読みやすい
+Serif	セリフ
+Press A to use a font. B goes back to the Theme Editor.	Aでフォントを使います。Bでテーマエディターに戻ります。
+Choose a font to use it. Back goes to the Theme Editor.	フォントを選んで使います。戻るでテーマエディターに戻ります。
+FONT: {}	フォント：{}
+Enter A Theme Code	テーマコードを入力
+Share A Theme	テーマを共有
+Share	共有
+Try It	試す
+Keep	残す
+Go Back	元に戻す
+Keep This Theme?	このテーマを残しますか？
+Choose a theme to try it on. You keep it or go back.	テーマを選んで試します。残すか、元に戻せます。
+LOADING...	読み込み中...
+NO GALLERY ADDRESS IS SET UP IN THIS BUILD	このバージョンにはギャラリーのアドレスがありません
+COULD NOT REACH THE GALLERY	ギャラリーに接続できませんでした
+NOTHING SHARED YET. BE THE FIRST: SHARE A THEME	まだ共有されたものはありません。最初の1人になって、テーマを共有しましょう
+A CODE IS 8 LETTERS AND NUMBERS, LIKE K7QM-X2RD	コードは英数字8文字です。例：K7QM-X2RD
+DOWNLOADING...	ダウンロード中...
+THAT CODE DOES NOT WORK	そのコードは使えません
+THAT THEME IS WAITING TO BE APPROVED. TRY AGAIN LATER.	そのテーマは承認待ちです。あとでもう一度お試しください。
+THAT THEME WAS NOT APPROVED	そのテーマは承認されませんでした
+THAT THEME WAS TAKEN DOWN	そのテーマは取り下げられました
+THE GALLERY GAVE AN ANSWER IT SHOULD NOT	ギャラリーから想定外の応答がありました
+COULD NOT SAVE IT	保存できませんでした
+TRYING: {}	お試し中：{}
+BACK TO YOUR OWN LOOK	元の見た目に戻しました
+KEPT IN MY THEMES: {}	マイテーマに保存しました：{}
+SHARING...	共有中...
+SHARED. YOUR CODE: {}. IT SHOWS FOR EVERYONE ONCE APPROVED.	共有しました。あなたのコード：{}。承認されるとみんなに表示されます。
+TOO MANY SHARES FOR NOW. TRY AGAIN LATER.	現在、送信が多すぎます。あとでもう一度お試しください。
+NOT ACCEPTED: {}	受け付けられませんでした：{}
+THE GALLERY DID NOT TAKE IT ({})	ギャラリーに受け付けられませんでした（{}）
+SAVE A THEME FIRST: LAUNCHER, MY THEMES, SAVE THIS LOOK	先にテーマを保存してください：ランチャー、マイテーマ、この見た目を保存
+Pick one of your themes. It is looked at before it shows for others. Share only pictures that are yours.	自分のテーマを1つ選んでください。他の人に表示される前に確認されます。自分の画像だけを共有してください。
+By {}. Try It puts it on your launcher; then you keep it or go back.	作者：{}。試すとあなたのランチャーに適用され、そのあと残すか元に戻せます。
+{} is on. Keep it in My Themes, or go back to your own look.	{} を適用中です。マイテーマに残すか、元の見た目に戻せます。
+THEME CODE	テーマコード
+A Theme Code	テーマコード
+Get It	取得
+Online	オンライン
+Browse themes other players have shared, try one on before you keep it, enter a theme code from a friend, or share one of your own.	他のプレイヤーが共有したテーマを見たり、残す前に試したり、友達のテーマコードを入力したり、自分のテーマを共有したりできます。
+The launcher's fonts	ランチャーのフォント
+Each font's copyright notice and the full licence text are in FONT-LICENSES.txt, in the fonts folder of the download and on the GitHub page.	各フォントの著作権表示とライセンス全文は、ダウンロードのfontsフォルダ内とGitHubのページにあるFONT-LICENSES.txtにあります。
+Display	表示
+Sound	サウンド
+Graphics	グラフィック
+Controls	操作
+Optional Features	オプション機能
+Release Notes	リリースノート

@@ -1,0 +1,68 @@
+--- a/frontend/main.cpp
++++ b/frontend/main.cpp
+@@ -24,6 +24,7 @@
+ #include "art.h"
+ #ifdef GBAW_EMBEDDED
+ #include "embed.h"
++#include "android_second_screen.h"
+ // (The launcher has stb_image too: this one's kept to this file.)
+ #define STB_IMAGE_STATIC
+ #endif
+@@ -413,6 +414,7 @@
+     bool testMode = false;
+     // Built into the all-in-one launcher (embed.h): no list of its own; QUIT GAME ends Run.
+     bool embedded = false;
++    bool secondDisplayEnabled = false;
+     std::string listCache;   // what each ROM is (Games::Scan): saves/rom-list.txt
+     bool realTime = true;  // paced and drawn as for play (tests: only with GBAW_TEST_REALTIME)
+     int maxTex = 8192;
+@@ -1964,6 +1966,10 @@
+ 
+     int Run()
+     {
++#ifdef GBAW_EMBEDDED
++        AndroidSecondScreen gbaDisplay(embedded && secondDisplayEnabled);
++        std::vector<uint32_t> secondaryPixels((size_t)MaxW*GbaH);
++#endif
+         fpsSince = SDL_GetTicks();
+         // Frame pacing: when the pictures come 60, 120, 180 or 240 times a second (vsync on a
+         // screen at that rate), one GBA frame every 1, 2, 3 or 4 of them, so each is shown for the
+@@ -2058,6 +2064,20 @@
+             }
+ #endif
+             Draw();
++#ifdef GBAW_EMBEDDED
++            // A GBA has one display: mirror its game picture, keeping primary controls usable.
++            // Companion mode also shows the game until a verified GBA data adapter is available.
++            if(core && screen==PLAY && (gbaDisplay.State() & DsDisplayState::AcceptingFrames))
++            {
++                const int width=GbaW+2*wideExtra;
++                for(int y=0;y<GbaH;y++)for(int x=0;x<width;x++)
++                {
++                    const uint32_t p=video[(size_t)y*MaxW+x];
++                    secondaryPixels[(size_t)y*width+x]=0xFF000000u|((p&255)<<16)|(p&0xFF00)|((p>>16)&255);
++                }
++                gbaDisplay.Submit(secondaryPixels.data(),width,GbaH);
++            }
++#endif
+             if (testMode) ScriptShots();
+             SDL_RenderPresent(ren);
+             if (canLock && ++vsyncCheckFrames == 120)
+@@ -2222,6 +2242,7 @@
+     if (!InitSdl()) return false;
+     std::unique_ptr<App> app(new App());
+     app->embedded = true;
++    app->secondDisplayEnabled=o.secondDisplay;
+     app->ra = o.achievements;
+     app->UseFolders(o.roms, o.saves, o.data);
+     if (const char* script = getenv("GBAW_TEST_SCRIPT"))
+--- a/frontend/embed.h
++++ b/frontend/embed.h
+@@ -62,6 +62,7 @@
+ {
+     std::string roms, saves; // as for Find
+     std::string data;        // its settings (gba-settings.ini) and save states (states/)
++    bool secondDisplay = false; // Optional mirror; shared launcher preference.
+     bool fullscreen = true;  // else a window of w x h
+     int w = 1280, h = 720;
+     const AchievementsHost* achievements = nullptr; // null: no RetroAchievements

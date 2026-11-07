@@ -1,0 +1,564 @@
+# Fulldex launcher: 한국어. One line each: the English, a tab, the 한국어. {} stands for a name or number.
+Game Options	게임 옵션
+A theme of your own.	나만의 테마.
+Apply	적용
+Delete	삭제
+Close	닫기
+Show In Folder	폴더에서 보기
+Favourites First	즐겨찾기 먼저
+Recently Played	최근 플레이
+Original	원본
+Your Theme's Name	테마 이름
+The Other Player's Code	상대방의 코드
+Tab Name	탭 이름
+Part Of A Game's Name	게임 이름의 일부
+The Game's Own Name	게임 자체 이름
+Join	참가
+Make Tab	탭 만들기
+Search	검색
+Save	저장
+Add To Tab	탭에 추가
+You have no tabs of your own yet. Make one and this game goes in it.	아직 내 탭이 없습니다. 하나 만들면 이 게임이 그 안에 들어갑니다.
+Choose a tab to put this game in, or to take it out.	이 게임을 넣거나 뺄 탭을 고르세요.
+New Tab	새 탭
+A tab of your own. Deleting it keeps its games.	나만의 탭. 삭제해도 게임은 남습니다.
+Rename Tab	탭 이름 변경
+Move Left	왼쪽으로 이동
+Move Right	오른쪽으로 이동
+Hide Tab	탭 숨기기
+Delete Tab	탭 삭제
+A built-in tab: it can be moved or hidden, never deleted. + shows a hidden one again.	기본 탭: 이동하거나 숨길 수 있지만 삭제할 수 없습니다. +로 숨긴 탭을 다시 표시합니다.
+Tabs	탭
+Make a new tab, or show one you hid.	새 탭을 만들거나 숨긴 탭을 표시합니다.
+Show A Hidden Tab	숨긴 탭 표시
+Cancel	취소
+It goes back where it was.	원래 자리로 돌아갑니다.
+Off	끔
+On	켬
+Party	파티
+Box {}	박스 {}
+First Free Place	첫 빈자리
+Next Box	다음 박스
+Previous Box	이전 박스
+Cancel Swap	교환 취소
+Swap	교환
+Swap And Evolve	교환하고 진화
+Move To {}	{}(으)로 이동
+Move And Evolve	이동하고 진화
+Swap With One In {}	{}의 하나와 교환
+Swap With	교환 상대
+Now choose the Pokémon in {}	이제 {}의 포켓몬을 고르세요
+Could not swap them. {}	교환할 수 없었습니다. {}
+Could not move it. {}	이동할 수 없었습니다. {}
+It could not be written: {}	기록할 수 없었습니다: {}
+Traded! {}	교환 완료! {}
+Sent. The save was backed up first.	보냈습니다. 먼저 세이브를 백업했습니다.
+Done: {}	완료: {}
+Done.	완료.
+A Trainer	트레이너
+Open A Room	방 열기
+Join A Room	방 참가
+Make An Online Code	온라인 코드 만들기
+Enter An Online Code	온라인 코드 입력
+Stop	중지
+Close The Room	방 닫기
+Join {}	{} 참가
+Stop Looking	검색 중지
+Accept The Gift	선물 받기
+Accept The Trade	교환 수락
+Not Yet	아직
+Take Back My Offer	내 제안 철회
+Leave	나가기
+Offer For A Trade	교환 제안
+Send As A Gift	선물로 보내기
+Online trades are not set up in this build of Fulldex.	이 버전의 Fulldex에서는 온라인 교환을 사용할 수 없습니다.
+It cannot be sent. {}	보낼 수 없습니다. {}
+Game Art	게임 이미지
+Your Picture	내 이미지
+Custom	사용자 지정
+Theme	테마
+Delete {}	{} 삭제
+Sign In With Google	Google로 로그인
+Sync All Now	지금 모두 동기화
+Sign Out	로그아웃
+Keep This Device's	이 기기 것 유지
+Keep The Cloud's	클라우드 것 유지
+Sync Now	지금 동기화
+Cloud saves are not set up.	클라우드 세이브가 설정되지 않았습니다.
+Could not reach {}	{}에 연결할 수 없었습니다
+Synced.	동기화했습니다.
+This build of Fulldex has no Google sign-in built in.	이 버전의 Fulldex에는 Google 로그인이 없습니다.
+Could not reach Google. Check the internet connection and try again.	Google에 연결할 수 없었습니다. 인터넷 연결을 확인하고 다시 시도하세요.
+Signed in. Syncing your saves...	로그인했습니다. 세이브를 동기화하는 중...
+Sign-in was turned down on the phone.	휴대폰에서 로그인이 거부되었습니다.
+The code ran out. Choose Sign In again for a new one.	코드가 만료되었습니다. 로그인을 다시 선택해 새 코드를 받으세요.
+Sign-in did not work. Try again.	로그인이 되지 않았습니다. 다시 시도하세요.
+Sign-in cancelled.	로그인이 취소되었습니다.
+Asking Google for a code...	Google에 코드를 요청하는 중...
+Signed out. Your saves stay here, and in your Drive.	로그아웃했습니다. 세이브는 여기와 내 Drive에 남아 있습니다.
+Could not save the cloud settings.	클라우드 설정을 저장할 수 없었습니다.
+Syncing...	동기화 중...
+Not Synced Yet	아직 동기화 안 됨
+Only Here	여기에만 있음
+Up To Date	최신 상태
+Sent Up	올림
+Brought Down	내려받음
+No Save Yet	세이브 없음
+Changed On Both	양쪽에서 변경됨
+Could Not Reach	연결 불가
+Enjoying Fulldex?	Fulldex가 마음에 드시나요?
+You've played for over 20 hours. Fulldex is free, made by one dude in his spare time: if it's given you some good hours, consider buying me a beer. Scan the code with your phone. Cheers, James	20시간 넘게 플레이하셨네요. Fulldex는 무료이고, 한 사람이 짬을 내어 만들었습니다. 즐거운 시간을 보내셨다면 맥주 한 잔 사주시는 건 어떨까요. 휴대폰으로 코드를 스캔하세요. 감사합니다, James
+Done	완료
+Buy Me A Beer	맥주 사주기
+Maybe Later	나중에
+Quit Fulldex?	Fulldex를 종료할까요?
+Are you sure you want to quit?	정말 종료하시겠습니까?
+Quit	종료
+Support Fulldex	Fulldex 후원
+Thank you! Which would you like to open in your browser?	감사합니다! 브라우저에서 어느 것을 열까요?
+What's new in this update	이번 업데이트의 새 기능
+Updates	업데이트
+Move Pokémon	포켓몬 이동
+Cloud Saves	클라우드 세이브
+Trade	교환
+Settings	설정
+Theme Editor	테마 편집기
+My Themes	내 테마
+Theme Library	테마 라이브러리
+Launcher	런처
+About	정보
+Hidden	숨김
+Not Playable	플레이 불가
+Ready	준비됨
+No ROMs found yet. Put your ROMs in the roms folder beside Fulldex.	ROM을 찾지 못했습니다. Fulldex 옆의 roms 폴더에 ROM을 넣으세요.
+Size	크기
+Found	찾음
+None Yet	아직 없음
+Game Code	게임 코드
+Save File	세이브 파일
+File	파일
+Folder	폴더
+Show In List Again	목록에 다시 표시
+Hide From List	목록에서 숨기기
+Open Folder	폴더 열기
+Not Linked	연결 안 됨
+Same Wi-Fi	같은 Wi-Fi
+Room {}	방 {}
+Waiting	대기 중
+Looking For Rooms	방 찾는 중
+Linked With {}	{}와(과) 연결됨
+Code {}	코드 {}
+Waiting Online	온라인 대기 중
+Game	게임
+Link	연결
+Egg	알
+Lv {}	Lv {}
+Sending	보내는 중
+Offered	제안함
+Nothing yet	아직 없음
+Trade with a friend, or send Pokémon to another of your own devices, on the same Wi-Fi.	친구와 교환하거나, 같은 Wi-Fi의 내 다른 기기로 포켓몬을 보내세요.
+Same Wi-Fi: one device chooses Open A Room, the other Join A Room. Online: one makes a code, the other enters it. Then each offers a Pokémon, or sends one as a gift.	같은 Wi-Fi: 한 기기는 방 열기, 다른 기기는 방 참가를 고릅니다. 온라인: 한쪽이 코드를 만들고 다른 쪽이 입력합니다. 그다음 각자 포켓몬을 제안하거나 선물로 보냅니다.
+Your code:	내 코드:
+The other player chooses Hub, Trade, Enter An Online Code, and types it. Share it on Discord or in a message. It works for a few minutes.	상대방은 허브, 교환, 온라인 코드 입력을 고르고 입력합니다. Discord나 메시지로 공유하세요. 몇 분 동안 유효합니다.
+This device: {}	이 기기: {}
+Looking for rooms on this network. Open one on the other device.	이 네트워크에서 방을 찾는 중입니다. 다른 기기에서 하나 여세요.
+Rooms on this network are listed below: choose one to join.	이 네트워크의 방이 아래에 표시됩니다. 참가할 방을 고르세요.
+Waiting for {}	{}을(를) 기다리는 중
+Their game can't take it: {}	상대 게임이 받을 수 없습니다: {}
+Your game can't take it: {}	내 게임이 받을 수 없습니다: {}
+You Send	보내기
+You Offer	제안
+You said yes. {}	수락했습니다. {}
+Leave the link to change the game.	게임을 바꾸려면 연결을 나가세요.
+The game to trade from and into.	교환을 보낼 게임과 받을 게임.
+Next Box and Previous Box go through its boxes; Party shows the Pokémon with you.	다음 박스와 이전 박스로 박스를 넘기고, 파티는 함께 있는 포켓몬을 보여줍니다.
+Link with the other device first: the Link row above.	먼저 위의 연결 줄에서 다른 기기와 연결하세요.
+Offer it for a trade (one each way, both say yes), or send it as a gift.	교환으로 제안하거나(서로 하나씩, 둘 다 수락), 선물로 보내세요.
+No Picture	이미지 없음
+Page {} Of {}	{} / {} 페이지
+No Themes Yet	아직 테마 없음
+Save This Look on My Themes makes one.	내 테마의 이 모습 저장으로 만들 수 있습니다.
+Press A to apply it or delete it.	A를 눌러 적용하거나 삭제합니다.
+Choose it to apply it, show its file, or delete it.	선택해서 적용하거나, 파일을 보거나, 삭제합니다.
+Colours, pictures, blur and the rest of the launcher's look	색, 이미지, 흐림 등 런처의 모든 모습
+Save this look, switch between your looks, share them as files	이 모습을 저장하고, 전환하고, 파일로 공유합니다
+Theme Gallery	테마 갤러리
+Themes other players have shared, ready to try	다른 플레이어가 공유한 테마, 바로 써볼 수 있어요
+Soon	곧 출시
+Change the launcher's look: the accent, the panels, the sidebar and the top bar, the buttons, the background, its blur and dim, and the glass's grain. Each can be a colour or a picture.	런처의 모습을 바꿉니다: 강조색, 패널, 사이드바와 상단 바, 버튼, 배경, 그 흐림과 어둡기, 유리의 결. 각각 색이나 이미지로 할 수 있습니다.
+Keep the look you have now as a theme, with its pictures, and switch between your themes. Each is one .zip file you can send to a friend.	지금의 모습을 이미지와 함께 테마로 보관하고, 테마를 전환합니다. 각 테마는 친구에게 보낼 수 있는 .zip 파일 하나입니다.
+Save This Look	이 모습 저장
+Keep the look you have now as a theme	지금의 모습을 테마로 보관
+Import A Theme	테마 가져오기
+From the themes folder on the SD card	SD 카드의 테마 폴더에서
+A .zip theme someone sent you	누군가 보내준 .zip 테마
+All your saved themes, as pictures	저장한 모든 테마를 이미지로
+Keeps your accent, panels, bars, buttons, background, blur, dim and grain, with their pictures (up to 4K), as one .zip in the themes folder, with a picture of your Home screen wearing it.	강조색, 패널, 바, 버튼, 배경, 흐림, 어둡기, 결을 이미지(최대 4K)와 함께 테마 폴더의 .zip 하나로 보관하며, 그 모습의 홈 화면 이미지가 함께 들어갑니다.
+You name it next. A theme can be up to 20 MB.	다음에 이름을 정합니다. 테마는 최대 20 MB입니다.
+Put .zip themes in /switch/pokemon-ds-wide/themes/ on the SD card and they show in this list.	.zip 테마를 SD 카드의 /switch/pokemon-ds-wide/themes/ 에 넣으면 이 목록에 표시됩니다.
+Choose a .zip theme someone sent you. It is copied into your themes folder and shows in this list.	누군가 보내준 .zip 테마를 고르세요. 테마 폴더로 복사되어 이 목록에 표시됩니다.
+All your saved themes as pictures of Home wearing them, a page at a time. Choose one to apply it.	저장한 모든 테마를 그 모습의 홈 화면 이미지로 한 페이지씩 보여줍니다. 하나를 골라 적용하세요.
+No themes yet: Save This Look makes one.	아직 테마가 없습니다: 이 모습 저장으로 만들 수 있습니다.
+Accent	강조색
+Panels	패널
+Sidebar	사이드바
+Top Bar	상단 바
+Buttons	버튼
+Background	배경
+Grain	결
+Cloud Badges	클라우드 배지
+The frame round what is chosen, and its glow	선택한 것을 둘러싼 테두리와 그 빛
+The glass panels: a colour or a picture, see-through to solid	유리 패널: 색이나 이미지, 투명에서 불투명까지
+The bar down the left: a colour or a picture	왼쪽 바: 색이나 이미지
+The bar along the top: a colour or a picture	위쪽 바: 색이나 이미지
+Play, Continue, the chosen tab and the button marks at the bottom	플레이, 계속, 선택한 탭, 아래의 버튼 표시
+Game art, your own picture or a colour; its blur and dim	게임 이미지, 내 이미지 또는 색. 그 흐림과 어둡기
+The fine speckle in the glass panels	유리 패널의 고운 결
+A cloud on the cards of games whose saves sync	세이브가 동기화되는 게임 카드의 구름
+Picture	이미지
+The fine speckle in the frosted glass panels: 0% makes them smooth, 25% is as they were, 100% is four times as strong.	젖빛 유리 패널의 고운 결: 0%는 매끄럽게, 25%는 이전 그대로, 100%는 네 배 강하게.
+Show	표시
+Preset	프리셋
+Hue	색조
+Saturation	채도
+Brightness	밝기
+Opacity {}	불투명도 {}
+Blur {}	흐림 {}
+Dim {}	어둡기 {}
+Grain {}	결 {}
+None	없음
+Up and down choose a row, left and right change it.	위아래로 줄을 고르고, 좌우로 바꿉니다.
+Arrows choose and change, or click.	화살표로 선택하고 바꾸거나, 클릭하세요.
+The colour of the frame round what is chosen, and its glow, on every page of the launcher.	런처 모든 페이지에서 선택한 것을 둘러싼 테두리의 색과 빛.
+A colour or a picture over every glass panel. Opacity sets how much: low lets the background through, 100% makes them solid.	모든 유리 패널 위의 색이나 이미지. 불투명도로 정도를 정합니다: 낮으면 배경이 비치고, 100%는 불투명입니다.
+A colour or a picture for the sidebar, see-through to solid.	사이드바용 색이나 이미지, 투명에서 불투명까지.
+A colour or a picture for the bar along the top, see-through to solid.	상단 바용 색이나 이미지, 투명에서 불투명까지.
+Used for Play and Continue, the chosen tab, and the button marks along the bottom (Choose, Back and the rest). Their words and marks turn dark or light to stay readable.	플레이와 계속, 선택한 탭, 아래의 버튼 표시(선택, 뒤로 등)에 쓰입니다. 글자와 표시는 읽기 쉽게 어둡거나 밝게 바뀝니다.
+Game Art: the chosen game's picture. Your Picture: one of your own. Colour: one colour. Plain: a calm blue. Its page also sets how blurred and how dim it is.	게임 이미지: 선택한 게임의 이미지. 내 이미지: 직접 고른 것. 색: 한 가지 색. 단색: 차분한 파랑. 그 페이지에서 흐림과 어둡기도 정합니다.
+The fine speckle in the frosted glass panels: 0% makes them smooth, 25% is as they were.	젖빛 유리 패널의 고운 결: 0%는 매끄럽게, 25%는 이전 그대로.
+With Cloud Saves on, a cloud shows in the corner of each game whose save syncs. Amber: it changed on two devices and needs a choice.	클라우드 세이브를 켜면 세이브가 동기화되는 게임 모서리에 구름이 표시됩니다. 호박색: 두 기기에서 변경되어 선택이 필요합니다.
+Press A to change it.	A를 눌러 바꿉니다.
+Press A to open its page.	A를 눌러 페이지를 엽니다.
+Choose it to change it.	선택해서 바꿉니다.
+Choose it to open its page.	선택해서 페이지를 엽니다.
+Keep your saves the same on every device	모든 기기에서 세이브를 똑같이 유지합니다
+Signing In	로그인 중
+Syncing	동기화 중
+With a friend online or on the same Wi-Fi, or to another of your devices	온라인이나 같은 Wi-Fi의 친구와, 또는 내 다른 기기로
+Linked	연결됨
+Room Open	방 열림
+Looking	찾는 중
+Fulldex Discord	Fulldex Discord
+Find people to trade with, get help and hear what's coming	교환할 사람을 찾고, 도움을 받고, 앞으로의 소식을 들어보세요
+Between your own games, as a trade would	교환처럼, 내 게임들 사이에서
+Saved To	저장 위치
+This Device	이 기기
+Saves sync when a game starts and when it closes, and the DS games after each save too. Open it to sync now, see each game, or choose which save to keep.	세이브는 게임을 시작할 때와 끝낼 때 동기화되고, DS 게임은 저장할 때마다도 동기화됩니다. 열어서 지금 동기화하고, 각 게임을 보고, 유지할 세이브를 고르세요.
+Keep your saves the same on every device: play on your PC, then carry on on the Switch.	모든 기기에서 세이브를 똑같이 유지합니다: PC에서 플레이하고 Switch에서 이어서 하세요.
+Open it to sign in with Google. Your saves go to your own Drive, in a folder called Fulldex Cloud Saves.	열어서 Google로 로그인합니다. 세이브는 내 Drive의 Fulldex Cloud Saves 폴더에 저장됩니다.
+Trade with a friend, online or on the same Wi-Fi, or send Pokémon to another of your own devices: a PC and a Switch, say.	친구와 온라인이나 같은 Wi-Fi로 교환하거나, 내 다른 기기(예: PC와 Switch)로 포켓몬을 보내세요.
+Trades follow the real games' rules: one each way, both say yes, and those that evolve by trading evolve, Karrablast and Shelmet too. Each save is backed up before it is written.	교환은 실제 게임의 규칙을 따릅니다: 서로 하나씩, 둘 다 수락, 통신 교환으로 진화하는 포켓몬은 진화합니다(딱정곤과 쪼마리도). 각 세이브는 기록하기 전에 백업됩니다.
+Join the Fulldex Discord: find someone to trade with, get help with a game, report a bug and see what's coming next.	Fulldex Discord에 참가하세요: 교환할 사람을 찾고, 게임 도움을 받고, 버그를 신고하고, 앞으로의 소식을 들어보세요.
+Scan the code with your phone's camera.	휴대폰 카메라로 코드를 스캔하세요.
+Choose it to open Discord in your browser, or scan the code with your phone.	선택해서 브라우저에서 Discord를 열거나, 휴대폰으로 코드를 스캔하세요.
+Move a Pokémon from one of your games to another, as a trade between them would.	교환처럼, 내 게임에서 다른 게임으로 포켓몬을 옮깁니다.
+They can go to a newer game, never an older one. Fulldex says first what one would lose on the way, and backs up both saves before it writes them.	새 게임으로는 갈 수 있지만 오래된 게임으로는 갈 수 없습니다. Fulldex가 도중에 잃게 될 것을 먼저 알려주고, 기록하기 전에 두 세이브를 모두 백업합니다.
+Games With A Save	세이브가 있는 게임
+That game's save could not be read.	그 게임의 세이브를 읽을 수 없었습니다.
+Choose two different games.	서로 다른 두 게임을 고르세요.
+From	보내는 곳
+To	받는 곳
+Swap In	교환해서 넣기
+Put In	넣을 곳
+Swapping {}	{} 교환 중
+Can Swap, Evolves	교환할 수 있음, 진화함
+Can Swap	교환할 수 있음
+Can Move, Evolves	이동할 수 있음, 진화함
+Can Move	이동할 수 있음
+Can't Swap	교환할 수 없음
+Can't Move	이동할 수 없음
+Take From	가져올 곳
+Send To	보낼 곳
+This save could not be read. {}	이 세이브를 읽을 수 없었습니다. {}
+Trainer	트레이너
+Generation	세대
+Pokémon can be looked at in this game but not moved in or out yet.	이 게임에서는 포켓몬을 볼 수 있지만 아직 넣거나 꺼낼 수 없습니다.
+Choose the game to take Pokémon from.	포켓몬을 가져올 게임을 고르세요.
+Choose the game to send them to. They can go to a newer game, never an older one, as in the real games.	보낼 게임을 고르세요. 새 게임으로는 갈 수 있지만 오래된 게임으로는 갈 수 없으며, 실제 게임과 같습니다.
+Choose the box in {}	{}의 박스를 고르세요
+Where it goes in {}	{}의 어디에 들어가는지
+Level	레벨
+Swap For {}	{}와(과) 교환
+To {}	{}(으)로
+They can swap, and keep everything.	교환할 수 있고 모든 것이 유지됩니다.
+It can move, and keeps everything.	이동할 수 있고 모든 것이 유지됩니다.
+They can swap, but on the way:	교환할 수 있지만, 도중에:
+It can move, but on the way:	이동할 수 있지만, 도중에:
+It can't go to that game.	그 게임으로는 갈 수 없습니다.
+Moving Pokémon is not in this build of Fulldex.	포켓몬 이동은 이 버전의 Fulldex에 없습니다.
+Chosen	선택됨
+Account	계정
+On your phone or computer, go to	휴대폰이나 컴퓨터에서 다음으로 이동하세요
+Fulldex is waiting for you to say yes. It only sees the saves it puts in your Drive.	Fulldex는 당신이 승낙할 때까지 기다립니다. Drive에 넣은 세이브만 볼 수 있습니다.
+Saves go to your own Google Drive, in a folder called Fulldex Cloud Saves. Fulldex sees only the files it made there.	세이브는 내 Google Drive의 Fulldex Cloud Saves 폴더로 갑니다. Fulldex는 거기에 만든 파일만 볼 수 있습니다.
+If a save changed on two devices, Fulldex asks which one to keep, and puts the other in the backups.	두 기기에서 세이브가 바뀌면 Fulldex가 어느 쪽을 유지할지 묻고, 다른 쪽은 백업에 넣습니다.
+Synced Folder	동기화 폴더
+Choose a game in the list to sync it on its own, or to choose which save to keep.	목록에서 게임을 고르면 따로 동기화하거나 유지할 세이브를 고를 수 있습니다.
+Cloud saves are off. Sign in on the Cloud Saves row first.	클라우드 세이브가 꺼져 있습니다. 먼저 클라우드 세이브 줄에서 로그인하세요.
+Not synced yet. Choose Sync Now to send it up, or bring down a newer one.	아직 동기화되지 않았습니다. 지금 동기화를 선택해 올리거나 더 새로운 것을 받으세요.
+This save is the same here and in the cloud.	이 세이브는 여기와 클라우드가 같습니다.
+This save was sent up to the cloud.	이 세이브를 클라우드에 올렸습니다.
+There is no save for this game yet, here or in the cloud.	이 게임의 세이브는 여기에도 클라우드에도 아직 없습니다.
+Could not reach the cloud. The save here is kept, and syncs next time.	클라우드에 연결할 수 없었습니다. 여기 세이브는 그대로이며 다음에 동기화됩니다.
+Unknown	알 수 없음
+Not Checked Yet	아직 확인 안 함
+This Version: {}	이 버전: {}
+Checking...	확인 중...
+Fulldex Is Up To Date	Fulldex가 최신입니다
+Version {}	버전 {}
+A New Version Is Ready	새 버전이 준비되었습니다
+You Have {}	현재 {}
+Downloading...	다운로드 중...
+New: {}	새 버전: {}
+Installed	설치됨
+The new version starts when you close the list	목록을 닫으면 새 버전이 시작됩니다
+Could Not Check	확인할 수 없었습니다
+Check For Updates	업데이트 확인
+Fulldex looks for a new version on GitHub	Fulldex가 GitHub에서 새 버전을 찾습니다
+What's New	새로운 기능
+The changes in each version are listed on its release page on GitHub.	각 버전의 변경 사항은 GitHub의 릴리스 페이지에 있습니다.
+Your ROMs, saves and settings stay when Fulldex updates.	Fulldex를 업데이트해도 ROM, 세이브, 설정은 그대로 유지됩니다.
+The version before is kept, in case you need to go back.	돌아가야 할 때를 위해 이전 버전이 보관됩니다.
+On this device, Open Download takes you to the release page to get it.	이 기기에서는 다운로드 열기가 릴리스 페이지로 이동해 받을 수 있게 해줍니다.
+The rest, and the downloads, are on the release page.	나머지와 다운로드는 릴리스 페이지에 있습니다.
+Working...	작업 중...
+Install Now	지금 설치
+Open Download	다운로드 열기
+Check Now	지금 확인
+Release Page	릴리스 페이지
+Fulldex checks once each time it starts. Your ROMs, saves and settings stay when it updates, and the version before is kept.	Fulldex는 시작할 때마다 한 번 확인합니다. 업데이트해도 ROM, 세이브, 설정은 유지되고 이전 버전은 보관됩니다.
+Fulldex checks once each time it starts.	Fulldex는 시작할 때마다 한 번 확인합니다.
+Support	후원
+Credits	크레딧
+Report A Bug	버그 신고
+Licences	라이선스
+Website	웹사이트
+Fulldex doesn't include any games. Play with ROMs from games you own.	Fulldex에는 게임이 포함되어 있지 않습니다. 가지고 있는 게임의 ROM으로 플레이하세요.
+Open it on your phone or PC	휴대폰이나 PC에서 열기
+Choose it to open it in your browser	선택해서 브라우저에서 엽니다
+Hi, I'm James, AKA Mamesj, the mind behind Fulldex. I'm just a dude who wanted to play some Pokémon and got a bit carried away.	안녕하세요, Fulldex를 만든 James, 별명 Mamesj입니다. 그저 포켓몬을 하고 싶었는데 조금 빠져버린 평범한 사람입니다.
+Fulldex is free and always will be. If it's given you some good hours, a coffee or a beer is always appreciated, never expected.	Fulldex는 무료이고 앞으로도 그렇습니다. 즐거운 시간을 보내셨다면 커피나 맥주 한 잔은 언제나 고맙지만, 기대하지는 않습니다.
+Scan a code with your phone's camera.	휴대폰 카메라로 코드를 스캔하세요.
+Choose Support to open Buy Me A Coffee, or scan a code with your phone.	후원을 선택해 Buy Me A Coffee를 열거나 휴대폰으로 코드를 스캔하세요.
+Credits And Acknowledgements	크레딧과 감사
+The single-screen and widescreen view Fulldex grew from	Fulldex가 태어난 한 화면 와이드 보기
+The DS emulation	DS 에뮬레이션
+Companion readers and text decoders	보조 리더와 텍스트 디코더
+Function names from their decompilations	디컴파일에서 얻은 함수 이름
+The built-in DS cheats, via libretro-database	libretro-database로 내장된 DS 치트
+How the HOME Menu icons are made	HOME 메뉴 아이콘 제작 방법
+Cheats menu ideas (PR #16)	치트 메뉴 아이디어 (PR #16)
+Everyone who reported bugs and helped test	버그를 신고하고 테스트를 도와주신 모든 분
+Thank you	감사합니다
+Found something wrong? Open an issue on the GitHub page: say which game, which device, and what happened just before.	문제가 있나요? GitHub 페이지에 이슈를 열고, 어떤 게임, 어떤 기기인지, 직전에 무슨 일이 있었는지 알려주세요.
+A screenshot helps, and so does game.log from the folder Fulldex runs from.	스크린샷과 Fulldex를 실행하는 폴더의 game.log가 도움이 됩니다.
+Not affiliated with or endorsed by Nintendo, Game Freak, The Pokémon Company or the melonDS project. Pokémon is a trademark of its owners. The full licence texts are on the GitHub page.	닌텐도, 게임프리크, 주식회사 포켓몬, melonDS 프로젝트와 제휴하거나 승인받지 않았습니다. 포켓몬은 각 소유자의 등록 상표입니다. 라이선스 전문은 GitHub 페이지에 있습니다.
+Downloads, the latest changes and the full instructions are on the GitHub page.	다운로드, 최신 변경 사항, 전체 안내는 GitHub 페이지에 있습니다.
+Tips are welcome but never expected: see Support, at the top of this page.	후원은 고맙지만 기대하지는 않습니다: 이 페이지 위쪽의 후원을 보세요.
+Coming Soon	출시 예정
+Continue	계속
+Play	플레이
+Continue Playing	이어서 플레이
+Ready To Play	플레이 준비 완료
+Cloud Save: Changed On Both	클라우드 세이브: 양쪽에서 변경됨
+Cloud Save	클라우드 세이브
+Save Found	세이브 발견
+New Game	새 게임
+Your Games	내 게임
+Results For "{}"	"{}" 검색 결과
+No Games Match "{}"	"{}"에 맞는 게임이 없습니다
+Add Games To This Tab From A Game's Menu (A On A Game)	게임 메뉴(게임에서 A)에서 이 탭에 게임을 추가하세요
+Add Games To Home From A Game's Menu (A On A Game)	게임 메뉴(게임에서 A)에서 홈에 게임을 추가하세요
+No Romhacks Yet	아직 롬핵이 없습니다
+Sort: {}	정렬: {}
+Remove {}	{} 제거
+Remove From List hides it here and keeps the ROM in your folder. Your saves are never deleted.	목록에서 제거하면 여기서는 숨겨지고 ROM은 폴더에 남습니다. 세이브는 절대 삭제되지 않습니다.
+Remove From List	목록에서 제거
+Delete ROM File	ROM 파일 삭제
+Delete The ROM File?	ROM 파일을 삭제할까요?
+This deletes {}	{}을(를) 삭제합니다
+Change Picture	이미지 변경
+Pictures stay on this device. Only use pictures you have permission to use.	이미지는 이 기기에 남습니다. 사용 권한이 있는 이미지만 사용하세요.
+Import A Picture	이미지 가져오기
+Find Artwork Online	온라인에서 이미지 찾기
+Plain Card	단색 카드
+Restore Original	원본 복원
+Rename {}	{} 이름 변경
+Type a new name. Leave it empty to go back to the game's own name.	새 이름을 입력하세요. 비워 두면 게임 자체 이름으로 돌아갑니다.
+Home	홈
+All	전체
+Romhacks	롬핵
+Plain	단색
+Colour	색
+Choose	선택
+Back	뒤로
+Quit	종료
+Tabs	탭
+Play	플레이
+Sort	정렬
+Favourite	즐겨찾기
+Rename	이름 변경
+Manage Saves	세이브 관리
+Add To Home	홈에 추가
+Remove Game	게임 제거
+Choose a theme	테마를 고르세요
+# The notes along the bottom.
+COULD NOT SAVE THE TABS	탭을 저장할 수 없었습니다
+TAKEN OUT OF {}	{}에서 제거됨
+ADDED TO {}	{}에 추가됨
+TAB SHOWN AGAIN	탭을 다시 표시했습니다
+AS FAR LEFT AS IT GOES	이미 맨 왼쪽입니다
+AS FAR RIGHT AS IT GOES	이미 맨 오른쪽입니다
+ONE TAB MUST STAY SHOWN	탭 하나는 보여야 합니다
+TAB HIDDEN. + SHOWS IT AGAIN	탭을 숨겼습니다. +로 다시 표시합니다
+TAB DELETED. ITS GAMES ARE KEPT	탭을 삭제했습니다. 게임은 남습니다
+TAB MADE	탭을 만들었습니다
+SEARCH CLEARED	검색을 지웠습니다
+TAB RENAMED	탭 이름을 변경했습니다
+THE THEME GALLERY IS COMING SOON	테마 갤러리는 곧 출시됩니다
+TYPE A NAME FOR THE THEME (LETTERS AND NUMBERS)	테마 이름을 입력하세요 (글자와 숫자)
+SAVING...	저장 중...
+OVER 20 MB: USE SMALLER PICTURES	20 MB 초과: 더 작은 이미지를 사용하세요
+COULD NOT SAVE THE THEME	테마를 저장할 수 없었습니다
+SAVED: {}	저장됨: {}
+COULD NOT READ THAT THEME	그 테마를 읽을 수 없었습니다
+THAT IS NOT A FULLDEX THEME	Fulldex 테마가 아닙니다
+THEME ON: {}	테마 적용됨: {}
+COULD NOT COPY THE THEME	테마를 복사할 수 없었습니다
+IMPORTED: {}	가져옴: {}
+COULD NOT DELETE IT	삭제할 수 없었습니다
+DELETED: {}	삭제됨: {}
+ADDED TO HOME	홈에 추가했습니다
+REMOVED FROM HOME	홈에서 제거했습니다
+COULD NOT SAVE HOME	홈을 저장할 수 없었습니다
+COULD NOT SAVE THE LIST	목록을 저장할 수 없었습니다
+BACK IN THE LIST	목록으로 되돌렸습니다
+HIDDEN FROM THE LIST	목록에서 숨겼습니다
+COULD NOT USE THAT PICTURE	그 이미지는 사용할 수 없었습니다
+{}: COMING SOON	{}: 출시 예정
+THIS GAME'S SAVES CANNOT BE MANAGED HERE YET	이 게임의 세이브는 아직 여기서 관리할 수 없습니다
+THIS DOWNLOAD DOES NOT HAVE THIS GAME	이 다운로드에는 이 게임이 없습니다
+THIS GAME IS NOT ONE THAT THIS PLAYS	이 게임은 이것이 실행하는 종류가 아닙니다
+REMOVED FROM THE LIST. THE ROM IS STILL IN YOUR FOLDER	목록에서 제거했습니다. ROM은 폴더에 남아 있습니다
+COULD NOT DELETE THE ROM FILE	ROM 파일을 삭제할 수 없었습니다
+ROM FILE DELETED. ITS SAVES ARE KEPT	ROM 파일을 삭제했습니다. 세이브는 남아 있습니다
+SAVES FOLDER OPENED	세이브 폴더를 열었습니다
+SAVE RESTORED. THE ONE BEFORE IS KEPT AS A .BEFORE-RESTORE COPY	세이브를 복원했습니다. 이전 세이브는 .BEFORE-RESTORE 사본으로 남아 있습니다
+THAT PICTURE COULD NOT BE READ: PNG OR JPG ONLY	그 이미지를 읽을 수 없습니다: PNG 또는 JPG만 가능
+PICTURE CHANGED	이미지를 변경했습니다
+COULD NOT KEEP THE PICTURE	이미지를 보관할 수 없었습니다
+OPENED IN YOUR BROWSER: SAVE A PICTURE, THEN IMPORT IT HERE	브라우저에서 열었습니다: 이미지를 저장한 다음 여기로 가져오세요
+COULD NOT SAVE THE PICTURE	이미지를 저장할 수 없었습니다
+PLAIN CARD	단색 카드
+ORIGINAL PICTURE BACK	원본 이미지로 되돌렸습니다
+COULD NOT SAVE THE NAME	이름을 저장할 수 없었습니다
+NAME RESET	이름을 초기화했습니다
+RENAMED	이름을 변경했습니다
+OPEN THE DOWNLOAD IN YOUR BROWSER	브라우저에서 다운로드를 여세요
+REMOVED FROM THE LIST. THE ROM IS STILL ON THE SD CARD	목록에서 제거했습니다. ROM은 SD 카드에 남아 있습니다
+FIND ARTWORK ON YOUR PHONE OR PC	휴대폰이나 PC에서 이미지를 찾으세요
+SCAN THE CODE WITH YOUR PHONE	휴대폰으로 코드를 스캔하세요
+OPEN IT ON YOUR PHONE OR PC	휴대폰이나 PC에서 여세요
+COULD NOT SAVE THE SETTINGS	설정을 저장할 수 없었습니다
+# Counts, and the colours' names.
+{#} Games	게임 {#}개
+{#} Game	게임 {#}개
+{#} Saves	세이브 {#}개
+{#} Save	세이브 {#}개
+{#} Themes	테마 {#}개
+{#} Theme	테마 {#}개
+{#} of {#} up to date	{#} / {#} 최신
+{#} of {#}	{#} / {#}
+Clear	투명
+Dark	어둡게
+White	흰색
+Red	빨강
+Blue	파랑
+Green	초록
+Purple	보라
+Gold	금색
+Pink	분홍
+Teal	청록
+Your Picture	내 이미지
+Default Look	기본 모습
+Frosted glass over the game's art, as Fulldex starts	게임 이미지 위의 젖빛 유리, Fulldex가 시작될 때의 모습
+Go back to frosted glass over the game's art, as Fulldex starts? Your themes stay in the library: save this look first to keep it.	게임 이미지 위의 젖빛 유리, Fulldex가 시작될 때의 모습으로 돌아갈까요? 테마는 라이브러리에 남습니다. 보관하려면 먼저 이 모습을 저장하세요.
+Use The Default Look	기본 모습 사용
+Puts back the look Fulldex starts with: frosted glass over the chosen game's art, white highlights, the usual blur and dim.	Fulldex가 시작될 때의 모습으로 되돌립니다: 선택한 게임 이미지 위의 젖빛 유리, 흰색 강조, 평소의 흐림과 어둡기.
+Your saved themes and pictures stay. Save This Look first if you want to come back to the look you have now.	저장한 테마와 이미지는 그대로입니다. 지금 모습으로 돌아가고 싶다면 먼저 저장하세요.
+THE DEFAULT LOOK IS BACK	기본 모습으로 되돌렸습니다
+Font	글꼴
+Text Size	글자 크기
+The letters everywhere in the launcher	런처 전체의 글자
+How big the writing is	글씨의 크기
+How big the writing is in the launcher, from 85% to 120%. Each font is already sized to fill a line as the others do.	런처 글씨의 크기, 85%에서 120%. 각 글꼴은 한 줄에 다른 글꼴과 비슷하게 차도록 이미 맞춰져 있습니다.
+The letters everywhere in the launcher: 30 to choose from, clean, rounded, bold, retro, fun, handwritten and easy to read. The pause menu keeps its own.	런처 전체의 글자: 깔끔한, 둥근, 굵은, 레트로, 재미있는, 손글씨, 읽기 쉬운 글꼴 30종 중에서 고르세요. 일시정지 메뉴는 자체 글꼴을 유지합니다.
+How big the writing is in the launcher, from 85% to 120%.	런처 글씨의 크기, 85%에서 120%.
+Size {}	크기 {}
+In Use	사용 중
+Clean	깔끔한
+Rounded	둥근
+Bold	굵은
+Retro	레트로
+Fun	재미있는
+Handwritten	손글씨
+Easy To Read	읽기 쉬운
+Serif	세리프
+Press A to use a font. B goes back to the Theme Editor.	A를 눌러 글꼴을 사용합니다. B는 테마 편집기로 돌아갑니다.
+Choose a font to use it. Back goes to the Theme Editor.	글꼴을 골라 사용합니다. 뒤로는 테마 편집기로 돌아갑니다.
+FONT: {}	글꼴: {}
+Enter A Theme Code	테마 코드 입력
+Share A Theme	테마 공유
+Share	공유
+Try It	써보기
+Keep	유지
+Go Back	되돌리기
+Keep This Theme?	이 테마를 유지할까요?
+Choose a theme to try it on. You keep it or go back.	테마를 골라 써보세요. 유지하거나 되돌릴 수 있습니다.
+LOADING...	불러오는 중...
+NO GALLERY ADDRESS IS SET UP IN THIS BUILD	이 버전에는 갤러리 주소가 없습니다
+COULD NOT REACH THE GALLERY	갤러리에 연결할 수 없었습니다
+NOTHING SHARED YET. BE THE FIRST: SHARE A THEME	아직 공유된 것이 없습니다. 첫 번째가 되어 테마를 공유하세요
+A CODE IS 8 LETTERS AND NUMBERS, LIKE K7QM-X2RD	코드는 영문자와 숫자 8자입니다. 예: K7QM-X2RD
+DOWNLOADING...	다운로드 중...
+THAT CODE DOES NOT WORK	그 코드는 작동하지 않습니다
+THAT THEME IS WAITING TO BE APPROVED. TRY AGAIN LATER.	그 테마는 승인을 기다리고 있습니다. 나중에 다시 시도하세요.
+THAT THEME WAS NOT APPROVED	그 테마는 승인되지 않았습니다
+THAT THEME WAS TAKEN DOWN	그 테마는 철회되었습니다
+THE GALLERY GAVE AN ANSWER IT SHOULD NOT	갤러리가 예상 밖의 응답을 했습니다
+COULD NOT SAVE IT	저장할 수 없었습니다
+TRYING: {}	써보는 중: {}
+BACK TO YOUR OWN LOOK	내 모습으로 되돌렸습니다
+KEPT IN MY THEMES: {}	내 테마에 보관했습니다: {}
+SHARING...	공유 중...
+SHARED. YOUR CODE: {}. IT SHOWS FOR EVERYONE ONCE APPROVED.	공유했습니다. 내 코드: {}. 승인되면 모두에게 표시됩니다.
+TOO MANY SHARES FOR NOW. TRY AGAIN LATER.	지금은 전송이 너무 많습니다. 나중에 다시 시도하세요.
+NOT ACCEPTED: {}	받아들여지지 않았습니다: {}
+THE GALLERY DID NOT TAKE IT ({})	갤러리가 받아들이지 않았습니다 ({})
+SAVE A THEME FIRST: LAUNCHER, MY THEMES, SAVE THIS LOOK	먼저 테마를 저장하세요: 런처, 내 테마, 이 모습 저장
+Pick one of your themes. It is looked at before it shows for others. Share only pictures that are yours.	내 테마 중 하나를 고르세요. 다른 사람에게 표시되기 전에 확인됩니다. 내 이미지만 공유하세요.
+By {}. Try It puts it on your launcher; then you keep it or go back.	제작: {}. 써보기는 내 런처에 적용하며, 이후 유지하거나 되돌릴 수 있습니다.
+{} is on. Keep it in My Themes, or go back to your own look.	{}이(가) 적용되었습니다. 내 테마에 유지하거나 내 모습으로 되돌리세요.
+THEME CODE	테마 코드
+A Theme Code	테마 코드
+Get It	받기
+Online	온라인
+Browse themes other players have shared, try one on before you keep it, enter a theme code from a friend, or share one of your own.	다른 플레이어가 공유한 테마를 둘러보고, 유지하기 전에 써보고, 친구의 테마 코드를 입력하거나 내 테마를 공유하세요.
+The launcher's fonts	런처의 글꼴
+Each font's copyright notice and the full licence text are in FONT-LICENSES.txt, in the fonts folder of the download and on the GitHub page.	각 글꼴의 저작권 고지와 라이선스 전문은 다운로드의 fonts 폴더와 GitHub 페이지에 있는 FONT-LICENSES.txt에 있습니다.
+Display	화면
+Sound	소리
+Graphics	그래픽
+Controls	조작
+Optional Features	선택 기능
+Release Notes	릴리스 노트
