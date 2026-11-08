@@ -1,0 +1,23 @@
+POKEMON FULLDEX ON A MAC: HOW TO SET IT UP
+
+What you need: macOS 11 or newer, and your own ROMs.
+
+1. Download the one for your Mac. Apple menu > About This Mac:
+   Chip: Apple M1 (M2, M3, M4 ...): pokemon-ds-wide-pc-macos-arm64.zip
+   Processor: Intel: pokemon-ds-wide-pc-macos-x86_64.zip
+2. Unzip it and drag Pokemon Fulldex into Applications.
+3. Open it once. macOS says it can't check the app (it isn't notarised by
+   Apple): click Done. Then System Settings > Privacy & Security, scroll down to
+   the line about Pokemon Fulldex and click Open Anyway, then Open.
+   Or in Terminal: xattr -dr com.apple.quarantine "/Applications/Pokemon Fulldex.app"
+4. Press O in the game list: the Finder opens its roms folder
+   (~/Library/Application Support/Pokemon DS Widescreen/roms). Put your DS and
+   GBA ROMs in it.
+
+Keys and controllers work as on a PC (arrows, X/Z for A/B, Esc for the pause
+menu, Left Shift to fast forward). Ctrl+Cmd+F switches fullscreen.
+
+Saves are in the saves folder next to roms. A game's menu > Manage Saves shows
+its save, backups and save states, and can export or import a save.
+
+Help, bugs and updates: https://github.com/mamesj/pokemon-fulldex

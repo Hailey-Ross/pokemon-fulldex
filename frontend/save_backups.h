@@ -52,7 +52,7 @@ inline bool Replace(const std::string& target, const std::vector<unsigned char>&
     std::error_code ec;
     if (fs::exists(fs::u8path(temp),ec) || fs::exists(fs::u8path(old),ec))
     { error="PREVIOUS RESTORE FILES EXIST - CHECK THE SAVE FOLDER"; return false; }
-    FILE* f=fopen(temp.c_str(),"wbx");
+    FILE* f=fopen(temp.c_str(),"wb"); // (not "wbx": the Windows C runtime refuses "x"; temp was checked to be absent above)
     if (!f) { error="CANNOT WRITE IN THE SAVE FOLDER";return false; }
     bool ok=fwrite(data.data(),1,data.size(),f)==data.size() && fflush(f)==0;
 #if defined(__linux__)

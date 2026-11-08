@@ -194,7 +194,8 @@ all)
     cp LICENSE build-sd/switch/pokemon-ds-wide/LICENSE.txt
     cp LICENSE-Noto.txt build-sd/switch/pokemon-ds-wide/LICENSE-Noto.txt
     cp frontend/fonts/FONT-LICENSES.txt build-sd/switch/pokemon-ds-wide/FONT-LICENSES.txt
-    LICENCES="switch/pokemon-ds-wide/LICENSE.txt switch/pokemon-ds-wide/LICENSE-Noto.txt switch/pokemon-ds-wide/FONT-LICENSES.txt"
+    cp "$HERE/docs/howto/HOW-TO-SWITCH.txt" build-sd/switch/pokemon-ds-wide/HOW-TO.txt  # (how to set it up, in the zip)
+    LICENCES="switch/pokemon-ds-wide/LICENSE.txt switch/pokemon-ds-wide/LICENSE-Noto.txt switch/pokemon-ds-wide/FONT-LICENSES.txt switch/pokemon-ds-wide/HOW-TO.txt"
     GBA_WORK="${GBAW_WORK:-$HOME/pokemon-gba-wide}"
     if [ -n "${SSR_GBA_DIR:-}" ]; then
         [ -f "$GBA_WORK/mgba/LICENSE" ] || fail "no mGBA in $GBA_WORK (Pokemon GBA Widescreen's setup.sh makes it; GBAW_WORK if elsewhere)"

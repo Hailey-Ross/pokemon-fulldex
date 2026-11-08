@@ -56,6 +56,7 @@ void ExitTraceIn(const std::string& dir);
 namespace
 {
 std::vector<std::string> g_args;
+static std::string SavePath(const Launcher::Game& g); // (below: a DS game's save in its folder's saves folder)
 std::vector<char*> g_argv;
 // A test run from test.txt (testrun.h), and the .nro to start again for the next one.
 TestRun::State g_test;
@@ -92,7 +93,7 @@ bool RomfsReady()
 bool Playable(const Launcher::Game& g)
 {
     if (g.platform == Launcher::GBA) return true; // (any GBA game plays, with widescreen or without)
-    if (!g.known) return false;
+    if (!g.known || !g.problem.empty()) return false;
     if (IsGame(g.code, "IPGE") || IsGame(g.code, "IPKE")) return rc_num_chunks > 0 && rc_portable_knows(g.code.c_str());
     struct stat st;
     if (stat((g.folder + "/funcs.txt").c_str(), &st) == 0) return true;
@@ -142,7 +143,7 @@ std::string InstallHomeIcons(const std::vector<Launcher::Game>& games)
     std::vector<std::string> done;
     for (const Launcher::Game& g : games)
     {
-        if (!Playable(g) || std::find(done.begin(), done.end(), g.code) != done.end()) continue;
+        if (!Playable(g) || g.hack || std::find(done.begin(), done.end(), g.code) != done.end()) continue;
         done.push_back(g.code);
         SwitchForwarder::Entry e;
         const Launcher::KnownGame* k = Launcher::Known(g.code);
@@ -617,7 +618,7 @@ int PickGame(const std::vector<Launcher::Game>& gamesIn, int selected, const std
                     {
                         const int a = Launcher::RomActionAt(tapX, tapY), r = Launcher::RomRowAt(tapX, tapY);
                         if (a >= 0) { F.side = -1; F.pact = a; aDown = true; }
-                        else if (r >= 0) { if (F.page == Launcher::SIDE_HUB && Launcher::HubTop() && F.prow == r && F.side < 0) aDown = true; F.side = -1; F.pact = -1; F.prow = r; }
+                        else if (r >= 0) { if (F.page == Launcher::SIDE_HUB && (Launcher::HubTop() || Launcher::HubMode() == 3) && F.prow == r && F.side < 0) aDown = true; F.side = -1; F.pact = -1; F.prow = r; }
                     }
                     else if (F.page == Launcher::SIDE_LAUNCHER && Launcher::LookTap(tapX, tapY)) {} // (the colour wheel)
                     else if (F.page >= 0 && Launcher::NotesAt(tapX, tapY)) { if (F.prow == 2 && F.side < 0) aDown = true; F.side = -1; F.prow = 2; }
@@ -772,6 +773,7 @@ int PickGame(const std::vector<Launcher::Game>& gamesIn, int selected, const std
                     }
                     else if (F.dialog == 15) { const std::string pick = F.drow < (int)F.dPaths.size() ? F.dPaths[F.drow] : std::string("#close"); if (Launcher::ThemePick(pick) != 1) closeDialog(); } // (a theme: Apply, Delete)
                     else if (F.dialog >= 10 && F.dialog <= 12) { const bool yes = F.dialog == 11 && F.drow == 0; closeDialog(); if (yes) quitList = true; } // (the beer message: its code is scanned; Quit Fulldex?: Quit)
+                    else if (F.dialog == 17 || F.dialog == 18) Launcher::SavesPick(F.drow < (int)F.dPaths.size() ? F.dPaths[F.drow] : std::string("#close")); // (Manage Saves' dialogs)
                     else if (F.dialog >= 5)
                     {
                         const std::string pick = F.drow < (int)F.dPaths.size() ? F.dPaths[F.drow] : std::string("#close");
@@ -830,7 +832,7 @@ int PickGame(const std::vector<Launcher::Game>& gamesIn, int selected, const std
                 if (bDown) F.popup = -1;
                 else if (aDown && valid)
                 {
-                    const int item = F.popup;
+                    const int item = Launcher::PopupItem(F.popup); // (the row shown -> what it does)
                     F.popup = -1;
                     const Launcher::Game& g = games[selected];
                     if (item == 0) play = true;
@@ -844,35 +846,7 @@ int PickGame(const std::vector<Launcher::Game>& gamesIn, int selected, const std
                     }
                     else if (item == 2) { F.kbFor = 0; F.text = Launcher::ShortName(g); F.dialog = 3; F.drow = 0; kbLayer = 0; kbBuild(); }
                     else if (item == 3) { F.dialog = 4; F.drow = 0; }
-                    else if (item == 4)
-                    {
-                        if (g.saveName.empty()) note = "THIS GAME'S SAVES CANNOT BE MANAGED HERE YET";
-                        else
-                        {
-                            const std::string save = g.folder + "/" + g.saveName;
-                            const auto list = SaveBackups::List(save);
-                            std::error_code ec;
-                            const bool has = std::filesystem::exists(std::filesystem::u8path(save), ec);
-                            static const char* months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
-                            F.dTitle = "Manage Saves";
-                            F.dMsg = !has ? "There is no save for this game yet."
-                                   : list.empty() ? "Fulldex backs up this save every time the game starts. There are no backups yet."
-                                                  : "Fulldex backs up this save every time the game starts. Choose one to go back to it.";
-                            F.dItems.clear();
-                            F.dPaths.clear();
-                            for (size_t k = 0; k < list.size() && k < 5; k++)
-                            {
-                                const std::string& l = list[k].label;
-                                const int m = std::max(1, std::min(12, atoi(l.substr(5, 2).c_str())));
-                                F.dItems.push_back("Restore " + std::to_string(atoi(l.substr(8, 2).c_str())) + " " + months[m - 1] + " " + l.substr(0, 4) + ", " + l.substr(11, 5));
-                                F.dPaths.push_back(list[k].path);
-                            }
-                            F.dItems.push_back("Close");
-                            F.dPaths.push_back("#close");
-                            F.dialog = 5;
-                            F.drow = 0;
-                        }
-                    }
+                    else if (item == 4) Launcher::OpenSaves(g, SavePath(g)); // (Manage Saves: a page of its own, saves_page.h)
                     else if (item == 5) Launcher::OpenAddToTab(g.rom);
                     else if (item == 6) { F.dialog = 1; F.drow = 0; }
                 }
@@ -1020,10 +994,23 @@ int PickGame(const std::vector<Launcher::Game>& gamesIn, int selected, const std
                 if (bDown && (F.side >= 0 || F.banner || onTabs)) { F.side = -1; F.banner = 0; onTabs = false; intoGames(); }
                 }
             }
+            {
+                // (What Manage Saves leaves for the platform: where the saves are, or the game started from a state.)
+                std::string q;
+                std::swap(q, Launcher::Saves().request);
+                if (q.rfind("#folder:", 0) == 0) note = "SAVES ARE IN " + q.substr(8);
+                else if (q.rfind("#play:", 0) == 0 || q == "#replay")
+                {
+                    for (size_t i = 0; i < games.size(); i++) if (games[i].rom == Launcher::Saves().rom) selected = (int)i;
+                    if (q != "#replay") Launcher::PlayState() = q.substr(6);
+                    Launcher::HubMode() = 0; Launcher::Focus().page = -1; Launcher::Focus().side = -1; Launcher::Focus().pact = -1;
+                    play = true;
+                }
+            }
             if (play && selected >= 0 && selected < (int)games.size())
             {
-                if (Playable(games[selected])) { result = selected; break; }
-                note = games[selected].known ? "THIS DOWNLOAD DOES NOT HAVE THIS GAME" : "THIS GAME IS NOT ONE THAT THIS PLAYS";
+                if (Playable(games[selected])) { if (!Launcher::SavesPlayCheck(games[selected], SavePath(games[selected]))) { result = selected; break; } }
+                else note = games[selected].known ? "THIS DOWNLOAD DOES NOT HAVE THIS GAME" : "THIS GAME IS NOT ONE THAT THIS PLAYS";
             }
             if (quitList) break;
         }
@@ -1088,6 +1075,7 @@ int PickGame(const std::vector<Launcher::Game>& gamesIn, int selected, const std
                     break;
                 }
                 note = games[selected].comingSoon ? games[selected].name + ": COMING SOON"
+                     : !games[selected].problem.empty() ? "PATCH: " + games[selected].problem
                      : games[selected].known ? "THIS DOWNLOAD DOES NOT HAVE THIS GAME" : "THIS GAME IS NOT ONE THAT THIS PLAYS";
             }
             if (down & (HidNpadButton_Plus | (ctl.PadCustom() ? action(Controls::B) : (u64)HidNpadButton_B))) break;
@@ -1278,12 +1266,16 @@ static void MoveSavesIn(const std::string& folder)
 }
 
 // Where a DS game's save is: the saves folder of the game's folder (MoveSavesIn), made when missing.
-static std::string SavePath(const Launcher::Game& g)
+// (name: another save of the game's folder, e.g. a hack's game's: Launcher::AdoptHackSaves.)
+static std::string SavePathFor(const Launcher::Game& g, const std::string& name)
 {
-    if (!FulldexFolder(g.folder)) return g.folder + "/" + g.saveName; // (another app's folder: beside the ROM, as it was)
+    if (!FulldexFolder(g.folder)) return g.folder + "/" + name; // (another app's folder: beside the ROM, as it was)
     mkdir((g.folder + "/saves").c_str(), 0777);
-    return g.folder + "/saves/" + g.saveName;
+    return g.folder + "/saves/" + name;
 }
+static std::string SavePath(const Launcher::Game& g) { return SavePathFor(g, g.saveName); }
+// (Cloud saves and the Hub sync and move this one: the save the game really reads.)
+static const bool g_hubSavePath = (Launcher::PlatformSavePath() = [](const Launcher::Game& g) { return SavePath(g); }, true);
 
 // The games to choose from: rom.nds, or the ROMs in the program's folder (and its roms/ folder);
 // in the all-games program also those in the other folders of /switch (the one-game programs'
@@ -1301,6 +1293,13 @@ std::vector<Launcher::Game> FindGames(const std::string& dir, bool& ownFolder)
             if (x.platform == Launcher::DS) x.hasSave = stat(SavePath(x).c_str(), &st) == 0;
     };
     MoveSavesIn(dir);
+    // (Each DS ROM checked against the clean releases, in the background the first time: a hack
+    // gets a save of its own. romhacks.h)
+    Launcher::BeginScan(dir + "/saves");
+    struct EndScan
+    {
+        ~EndScan() { Launcher::EndScan(); }
+    } endScan;
     if (Launcher::ReadGame(dir + "/rom.nds", dir, g))
     {
         games = { g };
@@ -1330,6 +1329,9 @@ std::vector<Launcher::Game> FindGames(const std::string& dir, bool& ownFolder)
         }
         ownFolder = own > 0;
     }
+    // ROM hacks as patch files (.xdelta, .bps, .ups) in this folder or its roms: each made once
+    // into hacks/ (waiting here for the ROMs it needs read: the list is looked at only once).
+    Launcher::AddPatchedHacks({ dir, dir + "/roms" }, dir + "/hacks", dir, games, true);
 #ifdef SSR_GBA
     // The GBA games: in this folder's roms (their saves in saves/ with the DS games') and a GBA folder in
     // it (with that folder's saves), and in Pokemon GBA Widescreen's own folder if it is on the
@@ -1353,6 +1355,7 @@ std::vector<Launcher::Game> FindGames(const std::string& dir, bool& ownFolder)
 #endif
 #endif
     savesIn(games);
+    Launcher::AdoptHackSaves(games, SavePathFor);
     Launcher::AddComingSoon(games);
     Launcher::Sort(games);
     // The same game in two folders (two ROMs, two saves): each says where it is.
@@ -1497,12 +1500,10 @@ bool Start(int& argc, char**& argv)
     }
 #else
     int directGame = -1;
+    // (The game itself, not a hack of it: a HOME Menu icon is for the game.)
     for (size_t i = 0; i < games.size() && !direct.empty(); i++)
-        if (games[i].code == direct && Playable(games[i]))
-        {
+        if (games[i].code == direct && Playable(games[i]) && (directGame < 0 || (games[directGame].hack && !games[i].hack)))
             directGame = (int)i;
-            break;
-        }
     if (!direct.empty() && directGame < 0) fprintf(stderr, "[switch] --game %s: not in the list\n", direct.c_str());
     if (directGame >= 0)
     {
@@ -1622,7 +1623,7 @@ bool Start(int& argc, char**& argv)
         fprintf(stderr, "[switch] GBA: %s, saves in %s\n", game.rom.c_str(), game.folder.c_str());
         // (Cloud saves: a newer save comes down first; the save goes up when the game closes.)
         const std::string cfgAt = SettingsPath(dir);
-        CloudAuto::Start(cfgAt.substr(0, cfgAt.find_last_of('/')), game.folder + "/" + game.saveName);
+        CloudAuto::Start(cfgAt.substr(0, cfgAt.find_last_of('/')), Launcher::HubSavePath(game)); // (the save the game reads: its saves folder)
         const u64 gbaStart = armGetSystemTick();
         GbaRa::Play(game.rom, o, SettingsPath(dir));
         PlayTime::Add(cfgAt.substr(0, cfgAt.find_last_of('/')), (long long)(armTicksToNs(armGetSystemTick() - gbaStart) / 1000000000ULL));
@@ -1636,6 +1637,8 @@ bool Start(int& argc, char**& argv)
         return false;
     }
 #endif
+    // (A ROM not yet checked is, now: a hack plays with a save of its own.)
+    Launcher::ConfirmHack(games, (size_t)chosen, dir + "/saves", SavePathFor);
     const Launcher::Game& game = games[chosen];
     const std::string rom = game.rom, gameDir = game.folder;
     char code[5] = {};
@@ -1650,6 +1653,10 @@ bool Start(int& argc, char**& argv)
     const std::string cfgPath = SettingsPath(dir);
     g_args = { argc > 0 && argv[0] ? argv[0] : "pokemon-ds-wide", rom, "--save", SavePath(game), "--fullscreen",
                "--config", cfgPath };
+    if (game.hack) g_args.push_back("--rom-hack"); // (says once that widescreen is tried on it)
+    // (Play From Slot, Manage Saves: the game starts from that state.)
+    if (!Launcher::PlayState().empty() && game.platform == Launcher::DS && StateSlots::Exists(Launcher::PlayState())) { g_args.push_back("--state-load"); g_args.push_back(Launcher::PlayState()); }
+    Launcher::PlayState().clear();
     // A game that is not recompiled (Black, White, Black 2, White 2) comes with its function table, made on the
     // PC by tools/bw2/funcmap.py or tools/bw1/funcmap.py; its layouts follow the functions that
     // run. SoulSilver and HeartGold need none (their layouts come from their own tables, built into the program)

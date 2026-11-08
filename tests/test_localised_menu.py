@@ -7,5 +7,5 @@ class LocalisedMenuTests(unittest.TestCase):
     def test_translation_and_rendering(self):
         with tempfile.TemporaryDirectory() as folder:
             exe=Path(folder)/'localised-menu'
-            subprocess.run(['c++','-std=c++17','-I'+str(ROOT/'frontend'),str(ROOT/'tests/test_localised_menu.cpp'),'-o',str(exe)],check=True)
+            subprocess.run(['c++','-std=c++17','-I'+str(ROOT/'frontend'),str(ROOT/'tests/test_localised_menu.cpp'),str(ROOT/'frontend/launcher_cjk.cpp'),'-o',str(exe)],check=True)
             subprocess.run([str(exe)],check=True)

@@ -44,6 +44,8 @@ public:
     virtual bool Stat(const std::string& name, bool& exists, Meta& meta, std::string& error) = 0;
     virtual bool Get(const std::string& name, std::vector<uint8_t>& data, std::string& error) = 0;
     virtual bool Put(const std::string& name, const std::vector<uint8_t>& data, const Meta& meta, std::string& error) = 0;
+    // Takes a save (and its description) out: true when it is gone, or was never there.
+    virtual bool Remove(const std::string& name, std::string& error) { (void)name; error = "THIS CLOUD CANNOT DELETE SAVES"; return false; }
 };
 
 std::unique_ptr<Backend> FolderBackend(const std::string& folder);
@@ -102,6 +104,8 @@ public:
     // After a Conflict: keepCloud brings the cloud's down, otherwise this one goes up. The one
     // not kept is copied into the backups folder either way.
     Result Resolve(const std::string& savePath, bool keepCloud);
+    // The save deleted on this device (Manage Saves): taken out of the cloud too, and forgotten here.
+    Result Forget(const std::string& savePath);
 
 private:
     struct Impl;

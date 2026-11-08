@@ -277,6 +277,14 @@ public:
         fs::create_directories(fs::u8path(dir), ec);
         return WriteAtomic(Path(name), data, error) && WriteAtomic(Path(name) + ".json", Bytes(MetaToJson(meta)), error);
     }
+    bool Remove(const std::string& name, std::string& error) override
+    {
+        std::error_code ec;
+        fs::remove(fs::u8path(Path(name) + ".json"), ec);
+        fs::remove(fs::u8path(Path(name)), ec);
+        if (ec) { error = "CANNOT DELETE IN THE SYNC FOLDER"; return false; }
+        return true;
+    }
 
 private:
     std::string Path(const std::string& name) const { return (fs::u8path(dir) / fs::u8path(name)).u8string(); }
@@ -332,6 +340,18 @@ public:
         if (status < 200 || status > 299) { error = Problem(status, body); return false; }
         if (!Call("PUT", name + ".json", MetaToJson(meta), status, body, error)) return false;
         if (status < 200 || status > 299) { error = Problem(status, body); return false; }
+        return true;
+    }
+    bool Remove(const std::string& name, std::string& error) override
+    {
+        // (The description first: a description never names a save not there.)
+        for (const std::string& n : { name + ".json", name })
+        {
+            int status = 0;
+            std::string body;
+            if (!Call("DELETE", n, "", status, body, error)) return false;
+            if (status != 404 && (status < 200 || status > 299)) { error = Problem(status, body); return false; }
+        }
         return true;
     }
 
@@ -454,6 +474,24 @@ public:
         }
         error = "GOOGLE DRIVE: CANNOT SAVE";
         return false;
+    }
+    bool Remove(const std::string& name, std::string& error) override
+    {
+        // (To the Drive's bin, where the player can still get it back for 30 days.)
+        std::string id;
+        if (!Id(name, id, error)) return false;
+        if (id.empty()) return true;
+        Achievements::HttpCall c;
+        c.method = "PATCH";
+        c.url = FULLDEX_GOOGLE_API "/drive/v3/files/" + id + "?fields=id";
+        c.headers.push_back("Content-Type: application/json; charset=UTF-8");
+        c.body = "{\"trashed\":true}";
+        int status = 0;
+        std::string body;
+        if (!Call(c, status, body, error)) return false;
+        if (status != 200 && status != 404) { error = StatusError("GOOGLE DRIVE", status, body); return false; }
+        ids.erase(name);
+        return true;
     }
 
 private:
@@ -758,6 +796,17 @@ Result Sync::Resolve(const std::string& savePath, bool keepCloud)
     Result r = d->Push(name, local);
     r.backup = kept.backup;
     return r;
+}
+
+Result Sync::Forget(const std::string& savePath)
+{
+    std::lock_guard<std::mutex> lock(d->mutex);
+    const std::string name = FileName(savePath);
+    std::string error;
+    if (!d->backend->Remove(name, error)) return Impl::Say(Outcome::Failed, error);
+    d->base.erase(name);
+    d->Store();
+    return Impl::Say(Outcome::NothingYet, "DELETED IN THE CLOUD");
 }
 
 // ---------------------------------------------------------------------------------------------

@@ -7,5 +7,5 @@ class AllLanguagesTests(unittest.TestCase):
   subprocess.run([sys.executable,str(ROOT/'tools/localisation/generate_translations.py'),'--check'],check=True)
   with tempfile.TemporaryDirectory() as folder:
    exe=Path(folder)/'languages'
-   subprocess.run(['c++','-std=c++17','-I'+str(ROOT/'frontend'),str(ROOT/'tests/test_all_languages.cpp'),'-o',str(exe)],check=True)
+   subprocess.run(['c++','-std=c++17','-I'+str(ROOT/'frontend'),str(ROOT/'tests/test_all_languages.cpp'),str(ROOT/'frontend/launcher_cjk.cpp'),'-o',str(exe)],check=True)
    subprocess.run([str(exe)],check=True)

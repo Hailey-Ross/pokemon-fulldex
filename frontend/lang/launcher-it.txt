@@ -562,3 +562,45 @@ Graphics	Grafica
 Controls	Comandi
 Optional Features	Funzioni opzionali
 Release Notes	Note di rilascio
+Game Save	Salvataggio di gioco
+Restore A Backup	Ripristina un backup
+Export Save	Esporta salvataggio
+Import Save	Importa salvataggio
+Play From Quick Save	Gioca dal salvataggio rapido
+Undo Delete	Annulla eliminazione
+Open Saves Folder	Apri cartella salvataggi
+Delete Save	Elimina salvataggio
+Delete Slot	Elimina slot
+Save States	Stati salvati
+They stay on this device	Restano su questo dispositivo
+Healthy	Integro
+Problem	Problema
+Synced	Sincronizzato
+Different	Diverso
+Not Synced	Non sincronizzato
+Not Reached	Non raggiunto
+Cloud Off	Cloud spento
+A copy in the exports folder	Una copia nella cartella delle esportazioni
+A file you choose, or from the import folder	Un file a scelta, o dalla cartella di importazione
+From the import folder beside your saves	Dalla cartella di importazione accanto ai salvataggi
+The slot deleted last comes back	Torna l'ultimo slot eliminato
+None yet: the game makes it	Nessuno: lo crea il gioco
+None yet: one is made each time the game starts	Nessuno: se ne crea uno a ogni avvio del gioco
+Empty	Vuoto
+A: play from it or delete it	A: gioca da qui o elimina
+Save to it from the game's menu	Salva qui dal menu del gioco
+Choose a slot to play from it, or delete it. Save to the slots from the game's menu.	Scegli uno slot per giocare da lì o eliminarlo. Si salva dal menu del gioco.
+Fulldex backs up this save every time the game starts and before anything here changes it. Your ROM is never changed.	Fulldex fa un backup di questo salvataggio a ogni avvio e prima di qualsiasi modifica qui. La tua ROM non viene mai modificata.
+The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.	I giochi GBA hanno uno stato salvato ciascuno, dal menu del gioco. Gli slot sono per i giochi DS.
+Keep This One	Tieni questo
+Choose A File...	Scegli un file...
+Restore Backup	Ripristina backup
+Play Anyway	Gioca comunque
+This Save Has A Problem	Questo salvataggio ha un problema
+Fulldex backs up this save every time the game starts, and before anything here changes it. Choose one to go back to it.	Fulldex fa un backup di questo salvataggio a ogni avvio e prima di qualsiasi modifica qui. Scegline uno per tornarci.
+Asks first. A backup is kept	Chiede prima. Resta un backup
+Slot {}	Slot {}
+Play From Slot {}	Gioca dallo slot {}
+Saved {}	Salvato {}
+SAVES FOLDER	CARTELLA SALVATAGGI
+BESIDE THE ROMS	ACCANTO ALLE ROM

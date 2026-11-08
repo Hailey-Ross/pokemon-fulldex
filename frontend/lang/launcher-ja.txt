@@ -562,3 +562,45 @@ Graphics	グラフィック
 Controls	操作
 Optional Features	オプション機能
 Release Notes	リリースノート
+Game Save	ゲームのセーブ
+Restore A Backup	バックアップを戻す
+Export Save	セーブを書き出す
+Import Save	セーブを読み込む
+Play From Quick Save	クイックセーブから遊ぶ
+Undo Delete	削除を取り消す
+Open Saves Folder	セーブフォルダを開く
+Delete Save	セーブを削除
+Delete Slot	スロットを削除
+Save States	ステートセーブ
+They stay on this device	この端末に残ります
+Healthy	正常
+Problem	問題あり
+Synced	同期済み
+Different	不一致
+Not Synced	未同期
+Not Reached	接続できません
+Cloud Off	クラウドオフ
+A copy in the exports folder	exports フォルダにコピー
+A file you choose, or from the import folder	選んだファイル、または import フォルダから
+From the import folder beside your saves	セーブの隣の import フォルダから
+The slot deleted last comes back	最後に削除したスロットが戻ります
+None yet: the game makes it	まだありません：ゲームが作ります
+None yet: one is made each time the game starts	まだありません：起動のたびに作られます
+Empty	空き
+A: play from it or delete it	A：ここから遊ぶ／削除
+Save to it from the game's menu	ゲームのメニューから保存します
+Choose a slot to play from it, or delete it. Save to the slots from the game's menu.	スロットを選ぶとそこから遊ぶか削除できます。保存はゲームのメニューから。
+Fulldex backs up this save every time the game starts and before anything here changes it. Your ROM is never changed.	Fulldex は起動のたびと、ここで変更する前にこのセーブをバックアップします。ROM は変更されません。
+The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.	GBA のゲームはステートを一つずつ持ち、ゲームのメニューで保存・読み込みします。スロットは DS のゲーム用です。
+Keep This One	こちらを残す
+Choose A File...	ファイルを選ぶ...
+Restore Backup	バックアップを戻す
+Play Anyway	このまま遊ぶ
+This Save Has A Problem	このセーブには問題があります
+Fulldex backs up this save every time the game starts, and before anything here changes it. Choose one to go back to it.	Fulldex は起動のたびと、ここで変更する前にこのセーブをバックアップします。戻したいものを選んでください。
+Asks first. A backup is kept	確認します。バックアップが残ります
+Slot {}	スロット {}
+Play From Slot {}	スロット {} から遊ぶ
+Saved {}	保存 {}
+SAVES FOLDER	セーブフォルダ
+BESIDE THE ROMS	ROM の隣

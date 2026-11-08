@@ -30,6 +30,7 @@
 #include <dirent.h>
 #include "ssr_os.h"
 #include "gamecode.h"
+#include "romhacks.h"
 #include <sys/stat.h>
 
 #include "ui.h"
@@ -44,6 +45,8 @@
 #include <set>
 #include "support_qr.h"
 #include "play_time.h"
+#include "state_slots.h"
+#include "save_backups.h"
 #ifdef SSR_POKEMON_HUB
 #include "pokemon_hub.h"
 #include "companion_rom.h"
@@ -263,6 +266,12 @@ struct Game
     // (The ROMs page: taken off the list (fulldex-hidden.txt); the file's size.)
     bool hidden = false;
     long long fileSize = 0;
+    // A ROM hack (romhacks.h): a modified ROM of a game this plays, with a save of its own (named
+    // after its file) rather than the game's (baseSave). Widescreen is tried on it as on the game.
+    bool hack = false;
+    std::string baseSave;
+    // A patch file that could not be made into a game: why (shown, and it cannot be played).
+    std::string problem;
 };
 
 inline std::string& ContinueRom() { static std::string r; return r; } // the game played last (last-game.txt)
@@ -298,6 +307,9 @@ struct GlassFocus { int side = -1; int banner = 0; int popup = -1; int popX = 0,
                     std::string pageTitle; int sX = 0, sY = 0, sW = 0, sH = 0, sListW = 0, sPvX = 0, sListH = 0, sPvY = 0, pdY = 0, dScroll = 0, dMax = 0; };
 inline GlassFocus& Focus() { static GlassFocus f; return f; }
 inline int PopupCount() { return 7; }
+// The game's menu in the order shown: Play, Manage Saves, Add To Home, Rename, Change Picture, Add To
+// Tab, Remove Game (row -> what it is, PopupLabel's numbers).
+inline int PopupItem(int row) { static const int order[] = { 0, 4, 1, 2, 3, 5, 6 }; return row >= 0 && row < 7 ? order[row] : row; }
 inline std::string PopupLabel(const Game& g, int i)
 {
     static const char* n[] = { "Play", "", "Rename", "Change Picture", "Manage Saves", "Add To Tab", "Remove Game" };
@@ -393,10 +405,56 @@ inline int PopupAt(int x, int y)
     const int i = (y - f.popY) / f.popRow;
     return i < PopupCount() ? i : -1;
 }
-// A romhack: a GBA game that is not one of the official ones by its code (Ultra Violet, ...). (DS
-// hacks keep their game's code: they will be told apart by the ROMs page's checks.)
+// What the list found out about the ROMs and patches (a whole DS ROM is read to tell a clean one
+// from a hack), kept between looks in a file of the saves folder: BeginScan before reading the
+// ROMs, EndScan after. Without BeginScan no ROM is checked (a one-game program's rom.nds).
+inline RomHacks::Cache*& ScanCache()
+{
+    static RomHacks::Cache* cache = nullptr;
+    return cache;
+}
+// (Tests: SSR_ROM_CHECK_WAIT=1 waits for each check while looking, so that a first look, e.g.
+// SSR_LIST_SHOT's, shows what was found.)
+inline bool ScanWaits()
+{
+    static const bool wait = getenv("SSR_ROM_CHECK_WAIT") && *getenv("SSR_ROM_CHECK_WAIT") == '1';
+    return wait;
+}
+inline void BeginScan(const std::string& savesFolder)
+{
+    static RomHacks::Cache cache;
+    cache = RomHacks::Cache();
+    RomHacks::MakeDir(savesFolder);
+    cache.Load(savesFolder + "/rom-check.txt");
+    ScanCache() = &cache;
+}
+inline void EndScan()
+{
+    if (ScanCache()) ScanCache()->Save();
+    ScanCache() = nullptr;
+}
+// A hack's (or another ROM's) save, from its file name: hack-blaze-black-2-redux.sav (never the
+// name of a game's own save).
+inline std::string HackSave(const std::string& rom)
+{
+    std::string k;
+    for (char c : RomHacks::Lower(RomHacks::Stem(rom))) k += isalnum((unsigned char)c) ? c : '-';
+    while (k.find("--") != std::string::npos) k.erase(k.find("--"), 1);
+    if (!k.empty() && k.back() == '-') k.pop_back();
+    if (!k.empty() && k.front() == '-') k.erase(0, 1);
+    return "hack-" + (k.empty() ? std::string("game") : k) + ".sav";
+}
+inline std::string HackName(const std::string& rom)
+{
+    std::string n;
+    for (char c : RomHacks::Stem(rom)) n += c == '_' ? ' ' : (char)toupper((unsigned char)c);
+    return n.empty() ? "ROM HACK" : n;
+}
+// A romhack: a DS ROM romhacks.h found is not a clean release (hack), or a GBA game that is not one
+// of the official ones by its code (Ultra Violet, ...).
 inline bool IsHack(const Game& g)
 {
+    if (g.hack) return true; // (a DS hack: told apart from its clean game by romhacks.h)
     if (!g.known || g.comingSoon || g.platform != GBA) return false;
     const std::string c = g.code.substr(0, 3);
     return c != "AXV" && c != "AXP" && c != "BPE" && c != "BPR" && c != "BPG";
@@ -632,11 +690,19 @@ inline bool ReadGame(const std::string& rom, const std::string& folder, Game& g)
         g.known = true;
         g.name = k->name;
         g.saveName = k->save;
+        // A hack keeps its game's code: told by the ROM not being one of the clean releases.
+        if (ScanCache() && RomHacks::CheckDs(rom, g.code, *ScanCache(), ScanWaits()) == RomHacks::Kind::Modified)
+        {
+            g.hack = true;
+            g.baseSave = k->save;
+            g.name = HackName(rom);
+            g.saveName = HackSave(rom);
+        }
     }
     else
     {
         if (g.name.empty()) g.name = rom.substr(rom.find_last_of('/') + 1);
-        g.saveName = "game.sav";
+        g.saveName = HackSave(rom); // (each its own, not one game.sav for all)
     }
     for (char& c : g.name) c = (char)toupper((unsigned char)c);
     struct stat st;
@@ -885,6 +951,82 @@ inline void ScanFolder(const std::string& folder, std::vector<Game>& out, bool s
     }
 }
 
+// The DS hacks made from patch files (romhacks.h) in `folders`, put on the clean DS ROMs already in
+// `games`, made into outDir once; added to `games` (saves in savesFolder), and any patch that could
+// not be used as a game that cannot be played, saying why. Between BeginScan and EndScan. wait
+// false: a patch whose ROM is still being read (in the background) shows up on a later look.
+inline void AddPatchedHacks(const std::vector<std::string>& folders, const std::string& outDir, const std::string& savesFolder,
+                            std::vector<Game>& games, bool wait, const std::function<void(const std::string&)>& status = {})
+{
+    if (!ScanCache()) return;
+    std::vector<std::string> clean;
+    for (const Game& g : games)
+        if (g.platform == DS && g.known && !g.hack) clean.push_back(g.rom);
+    std::vector<RomHacks::Problem> problems;
+    for (const std::string& rom : RomHacks::MakeDsHacks(folders, clean, outDir, *ScanCache(), problems, wait || ScanWaits(), status))
+    {
+        bool dup = false;
+        for (const Game& g : games) dup |= g.rom == rom;
+        Game g;
+        if (!dup && ReadGame(rom, savesFolder, g)) games.push_back(g);
+    }
+    for (const RomHacks::Problem& p : problems)
+    {
+        Game g;
+        g.platform = DS;
+        g.rom = p.patch;
+        g.folder = savesFolder;
+        g.code = "PTCH";
+        g.name = HackName(p.patch);
+        g.problem = p.why;
+        games.push_back(std::move(g));
+    }
+}
+
+// A hack played before this told hacks apart used its game's save: when the game itself (a clean
+// ROM of it) isn't in the list, that save is the hack's, and is copied to the hack's own the first
+// time (the game's is left as it was). savePath: where a game's save of that name is.
+inline void AdoptHackSaves(std::vector<Game>& games, const std::function<std::string(const Game&, const std::string&)>& savePath)
+{
+    for (Game& h : games)
+    {
+        if (!h.hack || h.baseSave.empty()) continue;
+        bool cleanToo = false;
+        for (const Game& g : games) cleanToo |= g.platform == DS && !g.hack && g.known && g.code == h.code && g.folder == h.folder;
+        if (cleanToo) continue;
+        const std::string own = savePath(h, h.saveName), base = savePath(h, h.baseSave);
+        if (RomHacks::Exists(own) || !RomHacks::Exists(base)) continue;
+        if (RomHacks::CopyFile(base, own))
+        {
+            fprintf(stderr, "[launcher] %s: save %s copied to %s (its own from now on)\n", h.rom.c_str(), base.c_str(), own.c_str());
+            h.hasSave = true;
+        }
+    }
+}
+
+// Before a DS game starts: its ROM checked for certain (waiting while it is read, the first time),
+// so that a hack never plays with its game's save. games[index] is the game; cacheFolder holds
+// rom-check.txt (BeginScan's folder).
+inline void ConfirmHack(std::vector<Game>& games, size_t index, const std::string& cacheFolder,
+                        const std::function<std::string(const Game&, const std::string&)>& savePath)
+{
+    Game& g = games[index];
+    if (g.platform != DS || !g.known || g.hack) return;
+    const KnownGame* k = Known(g.code);
+    if (!k) return;
+    RomHacks::Cache cache;
+    cache.Load(cacheFolder + "/rom-check.txt");
+    const bool hack = RomHacks::CheckDs(g.rom, g.code, cache, true) == RomHacks::Kind::Modified;
+    cache.Save(false);
+    if (!hack) return;
+    g.hack = true;
+    g.baseSave = k->save;
+    g.name = HackName(g.rom);
+    g.saveName = HackSave(g.rom);
+    g.hasSave = RomHacks::Exists(savePath(g, g.saveName));
+    AdoptHackSaves(games, savePath);
+}
+
 // By console (the list's sections), then known games first, in the list's order, then the rest
 // by name.
 inline void Sort(std::vector<Game>& games)
@@ -893,6 +1035,7 @@ inline void Sort(std::vector<Game>& games)
         if (a.platform != b.platform) return a.platform < b.platform;
         const int oa = Order(a.code), ob = Order(b.code);
         if (oa != ob) return oa < ob;
+        if (a.hack != b.hack) return b.hack; // (a game, then its hacks)
         return a.name < b.name;
     });
 }
@@ -1151,7 +1294,7 @@ inline Grid Layout(const Canvas& c)
         g.top = (int)(304 * u); g.bottom = c.h - (int)(82 * u);
         if (PhoneLook())
         {
-            // A phone. Upright: two columns of cards under the banner, down; sideways: one row of cards under it, along.
+            // A phone. Upright: two columns of cards under the banner; sideways: rows of smaller cards under it. Both scroll down.
             g.labelH = 0; g.headH = 0;
             if (c.h > c.w)
             {
@@ -1163,9 +1306,10 @@ inline Grid Layout(const Canvas& c)
             else
             {
                 g.panelX = (int)(74 * u); g.panelW = c.w - g.panelX - (int)(14 * u); g.gap = (int)(14 * u);
-                g.top = (int)(196 * u); g.tile = (int)(190 * u); g.cw = g.tile + (int)(16 * u); g.ch = g.tile + (int)(38 * u); g.bottom = g.top + g.ch;
+                // (Rows that scroll down, as on every other screen: they went along in one row.)
+                g.top = (int)(196 * u); g.tile = (int)(150 * u); g.cw = g.tile + (int)(16 * u); g.ch = g.tile + (int)(38 * u); g.bottom = c.h - (int)(10 * u);
                 g.cols = std::max(1, (g.panelW + g.gap) / (g.cw + g.gap)); g.gx = g.panelX; g.colStep = g.cw + g.gap; g.rowStep = g.ch + g.gap;
-                g.horiz = true;
+                g.horiz = false;
             }
             return g;
         }
@@ -2361,9 +2505,12 @@ inline HubState& Hub() { static HubState h; return h; }
 struct HubGame { std::string name, path; const Game* g; };
 // (A game's other folder as the old list wrote it, "IN BLACK2": just the folder.)
 inline std::string WhereName(const std::string& w) { return w.rfind("IN ", 0) == 0 ? w.substr(3) : w; }
+// (A platform whose saves are not where the list found the game: its own answer, e.g. the Switch's saves folder.)
+inline std::function<std::string(const Game&)>& PlatformSavePath() { static std::function<std::string(const Game&)> f; return f; }
 inline std::string HubSavePath(const Game& g)
 {
     if (g.platform == GBA) return g.folder + "/" + g.saveName;
+    if (PlatformSavePath()) return PlatformSavePath()(g);
 #ifdef __SWITCH__
     return g.folder + "/" + g.saveName;
 #else
@@ -3032,8 +3179,18 @@ inline void DrawCloud(Canvas& c, float cx, float cy, float s, uint32_t col)
     Glass::Round(c, (int)(cx - s * 0.15f), (int)(cy - s * 0.8f), (int)(s * 1.0f), (int)(s * 1.0f), s * 0.5f, col);
 }
 // A on the Hub's first page: Cloud Saves or Move Pokémon opened. (False: not that page.)
+// (Manage Saves, the Hub's page 3: saves_page.h, below.)
+inline bool SavesEnter(int row);
+inline int SavesRows();
+inline std::string SavesSlotDo(int slot);
+inline bool SavesDs();
+inline bool SavesBack();
+inline bool SavesMove(int dir);
+inline int SavesSlotAt(int x, int y);
+inline std::string SavesTitle();
 inline bool HubEnter(int row)
 {
+    if (HubMode() == 3 && !Mover().open) return SavesEnter(row);
     if (Mover().open || HubMode() != 0) return false;
     GlassFocus& F = Focus();
     if (row == 0) { HubMode() = 1; F.prow = 0; }
@@ -4119,11 +4276,12 @@ inline int ThemePick(const std::string& pick)
 // (The Fulldex Discord: people to trade with, help, news. The Hub's last row.)
 static const char* const kDiscordUrl = "https://discord.gg/pnGeMYyJR";
 static const char* const kReleasesUrl = "https://github.com/mamesj/pokemon-fulldex/releases";
-inline int HubRows() { return Mover().open ? MoverRows() : HubMode() == 0 ? 4 : HubMode() == 2 ? TradeRows() : HUB_FIRST + (int)HubGames().size(); }
+inline int HubRows() { return Mover().open ? MoverRows() : HubMode() == 0 ? 4 : HubMode() == 2 ? TradeRows() : HubMode() == 3 ? SavesRows() : HUB_FIRST + (int)HubGames().size(); }
 inline std::vector<std::string> HubActions(int row)
 {
     if (Mover().open) return MoverActions(row);
     if (HubMode() == 2) return TradeActions(row);
+    if (HubMode() == 3) return SavesDs() ? std::vector<std::string>(10, "Slot") : std::vector<std::string>(); // (Manage Saves: its slots)
     if (HubMode() == 0) return {};
     HubLoad();
     const std::vector<HubGame> games = HubGames();
@@ -4239,6 +4397,7 @@ inline std::string HubDo(int row, int act)
 {
     if (Mover().open) return MoverDo(row, act);
     if (HubMode() == 2) return TradeDo(row, act);
+    if (HubMode() == 3) return SavesSlotDo(act);
     const std::vector<std::string> acts = HubActions(row);
     if (act < 0 || act >= (int)acts.size()) return "";
     const std::string a = acts[act];
@@ -4359,6 +4518,8 @@ inline void OpenSupportAsk()
     F.dItems = { "Buy Me A Coffee", "PayPal", "Close" };
     F.dPaths = { "#open:https://buymeacoffee.com/mamesj", "#open:https://paypal.me/mamesj", "#close" };
 }
+#include "saves_page.h"
+inline std::string SavesTitle() { return LauncherText::Tr("Manage Saves") + "   \xC2\xB7   " + Saves().name; }
 inline int PageRows(int page) { return page == SIDE_LAUNCHER ? LauncherRows() : page == SIDE_ABOUT ? 5 : page == SIDE_ROMS ? std::max(1, (int)RomList().size()) : page == SIDE_HUB ? HubRows() : 0; }
 // The cards of the About page that open a page when tapped, as drawn (cleared each frame it is drawn).
 struct AboutLink { int x, y, w, h; const char* url; };
@@ -4421,6 +4582,7 @@ inline bool PageMove(int dir)
     if (F.page == SIDE_ROMS || F.page == SIDE_HUB)
     {
         // (The list, and right of it the chosen row's actions: a ROM's, or the Hub's.)
+        if (F.page == SIDE_HUB && HubMode() == 3 && !Mover().open && SavesMove(dir)) return true; // (Manage Saves: its slots, a grid)
         const int n = F.page == SIDE_HUB ? HubRows() : (int)RomList().size();
         const int na = F.page == SIDE_HUB ? (int)HubActions(F.prow).size() : RomActions();
         if (F.pact >= 0)
@@ -4472,6 +4634,7 @@ inline bool PageBack()
     if (F.page == SIDE_LAUNCHER && F.side < 0 && LauncherMode() == 5) { LauncherMode() = 0; F.prow = 3; F.rScroll = 0; Themes().msg.clear(); Hub().version++; return true; } // (the Gallery: back to its menu)
     if (F.page == SIDE_LAUNCHER && F.side < 0 && LauncherMode() == 3) { LauncherMode() = 2; F.prow = 2; F.rScroll = 0; Themes().msg.clear(); Hub().version++; return true; } // (the Library: back to My Themes)
     if (F.page == SIDE_LAUNCHER && F.side < 0 && LauncherMode() != 0) { F.prow = LauncherMode() == 1 ? 1 : 2; LauncherMode() = 0; F.rScroll = 0; Themes().msg.clear(); Hub().version++; return true; } // (back to its menu)
+    if (F.page == SIDE_HUB && F.side < 0 && HubMode() == 3 && !Mover().open) return SavesBack(); // (Manage Saves: off a slot, then the games)
     if (F.page == SIDE_HUB && F.side < 0 && F.pact < 0 && Mover().open && Mover().swapping) { Mover().swapping = false; Mover().put = -1; Mover().msg.clear(); Hub().version++; return true; }
     if (F.page == SIDE_HUB && F.side < 0 && F.pact < 0 && Mover().open) { MoverShow(false); HubMode() = 0; F.prow = 1; F.rScroll = 0; return true; }
     if (F.page == SIDE_HUB && F.side < 0 && F.pact < 0 && HubMode() == 2) { HubLink::Leave(); HubMode() = 0; F.prow = 2; F.rScroll = 0; Hub().version++; return true; }
@@ -4528,6 +4691,7 @@ inline int RomRowAt(int x, int y)
 inline int RomActionAt(int x, int y)
 {
     const GlassFocus& f = Focus();
+    if (f.page == SIDE_HUB && HubMode() == 3 && !Mover().open) return SavesSlotAt(x, y); // (Manage Saves' slots)
     if ((f.page != SIDE_ROMS && f.page != SIDE_HUB) || f.aW <= 0 || f.aRow <= 0 || x < f.aX || x >= f.aX + f.aW || y < f.aY) return -1;
     const int i = (y - f.aY) / f.aRow;
     return i < (f.page == SIDE_HUB ? (int)HubActions(f.prow).size() : RomActions()) ? i : -1;
@@ -4671,7 +4835,7 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
     const int barH = portP ? (int)(44 * u) : sp.tabsY * 2 + sp.tabsH;
     const int L = sp.bannerX, R = sp.bannerX + sp.bannerW, top = sp.pageTop > 0 ? sp.pageTop : barH + (int)((portP ? 10 : 18) * u), bottom = sp.pageBottom > 0 ? sp.pageBottom : PhoneLook() && c.h > c.w && sp.navY > 0 ? sp.navY - (int)(12 * u) : c.h - (int)((ShortNow() ? 14 : 64) * u); // (a phone sideways: the panels run to the foot of the screen, the back button is in the bar)
     const float titleY = sp.pageTitleY > 0 ? (float)sp.pageTitleY : barH * 0.5f;
-    GT(c, sp.tabsX + (int)(6 * u), titleY, F.page == SIDE_ROMS ? "ROMs" : F.page == SIDE_HUB ? (Mover().open ? "Move Pok\xC3\xA9mon" : HubMode() == 1 ? "Cloud Saves" : HubMode() == 2 ? "Trade" : "Hub") : F.page == SIDE_SETTINGS ? (F.pageTitle.empty() ? std::string("Settings") : F.pageTitle) : F.page == SIDE_LAUNCHER ? (LauncherMode() == 1 ? "Theme Editor" : LauncherMode() == 2 ? "My Themes" : LauncherMode() == 3 ? "Theme Library" : LauncherMode() == 5 ? "Theme Gallery" : LauncherMode() == 4 ? "Font" : "Launcher") : "About", 26 * u, text, true);
+    GT(c, sp.tabsX + (int)(6 * u), titleY, F.page == SIDE_ROMS ? "ROMs" : F.page == SIDE_HUB ? (Mover().open ? "Move Pok\xC3\xA9mon" : HubMode() == 1 ? "Cloud Saves" : HubMode() == 2 ? "Trade" : HubMode() == 3 ? SavesTitle() : std::string("Hub")) : F.page == SIDE_SETTINGS ? (F.pageTitle.empty() ? std::string("Settings") : F.pageTitle) : F.page == SIDE_LAUNCHER ? (LauncherMode() == 1 ? "Theme Editor" : LauncherMode() == 2 ? "My Themes" : LauncherMode() == 3 ? "Theme Library" : LauncherMode() == 5 ? "Theme Gallery" : LauncherMode() == 4 ? "Font" : "Launcher") : "About", 26 * u, text, true);
     const std::string where = std::string("Fulldex   \xC2\xB7   ") + PlatformLabel();
     if (!ShortNow() && !portP) GT(c, R - GW(where, 16 * u, true), titleY, where, 16 * u, hint, true);
     if (F.page == SIDE_ROMS)
@@ -4804,7 +4968,7 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
             }
             // What can be done with it.
             const int na = RomActions(), ah = (int)(44 * u), ag = (int)(6 * u);
-            const int ay = bottom - (int)(18 * u) - na * ah - (na - 1) * ag;
+            const int ay = std::max(bottom - (int)(18 * u) - na * ah - (na - 1) * ag, PhoneLook() && c.h > c.w ? y + (int)(10 * u) : 0); // (upright: under the writing, the panel scrolling to them)
             F.aX = ix; F.aY = ay; F.aW = iw; F.aRow = ah + ag;
             const std::string labels[2] = { g.hidden ? "Show In List Again" : "Hide From List", "Open Folder" };
             const int icons[2] = { Glass::I_GRID, Glass::I_LOAD };
@@ -5086,7 +5250,7 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
             const int room = bottom - (int)(18 * u) - (y + (int)(8 * u));
             if (na * ah + (na - 1) * ag > room) { ag = (int)(4 * u); ah = std::max((int)(30 * u), (room - (na - 1) * ag) / na); }
         }
-        const int ay = bottom - (int)(18 * u) - na * ah - std::max(0, na - 1) * ag;
+        const int ay = std::max(bottom - (int)(18 * u) - na * ah - std::max(0, na - 1) * ag, PhoneLook() && c.h > c.w ? y + (int)(10 * u) : 0); // (upright: under the writing, the panel scrolling to them)
         const std::string word = !t.msg.empty() ? t.msg : s.note;
         if (!word.empty())
         {
@@ -5635,6 +5799,7 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
 #endif
         return;
     }
+    if (F.page == SIDE_HUB && !Mover().open && HubMode() == 3) { DrawSavesPage(c, solid, u, L, R, top, bottom); return; } // (Manage Saves)
     if (F.page == SIDE_HUB && !Mover().open && HubMode() == 0)
     {
         // The Hub's first page: what it holds, each opened with A.
@@ -5983,7 +6148,7 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
             const int room = bottom - (int)(18 * u) - (y + (int)(8 * u));
             if (na * ah + (na - 1) * ag > room) { ag = (int)(4 * u); ah = std::max((int)(30 * u), (room - (na - 1) * ag) / na); }
         }
-        const int ay = bottom - (int)(18 * u) - na * ah - std::max(0, na - 1) * ag;
+        const int ay = std::max(bottom - (int)(18 * u) - na * ah - std::max(0, na - 1) * ag, PhoneLook() && c.h > c.w ? y + (int)(10 * u) : 0); // (upright: under the writing, the panel scrolling to them)
         if (!m.msg.empty())
         {
             const std::vector<std::string> ml = WrapLines(m.msg, 13 * u, iw);
@@ -6181,7 +6346,7 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
             const int room = bottom - (int)(18 * u) - (y + (int)(8 * u));
             if (na * ah + (na - 1) * ag > room) { ag = (int)(4 * u); ah = std::max((int)(30 * u), (room - (na - 1) * ag) / na); }
         }
-        const int ay = bottom - (int)(18 * u) - na * ah - std::max(0, na - 1) * ag;
+        const int ay = std::max(bottom - (int)(18 * u) - na * ah - std::max(0, na - 1) * ag, PhoneLook() && c.h > c.w ? y + (int)(10 * u) : 0); // (upright: under the writing, the panel scrolling to them)
         if (!msg.empty())
         {
             const std::vector<std::string> ml = WrapLines(msg, 13 * u, iw);
@@ -6596,7 +6761,7 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
             const int mg = cmp ? (int)(7 * u) : (int)(16 * u);
             const int ry = sp.firstRow + i * (sp.rowH + sp.rowGap), rx = sp.sideX + mg, rw = sp.sideW - 2 * mg;
             const int fs = Focus().side;
-            const bool on = fs >= 0 ? i == fs : settingsChosen ? i == SIDE_SETTINGS : i == (Focus().page >= 0 ? Focus().page : (int)SIDE_HOME);
+            const bool on = fs >= 0 ? i == fs : settingsChosen ? i == SIDE_SETTINGS : i == (Focus().page >= 0 && !(Focus().page == SIDE_HUB && HubMode() == 3) ? Focus().page : (int)SIDE_HOME);
             const bool lit = fs >= 0 ? i == fs : settingsChosen && i == SIDE_SETTINGS; // (chosen with the arrows)
             if (on)
             {
@@ -6659,7 +6824,7 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
         for (int i = 0; i < SIDES; i++)
         {
             const int x = sp.secX[i], y = sp.secYv[i], w = sp.secW[i], h = sp.secH, r = (int)(16 * u);
-            const bool foc = Focus().page < 0 && Focus().side == i, cur = i == (Focus().page >= 0 ? Focus().page : (int)SIDE_HOME);
+            const bool foc = Focus().page < 0 && Focus().side == i, cur = i == (Focus().page >= 0 && !(Focus().page == SIDE_HUB && HubMode() == 3) ? Focus().page : (int)SIDE_HOME);
             if (foc) { Glass::Glow(c, x, y, w, h, r, u); Glass::Round(c, x, y, w, h, r, Menu::FrostChosen, Glass::ChosenEdge(), 1.5f * u); }
             else if (cur) Glass::Surface(c, 3, x, y, w, h, r, Glass::Button());
             const uint32_t ink = cur && !foc ? Glass::ButtonInk() : text;
@@ -6673,7 +6838,7 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
         for (int i = 0; i < SIDES; i++)
         {
             const int x = sp.secX[i], w = sp.secW[i], py = sp.navY + (int)(5 * u), ph = sp.navH - (int)(10 * u);
-            const bool foc = Focus().page < 0 && Focus().side == i, cur = i == (Focus().page >= 0 ? Focus().page : (int)SIDE_HOME);
+            const bool foc = Focus().page < 0 && Focus().side == i, cur = i == (Focus().page >= 0 && !(Focus().page == SIDE_HUB && HubMode() == 3) ? Focus().page : (int)SIDE_HOME);
             if (foc) { Glass::Glow(c, x, py, w, ph, 14 * u, u); Glass::Round(c, x, py, w, ph, 14 * u, Menu::FrostChosen, Glass::ChosenEdge(), 1.5f * u); }
             else if (cur) Glass::Surface(c, 3, x, py, w, ph, 14 * u, Glass::Button());
             const uint32_t ink = cur && !foc ? Glass::ButtonInk() : text;
@@ -7035,6 +7200,7 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
             const int ph = n * rowH + (n - 1) * rg + 2 * pad;
             int px = cx + grid.cw + (int)(12 * u);
             if (px + pw > c.w - (int)(28 * u)) px = cx - (int)(12 * u) - pw;
+            px = std::max((int)(12 * u), std::min(px, c.w - (int)(12 * u) - pw)); // (upright: no room beside the card, so over it, never off the screen)
             const int py = std::max((int)(28 * u), std::min(cyy, c.h - (int)(82 * u) - ph));
             Focus().popX = px + pad; Focus().popY = py + pad; Focus().popW = pw - 2 * pad; Focus().popRow = rowH + rg;
             // (The rest of the screen dimmed, and the blurred background put back under the menu so
@@ -7054,14 +7220,14 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
             for (int i = 0; i < n; i++)
             {
                 const int ry = py + pad + i * (rowH + rg), rx = px + pad, rw = pw - 2 * pad;
-                const uint32_t ink = i == 6 ? 0xFFF2A08Au : text;
+                const uint32_t ink = PopupItem(i) == 6 ? 0xFFF2A08Au : text;
                 if (i == Focus().popup)
                 {
                     Glass::Glow(c, rx, ry, rw, rowH, 12 * u, u);
                     Glass::Round(c, rx, ry, rw, rowH, 12 * u, Menu::FrostChosen, Glass::ChosenEdge(), 1.5f * u);
                 }
-                Glass::DrawIcon(c, icons[i], rx + 22 * u, ry + rowH * 0.5f, 9 * u, ink);
-                GT(c, rx + (int)(44 * u), ry + rowH * 0.5f, PopupLabel(g, i), 17 * u, ink, true);
+                Glass::DrawIcon(c, icons[PopupItem(i)], rx + 22 * u, ry + rowH * 0.5f, 9 * u, ink);
+                GT(c, rx + (int)(44 * u), ry + rowH * 0.5f, PopupLabel(g, PopupItem(i)), 17 * u, ink, true);
             }
         }
     }
@@ -7087,15 +7253,18 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
             msg = "This deletes " + (sl == std::string::npos ? g.rom : g.rom.substr(sl + 1)) + " from your folder. Your saves are kept.";
             rows = { "Delete ROM File", "Cancel" }; red = 0;
         }
-        else if (F.dialog >= 5) { title = F.dTitle; msg = F.dMsg; rows = F.dItems; red = F.dialog == 6 ? 0 : -1; }
+        else if (F.dialog >= 5) { title = F.dTitle; msg = F.dMsg; rows = F.dItems; red = F.dialog == 6 || F.dialog == 18 ? 0 : -1; }
         else if (F.dialog == 4) { title = "Change Picture"; msg = "Pictures stay on this device. Only use pictures you have permission to use."; rows = { "Import A Picture", "Find Artwork Online", "Plain Card", "Restore Original", "Cancel" }; }
         else { title = "Rename " + ShortName(own); msg = "Type a new name. Leave it empty to go back to the game's own name."; rows = { "Save", "Cancel" }; }
-        const int pw = (int)(560 * u), pad = (int)(24 * u), rowH = (int)(48 * u), rg = (int)(8 * u), fieldH = (int)(52 * u);
+        const int pw = std::min((int)(560 * u), c.w - (int)(24 * u)), pad = (int)(24 * u), rowH = (int)(48 * u), rg = (int)(8 * u), fieldH = (int)(52 * u);
         std::vector<std::string> lines;
         {
             std::string line, word;
-            auto flush = [&]() { if (!word.empty()) { const std::string t = line.empty() ? word : line + " " + word; if (!line.empty() && GW(t, 15 * u, false) > pw - 2 * pad) { lines.push_back(line); line = word; } else line = t; word.clear(); } };
-            for (char ch : msg) { if (ch == ' ') flush(); else word += ch; }
+            const int avail = pw - 2 * pad;
+            auto flush = [&]() { if (!word.empty()) { const std::string t = line.empty() ? word : line + " " + word; if (!line.empty() && GW(t, 15 * u, false) > avail) { lines.push_back(line); line = word; } else line = t; word.clear();
+                while (GW(line, 15 * u, false) > avail) { size_t cut = 0, i = 0; while (i < line.size()) { size_t j = i + 1; while (j < line.size() && ((unsigned char)line[j] & 0xC0) == 0x80) j++; if (cut > 0 && GW(line.substr(0, j), 15 * u, false) > avail) break; cut = j; i = j; } if (cut == 0 || cut >= line.size()) break; lines.push_back(line.substr(0, cut)); line = line.substr(cut); } } };
+            const std::string tmsg = LauncherText::Tr(msg); // (the player's language first: then the lines are cut where its words are)
+            for (char ch : tmsg) { if (ch == ' ') flush(); else word += ch; }
             flush();
             if (!line.empty()) lines.push_back(line);
         }
@@ -7166,9 +7335,21 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
         if (!note.empty())
         {
             const std::string n = CleanFont::Title(UiLang::Tr(note));
-            const int w = (int)(26 * u) + GW(n, 16 * u, true), x0 = bx + bw - w;
-            Glass::DrawIcon(c, Glass::I_INFO, x0 + 9 * u, cy, 9 * u, text);
-            GT(c, x0 + (int)(26 * u), cy, n, 16 * u, text, true);
+            const bool up = c.h > c.w && sp.navY > 0; // (upright: its own bar over the sections, not on them)
+            const int room = up ? c.w - 2 * sp.navX - (int)(66 * u) : bw - (int)(26 * u);
+            float fp = 16 * u;
+            while (fp > 11 * u && GW(n, fp, true) > room) fp -= 0.5f * u;
+            const int tw = std::min(room, GW(n, fp, true)), w = (int)(26 * u) + tw;
+            int x0 = bx + bw - w;
+            float ny = cy;
+            if (up)
+            {
+                const int ph = (int)(40 * u), py = sp.navY - (int)(10 * u) - ph;
+                x0 = (c.w - w) / 2; ny = py + ph * 0.5f;
+                Glass::Round(c, x0 - (int)(16 * u), py, w + (int)(32 * u), ph, ph * 0.5f, 0xE6101418u, 0x3DFFFFFFu, 1.0f * u);
+            }
+            Glass::DrawIcon(c, Glass::I_INFO, x0 + 9 * u, ny, 9 * u, text);
+            GTFit(c, x0 + (int)(26 * u), ny, n, fp, tw + 1, text, true);
         }
         else if (c.h <= c.w && !ShortNow()) // (not upright or a phone sideways: it is a touch screen)
         {
@@ -7327,10 +7508,14 @@ inline void DrawClassic(Canvas& c, const std::vector<Game>& games, int tab, int 
         // The name (shortened: POKEMON is the same for all) and the save.
         std::string name = g.name;
         if (name.rfind("POKEMON ", 0) == 0) name = name.substr(8);
-        const int ns = Canvas::TextWidth(name, s) <= tile ? s : std::max(1, s - 1);
+        int ns = Canvas::TextWidth(name, s) <= tile ? s : std::max(1, s - 1);
+        // (A hack's name is its file's, which can be long: cut to fit.)
+        if (Canvas::TextWidth(name, ns) > tile && ns > 1 && (g.hack || !g.problem.empty())) ns--;
+        while ((g.hack || !g.problem.empty()) && name.size() > 4 && Canvas::TextWidth(name, ns) > tile) name = name.substr(0, name.size() - 3) + "..";
         c.Text(x + (tile - Canvas::TextWidth(name, ns)) / 2, y + tile + 3 * s, name, ns, sel ? th.nameSel : th.name);
         if (sel && th.selBar) c.Fill(x + tile / 4, y + tile + (UiLang::Tall() ? 31 : 19) * s, tile / 2, s, th.selBar);
-        std::string sub = g.comingSoon ? "COMING SOON" : !g.known ? "NOT PLAYABLE" : g.hasSave ? "SAVE FOUND" : "NEW GAME";
+        std::string sub = g.comingSoon ? "COMING SOON" : !g.problem.empty() ? "PATCH PROBLEM" : !g.known ? "NOT PLAYABLE"
+                        : g.hack ? (g.hasSave ? "HACK: SAVE FOUND" : "HACK: NEW GAME") : g.hasSave ? "SAVE FOUND" : "NEW GAME";
         if (!g.where.empty() && g.known) sub = (g.hasSave ? "SAVE " : "NEW ") + g.where; // e.g. SAVE IN BLACK2
         if(g.favourite)c.Text(x+tile-24*s,y+4*s,"FAV",s,th.nameSel);
         const int ss = std::max(1, s * 2 / 3);
@@ -7392,6 +7577,11 @@ inline std::vector<Setting> SettingsList()
     l.push_back({ "!updates", "CHECK FOR UPDATES", { { "", "CHECK" } }, "",
                   "CHECKS GITHUB FOR A NEW VERSION. CHOOSE AGAIN TO INSTALL IT: IT IS CHECKED AGAINST THE RELEASE SHA256SUMS.TXT "
                   "AND THE OLD VERSION IS KEPT IN THE UPDATE FOLDER. YOUR ROMS / SAVES AND SETTINGS STAY AS THEY ARE." });
+#endif
+#if !defined(__ANDROID__) && !defined(__SWITCH__) && !defined(SSR_IOS)
+    l.push_back({ "!saves_folder", "SAVES FOLDER", { { "", "BESIDE THE ROMS" } }, "",
+                  "WHERE YOUR SAVES ARE KEPT. CHOOSE A FOLDER OF YOUR OWN: YOUR SAVES AND FULLDEX FILES ARE COPIED THERE (NOTHING THERE IS REPLACED / THE OLD FOLDER STAYS AS IT IS) "
+                  "AND FULLDEX USES IT FROM ITS NEXT START. A FOLDER DROPBOX OR ONEDRIVE OR SYNCTHING KEEPS IN SYNC WORKS TOO. CHOOSE AGAIN TO GO BACK TO THE FOLDER BESIDE THE ROMS." });
 #endif
     l.push_back({ "!releases", "RELEASE PAGE", { { "", "OPEN" } }, "",
                   "OPENS THE LIST OF RELEASES ON GITHUB: THE CHANGES IN EACH VERSION, AND THE DOWNLOADS." });
@@ -7554,6 +7744,7 @@ inline int GroupOf(const Setting& s)
 {
     if (s.key && (!strcmp(s.key, "!updates") || !strcmp(s.key, "!releases"))) return 8;
     if (s.key && !strcmp(s.key,"!favourite")) return 6;
+    if (s.key && !strcmp(s.key, "!saves_folder")) return 6; // (GAME LIST)
     if (!s.key) return !strcmp(s.name, "KEYS AND BUTTONS") ? 3 : !strcmp(s.name, "RELEASE NOTES") ? 8 : 7;
     if (!strncmp(s.key,"extra_",6)) return 9;
     if (!strcmp(s.key, "list_lang")) return 0;

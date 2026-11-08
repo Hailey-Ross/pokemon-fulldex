@@ -11,9 +11,15 @@ int main(int argc, char** argv) {
     { std::ofstream f(path); f << "wide_lines=1080\nbusy_detail=1\nlist_lang=ja\n"; }
     Launcher::SettingsPage page;
     page.Open(path, true);
-    page.Enter(2);
-    for (size_t i = 0; i < page.items.size(); ++i)
-        if (page.items[i].key && !strcmp(page.items[i].key, "wide_lines")) page.selected = (int)i;
+    // (The group holding 3D Resolution, wherever Settings puts it.)
+    bool found = false;
+    for (int g = 0; g < (int)Launcher::SettingsGroups().size() && !found; ++g)
+    {
+        page.Enter(g);
+        for (size_t i = 0; i < page.items.size(); ++i)
+            if (page.items[i].key && !strcmp(page.items[i].key, "wide_lines")) { page.selected = (int)i; found = true; }
+    }
+    assert(found);
     assert(!strcmp(page.items[page.selected].key, "wide_lines"));
     page.Change(-1);
     assert(Launcher::ConfigValue(path, "wide_lines") == "720");

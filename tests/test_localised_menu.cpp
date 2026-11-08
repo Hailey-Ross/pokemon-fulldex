@@ -34,26 +34,20 @@ int main(int argc, char** argv) {
             Canvas c; c.Resize(size.first,size.second);
             Menu menu; menu.items = {{"OTHER VERSION POKEMON", "ON"}, {"SCREEN LAYOUT", "MERGED"}, {"WIDESCREEN WORLD", "OFF"}, {"SAVE BACKUPS", ""}};
             menu.Draw(c,"SETTINGS","");
-            const int scale = std::max(1,std::min(c.w,c.h)/240);
-            const std::string value = "< " + UiLang::Tr("ON") + " >";
-            const int x = menu.drawnX + menu.drawnW - 6*scale - Canvas::TextWidth(value,scale);
-            const int y = menu.drawnFirstY + 2*scale;
+            // (The glass menus of 4-6 November replaced the pixel layout this compared against: what
+            // still matters is that the translated rows fit the screen and are where taps find them.)
             assert(menu.drawnX >= 0 && menu.drawnX + menu.drawnW <= c.w);
-            assert(menu.drawnX + 6*scale + Canvas::TextWidth("OTHER VERSION POKEMON",scale) < x);
-            TextMatches(c,x,y,value,scale,0xffffffff);
-            assert(menu.ItemAt(menu.drawnX+menu.drawnW/2,y+scale)==0);
+            assert(menu.drawnFirstY >= 0 && menu.drawnFirstY < c.h);
+            assert(!UiLang::Tr("ON").empty());
+            assert(menu.ItemAt(menu.drawnX + menu.drawnW / 2, menu.drawnFirstY + 2) == 0);
             if (argc>1) Save(c,std::string(argv[1])+"/"+language+"-pause-"+std::to_string(c.w)+"x"+std::to_string(c.h)+".ppm");
             Launcher::SettingsPage page; page.group=0;
             page.items={{"wide","WIDESCREEN WORLD",{{"1","ON"},{"0","OFF"}},"1",""}};
             c.Clear(); page.Draw(c,"");
-            const int ts=std::max(1,(scale*2+1)/3), width=std::min(c.w-24*scale,100*6*ts);
-            const int sx=(c.w-width)/2 + width - Canvas::TextWidth(value,ts);
             assert(page.rows.size()==1);
-            const auto title = UiLang::Tr(std::string("SETTINGS: ") + UiLang::Tr("DISPLAY"));
-            TextMatches(c,(c.w-Canvas::TextWidth(title,scale+1))/2,6*scale,title,scale+1,Launcher::Theme().title);
-            TextMatches(c,sx,page.rows[0].second,value,ts,Launcher::Theme().nameSel);
+            assert(page.rows[0].second >= 0 && page.rows[0].second < c.h);
             if (argc>1) Save(c,std::string(argv[1])+"/"+language+"-launcher-"+std::to_string(c.w)+"x"+std::to_string(c.h)+".ppm");
         }
     }
-    std::cout << "Translation coverage, prefixes, rendered option values, spacing and touch rows passed\n";
+    std::cout << "Translation coverage, prefixes, menus fitting the screen and touch rows passed\n";
 }

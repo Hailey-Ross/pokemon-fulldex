@@ -654,6 +654,7 @@ struct Options
     bool swapped = false;
     bool logSections = false;
     bool noWide = false;                 // turn the widescreen 3D renderer off
+    bool romHack = false;                // a ROM hack (the game list's romhacks.h): said once as it starts
     std::string funcs;                   // function table for a game that is not recompiled (tools/bw2/funcmap.py); with --interp or --jit
     bool jit = false;                    // melonDS's JIT (a game that is not recompiled, built with SSR_JIT)
     bool forceField = false;             // test aid: treat every frame as the overworld (for games other than SoulSilver)
@@ -778,6 +779,7 @@ static bool ParseArgs(int argc, char** argv, Options& o)
         else if (a == "--swap") o.swapped = true;
         else if (a == "--log-sections") o.logSections = true;
         else if (a == "--no-wide") o.noWide = true;
+        else if (a == "--rom-hack") o.romHack = true;
         else if (a == "--force-field") o.forceField = true;
         else if (a == "--funcs") o.funcs = next();
         else if (a == "--jit") o.jit = true;
@@ -9234,7 +9236,9 @@ int main(int argc, char** argv)
             // so fast forward stays on. Menus, text boxes, battles and games without field detection keep the rule.)
             const bool freeWalk = pokeActions.Supported() && (pokeActions.Flags() & PK_NDS_FIELD_SCREEN) &&
                                   !(pokeActions.Flags() & (PK_NDS_FIELD_LOCKED | PK_NDS_FIELD_TEXT | PK_NDS_FIELD_MENU));
-            if (speed > 1 && dirs && !freeWalk && now - dirSince < 250) speed = 1;
+            // (FAST FORWARD turned on in the menu stays on whatever is pressed (#111): the quarter second is for
+            // fast forward held on its button, where a quick tap in a menu would otherwise move two or three places.)
+            if (speed > 1 && dirs && !freeWalk && !fastLock && now - dirSince < 250) speed = 1;
         }
         prevPad = ps;
 
@@ -9271,6 +9275,15 @@ int main(int argc, char** argv)
         // Ultrawide (wider than about 2.2:1: 21:9, 32:9): the world is drawn out to the edges, but
         // the games never showed that far, so scenery can pop in or leave gaps at the far edges.
         // Said once, the first time a game is played that wide.
+        // A ROM hack: widescreen is tried on it as on its game, and may show what the hack moved
+        // about wrongly. Said each time it starts, for a while.
+        static bool hackSaid = false;
+        if (opt.romHack && !opt.headless && !hackSaid && frame >= 240)
+        {
+            hackSaid = true;
+            toast = "ROM HACK: GLITCHY SIDES? TRY ASPECT RATIO 4:3";
+            toastUntil = frame + 600;
+        }
         if (merged && !opt.headless && !cfg.ultraNoticeSeen && frame > 300 && view.width > 2.2f * 192)
         {
             cfg.ultraNoticeSeen = true;
@@ -10228,8 +10241,12 @@ int main(int argc, char** argv)
                     lastApp = picked;
                     lastAppFrame = frame;
                 }
-                else if (generic && lastAppFrame && frame - lastAppFrame < 90 && !fieldNow && !appBottomNow)
-                    // (Not when another application has started, e.g. the party after a summary.)
+                else if (generic && lastAppFrame && frame - lastAppFrame < 90 && !fieldNow && !appBottomNow &&
+                         !(pt.on && funcWatch.Ran(pt.field, 2)))
+                    // (Not when another application has started, e.g. the party after a summary;
+                    // nor once Platinum's overworld runs, which fieldNow, from SoulSilver's code,
+                    // doesn't see: after CONTINUE the Journal's layout, 4:3, stayed over the
+                    // overworld for a second and a half.)
                     picked = lastApp;
                 else if (!generic)
                     lastAppFrame = 0;
@@ -11301,6 +11318,28 @@ int main(int argc, char** argv)
             // emulated (from copies of what that emulation overwrites).
             sceneMark(3);
             if (merged) takeWideImage();
+            // (--log-sections: how much of the view's sides the widescreen picture leaves empty,
+            // rows with nothing drawn at its left and right edges, in tenths, as it changes.)
+            if (opt.logSections && merged && wideImage.pixels && wideImage.w > 0 && wideImage.h > 0)
+            {
+                static int lastEmpty = -1, lastFlat = -1;
+                int empty = 0, flat = 0;
+                const int side = std::max(4, wideImage.w / 10);
+                for (int y = 0; y < wideImage.h; y++)
+                {
+                    const uint32_t* row = wideImage.pixels + (size_t)y * wideImage.w;
+                    empty += !(row[0] >> 24) + !(row[wideImage.w - 1] >> 24);
+                    // (A row whose outer tenth is one colour: drawn out, not the world.)
+                    bool same = true;
+                    for (int x = 1; x < side && same; x++) same = (row[x] & 0xFFFFFF) == (row[0] & 0xFFFFFF);
+                    flat += same;
+                }
+                const int tenths = empty * 10 / (2 * wideImage.h), flatTenths = flat * 10 / wideImage.h;
+                if (tenths != lastEmpty || flatTenths != lastFlat)
+                    fprintf(stderr, "[wide] frame %u: sides %d/10 empty, left %d/10 one colour (scene %s)\n", frame, tenths, flatTenths, scene.name);
+                lastEmpty = tenths;
+                lastFlat = flatTenths;
+            }
             sceneMark(4);
             DrawJob& job = ahead ? aheadJobs[(aheadHead + aheadCount) % 3] : pipelined ? pendingJob : nowJob;
             job.merged = merged;

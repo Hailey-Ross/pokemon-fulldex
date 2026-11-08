@@ -265,7 +265,7 @@ inline int Make(const std::string& dir, const std::vector<Launcher::Game>& games
     const HRESULT init = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     for (const Launcher::Game& g : games)
     {
-        if (!g.known || !done.insert(g.code).second) continue;
+        if (!g.known || g.hack || !done.insert(g.code).second) continue; // (the games, not hacks of them)
         IShellLinkW* link = nullptr;
         if (FAILED(CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER, IID_IShellLinkW, (void**)&link))) break;
         link->SetPath(exe);
@@ -330,7 +330,7 @@ inline int Make(const std::string& dir, const std::vector<Launcher::Game>& games
     quoted += "'";
     for (const Launcher::Game& g : games)
     {
-        if (!g.known || !done.insert(g.code).second) continue;
+        if (!g.known || g.hack || !done.insert(g.code).second) continue; // (the games, not hacks of them)
         std::string lower = g.code;
         for (char& c : lower) c = (char)tolower((unsigned char)c);
         // The app is a shell script that starts the program on the game; the program, inside
@@ -420,7 +420,7 @@ inline int Make(const std::string& dir, const std::vector<Launcher::Game>& games
     quoted += "\"";
     for (const Launcher::Game& g : games)
     {
-        if (!g.known || !done.insert(g.code).second) continue;
+        if (!g.known || g.hack || !done.insert(g.code).second) continue; // (the games, not hacks of them)
         const std::string png = iconDir + "/" + g.code + ".png";
         const std::vector<uint32_t> px = Picture(g, 256);
         const bool icon = !px.empty() && WriteFile(png, Png(px, 256, 256));

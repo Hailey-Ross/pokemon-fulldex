@@ -562,3 +562,45 @@ Graphics	Gráficos
 Controls	Controles
 Optional Features	Funciones opcionales
 Release Notes	Notas de la versión
+Game Save	Partida guardada
+Restore A Backup	Restaurar una copia
+Export Save	Exportar partida
+Import Save	Importar partida
+Play From Quick Save	Jugar desde el guardado rápido
+Undo Delete	Deshacer borrado
+Open Saves Folder	Abrir carpeta de partidas
+Delete Save	Borrar partida
+Delete Slot	Borrar ranura
+Save States	Estados guardados
+They stay on this device	Se quedan en este dispositivo
+Healthy	Correcta
+Problem	Problema
+Synced	Sincronizada
+Different	Distinta
+Not Synced	Sin sincronizar
+Not Reached	Sin conexión
+Cloud Off	Nube desactivada
+A copy in the exports folder	Una copia en la carpeta de exportaciones
+A file you choose, or from the import folder	Un archivo que elijas, o de la carpeta de importación
+From the import folder beside your saves	De la carpeta de importación junto a tus partidas
+The slot deleted last comes back	Vuelve la última ranura borrada
+None yet: the game makes it	Ninguna aún: la crea el juego
+None yet: one is made each time the game starts	Ninguna aún: se hace una cada vez que empieza el juego
+Empty	Vacía
+A: play from it or delete it	A: jugar desde ella o borrarla
+Save to it from the game's menu	Guarda en ella desde el menú del juego
+Choose a slot to play from it, or delete it. Save to the slots from the game's menu.	Elige una ranura para jugar desde ella o borrarla. Se guarda desde el menú del juego.
+Fulldex backs up this save every time the game starts and before anything here changes it. Your ROM is never changed.	Fulldex hace una copia de esta partida cada vez que empieza el juego y antes de cambiarla aquí. Tu ROM nunca se modifica.
+The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.	Los juegos de GBA tienen un estado guardado cada uno, desde el menú del juego. Las ranuras son para los juegos de DS.
+Keep This One	Quedarme con esta
+Choose A File...	Elegir un archivo...
+Restore Backup	Restaurar copia
+Play Anyway	Jugar de todos modos
+This Save Has A Problem	Esta partida tiene un problema
+Fulldex backs up this save every time the game starts, and before anything here changes it. Choose one to go back to it.	Fulldex hace una copia de esta partida cada vez que empieza el juego y antes de cambiarla aquí. Elige una para volver a ella.
+Asks first. A backup is kept	Pregunta antes. Se guarda una copia
+Slot {}	Ranura {}
+Play From Slot {}	Jugar desde la ranura {}
+Saved {}	Guardada {}
+SAVES FOLDER	CARPETA DE PARTIDAS
+BESIDE THE ROMS	JUNTO A LAS ROMS

@@ -17,6 +17,7 @@ struct ListGame
     std::string art;     // its picture's name for Art, "" for none
     bool hasSave = false;
     bool widescreen = false; // false: it plays, without widescreen
+    bool hack = false;       // not one of the games as sold: a hack (or another game)
 };
 
 // The GBA games in the roms folder (Ultra Violet also as its .ips with a FireRed 1.0 ROM), with

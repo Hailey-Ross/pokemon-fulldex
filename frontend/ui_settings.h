@@ -1976,12 +1976,24 @@ inline void Menu::DrawSettings(Canvas& c, const std::string& title, const std::s
                 const bool bold = it.kind == K_FOLDER;
                 int lp2 = lpx; // (A long name shrinks a little first, and is cut only if it still does not fit.)
                 while (lp2 * 100 > lpx * 78 && W(label, lp2, bold) > maxW) lp2--;
-                if (W(label, lp2, bold) > maxW)
+                std::string line2; // (still too long: two lines, split at the last space that lets both fit)
+                if (W(label, lp2, bold) > maxW && rowH >= KR(40))
+                {
+                    const int lp3 = lpx * 80 / 100;
+                    for (size_t k = label.rfind(' '); k != std::string::npos && k > 0; k = label.rfind(' ', k - 1))
+                        if (W(label.substr(0, k), lp3, bold) <= maxW && W(label.substr(k + 1), lp3, bold) <= maxW) { line2 = label.substr(k + 1); label = label.substr(0, k); lp2 = lp3; break; }
+                }
+                if (line2.empty() && W(label, lp2, bold) > maxW)
                 {
                     while (label.size() > 1 && W(label + "...", lp2, bold) > maxW) label.pop_back();
                     label += "...";
                 }
-                T(c, listX + KR(76) + in, base, label, lp2, ink, bold);
+                if (line2.empty()) T(c, listX + KR(76) + in, base, label, lp2, ink, bold);
+                else
+                {
+                    T(c, listX + KR(76) + in, base - lp2 * 3 / 5, label, lp2, ink, bold);
+                    T(c, listX + KR(76) + in, base + lp2 * 3 / 5, line2, lp2, ink, bold);
+                }
             }
             if (it.kind == K_FOLDER && !it.value.empty())
                 T(c, listX + listW - KR(20) - W(it.value, KR(17)), base, it.value, KR(17), GlassHint);

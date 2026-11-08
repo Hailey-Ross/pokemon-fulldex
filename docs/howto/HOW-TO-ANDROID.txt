@@ -1,0 +1,30 @@
+POKEMON FULLDEX ON ANDROID: HOW TO SET IT UP
+
+What you need: Android 7.0 or newer on a 64-bit phone or handheld, and your own ROMs.
+
+1. Download pokemon-ds-wide-android.apk on the phone and open it. Android asks
+   to allow installing apps from your browser or Files app the first time:
+   allow it, then install. (If Play Protect warns about an unknown app, choose
+   "More details", then "Install anyway".)
+2. Put your ROMs (DS and GBA, any names) in a folder on the phone, for example
+   ROMs in its internal storage.
+3. Start Pokemon Fulldex, allow access to files, and pick that folder.
+   Tap a game twice (or press A on a controller) to play.
+
+Controls:
+  On-screen buttons while you play by touch: MENU at the top opens the pause
+  menu, hold >> beside R to fast forward, tap the picture to touch the DS screen.
+  A controller (Xbox, PlayStation, Backbone, Razer Kishi and others) hides the
+  on-screen buttons: Start opens the pause menu, the right trigger fast forwards.
+  CONTROLS > KEYS AND BUTTONS changes which button does what.
+
+Saves:
+  In a saves folder inside your ROMs folder (made for you). To carry on from
+  another emulator, put its .sav there under the game's name (black2.sav ...).
+  A game's menu > Manage Saves shows its save, backups and save states.
+  The settings and game.log are in Android/data/io.github.mamesj.pokemonds/files
+
+Speed: the 3D world starts at 720P (Graphics > 3D Resolution). If a busy place
+slows down, turn on Lower Detail When Busy, or turn 60 FPS off.
+
+Help, bugs and updates: https://github.com/mamesj/pokemon-fulldex

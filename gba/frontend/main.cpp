@@ -861,7 +861,11 @@ struct App
         const bool wantRa = false;
         (void)sold;
 #endif
-        if (!Games::Prepare(g, rom, error, wantRa ? &sold : nullptr))
+        // (A hack whose widescreen patch doesn't fit: tried anyway, unless the GBA's own shape
+        // was chosen, which is how to play it as it is when it glitches.)
+        const std::string shape = set.Get("widescreen");
+        const bool ownShape = shape == "off" || shape == "3:2" || shape == "4:3";
+        if (!Games::Prepare(g, rom, error, wantRa ? &sold : nullptr, !ownShape))
         {
             Toast(error, 5000);
             return false;
@@ -928,6 +932,7 @@ struct App
             SDL_PauseAudioDevice(audio, 0);
         }
         if (g.patch.empty()) Toast("NO WIDESCREEN FOR THIS ROM: " + g.why, 4000);
+        else if (g.forced && !ownShape) Toast("ROM HACK: GLITCHY SIDES? TRY ASPECT RATIO 3:2", 6000);
 #ifdef GBAW_EMBEDDED
         // The ROM RetroAchievements knows is the one sold (sold), not the widescreen patch.
         if (wantRa)
@@ -1940,8 +1945,8 @@ struct App
                     c.TextCentred(x + tileW / 2, ty, l, 1, sel ? Colour::Bright : Colour::Text);
                     ty += 10;
                 }
-                std::string status = g.patch.empty() ? "NO WIDESCREEN" : g.hasSave ? "SAVE FOUND" : "NEW GAME";
-                c.TextCentred(x + tileW / 2, y + tileH - 30, status, 1, g.patch.empty() ? Colour::Warn : g.hasSave ? 0xFF7EE08A : Colour::Hint);
+                std::string status = g.patch.empty() ? "NO WIDESCREEN" : g.forced ? "WIDESCREEN UNTESTED" : g.hasSave ? "SAVE FOUND" : "NEW GAME";
+                c.TextCentred(x + tileW / 2, y + tileH - 30, status, 1, g.patch.empty() || g.forced ? Colour::Warn : g.hasSave ? 0xFF7EE08A : Colour::Hint);
                 std::string file = g.fileName;
                 if ((int)file.size() * 6 > tileW - 8) file = file.substr(0, (tileW - 8) / 6 - 3) + "...";
                 c.TextCentred(x + tileW / 2, y + tileH - 16, file, 1, 0xFF5E6C88);
@@ -1952,6 +1957,8 @@ struct App
             if (firstRow + rowsFit < allRows) c.TextCentred(c.w / 2, y0 + rows * (tileH + gap) - gap + 4, "MORE BELOW", 1, Colour::Hint);
             if (games[listSel].patch.empty() && !games[listSel].why.empty())
                 c.TextCentred(c.w / 2, c.h - 30, "NO WIDESCREEN: " + games[listSel].why, 1, Colour::Warn);
+            else if (games[listSel].forced)
+                c.TextCentred(c.w / 2, c.h - 30, "ROM HACK: WIDESCREEN TRIED ANYWAY (" + games[listSel].why + ")", 1, Colour::Warn);
         }
         c.TextCentred(c.w / 2, c.h - 14,
                       Hint("ENTER: PLAY   H: SETTINGS   O: ROMS FOLDER   R: LOOK AGAIN   F11: WINDOW   ESC: QUIT",
@@ -2763,6 +2770,7 @@ std::vector<ListGame> Find(const std::string& roms, const std::string& saves)
         l.art = g.patch.empty() ? std::string() : Games::ArtCode(g.sha1);
         l.hasSave = g.hasSave;
         l.widescreen = !g.patch.empty();
+        l.hack = !g.known;
         out.push_back(l);
     }
     return out;

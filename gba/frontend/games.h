@@ -20,6 +20,12 @@
 #include <mgba-util/sha1.h>
 
 #include "patches.h" // made at build time (tools/embed_patches.py): kWidePatches
+// ROM hacks as UPS, BPS and xdelta patches too (Fulldex's romhacks.h, when this is built into it);
+// on its own, IPS patches only.
+#if __has_include("romhacks.h")
+#include "romhacks.h"
+#define GBAW_ROMHACKS 1
+#endif
 
 namespace gbaw
 {
@@ -119,6 +125,41 @@ inline bool ApplyIps(std::vector<uint8_t>& rom, const uint8_t* p, size_t n)
         }
     }
     return false;
+}
+
+// A hack's patch (IPS, or UPS, BPS and xdelta with romhacks.h) onto the ROM it is for.
+inline bool ApplyPatch(std::vector<uint8_t>& rom, const std::vector<uint8_t>& p, std::string* error = nullptr)
+{
+#ifdef GBAW_ROMHACKS
+    if (RomHacks::FormatOf(p.data(), p.size()) != RomHacks::Format::Ips)
+    {
+        RomHacks::MemReader r(rom);
+        RomHacks::MemWriter w;
+        std::string e;
+        if (!RomHacks::Apply(p, r, w, e))
+        {
+            if (error) *error = e;
+            return false;
+        }
+        rom.swap(w.data);
+        return true;
+    }
+#endif
+    if (!ApplyIps(rom, p.data(), p.size()))
+    {
+        if (error) *error = "THE IPS PATCH IS DAMAGED";
+        return false;
+    }
+    return true;
+}
+inline bool FormatIsIps(const std::vector<uint8_t>& p) { return p.size() >= 5 && !memcmp(p.data(), "PATCH", 5); }
+inline bool IsPatchFile(const std::string& n)
+{
+#ifdef GBAW_ROMHACKS
+    return RomHacks::IsPatchName(n);
+#else
+    return EndsWith(n, ".ips");
+#endif
 }
 
 // Whether a ROM has everything a widescreen patch needs (its .safety list): the functions it
@@ -234,13 +275,26 @@ inline const char* PatchForCode(const std::string& code)
     if (code == "AXPS") return "sapphirees";
     if (code == "AXPI") return "sapphireit";
     if (code == "AXPJ") return "sapphirejp";
+    if (code == "BPGE") return "leafgreen";
     return nullptr;
+}
+// The same for a ROM of that code and version (header 0xBC): the patch for its own version where
+// there is one (FireRed and LeafGreen 1.1, English Ruby and Sapphire 1.0 and 1.1).
+inline const WidePatch* PatchForVersion(const std::string& code, int version)
+{
+    const char* base = PatchForCode(code);
+    if (!base) return nullptr;
+    std::string name = base;
+    if ((code == "BPRE" || code == "BPGE") && version == 1) name += "11";
+    else if ((code == "AXVE" || code == "AXPE") && version == 1) name += "11";
+    else if ((code == "AXVE" || code == "AXPE") && version == 0) name += "10";
+    return FindPatch(name);
 }
 
 struct Game
 {
     std::string rom;       // the ROM's path
-    std::string ips;       // an IPS patch put on it first (Ultra Violet from FireRed), or ""
+    std::string ips;       // a hack's patch put on it first (IPS, UPS, BPS or xdelta: Ultra Violet's .ips on FireRed), or ""
     std::string fileName;  // as shown under the name
     std::string key;       // its save is saves/<key>.sav
     std::string name;
@@ -250,9 +304,12 @@ struct Game
     uint32_t colour = 0xFF505A70;
     bool known = false;
     bool hasSave = false;
+    // A hack whose widescreen patch doesn't fit (why says what is in the way): tried all the same,
+    // unless the player chose the GBA's own shape (ASPECT RATIO 3:2 or 4:3).
+    bool forced = false;
 };
 
-// A save the player put beside the ROM (or beside Ultra Violet's .ips), with the ROM's name.
+// A save the player put beside the ROM (or beside a hack's patch), with the ROM's name.
 inline std::string SaveBeside(const Game& g)
 {
     const std::string& f = g.ips.empty() ? g.rom : g.ips;
@@ -293,6 +350,9 @@ inline void Identify(Game& g, const std::vector<uint8_t>& rom)
             return;
         }
     g.key = KeyFromFile(g.fileName);
+    // (Never one of the games' own saves: a hack named firered.ips is not FireRed.)
+    for (const Known& k : KnownGames())
+        if (g.key == k.key) g.key = "hack-" + g.key;
     g.name = g.fileName.substr(0, g.fileName.rfind('.'));
     for (char& c : g.name) c = (char)toupper((unsigned char)c);
     // A hack gets widescreen if it left alone everything a patch needs (whatever its code).
@@ -306,16 +366,20 @@ inline void Identify(Game& g, const std::vector<uint8_t>& rom)
             return;
         }
     const std::string code = Header(rom, 0xAC, 4);
-    const char* base = PatchForCode(code);
-    const WidePatch* p = base ? FindPatch(base) : nullptr;
+    const WidePatch* p = PatchForVersion(code, rom.size() > 0xBC ? rom[0xBC] : 0);
     if (!p)
-        g.why = "NOT ONE OF THE WIDESCREEN GAMES";
-    else if (code == "BPRE" && rom[0xBC] == 1)
-        g.why = "FIRERED V1.1: NEEDS V1.0";
+        g.why = PatchForCode(code) ? "NOT A VERSION WITH A WIDESCREEN PATCH" : "NOT ONE OF THE WIDESCREEN GAMES";
     else
     {
         PatchFits(rom, *p, why);
         g.why = why;
+        // A hack of one of the games (its code kept): widescreen tried anyway, its patch put on
+        // over what the hack changed. (Not when the ROM is too small for it.)
+        if (why != "TOO SMALL")
+        {
+            g.patch = p->name;
+            g.forced = true;
+        }
     }
 }
 
@@ -358,7 +422,7 @@ struct ScanCache
                 if (t == std::string::npos) break;
                 a = t + 1;
             }
-            if (f.size() != 11) continue;
+            if (f.size() != 12) continue; // (an older list's lines: looked at again)
             Game g;
             g.rom = f[1];
             g.ips = f[2];
@@ -370,6 +434,7 @@ struct ScanCache
             g.why = f[8];
             g.colour = (uint32_t)strtoul(f[9].c_str(), nullptr, 16);
             g.known = f[10] == "1";
+            g.forced = f[11] == "1";
             entries.push_back({ f[0], g });
             used.push_back(false);
         }
@@ -411,14 +476,15 @@ struct ScanCache
             snprintf(colour, sizeof colour, "%08X", (unsigned)g.colour);
             out += clean(e.first) + "\t" + clean(g.rom) + "\t" + clean(g.ips) + "\t" + clean(g.fileName) + "\t" + clean(g.key) +
                    "\t" + clean(g.name) + "\t" + g.sha1 + "\t" + g.patch + "\t" + clean(g.why) + "\t" + colour + "\t" +
-                   (g.known ? "1" : "0") + "\n";
+                   (g.known ? "1" : "0") + "\t" + (g.forced ? "1" : "0") + "\n";
         }
         WriteFile(path, std::vector<uint8_t>(out.begin(), out.end()));
         changed = false;
     }
 };
 
-// Every game in the roms folder: .gba files, and Ultra Violet's .ips with a FireRed v1.0 ROM.
+// Every game in the roms folder: .gba files, and hacks as patches (.ips; with romhacks.h also
+// .ups, .bps, .xdelta) put on one of the games found here (Ultra Violet's .ips on FireRed 1.0).
 inline std::vector<Game> Scan(const std::string& romsDir, const std::string& savesDir, const std::string& cacheFile = "")
 {
     std::vector<std::string> gba, ips;
@@ -427,15 +493,16 @@ inline std::vector<Game> Scan(const std::string& romsDir, const std::string& sav
         while (dirent* e = readdir(d))
         {
             const std::string n = e->d_name;
+            if (n.empty() || n[0] == '.') continue;
             if (EndsWith(n, ".gba") || EndsWith(n, ".agb") || EndsWith(n, ".bin")) gba.push_back(n);
-            else if (EndsWith(n, ".ips")) ips.push_back(n);
+            else if (IsPatchFile(n)) ips.push_back(n);
         }
         closedir(d);
     }
     std::sort(gba.begin(), gba.end());
     std::sort(ips.begin(), ips.end());
     std::vector<Game> games;
-    std::vector<std::string> fireRed10; // (bases for the .ips files)
+    std::vector<Game> bases; // (the games a patch can go on: ours, as found)
     ScanCache cache;
     cache.Load(cacheFile);
     for (const std::string& n : gba)
@@ -453,51 +520,102 @@ inline std::vector<Game> Scan(const std::string& romsDir, const std::string& sav
             Identify(g, rom);
             cache.Put(stamp, g);
         }
-        if (g.key == "firered" && g.known) fireRed10.push_back(g.rom);
+        if (g.known && g.ips.empty()) bases.push_back(g);
         games.push_back(g);
     }
+    // The likeliest first: the game its file name says (Pokemon Ultra Violet (FireRed).ips), then
+    // FireRed 1.0 (most hacks are of it), Emerald, the rest.
+    auto order = [&](const std::string& patchName) {
+        std::vector<Game> b = bases;
+        auto score = [&](const Game& g) {
+            const std::string n = Lower(patchName);
+            int s = 0;
+            if (n.find(g.key.substr(0, std::min<size_t>(g.key.size(), 6))) != std::string::npos) s += 100;
+            if (g.key == "firered" && (n.find("fr") != std::string::npos)) s += 50;
+            if (g.key == "emerald" && (n.find("em") != std::string::npos)) s += 50;
+            if (g.key == "leafgreen" && (n.find("lg") != std::string::npos)) s += 50;
+            if (g.patch == "firered") s += 20;
+            else if (g.key == "emerald") s += 10;
+            return s;
+        };
+        std::stable_sort(b.begin(), b.end(), [&](const Game& x, const Game& y) { return score(x) > score(y); });
+        return b;
+    };
     for (const std::string& n : ips)
     {
-        // (A patch with each base: known from the list if neither file changed; "none" when
-        // it gives no game we know.)
+        // (A patch with each base: known from the list if neither file changed; "none" when it
+        // doesn't go on that one.)
+        const std::string patchPath = romsDir + "/" + n;
+        const std::vector<Game> tryOn = order(n);
         bool done = false;
-        for (const std::string& base : fireRed10)
+        for (const Game& base : tryOn)
         {
-            const std::string stamp = ScanCache::Stamp(romsDir + "/" + n) + "+" + ScanCache::Stamp(base);
+            const std::string stamp = ScanCache::Stamp(patchPath) + "+" + ScanCache::Stamp(base.rom);
             if (const Game* c = cache.Find(stamp))
             {
-                if (c->key != "none") games.push_back(*c);
-                done = true;
-                break;
+                if (c->key != "none")
+                {
+                    games.push_back(*c);
+                    done = true;
+                    break;
+                }
             }
         }
         if (done) continue;
         std::vector<uint8_t> patch;
-        if (!ReadFile(romsDir + "/" + n, patch, 16 << 20)) continue;
-        for (const std::string& base : fireRed10)
+        if (!ReadFile(patchPath, patch, 32 << 20)) continue;
+        Game firstGuess;
+        std::string firstStamp;
+#ifdef GBAW_ROMHACKS
+        RomHacks::Info info;
+        const bool infoOk = RomHacks::ReadInfo(patch, info);
+        // (A DS ROM's patch: the DS list's.)
+        if (!infoOk || (info.knowsSource && info.sourceSize > (32u << 20))) continue;
+#endif
+        for (const Game& base : tryOn)
         {
-            const std::string stamp = ScanCache::Stamp(romsDir + "/" + n) + "+" + ScanCache::Stamp(base);
+            const std::string stamp = ScanCache::Stamp(patchPath) + "+" + ScanCache::Stamp(base.rom);
+            if (cache.Find(stamp)) continue; // ("none": tried)
             std::vector<uint8_t> rom;
-            if (!ReadFile(base, rom) || !ApplyIps(rom, patch.data(), patch.size())) continue;
-            Game g;
-            g.rom = base;
-            g.ips = romsDir + "/" + n;
-            g.fileName = n;
-            g.sha1 = Sha1(rom);
-            bool known = false;
-            for (const Known& k : KnownGames()) known |= g.sha1 == k.sha1;
-            if (!known)
+            if (!ReadFile(base.rom, rom)) continue;
+            Game none;
+            none.key = "none";
+#ifdef GBAW_ROMHACKS
+            // (UPS and BPS say the CRC-32 of the ROM they go on.)
+            if (info.knowsSource && (rom.size() != info.sourceSize || RomHacks::Crc32(0, rom.data(), rom.size()) != info.sourceCrc))
             {
-                // (only patches that give a game we know: anything else is the player's to make)
-                Game none;
-                none.key = "none";
                 cache.Put(stamp, none);
                 continue;
             }
+#endif
+            if (!ApplyPatch(rom, patch) || !LooksLikeGba(rom))
+            {
+                cache.Put(stamp, none);
+                continue;
+            }
+            Game g;
+            g.rom = base.rom;
+            g.ips = patchPath;
+            g.fileName = n;
             Identify(g, rom);
+            // (An IPS patch says nothing of the ROM it is for, and goes on any: one that makes a
+            // game known here (Ultra Violet) is the one; else the likeliest.)
+            if (!g.known && FormatIsIps(patch))
+            {
+                if (firstGuess.key.empty()) firstGuess = g, firstStamp = stamp;
+                else cache.Put(stamp, none);
+                continue;
+            }
             cache.Put(stamp, g);
             games.push_back(g);
+            firstGuess = Game();
+            done = true;
             break;
+        }
+        if (!done && !firstGuess.key.empty())
+        {
+            cache.Put(firstStamp, firstGuess);
+            games.push_back(firstGuess);
         }
     }
     cache.Save();
@@ -528,10 +646,12 @@ inline std::vector<Game> Scan(const std::string& romsDir, const std::string& sav
     return out;
 }
 
-// The ROM to play: read, its .ips put on, then the widescreen patch if it takes one.
+// The ROM to play: read, its hack's patch put on, then the widescreen patch if it takes one.
 // `beforeWide`, when set, receives the ROM after its own patch and before the widescreen one
-// (what RetroAchievements identifies the game by).
-inline bool Prepare(const Game& g, std::vector<uint8_t>& rom, std::string& error, std::vector<uint8_t>* beforeWide = nullptr)
+// (what RetroAchievements identifies the game by). tryForced false: a hack whose widescreen patch
+// doesn't fit (g.forced) plays as it is.
+inline bool Prepare(const Game& g, std::vector<uint8_t>& rom, std::string& error, std::vector<uint8_t>* beforeWide = nullptr,
+                    bool tryForced = true)
 {
     if (!ReadFile(g.rom, rom))
     {
@@ -541,16 +661,18 @@ inline bool Prepare(const Game& g, std::vector<uint8_t>& rom, std::string& error
     if (!g.ips.empty())
     {
         std::vector<uint8_t> p;
-        if (!ReadFile(g.ips, p, 16 << 20) || !ApplyIps(rom, p.data(), p.size()))
+        std::string why;
+        if (!ReadFile(g.ips, p, 32 << 20) || !ApplyPatch(rom, p, &why))
         {
-            error = "CAN'T READ ITS PATCH";
+            error = why.empty() ? "CAN'T READ ITS PATCH" : why;
             return false;
         }
     }
     if (beforeWide) *beforeWide = rom;
-    if (g.patch.empty()) return true;
+    if (g.patch.empty() || (g.forced && !tryForced)) return true;
     const WidePatch* p = FindPatch(g.patch);
     std::string why;
+    if (p && g.forced) return ApplyIps(rom, p->ips, p->ipsSize) || (error = "THE WIDESCREEN PATCH DOESN'T FIT", false);
     if (!p || !PatchFits(rom, *p, why) || !ApplyIps(rom, p->ips, p->ipsSize))
     {
         error = "THE WIDESCREEN PATCH DOESN'T FIT: " + why;

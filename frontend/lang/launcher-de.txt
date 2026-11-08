@@ -562,3 +562,45 @@ Graphics	Grafik
 Controls	Steuerung
 Optional Features	Optionale Funktionen
 Release Notes	Versionshinweise
+Game Save	Spielstand
+Restore A Backup	Sicherung wiederherstellen
+Export Save	Spielstand exportieren
+Import Save	Spielstand importieren
+Play From Quick Save	Ab Schnellspeicherung spielen
+Undo Delete	Löschen rückgängig
+Open Saves Folder	Speicherordner öffnen
+Delete Save	Spielstand löschen
+Delete Slot	Platz löschen
+Save States	Speicherzustände
+They stay on this device	Sie bleiben auf diesem Gerät
+Healthy	In Ordnung
+Problem	Problem
+Synced	Synchronisiert
+Different	Unterschiedlich
+Not Synced	Nicht synchronisiert
+Not Reached	Nicht erreicht
+Cloud Off	Cloud aus
+A copy in the exports folder	Eine Kopie im Exportordner
+A file you choose, or from the import folder	Eine Datei deiner Wahl oder aus dem Importordner
+From the import folder beside your saves	Aus dem Importordner neben deinen Spielständen
+The slot deleted last comes back	Der zuletzt gelöschte Platz kommt zurück
+None yet: the game makes it	Noch keiner: das Spiel legt ihn an
+None yet: one is made each time the game starts	Noch keine: bei jedem Spielstart wird eine angelegt
+Empty	Leer
+A: play from it or delete it	A: davon spielen oder löschen
+Save to it from the game's menu	Im Spielmenü darauf speichern
+Choose a slot to play from it, or delete it. Save to the slots from the game's menu.	Wähle einen Platz, um davon zu spielen oder ihn zu löschen. Gespeichert wird im Spielmenü.
+Fulldex backs up this save every time the game starts and before anything here changes it. Your ROM is never changed.	Fulldex sichert diesen Spielstand bei jedem Spielstart und bevor hier etwas daran geändert wird. Dein ROM wird nie verändert.
+The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.	Die GBA-Spiele haben je einen Speicherzustand, im Spielmenü gespeichert und geladen. Plätze gibt es für die DS-Spiele.
+Keep This One	Diesen behalten
+Choose A File...	Datei wählen...
+Restore Backup	Sicherung wiederherstellen
+Play Anyway	Trotzdem spielen
+This Save Has A Problem	Dieser Spielstand hat ein Problem
+Fulldex backs up this save every time the game starts, and before anything here changes it. Choose one to go back to it.	Fulldex sichert diesen Spielstand bei jedem Spielstart und bevor hier etwas daran geändert wird. Wähle eine Sicherung, um zu ihr zurückzukehren.
+Asks first. A backup is kept	Fragt vorher. Eine Sicherung bleibt
+Slot {}	Platz {}
+Play From Slot {}	Ab Platz {} spielen
+Saved {}	Gespeichert {}
+SAVES FOLDER	SPEICHERORDNER
+BESIDE THE ROMS	NEBEN DEN ROMS

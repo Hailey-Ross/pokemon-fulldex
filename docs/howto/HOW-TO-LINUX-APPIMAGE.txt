@@ -1,0 +1,26 @@
+POKEMON FULLDEX ON LINUX (APPIMAGE) AND THE STEAM DECK: HOW TO SET IT UP
+
+What you need: 64-bit Linux from late 2023 on (Ubuntu 24.04, Fedora 39,
+SteamOS 3.5 or newer), and your own ROMs.
+
+1. Download pokemon-ds-wide-pc-linux-x86_64.AppImage (aarch64 for ARM machines).
+2. Make it runnable: right-click > Properties > Allow executing as program,
+   or in a terminal: chmod +x pokemon-ds-wide-pc-linux-x86_64.AppImage
+   Or add it to Gear Lever (or another AppImage manager): it then updates itself.
+3. Start it. Press O in the game list to open its roms folder
+   (~/.local/share/pokemon-ds-wide/roms) and put your DS and GBA ROMs there.
+
+Steam Deck: in Desktop Mode do the above, then in Steam choose
+Games > Add a Non-Steam Game to My Library, browse to the AppImage (file type:
+All Files), and start it from your library in Gaming Mode with a gamepad layout.
+Set Graphics > 3D Resolution to 720P for the Deck's screen.
+
+Keys: arrows move, X/Z are A/B, S/A are X/Y, Q/W are L/R, Enter is START,
+Backspace is SELECT, the mouse is the touch screen, Left Shift fast forwards,
+Esc opens the pause menu, F11 switches fullscreen. Any controller works too.
+
+Saves are in ~/.local/share/pokemon-ds-wide/saves (black2.sav ...). A game's
+menu > Manage Saves shows its save, backups and save states, and can export or
+import a save.
+
+Help, bugs and updates: https://github.com/mamesj/pokemon-fulldex

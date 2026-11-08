@@ -1,0 +1,28 @@
+POKEMON FULLDEX ON AN IPHONE OR IPAD: HOW TO SET IT UP
+
+Apple only lets App Store apps install on their own, so this one is sideloaded:
+a sideloading tool signs it with your own Apple ID (a free one works).
+
+1. Install a sideloading tool on a Windows PC or a Mac: Sideloadly, AltStore,
+   or SideStore on the phone itself.
+2. Give it pokemon-ds-wide-ios.ipa with your Apple ID (plug the iPhone in and
+   tap Trust on it when asked).
+3. On the iPhone: turn on Settings > Privacy & Security > Developer Mode (it
+   restarts), then trust your Apple ID in Settings > General > VPN & Device Management.
+4. Put your ROMs in the Files app: On My iPhone > Pokemon Fulldex > roms
+   (AirDrop, iCloud Drive, or from a PC). FOLDER at the top of the game list
+   opens that folder. Tap a game twice to play.
+
+With a free Apple ID, iOS stops opening sideloaded apps after 7 days: sideload
+it again (your saves stay). AltStore and SideStore can do that for you.
+
+Controls: on-screen buttons (MENU at the top for the pause menu), or a
+controller (Xbox, PlayStation, Backbone and others), which hides them.
+
+Saves, settings, cheats and game.log are all in the Pokemon Fulldex folder in
+the Files app. A game's menu > Manage Saves shows its save, backups and save states.
+
+Speed: iOS lets no app make code as it runs, so an iPhone 13 or newer is the
+most likely to keep up. The 3D world starts at 720P (Graphics > 3D Resolution).
+
+Help, bugs and updates: https://github.com/mamesj/pokemon-fulldex

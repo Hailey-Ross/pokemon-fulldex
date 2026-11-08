@@ -1,0 +1,32 @@
+POKEMON FULLDEX ON THE NINTENDO SWITCH: HOW TO SET IT UP
+
+What you need: a Switch that runs homebrew (Atmosphere), and your own ROMs.
+
+1. Unzip pokemon-ds-wide-all-switch.zip to the root of the SD card.
+   It makes /switch/pokemon-ds-wide/ with an empty roms folder inside.
+2. Copy your ROMs (DS and GBA, any names) into /switch/pokemon-ds-wide/roms/
+3. Hold R while starting any game, pick Pokemon Fulldex in the Homebrew Menu,
+   then the game. (Started from the album there is not enough memory.)
+
+In the game list:
+  D-pad or stick: choose      A: play (or the game's menu)
+  Y: settings                 +: back to the Homebrew Menu
+While playing, + opens the pause menu. QUIT there saves and goes back to the list.
+Touch screen: tap it in handheld mode. Docked, the right stick moves a cursor and ZL touches.
+
+Start each game from the HOME Menu (recommended):
+  Settings (Y) > HOME MENU ICONS puts an icon for each game on the HOME Menu,
+  which starts it straight away. The icons need sigpatches. Keep
+  /switch/pokemon-ds-wide/ where it is, and choose HOME MENU ICONS again after
+  adding games.
+
+Saves:
+  In /switch/pokemon-ds-wide/saves/ (black2.sav, soulsilver.sav, emerald.sav ...).
+  To carry on from an emulator or a flash cart, copy your save in under that name.
+  A game's menu > Manage Saves shows its save, its backups and its save states,
+  and can restore a backup or start the game from a save state.
+
+Full speed: sys-clk, handheld: CPU 1785 MHz, GPU 460 MHz, memory 1600 MHz.
+Settings worth knowing: 60 FPS ON, WORLD DETAIL 720 (540 for headroom).
+
+Help, bugs and updates: https://github.com/mamesj/pokemon-fulldex

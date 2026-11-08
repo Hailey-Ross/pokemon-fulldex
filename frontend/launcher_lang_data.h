@@ -565,6 +565,48 @@ Graphics	Grafik
 Controls	Steuerung
 Optional Features	Optionale Funktionen
 Release Notes	Versionshinweise
+Game Save	Spielstand
+Restore A Backup	Sicherung wiederherstellen
+Export Save	Spielstand exportieren
+Import Save	Spielstand importieren
+Play From Quick Save	Ab Schnellspeicherung spielen
+Undo Delete	Löschen rückgängig
+Open Saves Folder	Speicherordner öffnen
+Delete Save	Spielstand löschen
+Delete Slot	Platz löschen
+Save States	Speicherzustände
+They stay on this device	Sie bleiben auf diesem Gerät
+Healthy	In Ordnung
+Problem	Problem
+Synced	Synchronisiert
+Different	Unterschiedlich
+Not Synced	Nicht synchronisiert
+Not Reached	Nicht erreicht
+Cloud Off	Cloud aus
+A copy in the exports folder	Eine Kopie im Exportordner
+A file you choose, or from the import folder	Eine Datei deiner Wahl oder aus dem Importordner
+From the import folder beside your saves	Aus dem Importordner neben deinen Spielständen
+The slot deleted last comes back	Der zuletzt gelöschte Platz kommt zurück
+None yet: the game makes it	Noch keiner: das Spiel legt ihn an
+None yet: one is made each time the game starts	Noch keine: bei jedem Spielstart wird eine angelegt
+Empty	Leer
+A: play from it or delete it	A: davon spielen oder löschen
+Save to it from the game's menu	Im Spielmenü darauf speichern
+Choose a slot to play from it, or delete it. Save to the slots from the game's menu.	Wähle einen Platz, um davon zu spielen oder ihn zu löschen. Gespeichert wird im Spielmenü.
+Fulldex backs up this save every time the game starts and before anything here changes it. Your ROM is never changed.	Fulldex sichert diesen Spielstand bei jedem Spielstart und bevor hier etwas daran geändert wird. Dein ROM wird nie verändert.
+The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.	Die GBA-Spiele haben je einen Speicherzustand, im Spielmenü gespeichert und geladen. Plätze gibt es für die DS-Spiele.
+Keep This One	Diesen behalten
+Choose A File...	Datei wählen...
+Restore Backup	Sicherung wiederherstellen
+Play Anyway	Trotzdem spielen
+This Save Has A Problem	Dieser Spielstand hat ein Problem
+Fulldex backs up this save every time the game starts, and before anything here changes it. Choose one to go back to it.	Fulldex sichert diesen Spielstand bei jedem Spielstart und bevor hier etwas daran geändert wird. Wähle eine Sicherung, um zu ihr zurückzukehren.
+Asks first. A backup is kept	Fragt vorher. Eine Sicherung bleibt
+Slot {}	Platz {}
+Play From Slot {}	Ab Platz {} spielen
+Saved {}	Gespeichert {}
+SAVES FOLDER	SPEICHERORDNER
+BESIDE THE ROMS	NEBEN DEN ROMS
 )FDXLANG";
 static const char* const kLauncherLang_es = u8R"FDXLANG(# Fulldex launcher: Español. One line each: the English, a tab, the Español. {} stands for a name or number.
 Game Options	Opciones del juego
@@ -1130,6 +1172,48 @@ Graphics	Gráficos
 Controls	Controles
 Optional Features	Funciones opcionales
 Release Notes	Notas de la versión
+Game Save	Partida guardada
+Restore A Backup	Restaurar una copia
+Export Save	Exportar partida
+Import Save	Importar partida
+Play From Quick Save	Jugar desde el guardado rápido
+Undo Delete	Deshacer borrado
+Open Saves Folder	Abrir carpeta de partidas
+Delete Save	Borrar partida
+Delete Slot	Borrar ranura
+Save States	Estados guardados
+They stay on this device	Se quedan en este dispositivo
+Healthy	Correcta
+Problem	Problema
+Synced	Sincronizada
+Different	Distinta
+Not Synced	Sin sincronizar
+Not Reached	Sin conexión
+Cloud Off	Nube desactivada
+A copy in the exports folder	Una copia en la carpeta de exportaciones
+A file you choose, or from the import folder	Un archivo que elijas, o de la carpeta de importación
+From the import folder beside your saves	De la carpeta de importación junto a tus partidas
+The slot deleted last comes back	Vuelve la última ranura borrada
+None yet: the game makes it	Ninguna aún: la crea el juego
+None yet: one is made each time the game starts	Ninguna aún: se hace una cada vez que empieza el juego
+Empty	Vacía
+A: play from it or delete it	A: jugar desde ella o borrarla
+Save to it from the game's menu	Guarda en ella desde el menú del juego
+Choose a slot to play from it, or delete it. Save to the slots from the game's menu.	Elige una ranura para jugar desde ella o borrarla. Se guarda desde el menú del juego.
+Fulldex backs up this save every time the game starts and before anything here changes it. Your ROM is never changed.	Fulldex hace una copia de esta partida cada vez que empieza el juego y antes de cambiarla aquí. Tu ROM nunca se modifica.
+The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.	Los juegos de GBA tienen un estado guardado cada uno, desde el menú del juego. Las ranuras son para los juegos de DS.
+Keep This One	Quedarme con esta
+Choose A File...	Elegir un archivo...
+Restore Backup	Restaurar copia
+Play Anyway	Jugar de todos modos
+This Save Has A Problem	Esta partida tiene un problema
+Fulldex backs up this save every time the game starts, and before anything here changes it. Choose one to go back to it.	Fulldex hace una copia de esta partida cada vez que empieza el juego y antes de cambiarla aquí. Elige una para volver a ella.
+Asks first. A backup is kept	Pregunta antes. Se guarda una copia
+Slot {}	Ranura {}
+Play From Slot {}	Jugar desde la ranura {}
+Saved {}	Guardada {}
+SAVES FOLDER	CARPETA DE PARTIDAS
+BESIDE THE ROMS	JUNTO A LAS ROMS
 )FDXLANG";
 static const char* const kLauncherLang_fr = u8R"FDXLANG(# Fulldex launcher: Français. One line each: the English, a tab, the Français. {} stands for a name or number.
 Game Options	Options du jeu
@@ -1695,6 +1779,48 @@ Graphics	Graphismes
 Controls	Commandes
 Optional Features	Fonctions facultatives
 Release Notes	Notes de version
+Game Save	Sauvegarde du jeu
+Restore A Backup	Restaurer une sauvegarde
+Export Save	Exporter la sauvegarde
+Import Save	Importer une sauvegarde
+Play From Quick Save	Jouer depuis la sauvegarde rapide
+Undo Delete	Annuler la suppression
+Open Saves Folder	Ouvrir le dossier des sauvegardes
+Delete Save	Supprimer la sauvegarde
+Delete Slot	Supprimer l'emplacement
+Save States	États sauvegardés
+They stay on this device	Ils restent sur cet appareil
+Healthy	Saine
+Problem	Problème
+Synced	Synchronisée
+Different	Différente
+Not Synced	Non synchronisée
+Not Reached	Injoignable
+Cloud Off	Cloud désactivé
+A copy in the exports folder	Une copie dans le dossier des exports
+A file you choose, or from the import folder	Un fichier de votre choix, ou du dossier d'import
+From the import folder beside your saves	Du dossier d'import à côté de vos sauvegardes
+The slot deleted last comes back	L'emplacement supprimé en dernier revient
+None yet: the game makes it	Aucune : le jeu la crée
+None yet: one is made each time the game starts	Aucune : une est faite à chaque lancement du jeu
+Empty	Vide
+A: play from it or delete it	A : jouer depuis ou supprimer
+Save to it from the game's menu	Sauvegardez-y depuis le menu du jeu
+Choose a slot to play from it, or delete it. Save to the slots from the game's menu.	Choisissez un emplacement pour y jouer ou le supprimer. On sauvegarde depuis le menu du jeu.
+Fulldex backs up this save every time the game starts and before anything here changes it. Your ROM is never changed.	Fulldex sauvegarde ce fichier à chaque lancement et avant toute modification ici. Votre ROM n'est jamais modifiée.
+The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.	Les jeux GBA ont un état sauvegardé chacun, depuis le menu du jeu. Les emplacements sont pour les jeux DS.
+Keep This One	Garder celle-ci
+Choose A File...	Choisir un fichier...
+Restore Backup	Restaurer
+Play Anyway	Jouer quand même
+This Save Has A Problem	Cette sauvegarde a un problème
+Fulldex backs up this save every time the game starts, and before anything here changes it. Choose one to go back to it.	Fulldex sauvegarde ce fichier à chaque lancement et avant toute modification ici. Choisissez-en une pour y revenir.
+Asks first. A backup is kept	Demande d'abord. Une copie est gardée
+Slot {}	Emplacement {}
+Play From Slot {}	Jouer depuis l'emplacement {}
+Saved {}	Sauvegardée {}
+SAVES FOLDER	DOSSIER DES SAUVEGARDES
+BESIDE THE ROMS	À CÔTÉ DES ROMS
 )FDXLANG";
 static const char* const kLauncherLang_it = u8R"FDXLANG(# Fulldex launcher: Italiano. One line each: the English, a tab, the Italiano. {} stands for a name or number.
 Game Options	Opzioni di gioco
@@ -2260,6 +2386,48 @@ Graphics	Grafica
 Controls	Comandi
 Optional Features	Funzioni opzionali
 Release Notes	Note di rilascio
+Game Save	Salvataggio di gioco
+Restore A Backup	Ripristina un backup
+Export Save	Esporta salvataggio
+Import Save	Importa salvataggio
+Play From Quick Save	Gioca dal salvataggio rapido
+Undo Delete	Annulla eliminazione
+Open Saves Folder	Apri cartella salvataggi
+Delete Save	Elimina salvataggio
+Delete Slot	Elimina slot
+Save States	Stati salvati
+They stay on this device	Restano su questo dispositivo
+Healthy	Integro
+Problem	Problema
+Synced	Sincronizzato
+Different	Diverso
+Not Synced	Non sincronizzato
+Not Reached	Non raggiunto
+Cloud Off	Cloud spento
+A copy in the exports folder	Una copia nella cartella delle esportazioni
+A file you choose, or from the import folder	Un file a scelta, o dalla cartella di importazione
+From the import folder beside your saves	Dalla cartella di importazione accanto ai salvataggi
+The slot deleted last comes back	Torna l'ultimo slot eliminato
+None yet: the game makes it	Nessuno: lo crea il gioco
+None yet: one is made each time the game starts	Nessuno: se ne crea uno a ogni avvio del gioco
+Empty	Vuoto
+A: play from it or delete it	A: gioca da qui o elimina
+Save to it from the game's menu	Salva qui dal menu del gioco
+Choose a slot to play from it, or delete it. Save to the slots from the game's menu.	Scegli uno slot per giocare da lì o eliminarlo. Si salva dal menu del gioco.
+Fulldex backs up this save every time the game starts and before anything here changes it. Your ROM is never changed.	Fulldex fa un backup di questo salvataggio a ogni avvio e prima di qualsiasi modifica qui. La tua ROM non viene mai modificata.
+The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.	I giochi GBA hanno uno stato salvato ciascuno, dal menu del gioco. Gli slot sono per i giochi DS.
+Keep This One	Tieni questo
+Choose A File...	Scegli un file...
+Restore Backup	Ripristina backup
+Play Anyway	Gioca comunque
+This Save Has A Problem	Questo salvataggio ha un problema
+Fulldex backs up this save every time the game starts, and before anything here changes it. Choose one to go back to it.	Fulldex fa un backup di questo salvataggio a ogni avvio e prima di qualsiasi modifica qui. Scegline uno per tornarci.
+Asks first. A backup is kept	Chiede prima. Resta un backup
+Slot {}	Slot {}
+Play From Slot {}	Gioca dallo slot {}
+Saved {}	Salvato {}
+SAVES FOLDER	CARTELLA SALVATAGGI
+BESIDE THE ROMS	ACCANTO ALLE ROM
 )FDXLANG";
 static const char* const kLauncherLang_ja = u8R"FDXLANG(# Fulldex launcher: 日本語. One line each: the English, a tab, the 日本語. {} stands for a name or number.
 Game Options	ゲームオプション
@@ -2825,6 +2993,48 @@ Graphics	グラフィック
 Controls	操作
 Optional Features	オプション機能
 Release Notes	リリースノート
+Game Save	ゲームのセーブ
+Restore A Backup	バックアップを戻す
+Export Save	セーブを書き出す
+Import Save	セーブを読み込む
+Play From Quick Save	クイックセーブから遊ぶ
+Undo Delete	削除を取り消す
+Open Saves Folder	セーブフォルダを開く
+Delete Save	セーブを削除
+Delete Slot	スロットを削除
+Save States	ステートセーブ
+They stay on this device	この端末に残ります
+Healthy	正常
+Problem	問題あり
+Synced	同期済み
+Different	不一致
+Not Synced	未同期
+Not Reached	接続できません
+Cloud Off	クラウドオフ
+A copy in the exports folder	exports フォルダにコピー
+A file you choose, or from the import folder	選んだファイル、または import フォルダから
+From the import folder beside your saves	セーブの隣の import フォルダから
+The slot deleted last comes back	最後に削除したスロットが戻ります
+None yet: the game makes it	まだありません：ゲームが作ります
+None yet: one is made each time the game starts	まだありません：起動のたびに作られます
+Empty	空き
+A: play from it or delete it	A：ここから遊ぶ／削除
+Save to it from the game's menu	ゲームのメニューから保存します
+Choose a slot to play from it, or delete it. Save to the slots from the game's menu.	スロットを選ぶとそこから遊ぶか削除できます。保存はゲームのメニューから。
+Fulldex backs up this save every time the game starts and before anything here changes it. Your ROM is never changed.	Fulldex は起動のたびと、ここで変更する前にこのセーブをバックアップします。ROM は変更されません。
+The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.	GBA のゲームはステートを一つずつ持ち、ゲームのメニューで保存・読み込みします。スロットは DS のゲーム用です。
+Keep This One	こちらを残す
+Choose A File...	ファイルを選ぶ...
+Restore Backup	バックアップを戻す
+Play Anyway	このまま遊ぶ
+This Save Has A Problem	このセーブには問題があります
+Fulldex backs up this save every time the game starts, and before anything here changes it. Choose one to go back to it.	Fulldex は起動のたびと、ここで変更する前にこのセーブをバックアップします。戻したいものを選んでください。
+Asks first. A backup is kept	確認します。バックアップが残ります
+Slot {}	スロット {}
+Play From Slot {}	スロット {} から遊ぶ
+Saved {}	保存 {}
+SAVES FOLDER	セーブフォルダ
+BESIDE THE ROMS	ROM の隣
 )FDXLANG";
 static const char* const kLauncherLang_ko = u8R"FDXLANG(# Fulldex launcher: 한국어. One line each: the English, a tab, the 한국어. {} stands for a name or number.
 Game Options	게임 옵션
@@ -3390,6 +3600,48 @@ Graphics	그래픽
 Controls	조작
 Optional Features	선택 기능
 Release Notes	릴리스 노트
+Game Save	게임 저장
+Restore A Backup	백업 복원
+Export Save	저장 내보내기
+Import Save	저장 가져오기
+Play From Quick Save	빠른 저장에서 플레이
+Undo Delete	삭제 취소
+Open Saves Folder	저장 폴더 열기
+Delete Save	저장 삭제
+Delete Slot	슬롯 삭제
+Save States	상태 저장
+They stay on this device	이 기기에만 남습니다
+Healthy	정상
+Problem	문제 있음
+Synced	동기화됨
+Different	다름
+Not Synced	동기화 안 됨
+Not Reached	연결 안 됨
+Cloud Off	클라우드 꺼짐
+A copy in the exports folder	exports 폴더에 사본
+A file you choose, or from the import folder	선택한 파일 또는 import 폴더에서
+From the import folder beside your saves	저장 옆 import 폴더에서
+The slot deleted last comes back	마지막으로 삭제한 슬롯이 돌아옵니다
+None yet: the game makes it	아직 없음: 게임이 만듭니다
+None yet: one is made each time the game starts	아직 없음: 게임을 시작할 때마다 만들어집니다
+Empty	비어 있음
+A: play from it or delete it	A: 여기서 플레이 또는 삭제
+Save to it from the game's menu	게임 메뉴에서 저장하세요
+Choose a slot to play from it, or delete it. Save to the slots from the game's menu.	슬롯을 골라 플레이하거나 삭제하세요. 저장은 게임 메뉴에서 합니다.
+Fulldex backs up this save every time the game starts and before anything here changes it. Your ROM is never changed.	Fulldex는 게임을 시작할 때마다, 그리고 여기서 바꾸기 전에 이 저장을 백업합니다. ROM은 절대 바뀌지 않습니다.
+The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.	GBA 게임은 상태 저장이 하나씩이며 게임 메뉴에서 저장하고 불러옵니다. 슬롯은 DS 게임용입니다.
+Keep This One	이것을 유지
+Choose A File...	파일 선택...
+Restore Backup	백업 복원
+Play Anyway	그래도 플레이
+This Save Has A Problem	이 저장에 문제가 있습니다
+Fulldex backs up this save every time the game starts, and before anything here changes it. Choose one to go back to it.	Fulldex는 게임을 시작할 때마다, 그리고 여기서 바꾸기 전에 이 저장을 백업합니다. 되돌릴 백업을 고르세요.
+Asks first. A backup is kept	먼저 묻습니다. 백업이 남습니다
+Slot {}	슬롯 {}
+Play From Slot {}	슬롯 {}에서 플레이
+Saved {}	저장됨 {}
+SAVES FOLDER	저장 폴더
+BESIDE THE ROMS	ROM 옆
 )FDXLANG";
 inline const char* LauncherLangData(const char* code)
 {

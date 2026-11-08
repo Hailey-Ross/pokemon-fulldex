@@ -22,7 +22,7 @@ int main() {
     flat[0] = 1;
     auto fill = MergedEdgeContinuation(scene, top, 0, 0);
     assert(!fill.none() && !fill.pattern && fill.evb == 0);
-    flags[0] = 0x40;
+    flags[0] = flags[1] = 0x40; // (one 3D column alone is stepped over: Fly's sky band)
     assert(MergedEdgeContinuation(scene, top, 0, 0).none());
     // The flat strokes of the same closed window must not stick out either.
     std::fill(flags.begin(), flags.end(), 2);

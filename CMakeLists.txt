@@ -102,14 +102,19 @@ file(GLOB_RECURSE SSR_RCHEEVOS_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/frontend/thi
 add_library(rcheevos STATIC ${SSR_RCHEEVOS_SOURCES})
 target_include_directories(rcheevos PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/frontend/thirdparty/rcheevos/include")
 
+# ROM hacks' xdelta patches (frontend/romhacks.h): their LZMA2-compressed sections, with the LZMA
+# SDK's decoder (public domain; frontend/thirdparty/lzma, as mGBA carries it).
+add_library(romhacks_lzma OBJECT frontend/romhacks_lzma.c frontend/thirdparty/lzma/LzmaDec.c frontend/thirdparty/lzma/Lzma2Dec.c)
+target_include_directories(romhacks_lzma PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/frontend/thirdparty/lzma")
+
 set(SSRECOMP_SOURCES
     frontend/main.cpp
+    $<TARGET_OBJECTS:romhacks_lzma>
     frontend/achievements.cpp
     frontend/achievements_http.cpp
     frontend/cloud_saves.cpp
     frontend/cloud_autosync.cpp
     frontend/hub_link.cpp
-    frontend/theme_pack.cpp
     frontend/launcher_fonts.cpp
     frontend/launcher_cjk.cpp
     frontend/trade_evolutions.cpp
@@ -163,14 +168,14 @@ if(ANDROID)
     # PC program (frontend/pc_launcher.cpp) with the ROMs in a folder the player chooses.
     option(SSR_PC_ALL_GAMES "The all-games program with its game list" OFF)
     if(SSR_PC_ALL_GAMES)
-        target_sources(ssrecomp PRIVATE frontend/pc_launcher.cpp)
+        target_sources(ssrecomp PRIVATE frontend/pc_launcher.cpp frontend/theme_pack.cpp)
         target_compile_definitions(ssrecomp PRIVATE SSR_PC_LAUNCHER)
     endif()
 elseif(SSR_SWITCH)
     # On the Switch the game is an .nro, a program for the Homebrew Menu, made from the
     # executable below. Like the Android app it holds the player's own game, so it is built
     # on the player's PC and never shared. No libpng: screenshots are a desktop test aid.
-    add_executable(ssrecomp ${SSRECOMP_SOURCES} frontend/switch_platform.cpp)
+    add_executable(ssrecomp ${SSRECOMP_SOURCES} frontend/switch_platform.cpp frontend/theme_pack.cpp)
     # main.cpp includes <SDL2/SDL.h>, so the folder above SDL2's own is needed too.
     pkg_get_variable(SDL2_INCLUDEDIR sdl2 includedir)
     target_include_directories(ssrecomp PRIVATE melonDS/src frontend runtime "${SSR_GENERATED_DIR}" "${SDL2_INCLUDEDIR}" ${SDL2_STATIC_INCLUDE_DIRS})
@@ -334,7 +339,7 @@ else()
     # arguments (frontend/pc_launcher.cpp), with the ROMs in the roms folder beside it.
     option(SSR_PC_ALL_GAMES "The PC all-games program with its game list" OFF)
     if(SSR_PC_ALL_GAMES)
-        target_sources(ssrecomp PRIVATE frontend/pc_launcher.cpp)
+        target_sources(ssrecomp PRIVATE frontend/pc_launcher.cpp frontend/theme_pack.cpp)
         target_compile_definitions(ssrecomp PRIVATE SSR_PC_LAUNCHER)
         # Updates from the game list (frontend/updater.cpp). The time of building tells a
         # download with no record of what was installed from a newer release (only this one file
