@@ -19,7 +19,7 @@ int main(int argc, char** argv)
     old.Put(key, "clean");
     assert(RomHacks::CheckDs(path, "IRBO", old, true) == RomHacks::Kind::Modified);
     std::string value;
-    assert(old.Get(key, value) && value == "modified");
+    assert(old.Get(RomHacks::Cache::Key(path, "ds-complete-v1"), value) && value == "modified");
     assert(RomHacks::CheckDs(path + ".missing", "IRBO", old, true) == RomHacks::Kind::Unknown);
     const std::string saves = path.substr(0, path.find_last_of("/\\"));
     Launcher::BeginScan(saves);
@@ -28,8 +28,8 @@ int main(int argc, char** argv)
     assert(game.hack && game.saveName != "black.sav");
     assert(game.saveName == Launcher::HackSave(path));
     Launcher::EndScan();
-    // The original-sized fingerprint shortcut still works for known clean releases.
+    // A matching partial fingerprint at the original size still cannot prove this synthetic file is clean.
     std::filesystem::resize_file(path, 268435456u);
     RomHacks::Cache normal;
-    assert(RomHacks::CheckDs(path, "IRBO", normal, true) == RomHacks::Kind::Clean);
+    assert(RomHacks::CheckDs(path, "IRBO", normal, true) == RomHacks::Kind::Modified);
 }

@@ -1362,61 +1362,46 @@ inline const std::vector<Fingerprint>& CleanDsFingerprints()
     return list;
 }
 
-// Whether a DS ROM (of game code `code`) is a clean release, or modified (a hack). Clean when its
-// fingerprint is a clean release's, or the whole ROM's CRC-32 is (read in the background, Hasher:
-// wait false leaves it Unknown until it is). Modified when it is larger than any release of its
-// game, or its release (code and revision) is known and its fingerprint isn't that. Unknown
-// otherwise (another copy of a release not known here): played as the game, as before.
+// Partial fingerprints can prove a known release was changed, but cannot prove it is
+// clean: encounter, trainer or script data may change outside those regions. Confirm clean
+// releases by their full CRC, in the background while scanning and waiting before launch.
 inline Kind CheckDs(const std::string& rom, const std::string& code, Cache& cache, bool wait = false)
 {
     std::vector<const Clean*> mine;
     for (const Clean& c : CleanDs())
         if (code == c.code) mine.push_back(&c);
     if (mine.empty()) return Kind::Unknown;
-    const std::string key = Cache::Key(rom, "ds");
+    // Invalidate earlier cache entries whose clean verdict used only a partial fingerprint.
+    const std::string key = Cache::Key(rom, "ds-complete-v1");
     uint32_t biggest = 0;
     for (const Clean* c : mine) biggest = std::max(biggest, c->size);
-    uint64_t fileSize = 0;
+    uint64_t size = 0;
     long long modifiedAt = 0;
-    if (!Stat(rom, fileSize, modifiedAt)) return Kind::Unknown;
-    // A partial fingerprint can stay unchanged when a hack appends data. Check the
-    // size before trusting either that fingerprint or a previous cached clean result.
-    if (fileSize > biggest)
-    {
-        cache.Put(key, "modified");
-        return Kind::Modified;
-    }
-    std::string v;
-    if (cache.Get(key, v)) return v == "clean" ? Kind::Clean : v == "modified" ? Kind::Modified : Kind::Unknown;
+    if (!Stat(rom, size, modifiedAt)) return Kind::Unknown;
+    if (size > biggest) { cache.Put(key, "modified"); return Kind::Modified; }
+    std::string value;
+    if (cache.Get(key, value) && value != "unknown") return value == "clean" ? Kind::Clean : Kind::Modified;
     uint32_t fp = 0;
     uint8_t rev = 0;
-    uint64_t size = 0;
-    const bool haveFp = DsFingerprint(rom, fp, rev, size);
-    if (!size) return Kind::Unknown;
-    Kind kind = Kind::Unknown;
-    bool releaseKnown = false;
+    uint64_t fingerprintSize = 0;
+    const bool haveFp = DsFingerprint(rom, fp, rev, fingerprintSize);
+    bool knownRevision = false, fingerprintMatches = false;
     for (const Fingerprint& f : CleanDsFingerprints())
         if (code == f.code)
         {
-            if (haveFp && fp == f.fp) kind = Kind::Clean;
-            releaseKnown |= f.rev == rev;
+            knownRevision |= f.rev == rev;
+            fingerprintMatches |= haveFp && fp == f.fp;
         }
-    if (kind != Kind::Clean)
+    Kind kind = Kind::Modified;
+    if (!(knownRevision && haveFp && !fingerprintMatches))
     {
-        if (releaseKnown && haveFp)
-            kind = Kind::Modified;
-        else
-        {
-            uint32_t crc = 0;
-            uint64_t read = 0;
-            if (!Hasher::Get().Result(rom, key, crc, read, wait)) return Kind::Unknown; // (being read: asked again later)
-            // (A trimmed ROM: its end, all 0xFF or all 0x00, cut off.)
-            if (read == size)
-                for (const Clean* c : mine)
-                    if (size <= c->size &&
-                        (crc == c->crc || CrcPadded(crc, 0xFF, c->size - size) == c->crc || CrcPadded(crc, 0x00, c->size - size) == c->crc))
-                        kind = Kind::Clean;
-        }
+        uint32_t crc = 0;
+        uint64_t read = 0;
+        if (!Hasher::Get().Result(rom, key, crc, read, wait) || read != size) return Kind::Unknown;
+        for (const Clean* c : mine)
+            if (size <= c->size &&
+                (crc == c->crc || CrcPadded(crc, 0xFF, c->size - size) == c->crc || CrcPadded(crc, 0x00, c->size - size) == c->crc))
+                kind = Kind::Clean;
     }
     fprintf(stderr, "[romhacks] %s: %s (fingerprint %08X, revision %u)\n", rom.c_str(), KindName(kind), (unsigned)fp, (unsigned)rev);
     cache.Put(key, KindName(kind));

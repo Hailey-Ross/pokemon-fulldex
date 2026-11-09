@@ -10,12 +10,12 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def synthetic_crc_bytes(target):
+def synthetic_crc_bytes(target, prefix_crc=0):
     # Solve CRC's 32 linear equations. This makes four synthetic bytes, not game data.
-    zero = binascii.crc32(bytes(4))
+    zero = binascii.crc32(bytes(4), prefix_crc)
     basis = {}
     for bit in range(32):
-        value = binascii.crc32((1 << bit).to_bytes(4, 'little')) ^ zero
+        value = binascii.crc32((1 << bit).to_bytes(4, 'little'), prefix_crc) ^ zero
         mask = 1 << bit
         while value:
             pivot = value.bit_length() - 1
@@ -30,7 +30,7 @@ def synthetic_crc_bytes(target):
         value ^= row
         mask ^= bits
     result = mask.to_bytes(4, 'little')
-    assert binascii.crc32(result) == target
+    assert binascii.crc32(result, prefix_crc) == target
     return result
 
 
