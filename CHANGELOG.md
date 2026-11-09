@@ -11,6 +11,7 @@
 - **DS data-only hacks get separate saves too.** A matching code fingerprint is now checked against the complete ROM before it can be treated as the original game.
 
 - **Expanded DS ROM hacks get their own saves.** A ROM larger than its clean release is recognised as modified even if its code fingerprint, or an older cached result, says clean.
+- **GBA ultrawide screens: small text backgrounds no longer wrap across the picture.** The level-up window is kept from repeating at the opposite edge.
 
 - **RetroAchievements: a wrong clock is named when logging in fails.** A device whose date is
   wrong (a Switch set years ahead, often) cannot check the server's certificate, and the settings
