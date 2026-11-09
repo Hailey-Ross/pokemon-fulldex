@@ -3,6 +3,8 @@
 
 ## Unreleased
 
+- **Unreadable ROM and snapshot files stop cleanly when a file seek fails.** Invalid file lengths are rejected before allocating memory.
+
 - **Modified regional DS games can use the ROM-hack launch path.** A recognised hack is no longer rejected for differing from its clean regional release; it uses normal emulation and keeps its separate save.
 
 - **Portrait ROMs page keeps controller actions in view.** Lower buttons scroll into reach, and the entire last button can be reached by touch scrolling.

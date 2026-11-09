@@ -521,10 +521,10 @@ static std::vector<uint8_t> ReadFile(const std::string& path)
 #endif
     FILE* f = fopen(path.c_str(), "rb");
     if (!f) return data;
-    fseek(f, 0, SEEK_END);
-    long len = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    data.resize(len);
+    if (fseek(f, 0, SEEK_END) != 0) { fclose(f); return data; }
+    const long len = ftell(f);
+    if (len < 0 || fseek(f, 0, SEEK_SET) != 0) { fclose(f); return data; }
+    data.resize((size_t)len);
     if (fread(data.data(), 1, len, f) != (size_t)len) data.clear();
     fclose(f);
     return data;
