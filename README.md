@@ -461,6 +461,10 @@ in a `cheats` folder (make it if it isn't there):
   D2000000 00000000
   ```
   melonDS's own cheat files (`IPKE.mch` and so on) work too.
+- **Codes for one ROM:** name the text or melonDS cheat file after the ROM, without `.nds`:
+  `My Hack.txt` for `My Hack.nds`. If either ROM-specific file exists, those files take
+  priority over the game-code files. ROM hacks keep their enabled cheats separately,
+  so turning a code on for one hack does not turn it on for another or the original game.
 
 The codes must be for your version of the game (US or Europe). A cheat changes the game's
 memory while it runs: **save first**, and turn it off if the game misbehaves.

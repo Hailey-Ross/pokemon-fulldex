@@ -2042,7 +2042,7 @@ int main(int argc, char** argv)
     const std::string gameCode = rom.size() >= 0x200 ? std::string((const char*)&rom[0x0C], 4) : std::string();
     if (!opt.lockstep && rom.size() >= 0x200)
     {
-        cheats.Load(Cheats::FolderFor(opt.save), gameCode, rom.data());
+        cheats.Load(Cheats::FolderFor(opt.save), gameCode, rom.data(), opt.rom, opt.romHack);
         cheats.Apply(nds->AREngine);
         fprintf(stderr, "[cheats] %zu for %s in %s, %d on, %zu folders\n", cheats.items.size(), gameCode.c_str(), cheats.folder.c_str(), cheats.On(), cheats.folders.size());
         for (const std::string& src : cheats.sources) fprintf(stderr, "[cheats]   from %s\n", src.c_str());
