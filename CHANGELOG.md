@@ -45,6 +45,10 @@
 - **GBA ROM hacks keep their own code when widescreen does not fit.** Incompatible widescreen patches are skipped, so the hack can play in its original layout.
 - **DS ROM hacks keep their own map memory and wild encounters.** Original-game memory modifications are no longer attached to recognised hacks.
 
+- **ROM checks use less memory before starting a DS game.** File tables and fingerprint regions
+  are read in blocks. If the background check cannot start, the launcher logs the failure instead
+  of closing. Switch logs now show the launch stages to help investigate black-screen reports.
+
 - **RetroAchievements: a wrong clock is named when logging in fails.** A device whose date is
   wrong (a Switch set years ahead, often) cannot check the server's certificate, and the settings
   only said LOGIN FAILED. They now say CHECK THE CLOCK, and the message asks whether the date and

@@ -1009,7 +1009,13 @@ int PickGame(const std::vector<Launcher::Game>& gamesIn, int selected, const std
             }
             if (play && selected >= 0 && selected < (int)games.size())
             {
-                if (Playable(games[selected])) { if (!Launcher::SavesPlayCheck(games[selected], SavePath(games[selected]))) { result = selected; break; } }
+                if (Playable(games[selected]))
+                {
+                    fprintf(stderr, "[launch] save check begin: %s\n", games[selected].code.c_str());
+                    const bool blocked = Launcher::SavesPlayCheck(games[selected], SavePath(games[selected]));
+                    fprintf(stderr, "[launch] save check: %s\n", blocked ? "confirmation needed" : "ready");
+                    if (!blocked) { result = selected; break; }
+                }
                 else note = games[selected].known ? "THIS DOWNLOAD DOES NOT HAVE THIS GAME" : "THIS GAME IS NOT ONE THAT THIS PLAYS";
             }
             if (quitList) break;
@@ -1296,9 +1302,10 @@ std::vector<Launcher::Game> FindGames(const std::string& dir, bool& ownFolder)
     // (Each DS ROM checked against the clean releases, in the background the first time: a hack
     // gets a save of its own. romhacks.h)
     Launcher::BeginScan(dir + "/saves");
+    fprintf(stderr, "[launch] library scan begin\n");
     struct EndScan
     {
-        ~EndScan() { Launcher::EndScan(); }
+        ~EndScan() { Launcher::EndScan(); fprintf(stderr, "[launch] library scan complete\n"); }
     } endScan;
     if (Launcher::ReadGame(dir + "/rom.nds", dir, g))
     {
@@ -1638,7 +1645,11 @@ bool Start(int& argc, char**& argv)
     }
 #endif
     // (A ROM not yet checked is, now: a hack plays with a save of its own.)
+    const u64 checkStart = armGetSystemTick();
+    fprintf(stderr, "[launch] ROM check begin: code %s, hack %d\n", games[chosen].code.c_str(), (int)games[chosen].hack);
     Launcher::ConfirmHack(games, (size_t)chosen, dir + "/saves", SavePathFor);
+    fprintf(stderr, "[launch] ROM check complete: hack %d, %llu ms\n", (int)games[chosen].hack,
+        (unsigned long long)(armTicksToNs(armGetSystemTick() - checkStart) / 1000000));
     const Launcher::Game& game = games[chosen];
     const std::string rom = game.rom, gameDir = game.folder;
     char code[5] = {};
@@ -1780,6 +1791,7 @@ bool Start(int& argc, char**& argv)
     g_argv.push_back(nullptr);
     argc = (int)g_args.size();
     argv = g_argv.data();
+    fprintf(stderr, "[launch] emulator arguments ready\n");
     return true;
 }
 

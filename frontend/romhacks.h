@@ -7,6 +7,8 @@
 //    source's CRC-32; xdelta: the checksum of the first window it makes).
 // Nothing of the games is in here: only the clean ROMs' sizes and checksums.
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -19,6 +21,7 @@
 #include <condition_variable>
 #include <deque>
 #include <thread>
+#include <system_error>
 #include <string>
 #include <vector>
 #include <dirent.h>
@@ -1146,7 +1149,18 @@ public:
             {
                 if (wait) queue.push_front({ path, key });
                 else queue.push_back({ path, key });
-                if (!worker.joinable()) worker = std::thread([this] { Run(); });
+                if (!worker.joinable())
+                {
+                    try { worker = std::thread([this] { Run(); }); }
+                    catch (const std::system_error& e)
+                    {
+                        // A missing worker must not terminate the launcher or leave a waiter
+                        // asleep forever. A later attempt may succeed; do not cache a failure.
+                        queue.pop_front();
+                        fprintf(stderr, "[romhacks] cannot start ROM check: %s\n", e.what());
+                        return false;
+                    }
+                }
                 cv.notify_all();
             }
             else if (wait)
@@ -1196,6 +1210,8 @@ private:
             queue.pop_front();
             current = job.key;
             lock.unlock();
+            const auto began = std::chrono::steady_clock::now();
+            fprintf(stderr, "[romhacks] CRC begin: %s\n", job.path.c_str());
             Done d{ false, 0, 0 };
             if (FILE* f = fopen(job.path.c_str(), "rb"))
             {
@@ -1208,6 +1224,10 @@ private:
                 d.ok = !stop && !ferror(f);
                 fclose(f);
             }
+            fprintf(stderr, "[romhacks] CRC end: %s, %llu bytes, %lld ms, %s\n",
+                job.path.c_str(), (unsigned long long)d.size,
+                (long long)std::chrono::duration_cast<std::chrono::milliseconds>(
+                    std::chrono::steady_clock::now() - began).count(), d.ok ? "ok" : "failed");
             lock.lock();
             current.clear();
             done[job.key] = d;
@@ -1220,7 +1240,7 @@ private:
     std::map<std::string, Done> done;
     std::string current;
     std::thread worker;
-    bool stop = false;
+    std::atomic<bool> stop{false};
 };
 
 // A CRC-32 carried on over n more bytes of the value v (a trimmed ROM's cut-off end).
@@ -1261,12 +1281,17 @@ inline bool DsFingerprint(const std::string& rom, uint32_t& fp, uint8_t& rev, ui
     };
     if (ov9s % 32 == 0 && ov9s <= 32 * 1024 && fats % 8 == 0 && (uint64_t)fat + fats <= size && (uint64_t)ov9 + ov9s <= size)
     {
-        std::vector<uint8_t> table(ov9s), fatd(fats);
-        if (!r.Read(ov9, table.data(), table.size()) || !r.Read(fat, fatd.data(), fatd.size())) return false;
+        std::vector<uint8_t> table(ov9s);
+        if (!r.Read(ov9, table.data(), table.size())) return false;
         for (size_t i = 0; i + 32 <= table.size(); i += 32)
         {
             const uint32_t id = Le32(table.data() + i + 0x18);
-            if ((uint64_t)id * 8 + 8 <= fatd.size()) regions.push_back({ Le32(fatd.data() + id * 8), Le32(fatd.data() + id * 8 + 4) });
+            if ((uint64_t)id * 8 + 8 <= fats)
+            {
+                uint8_t entry[8];
+                if (!r.Read((uint64_t)fat + (uint64_t)id * 8, entry, sizeof entry)) return false;
+                regions.push_back({ Le32(entry), Le32(entry + 4) });
+            }
         }
     }
     fp = 0;
@@ -1278,9 +1303,16 @@ inline bool DsFingerprint(const std::string& rom, uint32_t& fp, uint8_t& rev, ui
         if (e <= s) continue;
         total += e - s;
         if (total > (64u << 20)) return false;
-        buf.resize((size_t)(e - s));
-        if (!r.Read(s, buf.data(), buf.size())) return false;
-        fp = Crc32(fp, buf.data(), buf.size());
+        // Stream the same bytes, in the same order. A ROM-supplied FAT/region size
+        // must not become a whole-region allocation before the game can start.
+        buf.resize((size_t)std::min<uint64_t>(e - s, 1u << 20));
+        for (uint64_t at = s; at < e;)
+        {
+            const size_t n = (size_t)std::min<uint64_t>(e - at, buf.size());
+            if (!r.Read(at, buf.data(), n)) return false;
+            fp = Crc32(fp, buf.data(), n);
+            at += n;
+        }
     }
     return true;
 }
