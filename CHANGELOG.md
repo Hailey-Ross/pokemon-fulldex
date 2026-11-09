@@ -3,6 +3,8 @@
 
 ## Unreleased
 
+- **Custom-sized screenshots keep clean overlays.** Window-sized text and menus are omitted when their dimensions differ from the requested export, avoiding scrambled rows.
+
 - **Launcher pages refresh when scrolled.** Cached page images now follow detail, list and release-note scroll positions.
 
 - **Portrait About pages scroll inside their panel.** Support codes and long credits stay above the navigation bar, and hidden links cannot be tapped.

@@ -1851,9 +1851,12 @@ static void StartTyping(const char* guide = "", bool password = false)
 static void SearchTyping(const char* guide) { StartTyping(guide); }
 
 // Draws the overlay canvas over an ARGB image of the same size.
-static void BlendCanvas(const Canvas& c, std::vector<uint32_t>& img)
+static void BlendCanvas(const Canvas& c, std::vector<uint32_t>& img, int width, int height)
 {
-    for (size_t i = 0; i < img.size() && i < c.px.size(); i++)
+    // A differently sized export omits the window-sized overlay rather than changing its row stride.
+    if (width <= 0 || height <= 0 || c.w != width || c.h != height ||
+        img.size() != (size_t)width * height || c.px.size() != img.size()) return;
+    for (size_t i = 0; i < img.size(); i++)
     {
         uint32_t o = c.px[i];
         uint32_t a = o >> 24;
@@ -11304,9 +11307,9 @@ int main(int argc, char** argv)
                     MergedBlackBars(shot, opt.composeW, opt.composeH);
                 }
                 else Compose(layout, opt.composeW, opt.composeH, top, bot, shot);
-                if (liveUsed && frostCanvas.w == opt.composeW && frostCanvas.h == opt.composeH) BlendCanvas(frostCanvas, shot);
-                if (liveUsed && liveCanvas.w == opt.composeW && liveCanvas.h == opt.composeH) BlendCanvas(liveCanvas, shot);
-                BlendCanvas(canvas, shot);
+                if (liveUsed && frostCanvas.w == opt.composeW && frostCanvas.h == opt.composeH) BlendCanvas(frostCanvas, shot, opt.composeW, opt.composeH);
+                if (liveUsed && liveCanvas.w == opt.composeW && liveCanvas.h == opt.composeH) BlendCanvas(liveCanvas, shot, opt.composeW, opt.composeH);
+                BlendCanvas(canvas, shot, opt.composeW, opt.composeH);
                 WritePNG(opt.shotDir + name, shot.data(), opt.composeW, opt.composeH);
             }
             else
