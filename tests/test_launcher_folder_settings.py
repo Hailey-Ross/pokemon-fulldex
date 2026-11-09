@@ -31,12 +31,16 @@ int main() {
     settings.Apply("roms_folder=C:/Shared ROMs\\r");
     settings.Apply("saves_folder=C:/Separate Saves\\r");
     settings.Apply("volume=50");
+    settings.Apply("screen_filter=2");
+    settings.Apply("gba_lcd=1");
     std::ostringstream output;
     settings.Write(output);
     const auto text = output.str();
     if (text.find("roms_folder=C:/Shared ROMs\\n") == std::string::npos) return 1;
     if (text.find("saves_folder=C:/Separate Saves\\n") == std::string::npos) return 2;
     if (text.find("volume=50\\n") == std::string::npos) return 3;
+    if (text.find("screen_filter=2\\n") == std::string::npos) return 4;
+    if (text.find("gba_lcd=1\\n") == std::string::npos) return 5;
 }
 ''', encoding='utf-8')
             exe = temp / 'folders'

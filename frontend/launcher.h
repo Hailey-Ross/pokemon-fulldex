@@ -1185,6 +1185,8 @@ inline void SyncGbaSettings(const std::string& cfg, const std::string& dataDir)
     set.push_back({ "fullscreen", ConfigValue(cfg, "fullscreen") == "0" ? "0" : "1" });
 #endif
     set.push_back({ "show_fps", ConfigValue(cfg, "show_fps") == "1" ? "1" : "0" });
+    const std::string lcd = ConfigValue(cfg, "gba_lcd");
+    if (lcd == "0" || lcd == "1") set.push_back({ "lcd", lcd });
     const std::string vol = ConfigValue(cfg, "volume");
     set.push_back({ "volume", vol.empty() ? "100" : vol });
 #ifndef __SWITCH__
@@ -7708,6 +7710,10 @@ inline std::vector<Setting> SettingsList()
 #endif
 #endif
     l.push_back({ "smooth", "SMOOTH SCALING", onOff, "0", "ON: THE PICTURE IS SOFTENED AS IT IS SCALED UP TO YOUR SCREEN. OFF: SHARP PIXELS." });
+    l.push_back({ "screen_filter", "DS SCREEN FILTER", { { "0", "OFF" }, { "1", "SCANLINES" }, { "2", "LCD GRID" } }, "0",
+                  "DS GAMES: A RETRO LOOK OVER THE PICTURE. LCD GRID ADDS A FAINT PIXEL GRID. THE SAME CHOICE IS AVAILABLE IN THE GAME'S DISPLAY MENU." });
+    l.push_back({ "gba_lcd", "GBA LCD EFFECT", { { "auto", "AUTO" }, { "0", "OFF" }, { "1", "ON" } }, "auto",
+                  "GBA GAMES: A FAINT GRID BETWEEN THE PIXELS. AUTO KEEPS YOUR EXISTING GBA SETTING. CHANGES IN THE GAME'S DISPLAY MENU ARE REMEMBERED HERE." });
     l.push_back({ "wide", "WIDESCREEN WORLD", onOff, "1", "ON: THE 3D WORLD IS DRAWN OUT TO THE SIDES OF THE 16:9 SCREEN. OFF: ONLY AS WIDE AS A DS SCREEN." });
     l.push_back({ "wide_map", "WIDE MAP LOADING", onOff, "1", "BLACK / WHITE / BLACK 2 / WHITE 2: LOADS MORE OF THE MAP AROUND YOU SO THE WIDE VIEW HAS LAND AT ITS EDGES." });
     l.push_back({ "battle_buttons", "BATTLE BUTTONS", { { "corner", "CORNER" }, { "panel", "PANEL" }, { "strip", "STRIP" } }, "strip",
@@ -7851,7 +7857,7 @@ inline int GroupOf(const Setting& s)
     if (!strcmp(s.key, "list_lang")) return 0;
     if (!strncmp(s.key, "list_", 5)) return 6;
     if (!strcmp(s.key, "ra") || !strcmp(s.key, "!ra_login")) return 7;
-    static const char* display[] = { "view", "large_screen", "fullscreen", "smooth", "battle_buttons", "show_fps" };
+    static const char* display[] = { "view", "large_screen", "fullscreen", "smooth", "screen_filter", "gba_lcd", "battle_buttons", "show_fps" };
     static const char* controls[] = { "start_button", "buttons", "pad_touch" };
     for (const char* k : display)
         if (!strcmp(s.key, k)) return 1;
@@ -8180,7 +8186,7 @@ inline int SettingIcon(const Setting& s, int group)
     if (!s.key) return Glass::I_INFO;
     static const std::pair<const char*, int> own[] = {
         { "view", Glass::I_LAYOUT }, { "large_screen", Glass::I_EXPAND }, { "fullscreen", Glass::I_FULLSCREEN }, { "smooth", Glass::I_SCREENS },
-        { "battle_buttons", Glass::I_PAD }, { "show_fps", Glass::I_GAUGE }, { "fps60", Glass::I_FAST }, { "wide", Glass::I_RATIO },
+        { "screen_filter", Glass::I_SPARKLE }, { "gba_lcd", Glass::I_SPARKLE }, { "battle_buttons", Glass::I_PAD }, { "show_fps", Glass::I_GAUGE }, { "fps60", Glass::I_FAST }, { "wide", Glass::I_RATIO },
         { "wide_map", Glass::I_GLOBE }, { "wide_lines", Glass::I_LAYERS }, { "busy_detail", Glass::I_GAUGE }, { "ff_low_res", Glass::I_FAST },
         { "wide_gpu", Glass::I_CHIP }, { "volume", Glass::I_SPEAKER }, { "start_button", Glass::I_PAD }, { "buttons", Glass::I_PAD },
         { "pad_touch", Glass::I_PAD }, { "!keys", Glass::I_PAD }, { "!shortcuts", Glass::I_WINDOW }, { "!forwarders", Glass::I_WINDOW },
@@ -8316,7 +8322,7 @@ inline void BuildSettingsMenu(Menu& m, std::vector<int>& map, const SettingsPage
         {
             const std::string kk = s.key; // (the picture drawn for each choice: the choice's own number)
             it.preview = kk == "view" ? Menu::P_LAYOUT : kk == "large_screen" ? Menu::P_LARGE : kk == "aspect" ? Menu::P_ASPECT : kk == "fullscreen" ? Menu::P_FULLSCREEN
-                       : kk == "smooth" ? Menu::P_SMOOTH : kk == "battle_buttons" ? Menu::P_BATTLE : kk == "show_fps" ? Menu::P_FPS : kk == "wide" ? Menu::P_WIDE
+                       : kk == "screen_filter" ? Menu::P_FILTER : kk == "smooth" ? Menu::P_SMOOTH : kk == "battle_buttons" ? Menu::P_BATTLE : kk == "show_fps" ? Menu::P_FPS : kk == "wide" ? Menu::P_WIDE
                        : kk == "fps60" ? Menu::P_MOTION : -1;
         }
         m.items.push_back(it);

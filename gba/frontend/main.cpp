@@ -242,6 +242,7 @@ struct Settings
         std::string hk, hv;
         if (!strcmp(key, "scaling")) { hk = "smooth"; hv = v == "smooth" ? "1" : "0"; }
         else if (!strcmp(key, "show_fps") || !strcmp(key, "volume") || !strcmp(key, "buttons") || !strcmp(key, "ff_mute")) { hk = key; hv = v; }
+        else if (!strcmp(key, "lcd")) { hk = "gba_lcd"; hv = v; }
         else if (!strcmp(key, "widescreen")) { hk = "aspect"; hv = v == "off" ? "3:2" : v; }
         else if (!strcmp(key, "fullscreen")) { hk = key; hv = v; }
         else return;

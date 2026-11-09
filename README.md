@@ -116,6 +116,8 @@ the system file picker opens. The chosen image is copied into the save folder, l
 your original picture alone. Games with the same filename can keep different pictures.
 
 
+Launcher **Settings > Display** also lets you choose the **DS Screen Filter** or **GBA LCD Effect** before starting a game. GBA AUTO keeps its existing in-game choice; selecting ON or OFF overrides it. Changes in the in-game display menus are remembered by the launcher.
+
 ![The settings page: its groups (DISPLAY, SOUND, GRAPHICS, CONTROLS, SHORTCUTS, GAME LIST, HELP), each with the options in it](docs/screenshots/settings-page.png)
 
 **Settings** (all of them: [Settings](#settings)). The ones that matter most on a PC:
@@ -345,7 +347,7 @@ controller, or SETTINGS at the top), or in the pause menu while you play (**Esc*
 
 | Group | Settings |
 |---|---|
-| DISPLAY | LANGUAGE, SCREEN LAYOUT (MERGED: the one widescreen picture), LARGE SCREEN, BORDERLESS FULLSCREEN, SMOOTH SCALING, BATTLE BUTTONS, FPS COUNTER |
+| DISPLAY | LANGUAGE, SCREEN LAYOUT (MERGED: the one widescreen picture), LARGE SCREEN, BORDERLESS FULLSCREEN, SMOOTH SCALING, DS SCREEN FILTER (OFF / SCANLINES / LCD GRID), GBA LCD EFFECT, BATTLE BUTTONS, FPS COUNTER |
 | SOUND | VOLUME (a slider: OFF, then 10% to 100%) |
 | GRAPHICS | 60 FPS, WIDESCREEN WORLD, WIDE MAP LOADING, 3D RESOLUTION (WORLD DETAIL on the Switch), LOWER RES WHEN BUSY, WORLD ON GPU, FAST FORWARD LOW RES |
 | CONTROLS | **KEYS AND BUTTONS** (give any DS button, the pause menu, fast forward, swapping the screens, save state or load state another key or controller button), START BUTTON, BUTTONS, STICK TOUCH CURSOR |

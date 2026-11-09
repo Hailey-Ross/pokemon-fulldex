@@ -1627,6 +1627,7 @@ struct Settings : OptionalFeatures
     bool ffMute = false;
     // QUIET GAME MUSIC: while the player's own music app plays (now_playing.h), the game's music is off.
     bool musicQuiet = false;
+    std::string gbaLcd; // Empty keeps the GBA player's existing LCD preference.
     std::string romsFolder, savesFolder; // Keep launcher paths when in-game settings are saved.
     std::string listColour, listBackground, listLang, listSort; // (GAME LIST: COLOUR, BACKGROUND; LANGUAGE)
     bool cpuBoost = true; // Switch only: the processor's boost mode (see SwitchPlatform)
@@ -1691,6 +1692,7 @@ struct Settings : OptionalFeatures
             else if (k == "large_screen") focusMode = v == "top" ? 1 : v == "bottom" ? 2 : 0;
             else if (k == "fullscreen") fullscreen = v == "1";
             else if (k == "smooth") smooth = v == "1";
+            else if (k == "gba_lcd") gbaLcd = v == "0" || v == "1" || v == "auto" ? v : "";
             else if (k == "wide") wide = v == "1";
             else if (k == "wide_map") wideMap = v == "1";
             else if (k == "wide_lines") wideLines = std::clamp(atoi(v.c_str()), 192, 2160);
@@ -1782,6 +1784,7 @@ struct Settings : OptionalFeatures
         f << "party_hud=" << partyHud << "\n";
         f << "status_bar=" << statusBar << "\n";
         f << "screen_filter=" << screenFilter << "\n";
+        if (!gbaLcd.empty()) f << "gba_lcd=" << gbaLcd << "\n";
         SaveExtras(f);
         f << "smart_fast=" << smartFast << "\n";
         f << "turbo_a=" << turboA << "\n";
