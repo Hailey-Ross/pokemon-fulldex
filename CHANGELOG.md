@@ -12,6 +12,7 @@
 
 - **Expanded DS ROM hacks get their own saves.** A ROM larger than its clean release is recognised as modified even if its code fingerprint, or an older cached result, says clean.
 - **GBA ultrawide screens: small text backgrounds no longer wrap across the picture.** The level-up window is kept from repeating at the opposite edge.
+- **GBA ROM hacks keep their own code when widescreen does not fit.** Incompatible widescreen patches are skipped, so the hack can play in its original layout.
 
 - **RetroAchievements: a wrong clock is named when logging in fails.** A device whose date is
   wrong (a Switch set years ahead, often) cannot check the server's certificate, and the settings

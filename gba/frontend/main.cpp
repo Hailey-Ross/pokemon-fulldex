@@ -861,11 +861,11 @@ struct App
         const bool wantRa = false;
         (void)sold;
 #endif
-        // (A hack whose widescreen patch doesn't fit: tried anyway, unless the GBA's own shape
-        // was chosen, which is how to play it as it is when it glitches.)
+        // Hacks that fail a widescreen patch's checks play without that patch. Applying it
+        // over changed functions or occupied free space can overwrite the hack's own code.
         const std::string shape = set.Get("widescreen");
         const bool ownShape = shape == "off" || shape == "3:2" || shape == "4:3";
-        if (!Games::Prepare(g, rom, error, wantRa ? &sold : nullptr, !ownShape))
+        if (!Games::Prepare(g, rom, error, wantRa ? &sold : nullptr, !ownShape && !g.forced))
         {
             Toast(error, 5000);
             return false;
@@ -2769,7 +2769,7 @@ std::vector<ListGame> Find(const std::string& roms, const std::string& saves)
         l.file = g.ips.empty() ? g.rom : g.ips;
         l.art = g.patch.empty() ? std::string() : Games::ArtCode(g.sha1);
         l.hasSave = g.hasSave;
-        l.widescreen = !g.patch.empty();
+        l.widescreen = !g.patch.empty() && !g.forced;
         l.hack = !g.known;
         out.push_back(l);
     }
