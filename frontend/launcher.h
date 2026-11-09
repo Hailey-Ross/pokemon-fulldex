@@ -4637,6 +4637,17 @@ inline bool PageMove(int dir)
         else if (dir == 2) { if ((F.prow % cols < cols - 1 || (F.prow + 1) % Themes().perPage == 0) && F.prow + 1 < n) F.prow++; } // (and on to the next page)
         return true;
     }
+    if (F.page == SIDE_ABOUT && PortraitNow())
+    {
+        if (F.pact >= 0)
+        {
+            if (dir == 1) F.pact = -1;
+            else if (dir == 3 || dir == 4)
+                F.dScroll = std::clamp(F.dScroll + (dir == 3 ? -1 : 1) * std::max(24, F.abRow), 0, F.dMax);
+            return true;
+        }
+        if (dir == 2 && F.dMax > 0) { F.pact = 0; return true; }
+    }
     if (F.page == SIDE_ROMS || F.page == SIDE_HUB)
     {
         // (The list, and right of it the chosen row's actions: a ROM's, or the Hub's.)
@@ -6483,13 +6494,18 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
     // The chosen section.
     const int px = stkA ? L : L + lw + (int)(18 * u), pw = R - px, ip = (int)(22 * u);
     Menu::FrostBox(c, solid, px, pTop, pw, bottom - pTop, 18 * u);
-    int y = pTop + ip;
+    if (F.abKey != F.prow) { F.abKey = F.prow; F.rScroll = 0; F.dScroll = 0; }
+    F.dScroll = std::clamp(F.dScroll, 0, F.dMax);
+    TextLow() = 0; F.pdY = stkA ? pTop : 0;
+    ClipGuard aboutClip(c, F, stkA ? pTop : 0, stkA ? bottom : c.h, ip);
+    int y = pTop + ip - (stkA ? F.dScroll : 0);
     auto heading = [&](const char* h) { GT(c, px + ip, y + 14 * u, h, 22 * u, text, true); y += (int)(46 * u); };
     auto para = [&](const std::string& s) {
         for (const std::string& l : WrapLines(s, 16 * u, pw - 2 * ip)) { GT(c, px + ip, y + 11 * u, l, 16 * u, text, false); y += (int)(24 * u); }
         y += (int)(10 * u);
     };
     auto card = [&](int x, int cy, int w, int h, const std::string& a, const std::string& b) {
+        TextLow() = std::max(TextLow(), cy + h);
         Glass::Round(c, x, cy, w, h, 12 * u, 0x14FFFFFFu);
         float fa = 16 * u, fb = 13 * u;
         while (fa > 10 * u && GW(a, fa, true) > w - (int)(28 * u)) fa -= u;
@@ -6503,10 +6519,11 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
     const char* open = "Choose it to open it in your browser";
 #endif
     F.rVis = 0; F.abX = px; F.abW = pw; F.abRow = (int)(60 * u);
-    if (F.abKey != F.prow) { F.abKey = F.prow; F.rScroll = 0; }
+
     struct Blk { int h; std::function<void()> draw; };
     // (A section too long for the screen: its blocks drawn from the one scrolled to, a finger dragging moves along them.)
     auto runBlocks = [&](std::vector<Blk>& bl, int step) {
+        if (stkA) { for (auto& block : bl) block.draw(); TextLow() = std::max(TextLow(), y); return; }
         const int avail = bottom - ip - y, total = (int)bl.size();
         int maxStart = total, acc = 0;
         while (maxStart > 0 && acc + bl[maxStart - 1].h <= avail) { acc += bl[maxStart - 1].h; maxStart--; }
@@ -6523,7 +6540,9 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
     };
     AboutLinks().clear();
     auto link = [&](int lx, int ly, int lw, int lh, const char* url) {
-        AboutLinks().push_back({ lx, ly, lw, lh, url });
+        const int linkTop = stkA ? std::max(ly, pTop) : ly;
+        const int linkBottom = stkA ? std::min(ly + lh, bottom) : ly + lh;
+        if (linkBottom > linkTop) AboutLinks().push_back({ lx, linkTop, lw, linkBottom - linkTop, url });
         Glass::DrawIcon(c, Glass::I_CHEVRON_R, lx + lw - (int)(18 * u), ly + lh * 0.5f, 7 * u, hint);
     };
     if (F.prow == 0)
@@ -6535,7 +6554,7 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
 #ifdef __ANDROID__
         const int qs = 0; // (no QR codes on Android: the links are there to choose)
 #else
-        const int qs = std::max((int)(80 * u), std::min(cw - (int)(60 * u), bottom - ip - (y + ch + (int)(14 * u)) - (int)(30 * u)));
+        const int qs = std::max((int)(80 * u), std::min(cw - (int)(60 * u), bottom - ip - (y + (stkA ? F.dScroll : 0) + ch + (int)(14 * u)) - (int)(30 * u)));
 #endif
         const char* names2[2] = { "Buy Me A Coffee", "PayPal" };
         const char* where[2] = { "buymeacoffee.com/mamesj", "paypal.me/mamesj" };
@@ -6548,6 +6567,7 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
             else DrawQr(c, kPaypalQr, kPaypalQrSize, cx + (cw - qs) / 2, y + ch + (int)(14 * u), qs);
         }
         y += ch + (int)(14 * u) + qs + (int)(14 * u);
+        TextLow() = std::max(TextLow(), y);
 #ifdef __SWITCH__
         GT(c, px + ip, y + 8 * u, "Scan a code with your phone's camera.", 13 * u, hint, true);
 #else

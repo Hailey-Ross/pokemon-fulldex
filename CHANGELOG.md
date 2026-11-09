@@ -3,6 +3,8 @@
 
 ## Unreleased
 
+- **Portrait About pages scroll inside their panel.** Support codes and long credits stay above the navigation bar, and hidden links cannot be tapped.
+
 - **Closing the Windows launcher exits cleanly.** Its music-status worker is stopped before the application finishes, including when media controls are unavailable.
 
 - **Launcher dialog arrows act once with overlapping inputs.** Controller remappings keep their first direction press, and navigating a dialog no longer moves the game list behind it.
