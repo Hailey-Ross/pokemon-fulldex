@@ -887,6 +887,53 @@ inline bool LoadSquareArt(const unsigned char* data, size_t size, std::vector<ui
     stbi_image_free(px);
     return true;
 }
+// Keep imported pictures by their contents, so ROMs with the same filename in different
+// library folders never replace each other's artwork. The original image is only read.
+inline bool ImportArt(const std::string& rom, const std::string& savesDir, const std::string& picture, std::string& error)
+{
+    error.clear();
+    std::vector<unsigned char> data;
+    std::vector<uint32_t> decoded;
+    if (!ReadFile(picture, data) || !LoadSquareArt(data.data(), data.size(), decoded))
+    { error = "THAT PICTURE COULD NOT BE READ: PNG OR JPG ONLY"; return false; }
+    SHA1_CTX ctx; SHA1Init(&ctx); SHA1Update(&ctx, data.data(), (uint32_t)data.size());
+    unsigned char digest[20]; SHA1Final(digest, &ctx);
+    char hex[41] = {};
+    for (int i = 0; i < 20; ++i) snprintf(hex + i * 2, 3, "%02x", digest[i]);
+    const std::string stem = std::string("picture-") + hex;
+    const std::string ext = data[0] == 0x89 ? ".png" : ".jpg";
+    const std::string dir = savesDir + "/artwork";
+    std::error_code ec;
+    std::filesystem::create_directories(std::filesystem::u8path(dir), ec);
+    if (ec) { error = "COULD NOT CREATE THE PICTURE FOLDER"; return false; }
+    for (int i = 0; i < 1000; ++i)
+    {
+        const std::string name = stem + (i ? "-" + std::to_string(i) : "") + ext;
+        const std::string dest = dir + "/" + name;
+        if (RomHacks::Exists(dest))
+        {
+            std::vector<unsigned char> existing;
+            if (!ReadFile(dest, existing) || existing != data) continue;
+        }
+        else
+        {
+            const std::string temp = dest + ".tmp";
+            FILE* f = fopen(temp.c_str(), "wb");
+            if (!f) { error = "COULD NOT KEEP THE PICTURE"; return false; }
+            const bool wrote = fwrite(data.data(), 1, data.size(), f) == data.size();
+            const bool closed = fclose(f) == 0;
+            if (!wrote || !closed) { remove(temp.c_str()); error = "COULD NOT KEEP THE PICTURE"; return false; }
+            std::filesystem::rename(std::filesystem::u8path(temp), std::filesystem::u8path(dest), ec);
+            if (ec) { remove(temp.c_str()); error = "COULD NOT KEEP THE PICTURE"; return false; }
+        }
+        if (SetPair(savesDir + "/fulldex-art.txt", rom, name)) return true;
+        error = "COULD NOT SAVE THE PICTURE CHOICE";
+        return false;
+    }
+    error = "COULD NOT KEEP THE PICTURE";
+    return false;
+}
+
 // The pictures chosen with Change Picture (fulldex-art.txt beside the saves: a ROM's path, a tab, the
 // picture's file in saves/artwork, or placeholder for the plain card), over each game's own picture.
 inline void ApplyArt(std::vector<Game>& games, const std::string& savesDir)

@@ -110,6 +110,11 @@ outside Steam still depends on the controller driver and needs device verificati
 under that name. **Pictures**: the list shows each game's box art; for your own,
 put a JPEG or PNG in an `icons` folder beside the program, named after the game's
 code (`IREO.jpg` for Black 2, see the `README.txt`).
+You can also open a game's menu and choose **Change Picture > Import A Picture**.
+On Linux and Steam Deck, use the folder browser to select a PNG or JPEG; on Windows,
+the system file picker opens. The chosen image is copied into the save folder, leaving
+your original picture alone. Games with the same filename can keep different pictures.
+
 
 ![The settings page: its groups (DISPLAY, SOUND, GRAPHICS, CONTROLS, SHORTCUTS, GAME LIST, HELP), each with the options in it](docs/screenshots/settings-page.png)
 

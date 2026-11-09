@@ -34,7 +34,7 @@ class LauncherDuplicateInputTests(unittest.TestCase):
             env = dict(os.environ, SDL_VIDEODRIVER='dummy', LD_PRELOAD=str(injector),
                        SSR_TEST_INPUT_SEQUENCE=sequence, SSR_LIST_TAB='1',
                        SSR_LIST_SIZE='1280x720', SSR_LIST_SHOT=str(temp / 'menu.bmp'),
-                       SSR_LIST_SHOT_WAIT='1', SSR_UPDATE_TEST='1')
+                       SSR_LIST_SHOT_WAIT='1', FULLDEX_UPDATE_URL='http://127.0.0.1:0/unavailable')
             subprocess.run([str(binary)], cwd=temp, env=env, check=True, timeout=30,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             lines = (temp / 'saves/fulldex-library.txt').read_text().splitlines()

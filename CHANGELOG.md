@@ -3,6 +3,8 @@
 
 ## Unreleased
 
+- **Import game pictures on Linux and Steam Deck.** Change Picture now has a folder browser for PNG and JPEG files. Pictures for games with the same filename are kept separately.
+
 - **Unreadable ROM and snapshot files stop cleanly when a file seek fails.** Invalid file lengths are rejected before allocating memory.
 
 - **Modified regional DS games can use the ROM-hack launch path.** A recognised hack is no longer rejected for differing from its clean regional release; it uses normal emulation and keeps its separate save.

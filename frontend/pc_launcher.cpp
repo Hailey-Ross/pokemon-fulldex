@@ -1,4 +1,5 @@
 #include <chrono>
+#include "picture_browser.h"
 // The PC all-games program's game list. See pc_launcher.h.
 #ifdef SSR_PC_LAUNCHER
 #include "pc_launcher.h"
@@ -882,7 +883,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
         note = "ROM FOLDER CHANGED";
     };
     std::string folderBrowse;
-    int folderPage = 0;
+    int folderFirst = 0, folderStep = 1;
     auto showRomFolder = [&]() {
         auto& F = Launcher::Focus();
         F.dialog = 19; F.dTitle = "Choose ROMs Folder"; F.dMsg = folderBrowse;
@@ -894,12 +895,29 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             if (it->is_directory(ec)) dirs.push_back(it->path().u8string());
         std::sort(dirs.begin(), dirs.end());
         const int pageSize = std::clamp((canvas.h - 120) / 56 - 5, 1, 5);
-        const int first = folderPage * pageSize;
+        folderStep = pageSize;
+        const int first = folderFirst;
         for (int i = first; i < (int)dirs.size() && i < first + pageSize; ++i) {
             F.dItems.push_back(std::filesystem::u8path(dirs[i]).filename().u8string()); F.dPaths.push_back(dirs[i]);
         }
-        if (folderPage > 0) { F.dItems.push_back("Previous Folders"); F.dPaths.push_back("#previous"); }
+        if (folderFirst > 0) { F.dItems.push_back("Previous Folders"); F.dPaths.push_back("#previous"); }
         if (first + pageSize < (int)dirs.size()) { F.dItems.push_back("More Folders"); F.dPaths.push_back("#next"); }
+    };
+    std::string pictureBrowse, pictureRom;
+    int pictureFirst = 0, pictureStep = 1;
+    auto showPictureFolder = [&]() {
+        auto& F = Launcher::Focus();
+        F.dialog = 20; F.dTitle = "Choose A Picture"; F.dMsg = pictureBrowse;
+        F.dItems = {"Parent Folder", "Cancel"}; F.dPaths = {"#parent", "#close"}; F.drow = 0;
+        const auto entries = PictureBrowser::Entries(pictureBrowse);
+        const int pageSize = std::clamp((canvas.h - 120) / 56 - 5, 1, 5);
+        pictureStep = pageSize;
+        const int first = pictureFirst;
+        for (int i = first; i < (int)entries.size() && i < first + pageSize; ++i) {
+            F.dItems.push_back(entries[i].label); F.dPaths.push_back(entries[i].path);
+        }
+        if (pictureFirst > 0) { F.dItems.push_back("Previous Files"); F.dPaths.push_back("#previous"); }
+        if (first + pageSize < (int)entries.size()) { F.dItems.push_back("More Files"); F.dPaths.push_back("#next"); }
     };
     auto toggleFavourite=[&]() {
         if(selected<0||selected>=(int)games.size()||games[selected].comingSoon)return;
@@ -998,7 +1016,8 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
         }
     }
     // (SSR_LIST_DIALOG=n: a dialog open, for the test picture: 1 Remove Game, 2 Delete, 3 Rename.)
-    if (const char* dd = getenv("SSR_LIST_DIALOG")) { Launcher::Focus().dialog = atoi(dd); Launcher::Focus().text = "My HeartGold Run"; if (Launcher::Focus().dialog == 16) Launcher::OpenSortMenu(""); if (Launcher::Focus().dialog == 19) { folderBrowse = fo.roms; folderPage = 0; showRomFolder(); } }
+    int testBrowseDialog = 0;
+    if (const char* dd = getenv("SSR_LIST_DIALOG")) { Launcher::Focus().dialog = atoi(dd); Launcher::Focus().text = "My HeartGold Run"; if (Launcher::Focus().dialog == 16) Launcher::OpenSortMenu(""); if (Launcher::Focus().dialog == 19 || Launcher::Focus().dialog == 20) testBrowseDialog = Launcher::Focus().dialog; }
     if (Launcher::Focus().dialog == 9) Launcher::OpenTabMenu(tab); // (test: 9 the shown tab's menu)
     if (const char* nt = getenv("SSR_LIST_NOTE")) note = nt; // (test: a message showing)
     if (const char* cs = getenv("SSR_TEST_COPYSAVES")) { std::string said; const int n = Launcher::CopySavesTo(fo.saves, cs, said); fprintf(stderr, "test: copysaves %d %s\n", n, said.c_str()); } // (test: SAVES FOLDER's copy)
@@ -1392,7 +1411,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                         const std::string dir = PickFolder(window, L"Choose the folder containing your ROMs");
                         if (!dir.empty()) useRomFolder(dir);
 #else
-                        folderBrowse = fo.roms; folderPage = 0; showRomFolder();
+                        folderBrowse = fo.roms; folderFirst = 0; showRomFolder();
 #endif
                         return;
                     }
@@ -1687,6 +1706,13 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
     int kbLayer = 0;
     auto kbBuild = [&]() { Launcher::BuildKeyboard(kb, kbIds, Launcher::Focus().text, kbLayer, Launcher::KbPrompt(), Launcher::KbDone()); };
     auto dialogClose = [&]() { Launcher::Focus().dialog = 0; kb.open = false; SDL_StopTextInput(); };
+    auto importPicture = [&](const std::string& rom, const std::string& path) {
+        std::string error;
+        const bool ok = Launcher::ImportArt(rom, fo.saves, path, error);
+        fprintf(stderr, "[launcher] picture for %s: %s (%s)\n", rom.c_str(), path.c_str(), ok ? "kept" : error.c_str());
+        if (ok) { dialogClose(); reorderLibrary(); note = "PICTURE CHANGED"; }
+        else { note = error; Launcher::Focus().dMsg = error; }
+    };
     // What Manage Saves leaves for the platform (saves_page.h): a folder opened, or the game
     // started from a state (Play From Slot, Play Anyway).
     auto savesRequest = [&]() {
@@ -1726,10 +1752,27 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             const std::string pick = F.drow >= 0 && F.drow < (int)F.dPaths.size() ? F.dPaths[F.drow] : "#close";
             if (pick == "#close") { dialogClose(); return; }
             if (pick == "#use") { dialogClose(); useRomFolder(folderBrowse); return; }
-            if (pick == "#next") ++folderPage;
-            else if (pick == "#previous") folderPage = std::max(0, folderPage - 1);
-            else { folderBrowse = pick == "#parent" ? std::filesystem::u8path(folderBrowse).parent_path().u8string() : pick; if (folderBrowse.empty()) folderBrowse = "/"; folderPage = 0; }
+            if (pick == "#next") folderFirst += folderStep;
+            else if (pick == "#previous") folderFirst = std::max(0, folderFirst - folderStep);
+            else { folderBrowse = pick == "#parent" ? std::filesystem::u8path(folderBrowse).parent_path().u8string() : pick; if (folderBrowse.empty()) folderBrowse = "/"; folderFirst = 0; }
             showRomFolder(); return;
+        }
+        if (F.dialog == 20)
+        {
+            const std::string pick = F.drow >= 0 && F.drow < (int)F.dPaths.size() ? F.dPaths[F.drow] : "#close";
+            if (pick == "#close") { dialogClose(); return; }
+            if (pick == "#next") pictureFirst += pictureStep;
+            else if (pick == "#previous") pictureFirst = std::max(0, pictureFirst - pictureStep);
+            else
+            {
+                std::error_code ec;
+                if (pick != "#parent" && !std::filesystem::is_directory(std::filesystem::u8path(pick), ec))
+                { importPicture(pictureRom, pick); return; }
+                pictureBrowse = pick == "#parent" ? std::filesystem::u8path(pictureBrowse).parent_path().u8string() : pick;
+                if (pictureBrowse.empty()) pictureBrowse = "/";
+                pictureFirst = 0;
+            }
+            showPictureFolder(); return;
         }
         const std::string rom = noGame ? std::string() : games[selected].rom;
         auto settle = [&]() { const Launcher::View v = view(); if (v.SpotOf(selected) < 0) selected = Launcher::FirstIn(v); };
@@ -1866,32 +1909,10 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
 #ifdef _WIN32
                 const std::string path = PickPictureFile(window);
                 if (path.empty()) return;
-                std::vector<unsigned char> data;
-                std::vector<uint32_t> test;
-                if (!Launcher::ReadFile(path, data) || !Launcher::LoadSquareArt(data.data(), data.size(), test))
-                { note = "THAT PICTURE COULD NOT BE READ: PNG OR JPG ONLY"; return; }
-                const std::string dir = fo.saves + "/artwork";
-                std::error_code ec;
-                std::filesystem::create_directories(std::filesystem::u8path(dir), ec);
-                // (Kept as the ROM's own file name, with the picture's ending.)
-                std::string base = rom.substr(rom.find_last_of("/\\") + 1);
-                if (base.find('.') != std::string::npos) base = base.substr(0, base.find_last_of('.'));
-                std::string ext = path.substr(path.find_last_of('.'));
-                for (char& ch : ext) ch = (char)tolower((unsigned char)ch);
-                const std::string name = base + ext;
-                bool ok = false;
-                if (FILE* f = fopen((dir + "/" + name).c_str(), "wb"))
-                {
-                    ok = fwrite(data.data(), 1, data.size(), f) == data.size();
-                    ok = fclose(f) == 0 && ok;
-                }
-                ok = ok && Launcher::SetPair(artList, rom, name);
-                fprintf(stderr, "[launcher] picture for %s: %s (%s)\n", rom.c_str(), path.c_str(), ok ? "kept" : "not kept");
-                dialogClose();
-                reorderLibrary();
-                note = ok ? "PICTURE CHANGED" : "COULD NOT KEEP THE PICTURE";
+                importPicture(rom, path);
 #else
-                note = "IMPORTING A PICTURE IS COMING TO THIS DEVICE SOON";
+                pictureBrowse = fo.roms.empty() ? fo.dir : fo.roms;
+                pictureRom = rom; pictureFirst = 0; showPictureFolder();
 #endif
                 return;
             }
@@ -2881,6 +2902,8 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             if (texture) SDL_DestroyTexture(texture);
             texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, ow, oh);
         }
+        if (testBrowseDialog == 19) { folderBrowse = fo.roms; folderFirst = 0; showRomFolder(); testBrowseDialog = 0; }
+        else if (testBrowseDialog == 20) { pictureBrowse = fo.roms; pictureRom = games.empty() ? "" : games[0].rom; pictureFirst = 0; showPictureFolder(); testBrowseDialog = 0; }
         // (SSR_LIST_ITEM: once the canvas has its size, so the glass launcher's menu is there to use.)
         if (testItem && selected >= 0) { Launcher::Focus().popup = atoi(testItem); testItem = nullptr; choose(); }
         // A controller's buttons named as it has them (PlayStation's CROSS, TRIANGLE, ...) and as
