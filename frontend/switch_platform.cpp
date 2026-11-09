@@ -1404,7 +1404,12 @@ void ExitTraceIn(const std::string& dir)
     if (FILE* f = fopen(g_exitTrace, "w")) fclose(f);
     ExitTrace("started");
 }
-extern "C" void userAppExit(void) { ExitTrace("libnx: closing the services"); }
+extern "C" void userAppExit(void)
+{
+    ExitTrace("libnx: final network cleanup");
+    Achievements::ShutdownNetwork();
+    ExitTrace("libnx: closing the services");
+}
 
 bool Start(int& argc, char**& argv)
 {
@@ -1606,7 +1611,17 @@ bool Start(int& argc, char**& argv)
                     const Result rc = envSetNextLoad(g_self.c_str(), cmd.c_str());
                     fprintf(stderr, "[switch] %s chosen: the program starts again to play it (0x%x)\n",
                         games[chosen].rom.c_str(), (unsigned)rc);
-                    if (R_SUCCEEDED(rc)) return false;
+                    if (R_SUCCEEDED(rc))
+                    {
+                        // The loader reuses this process. Close the updater's sockets
+                        // now, while curl and all services are still alive, rather than
+                        // relying on an atexit registration that may have been refused.
+                        ExitTrace("handoff: closing network");
+                        Achievements::ShutdownNetwork();
+                        fprintf(stderr, "[launch] network closed; returning to loader\n");
+                        ExitTrace("handoff: returning to loader");
+                        return false;
+                    }
                     remove(chosenMarker.c_str());
                 }
             }

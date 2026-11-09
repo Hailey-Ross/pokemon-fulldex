@@ -25,5 +25,8 @@ const char* SystemName();
 #ifdef __SWITCH__
 // The console's network, opened once and closed as the program ends (achievements_http.cpp).
 bool EnsureNetwork();
+// Final, idempotent shutdown from libnx's userAppExit hook. This must also run
+// when the C runtime has no room to register another atexit callback.
+void ShutdownNetwork();
 #endif
 }

@@ -6,6 +6,7 @@
 //   Mac, iOS achievements_http_apple.mm (NSURLSession)
 //   Switch   devkitPro's libcurl over libnx's sockets
 #include <string>
+#include <cstdio>
 #include "net_http.h"
 
 #if defined(_WIN32)
@@ -411,6 +412,7 @@ namespace
 {
 std::once_flag g_curlInit;
 bool g_curlOk = false;
+bool g_socketsOpen = false;
 std::atomic<bool> g_stop{ false };
 std::atomic<int> g_busy{ 0 }; // (transfers going on now)
 
@@ -419,16 +421,18 @@ int Progress(void*, curl_off_t, curl_off_t, curl_off_t, curl_off_t)
     return g_stop ? 1 : 0;
 }
 
-// (Not curl_global_cleanup: the achievements' request may still be on its way on a thread of
-// its own, left to finish, which then just fails.)
+// Stop requests before releasing the network. Both atexit (when registration succeeds)
+// and libnx's final shutdown hook can call this, so an unopened/closed network is a no-op.
 void CloseNetwork()
 {
+    if (!g_socketsOpen) return;
     g_stop = true;
     ::SwitchPlatform::ExitTrace("network: closing");
     // (Transfers end at once with g_stop; curl is cleaned up when none is left, else left be.)
     for (int i = 0; i < 200 && g_busy > 0; i++) svcSleepThread(10000000ULL);
     if (g_busy == 0 && g_curlOk) { curl_global_cleanup(); g_curlOk = false; ::SwitchPlatform::ExitTrace("network: curl cleaned up"); }
     socketExit();
+    g_socketsOpen = false;
     ::SwitchPlatform::ExitTrace("network: closed");
 }
 
@@ -439,8 +443,12 @@ bool OpenNetworkOnce()
 {
     std::call_once(g_curlInit, [] {
         if (R_FAILED(socketInitializeDefault())) return;
+        g_socketsOpen = true;
         g_curlOk = curl_global_init(CURL_GLOBAL_DEFAULT) == CURLE_OK;
-        atexit(CloseNetwork);
+        // devkitPro's newlib can reject this once its 32 slots are full. Keep
+        // early cleanup when possible, but userAppExit must be the backstop.
+        const int registered = atexit(CloseNetwork);
+        fprintf(stderr, "[network] exit callback registration %d; libnx shutdown fallback enabled\n", registered);
     });
     return g_curlOk;
 }
@@ -547,6 +555,7 @@ void HttpStop(bool on)
 }
 
 bool EnsureNetwork() { return OpenNetworkOnce(); }
+void ShutdownNetwork() { CloseNetwork(); }
 
 #elif defined(__APPLE__)
 

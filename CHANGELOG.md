@@ -45,6 +45,10 @@
 - **GBA ROM hacks keep their own code when widescreen does not fit.** Incompatible widescreen patches are skipped, so the hack can play in its original layout.
 - **DS ROM hacks keep their own map memory and wild encounters.** Original-game memory modifications are no longer attached to recognised hacks.
 
+- **Switch: always close the network before handing a game back to the loader.** The launcher
+  no longer relies only on registering a shutdown callback, which the Switch runtime can refuse
+  when its callback table fills up. This targets the black screen after selecting a game.
+
 - **ROM checks use less memory before starting a DS game.** File tables and fingerprint regions
   are read in blocks. If the background check cannot start, the launcher logs the failure instead
   of closing. Switch logs now show the launch stages to help investigate black-screen reports.
