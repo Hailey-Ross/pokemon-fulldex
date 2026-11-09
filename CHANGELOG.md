@@ -3,6 +3,8 @@
 
 ## Unreleased
 
+- **Launcher pages refresh when scrolled.** Cached page images now follow detail, list and release-note scroll positions.
+
 - **Portrait About pages scroll inside their panel.** Support codes and long credits stay above the navigation bar, and hidden links cannot be tapped.
 
 - **Closing the Windows launcher exits cleanly.** Its music-status worker is stopped before the application finishes, including when media controls are unavailable.
