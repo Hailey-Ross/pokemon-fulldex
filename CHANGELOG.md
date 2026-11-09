@@ -3,6 +3,8 @@
 
 ## Unreleased
 
+- **Choose a shared ROM folder from the launcher.** The ROMs page lets PC and Android players use an existing library without moving their saves.
+
 - **RetroAchievements: a wrong clock is named when logging in fails.** A device whose date is
   wrong (a Switch set years ahead, often) cannot check the server's certificate, and the settings
   only said LOGIN FAILED. They now say CHECK THE CLOCK, and the message asks whether the date and

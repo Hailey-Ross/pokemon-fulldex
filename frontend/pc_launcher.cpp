@@ -51,6 +51,7 @@
 #include "android_second_screen.h"
 #include "ui_lang_sdl.h"
 #include "controls.h"
+#include "rom_library.h"
 #include "achievements.h"
 #include "ssr_os.h"
 #ifdef SSR_IOS
@@ -270,7 +271,8 @@ void JavaBoolArg(const char* method, bool value)
 void SetRomFolder(Folders& fo)
 {
     fo.roms = JavaString("romFolder");
-    fo.saves = (fo.roms.empty() ? fo.dir : fo.roms) + "/saves";
+    fo.saves = Launcher::ConfigValue(fo.cfg, "saves_folder");
+    if (fo.saves.empty()) fo.saves = (fo.roms.empty() ? fo.dir : fo.roms) + "/saves";
     fo.art = fo.roms.empty() ? fo.dir : fo.roms;
 }
 
@@ -474,7 +476,9 @@ std::vector<Launcher::Game> FindGames(const Folders& fo, std::map<std::string, s
         }
         g.art = it->second;
     };
-    for (const std::string& dir : { fo.roms, fo.dir })
+    std::vector<std::string> romDirs = RomLibrary::Folders(fo.roms);
+    if (std::find(romDirs.begin(), romDirs.end(), fo.dir) == romDirs.end()) romDirs.push_back(fo.dir);
+    for (const std::string& dir : romDirs)
     {
         if (dir.empty()) continue;
         DIR* d = opendir(dir.c_str());
@@ -498,7 +502,7 @@ std::vector<Launcher::Game> FindGames(const Folders& fo, std::map<std::string, s
     // ROM hacks as patch files (.xdelta, .bps, .ups) beside the ROMs: each made once into hacks/.
     {
         const size_t before = games.size();
-        Launcher::AddPatchedHacks({ fo.roms, fo.dir }, HacksFolder(fo), fo.saves, games, false);
+        Launcher::AddPatchedHacks(romDirs, HacksFolder(fo), fo.saves, games, false);
         for (size_t i = before; i < games.size(); i++) artFor(games[i]);
         Launcher::AdoptHackSaves(games, [](const Launcher::Game& g, const std::string& name) { return g.folder + "/" + name; });
     }
@@ -510,6 +514,15 @@ std::vector<Launcher::Game> FindGames(const Folders& fo, std::map<std::string, s
     TakeInbox(fo);
     const size_t ds = games.size();
     GbaGames::AddWithGbaFolder(fo.roms, fo.saves, games, artCache);
+    for (const std::string& sub : RomLibrary::Folders(fo.roms))
+    {
+        if (sub == fo.roms) continue;
+        const auto path = std::filesystem::u8path(sub);
+        std::string leaf = path.filename().u8string();
+        for (char& c : leaf) c = (char)std::tolower((unsigned char)c);
+        if (path.parent_path() == std::filesystem::u8path(fo.roms) && leaf == "gba") continue;
+        GbaGames::Add(sub, fo.saves, games, artCache);
+    }
     if (!fo.dir.empty() && fo.dir != fo.roms) GbaGames::AddWithGbaFolder(fo.dir, fo.saves, games, artCache);
     {
         std::set<std::string> seenRom;
@@ -670,7 +683,7 @@ static std::string PickSaveFile(SDL_Window* window)
 #ifdef _WIN32
 // SAVES FOLDER on Windows: the system's folder picker.
 #include <shlobj.h>
-static std::string PickFolder(SDL_Window* window)
+static std::string PickFolder(SDL_Window* window, const wchar_t* title = L"Choose the folder for your saves (they are copied there)")
 {
     typedef PIDLIST_ABSOLUTE(WINAPI * BrowseFn)(LPBROWSEINFOW);
     typedef BOOL(WINAPI * PathFn)(PCIDLIST_ABSOLUTE, LPWSTR);
@@ -687,7 +700,7 @@ static std::string PickFolder(SDL_Window* window)
     SDL_SysWMinfo info;
     SDL_VERSION(&info.version);
     if (SDL_GetWindowWMInfo(window, &info)) bi.hwndOwner = info.info.win.window;
-    bi.lpszTitle = L"Choose the folder for your saves (they are copied there)";
+    bi.lpszTitle = title;
     bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
     PIDLIST_ABSOLUTE id = browse(&bi);
     if (!id) return std::string();
@@ -850,6 +863,44 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
     // (Twenty hours played: the one Support message. SSR_LIST_BEER: shown at once, for the test picture.)
     if (PlayTime::AskNow(fo.saves) || getenv("SSR_LIST_BEER")) Launcher::OpenBeer();
     reorderLibrary();
+    auto useRomFolder = [&](const std::string& dir) {
+        std::error_code ec;
+        if (dir.empty() || !std::filesystem::is_directory(std::filesystem::u8path(dir), ec)) { note = "ROM FOLDER IS NOT AVAILABLE"; return; }
+        DIR* readable = opendir(dir.c_str());
+        if (!readable) { note = "ROM FOLDER CANNOT BE READ"; return; }
+        closedir(readable);
+        SetConfigValues(fo.cfg, {{"roms_folder", dir}});
+        if (Launcher::ConfigValue(fo.cfg, "roms_folder") != dir) { note = "COULD NOT SAVE THE ROM FOLDER"; return; }
+        fo.roms = dir;
+        artCache.clear();
+        games = FindGames(fo, artCache);
+        selected = -1;
+        Launcher::BuildRomList(games, fo.saves);
+        reorderLibrary();
+        selected = Launcher::FirstIn(Launcher::MakeView(canvas, games, tab));
+        Launcher::Focus().prow = 0;
+        note = "ROM FOLDER CHANGED";
+    };
+    std::string folderBrowse;
+    int folderPage = 0;
+    auto showRomFolder = [&]() {
+        auto& F = Launcher::Focus();
+        F.dialog = 19; F.dTitle = "Choose ROMs Folder"; F.dMsg = folderBrowse;
+        F.dItems = {"Use This Folder", "Parent Folder", "Cancel"};
+        F.dPaths = {"#use", "#parent", "#close"}; F.drow = 0;
+        std::vector<std::string> dirs;
+        std::error_code ec;
+        for (std::filesystem::directory_iterator it(std::filesystem::u8path(folderBrowse), std::filesystem::directory_options::skip_permission_denied, ec), end; !ec && it != end; it.increment(ec))
+            if (it->is_directory(ec)) dirs.push_back(it->path().u8string());
+        std::sort(dirs.begin(), dirs.end());
+        const int pageSize = std::clamp((canvas.h - 120) / 56 - 5, 1, 5);
+        const int first = folderPage * pageSize;
+        for (int i = first; i < (int)dirs.size() && i < first + pageSize; ++i) {
+            F.dItems.push_back(std::filesystem::u8path(dirs[i]).filename().u8string()); F.dPaths.push_back(dirs[i]);
+        }
+        if (folderPage > 0) { F.dItems.push_back("Previous Folders"); F.dPaths.push_back("#previous"); }
+        if (first + pageSize < (int)dirs.size()) { F.dItems.push_back("More Folders"); F.dPaths.push_back("#next"); }
+    };
     auto toggleFavourite=[&]() {
         if(selected<0||selected>=(int)games.size()||games[selected].comingSoon)return;
         bool saved=library.Toggle(games[selected].rom);
@@ -947,7 +998,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
         }
     }
     // (SSR_LIST_DIALOG=n: a dialog open, for the test picture: 1 Remove Game, 2 Delete, 3 Rename.)
-    if (const char* dd = getenv("SSR_LIST_DIALOG")) { Launcher::Focus().dialog = atoi(dd); Launcher::Focus().text = "My HeartGold Run"; if (Launcher::Focus().dialog == 16) Launcher::OpenSortMenu(""); }
+    if (const char* dd = getenv("SSR_LIST_DIALOG")) { Launcher::Focus().dialog = atoi(dd); Launcher::Focus().text = "My HeartGold Run"; if (Launcher::Focus().dialog == 16) Launcher::OpenSortMenu(""); if (Launcher::Focus().dialog == 19) { folderBrowse = fo.roms; folderPage = 0; showRomFolder(); } }
     if (Launcher::Focus().dialog == 9) Launcher::OpenTabMenu(tab); // (test: 9 the shown tab's menu)
     if (const char* nt = getenv("SSR_LIST_NOTE")) note = nt; // (test: a message showing)
     if (const char* cs = getenv("SSR_TEST_COPYSAVES")) { std::string said; const int n = Launcher::CopySavesTo(fo.saves, cs, said); fprintf(stderr, "test: copysaves %d %s\n", n, said.c_str()); } // (test: SAVES FOLDER's copy)
@@ -1330,11 +1381,25 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 {
                     // (The ROMs page: A on the list goes to the chosen ROM's actions; on those, does it.)
                     const std::vector<Launcher::Game>& roms = Launcher::RomList();
-                    if (F.pact < 0) { if (!roms.empty()) F.pact = 0; return; }
+                    if (F.pact < 0) { if (Launcher::RomActions() > 0) F.pact = 0; return; }
+                    if (Launcher::CanChooseRomFolder() && F.pact == 0)
+                    {
+#ifdef __ANDROID__
+                        // Keep saves at their current location when changing the shared ROM library.
+                        SetConfigValues(fo.cfg, {{"saves_folder", fo.saves}});
+                        JavaVoid("chooseFolder");
+#elif defined(_WIN32)
+                        const std::string dir = PickFolder(window, L"Choose the folder containing your ROMs");
+                        if (!dir.empty()) useRomFolder(dir);
+#else
+                        folderBrowse = fo.roms; folderPage = 0; showRomFolder();
+#endif
+                        return;
+                    }
                     if (F.prow < 0 || F.prow >= (int)roms.size()) return;
                     const std::string rom = roms[F.prow].rom;
                     const bool was = roms[F.prow].hidden;
-                    if (F.pact == 0)
+                    if (F.pact == (Launcher::CanChooseRomFolder() ? 1 : 0))
                     {
                         const bool ok = Launcher::SetPair(fo.saves + "/fulldex-hidden.txt", rom, was ? "" : "1");
                         games = FindGames(fo, artCache);
@@ -1654,8 +1719,18 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
         Launcher::GlassFocus& F = Launcher::Focus();
         const bool noGame = selected < 0 || selected >= (int)games.size();
         // (A tab's menu, and the keyboard for a tab's name, a new tab or the search, need no game: a tab with none in it is where they are wanted.)
-        const bool tabOnly = F.dialog == 8 || F.dialog == 9 || F.dialog == 13 || F.dialog == 14 || F.dialog == 16 || (F.dialog == 3 && F.kbFor);
+        const bool tabOnly = F.dialog == 19 || F.dialog == 8 || F.dialog == 9 || F.dialog == 13 || F.dialog == 14 || F.dialog == 16 || (F.dialog == 3 && F.kbFor);
         if (noGame && !tabOnly) { dialogClose(); return; }
+        if (F.dialog == 19)
+        {
+            const std::string pick = F.drow >= 0 && F.drow < (int)F.dPaths.size() ? F.dPaths[F.drow] : "#close";
+            if (pick == "#close") { dialogClose(); return; }
+            if (pick == "#use") { dialogClose(); useRomFolder(folderBrowse); return; }
+            if (pick == "#next") ++folderPage;
+            else if (pick == "#previous") folderPage = std::max(0, folderPage - 1);
+            else { folderBrowse = pick == "#parent" ? std::filesystem::u8path(folderBrowse).parent_path().u8string() : pick; if (folderBrowse.empty()) folderBrowse = "/"; folderPage = 0; }
+            showRomFolder(); return;
+        }
         const std::string rom = noGame ? std::string() : games[selected].rom;
         auto settle = [&]() { const Launcher::View v = view(); if (v.SpotOf(selected) < 0) selected = Launcher::FirstIn(v); };
         if (F.dialog == 1)
@@ -3168,6 +3243,12 @@ bool Start(int& argc, char**& argv)
     fo.roms = fo.dir + "/roms";
     fo.saves = fo.dir + "/saves";
     fo.cfg = fo.dir + "/settings.cfg";
+    if (const std::string rf = Launcher::ConfigValue(fo.cfg, "roms_folder"); !rf.empty())
+    {
+        std::error_code ec;
+        if (std::filesystem::is_directory(std::filesystem::u8path(rf), ec)) fo.roms = rf;
+        else fprintf(stderr, "[launcher] ROM folder is unavailable: %s\n", rf.c_str());
+    }
     // SAVES FOLDER (the settings): a folder of the player's own, when it is there.
     if (const std::string sf = Launcher::ConfigValue(fo.cfg, "saves_folder"); !sf.empty())
     {

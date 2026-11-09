@@ -2222,13 +2222,23 @@ inline void BuildRomList(const std::vector<Game>& all, const std::string& savesD
     }
     std::stable_sort(r.begin(), r.end(), [](const Game& a, const Game& b) { return ShortName(a) < ShortName(b); });
 }
-// What can be done with the chosen ROM: show it in the list again (or hide it); on a PC, open its folder.
+// The ROM folder can be chosen even before the library contains a game.
+inline bool CanChooseRomFolder()
+{
+#if defined(__SWITCH__) || defined(SSR_IOS)
+    return false;
+#else
+    return true;
+#endif
+}
 inline int RomActions()
 {
+    const int folder = CanChooseRomFolder() ? 1 : 0;
+    if (RomList().empty()) return folder;
 #if defined(__SWITCH__) || defined(__ANDROID__)
-    return 1;
+    return folder + 1;
 #else
-    return 2;
+    return folder + 2;
 #endif
 }
 // One line of the settings file set (key=value), the rest kept: written to a .tmp and put in place
@@ -4595,7 +4605,7 @@ inline bool PageMove(int dir)
         if (dir == 3) F.prow = std::max(0, F.prow - 1);
         else if (dir == 4) F.prow = std::min(std::max(0, n - 1), F.prow + 1);
         else if (dir == 1) F.side = F.page;
-        else if (dir == 2 && n > 0 && na > 0) F.pact = 0;
+        else if (dir == 2 && na > 0) F.pact = 0;
         return true;
     }
     if (dir == 3) F.prow = std::max(0, F.prow - 1);
@@ -4886,7 +4896,7 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
         F.pX = L + pad; F.pY = top + pad; F.pW = lw2 - 2 * pad; F.pRow = rowH + rg; F.rVis = vis;
         if (n == 0)
         {
-            const std::string none = "No ROMs found yet. Put your ROMs in the roms folder beside Fulldex.";
+            const std::string none = "No ROMs found yet. Choose the folder containing your ROMs.";
             GT(c, L + (lw2 - GW(none, 16 * u, true)) / 2, (top + (top + lhP)) * 0.5f, none, 16 * u, hint, true);
         }
         for (int i = F.rScroll; i < n && i < F.rScroll + vis; i++)
@@ -4923,11 +4933,11 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
         const int dTopC = dTopP - (stkP ? F.dScroll : 0);
         ClipGuard clipG(c, F, stkP ? dTopP : 0, stkP ? bottom : c.h, (int)(16 * u));
         F.aW = 0;
+        const int ix = dx + (int)(18 * u), iw = rw - (int)(36 * u), ps = (int)(110 * u);
+        int y = dTopC + (int)(18 * u);
         if (n > 0)
         {
             const Game& g = roms[F.prow];
-            const int ix = dx + (int)(18 * u), iw = rw - (int)(36 * u), ps = (int)(110 * u);
-            int y = dTopC + (int)(18 * u);
             DrawCover(c, g, ix, y, ps, ps, 12 * u);
             const int tx = ix + ps + (int)(16 * u), tw = iw - ps - (int)(16 * u);
             GT(c, tx, y + 28 * u, fit(ShortName(g), 20 * u, true, tw), 20 * u, text, true);
@@ -4966,12 +4976,23 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
                 const std::vector<std::string> dl = WrapLines(dirOf(g.rom), 13 * u, iw);
                 for (size_t k = 0; k < dl.size() && k < 3 && y + (int)(14 * u) < yLim; k++) { GT(c, ix, y, dl[k], 13 * u, text, false); y += (int)(18 * u); }
             }
-            // What can be done with it.
+        }
+        {
+            // Folder selection is available independently of the chosen ROM.
             const int na = RomActions(), ah = (int)(44 * u), ag = (int)(6 * u);
             const int ay = std::max(bottom - (int)(18 * u) - na * ah - (na - 1) * ag, PhoneLook() && c.h > c.w ? y + (int)(10 * u) : 0); // (upright: under the writing, the panel scrolling to them)
             F.aX = ix; F.aY = ay; F.aW = iw; F.aRow = ah + ag;
-            const std::string labels[2] = { g.hidden ? "Show In List Again" : "Hide From List", "Open Folder" };
-            const int icons[2] = { Glass::I_GRID, Glass::I_LOAD };
+            std::vector<std::string> labels;
+            std::vector<int> icons;
+            if (CanChooseRomFolder()) { labels.push_back("Choose ROMs Folder"); icons.push_back(Glass::I_LOAD); }
+            if (n > 0)
+            {
+                labels.push_back(roms[F.prow].hidden ? "Show In List Again" : "Hide From List");
+                icons.push_back(Glass::I_GRID);
+#if !defined(__SWITCH__) && !defined(__ANDROID__)
+                labels.push_back("Open Folder"); icons.push_back(Glass::I_LOAD);
+#endif
+            }
             for (int a = 0; a < na; a++)
             {
                 const int ry = ay + a * (ah + ag);

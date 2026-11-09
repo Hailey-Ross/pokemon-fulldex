@@ -1625,6 +1625,7 @@ struct Settings : OptionalFeatures
     bool ffMute = false;
     // QUIET GAME MUSIC: while the player's own music app plays (now_playing.h), the game's music is off.
     bool musicQuiet = false;
+    std::string romsFolder, savesFolder; // Keep launcher paths when in-game settings are saved.
     std::string listColour, listBackground, listLang, listSort; // (GAME LIST: COLOUR, BACKGROUND; LANGUAGE)
     bool cpuBoost = true; // Switch only: the processor's boost mode (see SwitchPlatform)
     bool jit = true;      // Switch, games that are not recompiled: melonDS's JIT (read at start-up)
@@ -1708,6 +1709,8 @@ struct Settings : OptionalFeatures
             else if (k == "list_colour") { listColour = v; Menu::Accent = AccentNamed(v); }
             else if (k == "list_background") listBackground = v;
             else if (k == "list_sort") listSort = v;
+            else if (k == "roms_folder") romsFolder = v;
+            else if (k == "saves_folder") savesFolder = v;
             else if (k == "list_lang" || k == "language") { listLang = v; UiLang::Set(v); }
             else if (k == "ff_low_res") ffLowRes = v == "1";
             else if (k == "fast_speed") fastSpeed = std::clamp(atoi(v.c_str()),2,8);
@@ -1789,6 +1792,8 @@ struct Settings : OptionalFeatures
         f << "music_quiet=" << (musicQuiet ? 1 : 0) << "\n";
         if (!listColour.empty()) f << "list_colour=" << listColour << "\n";
         if (!listSort.empty()) f << "list_sort=" << listSort << "\n";
+        if (!romsFolder.empty()) f << "roms_folder=" << romsFolder << "\n";
+        if (!savesFolder.empty()) f << "saves_folder=" << savesFolder << "\n";
         if (!listBackground.empty()) f << "list_background=" << listBackground << "\n";
         if (!listLang.empty()) f << "list_lang=" << listLang << "\n";
         f << "start_button=" << (startMenu ? "menu" : "ds") << "\n";

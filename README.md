@@ -407,7 +407,14 @@ SETTINGS > HELP any time). Downloads are checked against the release's SHA256SUM
 anything is replaced, and the previous program is kept; your ROMs, saves and settings stay
 where they are. Android uses its own installer; on a Mac, iPhone or iPad it opens the download page.
 
-### Cheats
+### Using an existing ROM library
+
+On PC and Android, open **ROMs → Choose ROMs Folder** in the launcher. Choose the folder
+where you already keep your games, including a library shared with another emulator.
+Fulldex scans its subfolders too. The games stay where they are, and changing the ROM folder
+does not move your saves. On Android, allow file access when the system asks.
+
+## Cheats
 
 Action Replay codes, turned on and off as you play: **CHEATS** in the pause menu. They go
 in a `cheats` folder (make it if it isn't there):
