@@ -476,7 +476,7 @@ std::vector<Launcher::Game> FindGames(const Folders& fo, std::map<std::string, s
         }
         g.art = it->second;
     };
-    std::vector<std::string> romDirs = RomLibrary::Folders(fo.roms);
+    std::vector<std::string> romDirs = RomLibrary::Folders(fo.roms, HacksFolder(fo));
     if (std::find(romDirs.begin(), romDirs.end(), fo.dir) == romDirs.end()) romDirs.push_back(fo.dir);
     for (const std::string& dir : romDirs)
     {
@@ -514,7 +514,7 @@ std::vector<Launcher::Game> FindGames(const Folders& fo, std::map<std::string, s
     TakeInbox(fo);
     const size_t ds = games.size();
     GbaGames::AddWithGbaFolder(fo.roms, fo.saves, games, artCache);
-    for (const std::string& sub : RomLibrary::Folders(fo.roms))
+    for (const std::string& sub : RomLibrary::Folders(fo.roms, HacksFolder(fo)))
     {
         if (sub == fo.roms) continue;
         const auto path = std::filesystem::u8path(sub);
