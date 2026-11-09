@@ -3,6 +3,8 @@
 
 ## Unreleased
 
+- **Launcher dialog arrows act once with overlapping inputs.** Controller remappings keep their first direction press, and navigating a dialog no longer moves the game list behind it.
+
 - **Import game pictures on Linux and Steam Deck.** Change Picture now has a folder browser for PNG and JPEG files. Pictures for games with the same filename are kept separately.
 
 - **Unreadable ROM and snapshot files stop cleanly when a file seek fails.** Invalid file lengths are rejected before allocating memory.
