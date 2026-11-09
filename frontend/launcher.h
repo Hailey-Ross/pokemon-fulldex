@@ -4570,6 +4570,7 @@ inline bool PageMove(int dir)
 {
     GlassFocus& F = Focus();
     if (F.page < 0) return false;
+    F.freeScroll = false; // Keyboard/controller navigation follows the chosen item again.
     if (TilesOn() && F.side >= 0) F.side = -1; // (a window over the tiles: no sidebar to move to)
     if (F.side >= 0)
     {
@@ -4929,7 +4930,16 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
         const int dx = stkP ? L : R - rw;
         Menu::FrostBox(c, solid, dx, dTopP, rw, dHP, 18 * u);
         static int dKey = -1; { const int nk = F.page * 100000 + F.prow * 100 + LauncherMode() * 10 + HubMode() + (Look().edit + 1) * 10000000; if (nk != dKey) { dKey = nk; F.dScroll = 0; } }
-        F.dScroll = std::min(F.dScroll, F.dMax); TextLow() = 0; F.pdY = stkP ? dTopP : 0;
+        if (stkP && F.pact >= 0 && F.side < 0 && !F.freeScroll && F.aW > 0)
+        {
+            // Use the last picture's button bounds to bring controller focus into view.
+            const int actionTop = F.aY + F.pact * F.aRow;
+            const int actionBottom = actionTop + F.aRow - (int)(6 * u);
+            const int margin = (int)(16 * u);
+            if (actionBottom > bottom - margin) F.dScroll += actionBottom - (bottom - margin);
+            else if (actionTop < dTopP + margin) F.dScroll -= dTopP + margin - actionTop;
+        }
+        F.dScroll = std::clamp(F.dScroll, 0, F.dMax); TextLow() = 0; F.pdY = stkP ? dTopP : 0;
         const int dTopC = dTopP - (stkP ? F.dScroll : 0);
         ClipGuard clipG(c, F, stkP ? dTopP : 0, stkP ? bottom : c.h, (int)(16 * u));
         F.aW = 0;
@@ -5005,6 +5015,8 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
                 Glass::DrawIcon(c, icons[a], ix + 22 * u, ry + ah * 0.5f, 9 * u, text);
                 GT(c, ix + (int)(42 * u), ry + ah * 0.5f, labels[a], 15 * u, text, true);
             }
+            // The full last button, not just its text baseline, must be reachable by scrolling.
+            if (na > 0) TextLow() = std::max(TextLow(), ay + na * ah + (na - 1) * ag);
         }
         return;
     }

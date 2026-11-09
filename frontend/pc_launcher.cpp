@@ -2466,7 +2466,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                     else if (e.type == SDL_MOUSEMOTION && dOn)
                     {
                         if (!dDrag && std::abs(my - dY0) > 8 * s) { dDrag = true; dragging = true; }
-                        if (dDrag) { DF.dScroll = std::max(0, std::min(DF.dMax, dS0 - (my - dY0))); break; }
+                        if (dDrag) { DF.freeScroll = true; DF.dScroll = std::max(0, std::min(DF.dMax, dS0 - (my - dY0))); break; }
                     }
                     else if (e.type == SDL_MOUSEBUTTONUP && dOn) { dOn = false; if (dDrag) { dDrag = false; dragging = pressed = false; break; } }
                 }
