@@ -2302,6 +2302,24 @@ struct App
             case SDL_FINGERUP:
                 Finger(e.tfinger, in);
                 break;
+            case SDL_MOUSEBUTTONDOWN:
+                if (e.button.button == SDL_BUTTON_LEFT && e.button.which != SDL_TOUCH_MOUSEID &&
+                    (screen != PLAY || paused))
+                {
+                    int ww = 0, wh = 0;
+                    SDL_GetWindowSize(win, &ww, &wh);
+                    if (ww > 0 && wh > 0)
+                    {
+                        // A trackpad reports mouse positions in window points. Finger() maps
+                        // normalised positions onto the output pixels, including HiDPI windows.
+                        SDL_TouchFingerEvent tap{};
+                        tap.type = SDL_FINGERDOWN;
+                        tap.x = float(e.button.x) / ww;
+                        tap.y = float(e.button.y) / wh;
+                        Finger(tap, in, false);
+                    }
+                }
+                break;
             case SDL_CONTROLLERBUTTONDOWN:
             {
                 padLast = true;
@@ -2380,12 +2398,12 @@ struct App
     }
 
     // A finger on the screen: the on-screen controls while playing, taps in the menus.
-    void Finger(const SDL_TouchFingerEvent& f, MenuIn& in)
+    void Finger(const SDL_TouchFingerEvent& f, MenuIn& in, bool fromFinger = true)
     {
         int ow, oh;
         SDL_GetRendererOutputSize(ren, &ow, &oh);
         const float x = (f.x * ow - uiOffX) / uiScale, y = (f.y * oh - uiOffY) / uiScale;
-        touchUi = true;
+        if (fromFinger) touchUi = true;
         padLast = false;
         if (screen == PLAY && !paused)
         {
@@ -2469,6 +2487,22 @@ struct App
                 e.key.state = down ? SDL_PRESSED : SDL_RELEASED;
                 e.key.keysym.scancode = SDL_GetScancodeFromName(l.arg.c_str());
                 e.key.keysym.sym = SDL_GetKeyFromScancode(e.key.keysym.scancode);
+                SDL_PushEvent(&e);
+                l.done++;
+            }
+            if (l.what == "click" && (down || up))
+            {
+                // "click FRAME X,Y [HOLD]": a mouse click, without synthetic finger events.
+                int ww = 0, wh = 0;
+                float x = 0, y = 0;
+                SDL_GetWindowSize(win, &ww, &wh);
+                sscanf(l.arg.c_str(), "%f,%f", &x, &y);
+                SDL_Event e{};
+                e.type = down ? SDL_MOUSEBUTTONDOWN : SDL_MOUSEBUTTONUP;
+                e.button.button = SDL_BUTTON_LEFT;
+                e.button.state = down ? SDL_PRESSED : SDL_RELEASED;
+                e.button.x = int(x * ww);
+                e.button.y = int(y * wh);
                 SDL_PushEvent(&e);
                 l.done++;
             }
