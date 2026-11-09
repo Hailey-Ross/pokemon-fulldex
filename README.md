@@ -97,6 +97,14 @@ The `README.txt` inside has the full list. **CONTROLS > KEYS AND BUTTONS** in th
 the game list's settings page) changes any of them, including fast forward, swapping the screens,
 save state and load state, on the keyboard and on a controller (the game list follows the ones you change).
 
+**Steam Deck trackpad:** when launching through Steam, set the right trackpad to **Mouse**
+and its click to **Left Mouse Click** in the game's Steam Input layout. Keep the game buttons
+mapped as gamepad buttons. The pointer can touch the DS screen and click launcher, pause and
+GBA menus. In DS fullscreen it appears while used and hides after a short idle period.
+Layouts that also send keyboard shortcuts for the same gamepad buttons can produce duplicate
+input; the launcher combines matching actions received together. Direct trackpad behaviour
+outside Steam still depends on the controller driver and needs device verification.
+
 **Saves** go in the `saves` folder, one per game (`black2.sav`, `soulsilver.sav`,
 `platinum.sav`, ...). To carry on from another emulator, put its `.sav` there
 under that name. **Pictures**: the list shows each game's box art; for your own,

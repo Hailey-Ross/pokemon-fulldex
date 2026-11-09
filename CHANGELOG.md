@@ -3,6 +3,8 @@
 
 ## Unreleased
 
+- **DS fullscreen shows the mouse or trackpad pointer while it is used.** The pointer stays visible during clicks and drags, then hides after a short idle period.
+
 - **Launcher: overlapping keyboard and controller presses act once.** A Steam Input press arriving through both paths no longer selects twice or skips a menu level.
 
 - **GBA menus accept mouse and trackpad clicks.** Click the pause menu and game list without enabling on-screen touch controls.

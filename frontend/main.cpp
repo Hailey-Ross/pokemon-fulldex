@@ -6997,6 +6997,10 @@ int main(int argc, char** argv)
     bool mouseDown = false;
     int mouseTapHold = 0;      // frames a click lasts at least (see SDL_MOUSEBUTTONDOWN)
     int mouseX = 0, mouseY = 0;
+#if !defined(__SWITCH__) && !defined(SSR_PHONE)
+    uint32_t lastPointerUse = 0;
+    bool pointerUsed = false, pointerHeld = false;
+#endif
     // On-screen controls (touch screens): shown while no controller is connected.
     TouchPad touchPad;
     touchPadForMenu = &touchPad;
@@ -7870,6 +7874,17 @@ int main(int argc, char** argv)
             while (SDL_PollEvent(&ev))
             {
                 menuEvents++; // (the pause menu is drawn again after any input: see menuKeep)
+#if !defined(__SWITCH__) && !defined(SSR_PHONE)
+                if ((ev.type == SDL_MOUSEMOTION && ev.motion.which != SDL_TOUCH_MOUSEID) ||
+                    (ev.type == SDL_MOUSEBUTTONDOWN && ev.button.which != SDL_TOUCH_MOUSEID))
+                {
+                    lastPointerUse = SDL_GetTicks();
+                    pointerUsed = true;
+                    if (ev.type == SDL_MOUSEBUTTONDOWN) pointerHeld = true;
+                }
+                if ((ev.type == SDL_MOUSEBUTTONUP && ev.button.which != SDL_TOUCH_MOUSEID) ||
+                    (ev.type == SDL_WINDOWEVENT && ev.window.event == SDL_WINDOWEVENT_FOCUS_LOST)) pointerHeld = false;
+#endif
                 if (ev.type == SDL_CONTROLLERBUTTONDOWN && ev.cbutton.button < PAD_COUNT)
                 {
                     int b = ev.cbutton.button;
@@ -8162,6 +8177,14 @@ int main(int argc, char** argv)
             }
             mouseX = int(double(mouseX) * outW / windowW);
             mouseY = int(double(mouseY) * outH / windowH);
+#if !defined(__SWITCH__) && !defined(SSR_PHONE)
+            // Fullscreen still accepts mouse/trackpad touches. Show where they will land,
+            // including during a held drag, then clear the pointer after it becomes idle.
+            const uint32_t pointerNow = SDL_GetTicks();
+            if (pointerHeld) lastPointerUse = pointerNow;
+            SDL_ShowCursor(!cfg.fullscreen || (pointerUsed && pointerNow - lastPointerUse < 2500)
+                           ? SDL_ENABLE : SDL_DISABLE);
+#endif
 #ifdef __SWITCH__
             if (switchFinger)
             {
