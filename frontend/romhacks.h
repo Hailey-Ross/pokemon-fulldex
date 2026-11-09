@@ -1374,6 +1374,18 @@ inline Kind CheckDs(const std::string& rom, const std::string& code, Cache& cach
         if (code == c.code) mine.push_back(&c);
     if (mine.empty()) return Kind::Unknown;
     const std::string key = Cache::Key(rom, "ds");
+    uint32_t biggest = 0;
+    for (const Clean* c : mine) biggest = std::max(biggest, c->size);
+    uint64_t fileSize = 0;
+    long long modifiedAt = 0;
+    if (!Stat(rom, fileSize, modifiedAt)) return Kind::Unknown;
+    // A partial fingerprint can stay unchanged when a hack appends data. Check the
+    // size before trusting either that fingerprint or a previous cached clean result.
+    if (fileSize > biggest)
+    {
+        cache.Put(key, "modified");
+        return Kind::Modified;
+    }
     std::string v;
     if (cache.Get(key, v)) return v == "clean" ? Kind::Clean : v == "modified" ? Kind::Modified : Kind::Unknown;
     uint32_t fp = 0;
@@ -1381,8 +1393,6 @@ inline Kind CheckDs(const std::string& rom, const std::string& code, Cache& cach
     uint64_t size = 0;
     const bool haveFp = DsFingerprint(rom, fp, rev, size);
     if (!size) return Kind::Unknown;
-    uint32_t biggest = 0;
-    for (const Clean* c : mine) biggest = std::max(biggest, c->size);
     Kind kind = Kind::Unknown;
     bool releaseKnown = false;
     for (const Fingerprint& f : CleanDsFingerprints())
@@ -1393,7 +1403,7 @@ inline Kind CheckDs(const std::string& rom, const std::string& code, Cache& cach
         }
     if (kind != Kind::Clean)
     {
-        if (size > biggest || (releaseKnown && haveFp))
+        if (releaseKnown && haveFp)
             kind = Kind::Modified;
         else
         {

@@ -8,6 +8,7 @@
 - **DS fast forward: sound keeps up with the picture.** Music and effects speed up together instead of playing from a growing backlog.
 - **Pause menu on touch screens: swipe settings rows to scroll.** Swiping no longer changes the setting under your finger; tapping still selects it.
 - **DS cheats can be named after a ROM.** A ROM-specific cheat file takes priority over the game-code files, and each ROM hack keeps its own enabled cheats.
+- **Expanded DS ROM hacks get their own saves.** A ROM larger than its clean release is recognised as modified even if its code fingerprint, or an older cached result, says clean.
 
 - **RetroAchievements: a wrong clock is named when logging in fails.** A device whose date is
   wrong (a Switch set years ahead, often) cannot check the server's certificate, and the settings
