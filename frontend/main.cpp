@@ -2137,7 +2137,7 @@ int main(int argc, char** argv)
     static GameMusic gameMusic;
     gameMusic.Attach(*nds);
     static VersionExclusives exclusives;
-    if (soulSilverRom && !opt.lockstep && rc_num_chunks) exclusives.Init(opt.rom, gameCode, *nds);
+    if (soulSilverRom && !opt.lockstep && !opt.romHack && rc_num_chunks) exclusives.Init(opt.rom, gameCode, *nds);
     // (Attached once the layouts' functions are known, below.)
     if (!opt.traceFuncsAt.empty() && !funcWatchOn)
     {
@@ -2915,9 +2915,12 @@ int main(int argc, char** argv)
                 if (fseek(rf, 0x0C, SEEK_SET) != 0 || fread(code, 1, 4, rf) != 4) code[0] = 0;
                 fclose(rf);
             }
-            bw2map.Init(code, funcWatch, bw2Names, *nds, cfg.wide && cfg.wideMap && !AchievementsOn);
+            // These modifications use the original game's heap and encounter layouts. A hack
+            // keeping the same game code may have repurposed either, so do not attach them.
+            if (!opt.romHack) bw2map.Init(code, funcWatch, bw2Names, *nds, cfg.wide && cfg.wideMap && !AchievementsOn);
+            else fprintf(stderr, "[romhacks] base-game map and encounter modifications disabled\n");
             // OTHER VERSION POKEMON (exclusives.h): Black, White, Black 2 and White 2.
-            if (!opt.lockstep)
+            if (!opt.lockstep && !opt.romHack)
             {
                 exclusives.Init(code, funcWatch, bw2Names, *nds);
                 exclusives.on = cfg.bothVersions && exclusives.Supported();
