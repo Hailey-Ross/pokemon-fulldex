@@ -3,6 +3,8 @@
 
 ## Unreleased
 
+- **Modified regional DS games can use the ROM-hack launch path.** A recognised hack is no longer rejected for differing from its clean regional release; it uses normal emulation and keeps its separate save.
+
 - **Portrait ROMs page keeps controller actions in view.** Lower buttons scroll into reach, and the entire last button can be reached by touch scrolling.
 
 - **DS fullscreen shows the mouse or trackpad pointer while it is used.** The pointer stays visible during clicks and drags, then hides after a short idle period.

@@ -1977,11 +1977,17 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    // Gate only the newly validated profiles; existing English revisions keep their behaviour.
+    // Clean regional releases must match their validated profile. Recognised ROM hacks
+    // deliberately change its bytes, revision or size; they use normal emulation instead.
     if (const char* problem = RegionalProfiles::Check(rom.data(),rom.size()))
     {
-        fprintf(stderr,"[regional] %s ROM unchanged; no save was loaded.\n",problem);
-        return 1;
+        if (!opt.romHack)
+        {
+            fprintf(stderr,"[regional] %s ROM unchanged; no save was loaded.\n",problem);
+            return 1;
+        }
+        opt.recomp = false;
+        fprintf(stderr,"[regional] ROM hack: %s Continuing with normal emulation.\n",problem);
     }
 
     // CLOUD SAVES (cloud_autosync.h): a newer save in the cloud comes down before the game reads it.
