@@ -1,3 +1,31 @@
+FullDex — Project and Third-Party Attribution
+
+Project maintained by:
+https://github.com/mamesj
+
+Official project:
+https://github.com/mamesj/pokemon-fulldex
+
+FullDex-specific modifications and integration work have been developed since 2026. Authorship of individual contributions is recorded in the Git history.
+
+ORIGINAL UPSTREAM PROJECT
+
+FullDex is derived from ClickingMaster/ssrecomp:
+https://github.com/ClickingMaster/ssrecomp
+
+Original copyright and licence notices must be preserved.
+
+POKEDAISY
 
 Based on PokeDaisy by Lidor Itzhari - https://github.com/lidor30/pokedaisy
 Companion readers and text decoders adapted under GNU GPL v3 from commit 52f959770de4085bacfda16e6d77be7e91134bc4.
+
+OTHER THIRD-PARTY COMPONENTS
+
+FullDex incorporates or builds on other open-source components, including melonDS and mGBA.
+
+See the README, LICENSE and applicable third-party licence notices for additional attribution and licensing information.
+
+Copyright in third-party code remains with its respective holders.
+
+This notice does not restrict rights granted by the applicable open-source licences.
