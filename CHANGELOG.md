@@ -3,6 +3,8 @@
 
 ## Unreleased
 
+- **Closing the Windows launcher exits cleanly.** Its music-status worker is stopped before the application finishes, including when media controls are unavailable.
+
 - **Launcher dialog arrows act once with overlapping inputs.** Controller remappings keep their first direction press, and navigating a dialog no longer moves the game list behind it.
 
 - **Import game pictures on Linux and Steam Deck.** Change Picture now has a folder browser for PNG and JPEG files. Pictures for games with the same filename are kept separately.
