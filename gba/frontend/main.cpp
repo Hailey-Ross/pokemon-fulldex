@@ -241,7 +241,7 @@ struct Settings
         const std::string v = Get(key);
         std::string hk, hv;
         if (!strcmp(key, "scaling")) { hk = "smooth"; hv = v == "smooth" ? "1" : "0"; }
-        else if (!strcmp(key, "show_fps") || !strcmp(key, "volume") || !strcmp(key, "buttons") || !strcmp(key, "ff_mute")) { hk = key; hv = v; }
+        else if (!strcmp(key, "show_fps") || !strcmp(key, "volume") || !strcmp(key, "buttons") || !strcmp(key, "ff_mute") || !strcmp(key, "fast_lock")) { hk = key; hv = v; }
         else if (!strcmp(key, "lcd")) { hk = "gba_lcd"; hv = v; }
         else if (!strcmp(key, "widescreen")) { hk = "aspect"; hv = v == "off" ? "3:2" : v; }
         else if (!strcmp(key, "fullscreen")) { hk = key; hv = v; }
@@ -924,7 +924,7 @@ struct App
         game = g;
         screen = PLAY;
         paused = false;
-        fastToggle = false;
+        fastToggle = set.Get("fast_lock") == "1";
         holdKeys = true;
         mAudioResamplerInit(&resampler, mINTERPOLATOR_SINC);
         if (audio)
@@ -1568,6 +1568,9 @@ struct App
         if (item == "FAST FORWARD" && (in.left || in.right || in.accept))
         {
             fastToggle = !fastToggle;
+            set.values["fast_lock"] = fastToggle ? "1" : "0";
+            set.Save();
+            set.ToHost("fast_lock");
             pause.items[pause.selected].value = fastToggle ? "ON" : "OFF";
             return;
         }

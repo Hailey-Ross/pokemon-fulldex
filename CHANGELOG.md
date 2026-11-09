@@ -3,6 +3,10 @@
 
 ## Unreleased
 
+- **FAST FORWARD stays as you left it** (#136). The DS and GBA pause-menu choice is remembered
+  across launches and shared when changing between DS and GBA games. Held shortcuts and the
+  GBA on-screen fast-forward button remain temporary.
+
 - **Choose LCD effects before launching a game.** Launcher Display settings now include DS Screen Filter (Off, Scanlines, LCD Grid) and GBA LCD Effect, with choices shared with the in-game menus.
 
 - **Custom-sized screenshots keep clean overlays.** Window-sized text and menus are omitted when their dimensions differ from the requested export, avoiding scrambled rows.

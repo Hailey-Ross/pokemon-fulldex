@@ -1611,6 +1611,7 @@ struct Settings : OptionalFeatures
     bool ffLowRes = true;
     int fastSpeed = 4, slowDivisor = 1, rewindMb = 0;
     bool smartFast = false, turboA = false;
+    bool fastLock = false; // pause-menu FAST FORWARD, retained for the next launch
     int screenFilter=0;
     bool companionOverlay=false,partyHud=false;
     // STATUS BAR: a slim strip at the top while you play: the area, Poke Balls, the time, the battery.
@@ -1717,6 +1718,7 @@ struct Settings : OptionalFeatures
             else if (k == "saves_folder") savesFolder = v;
             else if (k == "list_lang" || k == "language") { listLang = v; UiLang::Set(v); }
             else if (k == "ff_low_res") ffLowRes = v == "1";
+            else if (k == "fast_lock") fastLock = v == "1";
             else if (k == "fast_speed") fastSpeed = std::clamp(atoi(v.c_str()),2,8);
             else if (k == "slow_divisor") slowDivisor = v=="4"?4:v=="2"?2:1;
             else if (k == "rewind_mb") rewindMb = v=="128"?128:v=="64"?64:0;
@@ -1777,6 +1779,7 @@ struct Settings : OptionalFeatures
         f << "pad_touch=" << (padTouch ? 1 : 0) << "\n";
         f << "show_fps=" << (showFps ? 1 : 0) << "\n";
         f << "ff_low_res=" << (ffLowRes ? 1 : 0) << "\n";
+        f << "fast_lock=" << (fastLock ? 1 : 0) << "\n";
         f << "fast_speed=" << fastSpeed << "\n";
         f << "slow_divisor=" << slowDivisor << "\n";
         f << "rewind_mb=" << rewindMb << "\n";
@@ -5091,7 +5094,7 @@ int main(int argc, char** argv)
     int sliderTap = -1; // a tap on a slider's bar (Menu::SliderAt): the value, for its row's action
     std::string raTyped, raUser;
     std::vector<int> menuIds;
-    bool fastLock = false;
+    bool fastLock = cfg.fastLock;
     double ffFrameMs = 0; // emulation time of one frame while fast forwarding (see speed)
     // World detail choices: the most lines the widescreen 3D is drawn at (192 is the DS's own).
     static const int detailLines[] = { 192, 288, 384, 540, 720, 1080, 1440, 2160 };
@@ -9134,6 +9137,8 @@ int main(int argc, char** argv)
                 break;
             case M_FAST:
                 fastLock = !fastLock;
+                cfg.fastLock = fastLock;
+                cfg.Save(opt.config);
                 break;
             case M_VOLUME:
                 // (Left goes down, right and A up; past 100 it comes round to OFF, and back. A

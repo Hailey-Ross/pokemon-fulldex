@@ -1187,6 +1187,8 @@ inline void SyncGbaSettings(const std::string& cfg, const std::string& dataDir)
     set.push_back({ "show_fps", ConfigValue(cfg, "show_fps") == "1" ? "1" : "0" });
     const std::string lcd = ConfigValue(cfg, "gba_lcd");
     if (lcd == "0" || lcd == "1") set.push_back({ "lcd", lcd });
+    const std::string fast = ConfigValue(cfg, "fast_lock");
+    if (fast == "0" || fast == "1") set.push_back({ "fast_lock", fast });
     const std::string vol = ConfigValue(cfg, "volume");
     set.push_back({ "volume", vol.empty() ? "100" : vol });
 #ifndef __SWITCH__
