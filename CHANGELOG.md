@@ -3,6 +3,8 @@
 
 ## Unreleased
 
+- **Launcher: overlapping keyboard and controller presses act once.** A Steam Input press arriving through both paths no longer selects twice or skips a menu level.
+
 - **GBA menus accept mouse and trackpad clicks.** Click the pause menu and game list without enabling on-screen touch controls.
 
 - **Choose a shared ROM folder from the launcher.** The ROMs page lets PC and Android players use an existing library without moving their saves.

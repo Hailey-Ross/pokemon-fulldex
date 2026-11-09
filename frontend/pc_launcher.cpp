@@ -1946,10 +1946,54 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
     };
     while (!quit)
     {
+        // Steam Input can deliver one press as both a keyboard shortcut and a controller
+        // button. Apply each menu action once while draining this batch, even if the first
+        // event opened a different page or dialog before its duplicate arrives.
+        std::set<int> menuPresses;
+        auto firstMenuPress = [&](int action) {
+            if (action == Controls::START) action = Controls::A;
+            if (action == Controls::SELECT || action == Controls::MENU) action = Controls::B;
+            return action < 0 || menuPresses.insert(action).second;
+        };
         SDL_Event e;
         bool any = SDL_WaitEventTimeout(&e, 50);
         while (any)
         {
+            int menuAction = -1;
+            if (e.type == SDL_KEYDOWN)
+            {
+                for (int a = 0; a < Controls::COUNT; a++)
+                    if (ctl.KeyCustom(a) && ctl.key[a] == e.key.keysym.scancode) menuAction = a;
+                if (menuAction < 0)
+                    switch (e.key.keysym.sym)
+                    {
+                    case SDLK_LEFT: case SDLK_a: menuAction = Controls::LEFT; break;
+                    case SDLK_RIGHT: case SDLK_d: menuAction = Controls::RIGHT; break;
+                    case SDLK_UP: case SDLK_w: menuAction = Controls::UP; break;
+                    case SDLK_DOWN: case SDLK_s: menuAction = Controls::DOWN; break;
+                    case SDLK_RETURN: case SDLK_KP_ENTER: case SDLK_SPACE: menuAction = Controls::A; break;
+                    case SDLK_ESCAPE: case SDLK_AC_BACK: menuAction = Controls::B; break;
+                    case SDLK_f: menuAction = Controls::X; break;
+                    case SDLK_h: case SDLK_F1: menuAction = Controls::Y; break;
+                    case SDLK_q: case SDLK_PAGEUP: menuAction = Controls::L; break;
+                    case SDLK_e: case SDLK_PAGEDOWN: case SDLK_TAB: menuAction = Controls::R; break;
+                    default: break;
+                    }
+            }
+            else if (e.type == SDL_CONTROLLERBUTTONDOWN)
+            {
+                const int input = e.cbutton.button;
+                menuAction = ctl.PadCustom() ? ctl.ActionOfPad(input, ctl.byLabel) :
+                    input == Controls::IN_A || input == Controls::IN_START ? Controls::A :
+                    input == Controls::IN_B || input == Controls::IN_BACK ? Controls::B :
+                    input == Controls::IN_X ? Controls::X : input == Controls::IN_Y ? Controls::Y :
+                    input == Controls::IN_LB ? Controls::L : input == Controls::IN_RB ? Controls::R : -1;
+            }
+            if (!(keysOpen && keysCapture >= 0) && !firstMenuPress(menuAction))
+            {
+                any = SDL_PollEvent(&e);
+                continue;
+            }
             if (e.type == SDL_APP_WILLENTERBACKGROUND) appBackgrounded = true;
             if (e.type == SDL_APP_DIDENTERFOREGROUND) appBackgrounded = false;
             if (e.type == SDL_RENDER_DEVICE_RESET || e.type == SDL_RENDER_TARGETS_RESET || e.type == SDL_APP_DIDENTERFOREGROUND)
@@ -2759,7 +2803,8 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
         }
         held = dir && dir == heldDir ? held + 1 : dir ? 1 : 0;
         heldDir = dir;
-        if ((held == 1 || (held > 8 && held % 3 == 0)) && !keysOpen) move(dir);
+        if ((held == 1 || (held > 8 && held % 3 == 0)) && !keysOpen &&
+            firstMenuPress(dir == 1 ? Controls::LEFT : dir == 2 ? Controls::RIGHT : dir == 3 ? Controls::UP : Controls::DOWN)) move(dir);
         // (KEYS AND BUTTONS: the capture's 5 seconds.)
         if (keysOpen && keysCapture >= 0 && SDL_GetTicks() > keysUntil)
         {
