@@ -3,6 +3,10 @@
 
 ## Unreleased
 
+- **Very wide GBA screens keep full-screen backgrounds while hiding repeated windows** (#131).
+  The level-up window no longer repeats at the opposite edge, and a background that reaches
+  an edge can still fill that side of the wide view. The START-menu/help-bar width is unchanged.
+
 - **FAST FORWARD stays as you left it** (#136). The DS and GBA pause-menu choice is remembered
   across launches and shared when changing between DS and GBA games. Held shortcuts and the
   GBA on-screen fast-forward button remain temporary.
