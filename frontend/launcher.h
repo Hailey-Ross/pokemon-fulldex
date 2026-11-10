@@ -4883,6 +4883,34 @@ inline bool SameMonName(const std::string& v, const std::string& spn)
     return v == spn;
 #endif
 }
+// Cards can cross the scrolling viewport. Preserve only their overflow, including the
+// selection glow, so direct pixel writers cannot cover the header or footer.
+struct GridCardClip
+{
+    Canvas& c; const Grid& g; int x0, x1, y0, y1;
+    std::vector<uint32_t> saved;
+    GridCardClip(Canvas& canvas, const Grid& grid, int x, int y, int w, int h, int margin = 0)
+        : c(canvas), g(grid), x0(std::max(0, x - margin)), x1(std::min(c.w, x + w + margin)),
+          y0(std::max(0, y - margin)), y1(std::min(c.h, y + h + margin))
+    {
+        if (g.horiz || x1 <= x0) return;
+        for (int yy = y0; yy < y1; yy++)
+            if (yy < g.top || yy >= g.bottom)
+                saved.insert(saved.end(), c.px.begin() + (size_t)yy * c.w + x0, c.px.begin() + (size_t)yy * c.w + x1);
+    }
+    ~GridCardClip()
+    {
+        size_t at = 0;
+        if (saved.empty()) return;
+        for (int yy = y0; yy < y1; yy++)
+            if (yy < g.top || yy >= g.bottom)
+            {
+                std::copy_n(saved.begin() + at, x1 - x0, c.px.begin() + (size_t)yy * c.w + x0);
+                at += x1 - x0;
+            }
+    }
+};
+
 // (A page's detail panel upright: what is drawn in it stays inside it, the pixels above and below put back after.)
 struct ClipGuard
 {
@@ -6812,9 +6840,11 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
     bool solid = c.backdrop.size() == c.px.size();
     auto visible = [&](const View::Spot& s) {
         if (grid.horiz) { const int x = s.x - scroll; return x >= grid.panelX - 2 && x + grid.cw <= c.w; }
-        const int y = grid.top + s.y - scroll; return y >= grid.top - 2 && y + grid.ch <= grid.bottom + 2; };
+        const int y = grid.top + s.y - scroll; return y < grid.bottom && y + grid.ch > grid.top; };
     auto drawCard = [&](const View::Spot& s, bool sel) {
         const int x = grid.horiz ? s.x - scroll : s.x, y = grid.horiz ? grid.top + s.y : grid.top + s.y - scroll;
+        const int clipMargin = (int)std::ceil(std::max(8 * u, std::max(6.0f, grid.ch * 0.06f) * 1.35f)) + 2;
+        GridCardClip clip(c, grid, x, y, grid.cw, grid.ch, clipMargin);
         const Game& g = games[s.game];
         if (PanelHome())
         {
@@ -7282,7 +7312,8 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
             const View::Spot& s = v.spots[k];
             const int sx = grid.horiz ? s.x - scroll : s.x;
             const int m = (int)(7 * u), x0 = std::max(0, sx - m), x1 = std::min(c.w, sx + grid.cw + m);
-            const int y = grid.horiz ? grid.top + s.y : grid.top + s.y - scroll, y0 = std::max(0, y - m), y1 = std::min(c.h, y + grid.ch + m);
+            const int y = grid.horiz ? grid.top + s.y : grid.top + s.y - scroll;
+            const int y0 = std::max(grid.horiz ? 0 : grid.top, y - m), y1 = std::min(grid.horiz ? c.h : grid.bottom, y + grid.ch + m);
             if (solid && !PanelHome())
                 for (int yy = y0; yy < y1; yy++)
                     std::copy(c.backdrop.begin() + (size_t)yy * c.w + x0, c.backdrop.begin() + (size_t)yy * c.w + x1, c.px.begin() + (size_t)yy * c.w + x0);
@@ -7564,11 +7595,12 @@ inline void DrawClassic(Canvas& c, const std::vector<Game>& games, int tab, int 
         const int rx = grid.gx + grid.cols * tile + (grid.cols - 1) * grid.gap * 3;
         if (rx > lx) c.Fill(lx, y + 6 * s, rx - lx, std::max(1, s / 2), th.tile);
     }
-    // The tiles that are wholly in view.
+    // Show every intersecting tile, clipped to the scrolling viewport.
     for (const View::Spot& sp : v.spots)
     {
         const int x = sp.x, y = top + sp.y - scroll;
-        if (y < top || y + tile + labelH > bottom) continue;
+        if (y >= bottom || y + tile + labelH <= top) continue;
+        GridCardClip clip(c, grid, x, y, tile, tile + labelH, th.frameW * s);
         const Game& g = games[sp.game];
         const bool sel = sp.game == selected;
         // A frame round the chosen one.
@@ -7576,7 +7608,7 @@ inline void DrawClassic(Canvas& c, const std::vector<Game>& games, int tab, int 
         c.Fill(x, y, tile, tile, th.tile);
         if (!g.art.empty())
         {
-            for (int py = 0; py < tile; py++)
+            for (int py = std::max(0, -y); py < tile && y + py < c.h; py++)
             {
                 const uint32_t* row = &g.art[(size_t)(py * Art / tile) * Art];
                 for (int px = 0; px < tile; px++)
@@ -7598,7 +7630,7 @@ inline void DrawClassic(Canvas& c, const std::vector<Game>& games, int tab, int 
         // COMING SOON across the picture of a game on its way, the picture darkened.
         if (g.comingSoon)
         {
-            for (int py = 0; py < tile; py++)
+            for (int py = std::max(0, -y); py < tile && y + py < c.h; py++)
                 for (int px = 0; px < tile; px++)
                 {
                     uint32_t& p = c.px[(size_t)(y + py) * c.w + x + px];
