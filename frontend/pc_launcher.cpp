@@ -1405,6 +1405,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                  : games[selected].known ? "THIS DOWNLOAD DOES NOT HAVE THIS GAME" : "THIS GAME IS NOT ONE THAT THIS PLAYS";
     };
     auto choose = [&]() {
+        gridMotion.Stop();
         if (guide && onBack)
         {
             // (BACK: from a group to the groups, from the groups to the list.)
@@ -1589,6 +1590,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
         launchSelected();
     };
     auto move = [&](int dir) { // 1 left, 2 right, 3 up, 4 down
+        gridMotion.Stop();
         if (guide)
         {
             if (onBack)
