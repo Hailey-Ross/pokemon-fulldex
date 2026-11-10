@@ -53,6 +53,8 @@ int main(int argc, char** argv) {
     DsConfig::Settings cfg;
     cfg.Load(cfgPath);
     assert(!DsStartsFast(cfg)); // old files with no key keep the OFF default
+    assert(!cfg.fastButtonToggle);
+    cfg.fastButtonToggle = true;
     cfg.volume = 40;
     cfg.screenFilter = 2;
     cfg.romsFolder = "Shared ROMs";
@@ -61,12 +63,16 @@ int main(int argc, char** argv) {
     DsConfig::Settings reopened;
     reopened.Load(cfgPath);
     assert(dsFast && DsStartsFast(reopened));
+    assert(reopened.fastButtonToggle);
     assert(reopened.volume == 40 && reopened.screenFilter == 2 && reopened.romsFolder == "Shared ROMs");
     Launcher::SyncGbaSettings(cfgPath, root);
     GbaConfig::Settings set;
     set.Load(ini);
     bool gbaFast = GbaStartsFast(set);
     assert(gbaFast);
+    assert(set.Get("fast_button") == "toggle");
+    set.values["fast_button"] = "hold"; set.Save(); set.ToHost("fast_button");
+    DsConfig::Settings holdChoice; holdChoice.Load(cfgPath); assert(!holdChoice.fastButtonToggle);
     ToggleGba(set, gbaFast); // real GBA pause action saves and writes back to DS
     GbaConfig::Settings gbaReopened;
     gbaReopened.Load(ini);

@@ -3,6 +3,8 @@
 
 ## Unreleased
 
+- Choose Hold or Toggle for the fast-forward button in launcher settings and in-game playback settings, shared by DS and GBA. Toggle works with a keyboard, controller or on-screen button.
+
 - **Android restores fullscreen after resume/unlock.** Reapply system-bar and layout state when focus returns, with a bounded retry after the unlock transition. Windowed/multi-window mode, open keyboards and the chosen cutout preference are preserved. Retroid Pocket 6 hardware confirmation is pending.
 
 - **Layout choices have mini previews.** Sidebar, Grid Only, Panel and Tiles appear together in the preview panel, with the active choice outlined. Tap a miniature to select it; phones show their two supported grid layouts.

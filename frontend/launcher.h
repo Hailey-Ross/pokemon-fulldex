@@ -1187,6 +1187,7 @@ inline void SyncGbaSettings(const std::string& cfg, const std::string& dataDir)
     set.push_back({ "show_fps", ConfigValue(cfg, "show_fps") == "1" ? "1" : "0" });
     const std::string lcd = ConfigValue(cfg, "gba_lcd");
     if (lcd == "0" || lcd == "1") set.push_back({ "lcd", lcd });
+    set.push_back({ "fast_button", ConfigValue(cfg, "fast_button") == "toggle" ? "toggle" : "hold" });
     const std::string fast = ConfigValue(cfg, "fast_lock");
     if (fast == "0" || fast == "1") set.push_back({ "fast_lock", fast });
     const std::string vol = ConfigValue(cfg, "volume");
@@ -7836,6 +7837,8 @@ inline std::vector<Setting> SettingsList()
     l.push_back({ "fullscreen", "BORDERLESS FULLSCREEN", onOff, "1", "ON: FILLS YOUR SCREEN AS A BORDERLESS WINDOW AT ITS OWN RESOLUTION. SWITCHING TO OTHER WINDOWS IS INSTANT. F11 DOES THE SAME." });
 #endif
 #endif
+    l.push_back({ "fast_button", "FAST FORWARD BUTTON", { { "hold", "HOLD" }, { "toggle", "TOGGLE" } }, "hold",
+                  "HOLD: RELEASE TO STOP. TOGGLE: PRESS ONCE TO START AND AGAIN TO STOP. APPLIES TO KEYBOARD, CONTROLLER AND ON-SCREEN FAST FORWARD." });
     l.push_back({ "smooth", "SMOOTH SCALING", onOff, "0", "ON: THE PICTURE IS SOFTENED AS IT IS SCALED UP TO YOUR SCREEN. OFF: SHARP PIXELS." });
     l.push_back({ "screen_filter", "DS SCREEN FILTER", { { "0", "OFF" }, { "1", "SCANLINES" }, { "2", "LCD GRID" } }, "0",
                   "DS GAMES: A RETRO LOOK OVER THE PICTURE. LCD GRID ADDS A FAINT PIXEL GRID. THE SAME CHOICE IS AVAILABLE IN THE GAME'S DISPLAY MENU." });
@@ -7920,13 +7923,13 @@ inline std::vector<Setting> SettingsList()
     // Only in the pause menu.
 #ifdef __SWITCH__
     l.push_back({ nullptr, "THE PAUSE MENU", {}, "", "PRESS + WHILE PLAYING (+ AND - TOGETHER WITH START BUTTON ON DS START). EVERYTHING ABOVE IS THERE TOO AND CAN BE CHANGED AS YOU PLAY." });
-    l.push_back({ nullptr, "FAST FORWARD", {}, "", "HOLD ZR (UP TO 4X). FAST FORWARD IN THE PAUSE MENU KEEPS IT ON WITHOUT HOLDING. THE BUTTON IS CHANGED IN KEYS AND BUTTONS." });
+    l.push_back({ nullptr, "FAST FORWARD", {}, "", "THE FAST FORWARD BUTTON USES YOUR HOLD / TOGGLE SETTING. THE PAUSE MENU CAN ALSO KEEP FAST FORWARD ON. THE BUTTON IS CHANGED IN KEYS AND BUTTONS." });
 #elif defined(SSR_PHONE)
     l.push_back({ nullptr, "THE PAUSE MENU", {}, "", "THE MENU BUTTON AT THE TOP OF THE SCREEN WHILE PLAYING OR START OR GUIDE ON A CONTROLLER. EVERYTHING ABOVE IS THERE TOO." });
-    l.push_back({ nullptr, "FAST FORWARD", {}, "", "HOLD THE >> BUTTON BESIDE R AT THE TOP, OR THE RIGHT TRIGGER OF A CONTROLLER (UP TO 4X). FAST FORWARD IN THE PAUSE MENU KEEPS IT ON WITHOUT HOLDING. THE BUTTON IS CHANGED IN KEYS AND BUTTONS." });
+    l.push_back({ nullptr, "FAST FORWARD", {}, "", "THE FAST FORWARD BUTTON USES YOUR HOLD / TOGGLE SETTING. THE PAUSE MENU CAN ALSO KEEP FAST FORWARD ON. THE BUTTON IS CHANGED IN KEYS AND BUTTONS." });
 #else
     l.push_back({ nullptr, "THE PAUSE MENU", {}, "", "ESC ON THE KEYBOARD. ON A CONTROLLER: START (MENU ON XBOX / OPTIONS ON PS) OR ITS GUIDE BUTTON. EVERYTHING ABOVE IS THERE TOO." });
-    l.push_back({ nullptr, "FAST FORWARD", {}, "", "HOLD THE RIGHT TRIGGER OR LEFT SHIFT (UP TO 4X). FAST FORWARD IN THE PAUSE MENU KEEPS IT ON WITHOUT HOLDING. THE KEY AND BUTTON ARE CHANGED IN KEYS AND BUTTONS." });
+    l.push_back({ nullptr, "FAST FORWARD", {}, "", "THE FAST FORWARD BUTTON USES YOUR HOLD / TOGGLE SETTING. THE PAUSE MENU CAN ALSO KEEP FAST FORWARD ON. THE KEY AND BUTTON ARE CHANGED IN KEYS AND BUTTONS." });
 #endif
 #ifdef __SWITCH__
     l.push_back({ "!keys", "KEYS AND BUTTONS", { { "", "CHANGE" } }, "",
@@ -7985,7 +7988,7 @@ inline int GroupOf(const Setting& s)
     if (!strncmp(s.key, "list_", 5)) return 6;
     if (!strcmp(s.key, "ra") || !strcmp(s.key, "!ra_login")) return 7;
     static const char* display[] = { "view", "large_screen", "fullscreen", "smooth", "screen_filter", "gba_lcd", "battle_buttons", "show_fps" };
-    static const char* controls[] = { "start_button", "buttons", "pad_touch" };
+    static const char* controls[] = { "start_button", "buttons", "pad_touch", "fast_button" };
     for (const char* k : display)
         if (!strcmp(s.key, k)) return 1;
     if (!strcmp(s.key, "volume")) return 2;

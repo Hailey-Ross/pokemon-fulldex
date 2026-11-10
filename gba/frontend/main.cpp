@@ -22,6 +22,7 @@
 #include <SDL.h>
 
 #include "art.h"
+#include "fast_forward_button.h"
 #ifdef GBAW_EMBEDDED
 #include "embed.h"
 // Cheats (CHEATS in the pause menu): Fulldex's, from its frontend folder (on the include path when
@@ -162,6 +163,8 @@ const std::vector<Setting>& SettingsList()
           "PAUSE MENU: A CONTROLLER'S START OPENS THIS MENU, AND START AND SELECT TOGETHER ARE THE GBA'S START. "
           "GBA START: START IS THE GBA'S START, AND START AND SELECT TOGETHER OPEN THIS MENU." },
 #endif
+        { "fast_button", "FAST FORWARD BUTTON", { { "hold", "HOLD" }, { "toggle", "TOGGLE" } }, "hold",
+          "HOLD: RELEASE TO STOP. TOGGLE: PRESS ONCE TO START AND AGAIN TO STOP. KEYBOARD, CONTROLLER AND ON-SCREEN BUTTON." },
         { "ff_speed", "FAST FORWARD SPEED", { { "2", "2X" }, { "3", "3X" }, { "4", "4X" }, { "8", "8X" } }, "3",
 #if defined(GBAW_PHONE)
           "HOW FAST FAST FORWARD GOES (THE >> BUTTON ON THE SCREEN, OR HOLD A CONTROLLER'S RIGHT TRIGGER)." },
@@ -243,7 +246,7 @@ struct Settings
         const std::string v = Get(key);
         std::string hk, hv;
         if (!strcmp(key, "scaling")) { hk = "smooth"; hv = v == "smooth" ? "1" : "0"; }
-        else if (!strcmp(key, "show_fps") || !strcmp(key, "volume") || !strcmp(key, "buttons") || !strcmp(key, "ff_mute") || !strcmp(key, "fast_lock")) { hk = key; hv = v; }
+        else if (!strcmp(key, "show_fps") || !strcmp(key, "volume") || !strcmp(key, "buttons") || !strcmp(key, "ff_mute") || !strcmp(key, "fast_lock") || !strcmp(key, "fast_button")) { hk = key; hv = v; }
         else if (!strcmp(key, "lcd")) { hk = "gba_lcd"; hv = v; }
         else if (!strcmp(key, "widescreen")) { hk = "aspect"; hv = v == "off" ? "3:2" : v; }
         else if (!strcmp(key, "fullscreen")) { hk = key; hv = v; }
@@ -611,6 +614,8 @@ struct App
     bool paused = false;
     Menu pause;
     bool fastToggle = false;
+    FastForwardButton fastButton;
+    bool fastInputFocused = true;
     uint32_t tapDirs = 0;
     Uint32 tapSince = 0;
     bool plusHeld = false, plusCombo = false; // START (+) held, and SELECT (-) pressed with it
@@ -1136,9 +1141,13 @@ struct App
         if (d & 8) on(K_RIGHT);
         return k;
     }
+    bool FastDown() const
+    {
+        return key[SDL_SCANCODE_LSHIFT] || pads.Axis(SDL_CONTROLLER_AXIS_TRIGGERRIGHT) > 16000 || (touchHeld & (1u << Touch::FAST));
+    }
     bool FastForward() const
     {
-        return fastToggle || key[SDL_SCANCODE_LSHIFT] || pads.Axis(SDL_CONTROLLER_AXIS_TRIGGERRIGHT) > 16000;
+        return fastButton.Requested(set.Get("fast_button") == "toggle", FastDown(), fastToggle);
     }
 
     // Runs one GBA frame, with sound if `sound`.
@@ -1242,9 +1251,9 @@ struct App
         {
             static const char* const display[] = { "widescreen", "fullscreen", "scaling", "hd_filter", "lcd", "colour", "show_fps" };
             static const char* const sound[] = { "volume", "ff_mute" };
-            static const char* const controls[] = { "gba_start", "buttons", "ff_speed" };
+            static const char* const controls[] = { "gba_start", "buttons", "ff_speed", "fast_button" };
             const char* const* keys = pausePage == P_DISPLAY ? display : pausePage == P_SOUND ? sound : controls;
-            const int count = pausePage == P_DISPLAY ? 7 : pausePage == P_SOUND ? 2 : 3;
+            const int count = pausePage == P_DISPLAY ? 7 : pausePage == P_SOUND ? 2 : 4;
             pageSettings.clear();
             for (int i = 0; i < count; i++)
                 for (const Setting& s : SettingsList())
@@ -2398,7 +2407,9 @@ struct App
                 }
                 break;
             case SDL_WINDOWEVENT:
-                if (e.window.event == SDL_WINDOWEVENT_FOCUS_LOST) std::fill(std::begin(key), std::end(key), false);
+                if (e.window.event == SDL_WINDOWEVENT_FOCUS_LOST)
+                { std::fill(std::begin(key), std::end(key), false); fastInputFocused = false; fastButton.Block(); fingers.clear(); touchHeld = 0; }
+                else if (e.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) fastInputFocused = true;
                 break;
             default:
                 break;
@@ -2425,14 +2436,13 @@ struct App
                 if (f.type == SDL_FINGERDOWN)
                 {
                     if (m & (1u << Touch::MENU)) in.menu = true;
-                    if (m & (1u << Touch::FAST)) fastToggle = !fastToggle;
                     if (m & 0x3FF)
                     {
                         touchTap |= m & 0x3FF;
                         touchTapFrames = 3;
                     }
                 }
-                fingers[f.fingerId] = m & 0x3FF;
+                fingers[f.fingerId] = m & (0x3FF | (1u << Touch::FAST));
             }
             touchHeld = 0;
             for (const auto& kv : fingers) touchHeld |= kv.second;
@@ -2630,6 +2640,11 @@ struct App
             }
             else if (in.menu) OpenPause();
 
+            if (fastButton.Update(set.Get("fast_button") == "toggle", FastDown(), fastInputFocused && screen == PLAY && !paused, fastToggle))
+            {
+                set.values["fast_lock"] = fastToggle ? "1" : "0";
+                set.Save(); set.ToHost("fast_lock");
+            }
             const Uint64 now = SDL_GetPerformanceCounter();
             const double dt = (double)(now - last) / freq;
             last = now;

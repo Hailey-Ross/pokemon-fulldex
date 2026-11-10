@@ -17,6 +17,7 @@
 #include <chrono>
 #include <thread>
 #include "sampler.h"
+#include "../gba/frontend/fast_forward_button.h"
 #include "ssr_os.h"
 #ifdef SSR_IOS
 #include "ios_orient.h"
@@ -1627,6 +1628,7 @@ struct Settings : OptionalFeatures
     bool ffLowRes = true;
     int fastSpeed = 4, slowDivisor = 1, rewindMb = 0;
     bool smartFast = false, turboA = false;
+    bool fastButtonToggle = false;
     bool fastLock = false; // pause-menu FAST FORWARD, retained for the next launch
     int screenFilter=0;
     bool companionOverlay=false,partyHud=false;
@@ -1734,6 +1736,7 @@ struct Settings : OptionalFeatures
             else if (k == "saves_folder") savesFolder = v;
             else if (k == "list_lang" || k == "language") { listLang = v; UiLang::Set(v); }
             else if (k == "ff_low_res") ffLowRes = v == "1";
+            else if (k == "fast_button") fastButtonToggle = v == "toggle";
             else if (k == "fast_lock") fastLock = v == "1";
             else if (k == "fast_speed") fastSpeed = std::clamp(atoi(v.c_str()),2,8);
             else if (k == "slow_divisor") slowDivisor = v=="4"?4:v=="2"?2:1;
@@ -1795,6 +1798,7 @@ struct Settings : OptionalFeatures
         f << "pad_touch=" << (padTouch ? 1 : 0) << "\n";
         f << "show_fps=" << (showFps ? 1 : 0) << "\n";
         f << "ff_low_res=" << (ffLowRes ? 1 : 0) << "\n";
+        f << "fast_button=" << (fastButtonToggle ? "toggle" : "hold") << "\n";
         f << "fast_lock=" << (fastLock ? 1 : 0) << "\n";
         f << "fast_speed=" << fastSpeed << "\n";
         f << "slow_divisor=" << slowDivisor << "\n";
@@ -5089,7 +5093,7 @@ int main(int argc, char** argv)
         M_COMPANION, M_CPARTY, M_CBAG, M_CDEX, M_CLOCATION, M_CMAP, M_CENCOUNTERS, M_REFERENCE, M_REFERENCE_KIND, M_REFERENCE_QUERY, M_CPOCKET, M_CDEX_FILTER, M_CBATTLE, M_CGUIDE, M_CGUIDE_REVEAL, M_NUZLOCKE, M_RUN_ENABLED, M_RUN_RESET, M_RUN_RESET_CONFIRM, M_QUICK_ACTIONS, M_OPEN_PC, M_HUB_SAVE, M_HUB_LOAD, M_HUB_CHEATS, M_HUB_FAST, M_HUB_SETTINGS, M_HUB_QUIT,
         M_QUIT_YES, M_RESET_YES, // (QUIT GAME / RESET GAME asked first: PAGE_QUIT_CONFIRM)
         M_SHORTCUTS, // (CONTROLS: Fulldex's own four shortcuts, opening KEYS AND BUTTONS at them)
-        M_EXTRAS, M_EXTRA0=92000, M_EXTRA_END=92006, M_PLAYBACK=93000, M_FAST_SPEED, M_SMART_FAST, M_SLOW_MOTION, M_REWIND_MB, M_REWIND, M_TURBO_A, M_SCREEN_FILTER, M_COMPANION_OVERLAY, M_PARTY_HUD, M_STATUS_BAR,
+        M_EXTRAS, M_EXTRA0=92000, M_EXTRA_END=92006, M_PLAYBACK=93000, M_FAST_SPEED, M_SMART_FAST, M_SLOW_MOTION, M_REWIND_MB, M_REWIND, M_TURBO_A, M_SCREEN_FILTER, M_COMPANION_OVERLAY, M_PARTY_HUD, M_STATUS_BAR, M_FAST_BUTTON,
         M_STATES, M_SLOT_SAVE, M_SLOT_LOAD, M_SLOT_PREVIOUS, M_UNDO_LOAD,
         M_KEY0=94000, M_KEY_LAYER=94900, M_KEY_SPACE, M_KEY_DEL, M_KEY_DONE, M_KEY_SYMBOLS, // (the keyboard's keys, Menu::keyGrid: SEARCH, the log in)
         M_CPARTY0=80000, M_CDEX0=81000, M_CITEM0=83000, M_RRESULT0=86000, M_SLOT0=90000, M_GUIDE0=91000,
@@ -5112,6 +5116,8 @@ int main(int argc, char** argv)
     std::string raTyped, raUser;
     std::vector<int> menuIds;
     bool fastLock = cfg.fastLock;
+    FastForwardButton fastButton;
+    bool fastInputFocused = true;
     double ffFrameMs = 0; // emulation time of one frame while fast forwarding (see speed)
     // World detail choices: the most lines the widescreen 3D is drawn at (192 is the DS's own).
     static const int detailLines[] = { 192, 288, 384, 540, 720, 1080, 1440, 2160 };
@@ -5731,7 +5737,9 @@ int main(int argc, char** argv)
             settingsPage(Glass::I_FAST);
             section("SPEED", Glass::I_FAST);
             toggle(M_FAST, "FAST FORWARD", Glass::I_FAST, Menu::P_NONE, fastLock,
-                   "Keep the game fast forwarding until you turn it off.", "The fast forward key or button does the same while you hold it.");
+                   "Keep the game fast forwarding until you turn it off.", "The fast forward button follows the Hold / Toggle setting below.");
+            picker(M_FAST_BUTTON, "FAST FORWARD BUTTON", Glass::I_PAD, Menu::P_NONE, { "HOLD", "TOGGLE" }, cfg.fastButtonToggle ? 1 : 0,
+                   "Hold: release to stop. Toggle: press once to start and again to stop.", "Applies to the keyboard, controller and on-screen fast forward button.");
             {
                 static const int speeds[] = { 2, 3, 4, 8 };
                 int i = 0;
@@ -8151,7 +8159,9 @@ int main(int argc, char** argv)
                     }
                 }
                 else if (ev.type == SDL_WINDOWEVENT && ev.window.event == SDL_WINDOWEVENT_FOCUS_LOST)
-                    mouseDown = false;
+                    { mouseDown = false; fastInputFocused = false; fastButton.Block(); }
+                else if (ev.type == SDL_WINDOWEVENT && ev.window.event == SDL_WINDOWEVENT_FOCUS_GAINED)
+                    fastInputFocused = true;
 #ifdef SSR_PC_LAUNCHER
                 // (The size the window is given, kept for next time; not the screen's when fullscreen.)
                 else if (ev.type == SDL_WINDOWEVENT && ev.window.event == SDL_WINDOWEVENT_SIZE_CHANGED &&
@@ -8824,6 +8834,8 @@ int main(int argc, char** argv)
             case M_STATUS_BAR:cfg.statusBar=!cfg.statusBar;cfg.Save(opt.config);readCompanion();break;
             case M_SCREEN_FILTER:cfg.screenFilter=(cfg.screenFilter+(dir<0?2:1))%3;cfg.Save(opt.config);break;
             case M_PLAYBACK:goPage(PAGE_PLAYBACK,M_FAST_SPEED);hit=-1;break;
+            case M_FAST_BUTTON:
+                cfg.fastButtonToggle = !cfg.fastButtonToggle; cfg.Save(opt.config); fastButton.Block(); break;
             case M_FAST_SPEED:
             {
                 static const int speeds[]={2,3,4,8};int i=0;while(i<3&&speeds[i]<cfg.fastSpeed)i++;
@@ -9273,7 +9285,13 @@ int main(int argc, char** argv)
                 {liveTab=i;liveTabBeforeBattle=-1;}
         }
         companionFingerDown=panelDown;
-        const bool fastRequested=fastLock||kbFast||ps.rt>0.5f;
+        const bool fastDown = kbFast || ps.rt > 0.5f;
+        if (fastButton.Update(cfg.fastButtonToggle, fastDown, fastInputFocused && !menu.open && !swallowMenuButtons, fastLock))
+        {
+            cfg.fastLock = fastLock;
+            cfg.Save(opt.config);
+        }
+        const bool fastRequested = fastButton.Requested(cfg.fastButtonToggle, fastDown, fastLock);
         bool paused = menu.open || (!fastRequested && cfg.slowDivisor>1 && frame%cfg.slowDivisor!=0);
         int speed = 1;
         if (!paused && !swallowMenuButtons)
