@@ -3,6 +3,8 @@
 
 ## Unreleased
 
+- **ROM imports preserve different games sharing a filename.** An incoming ROM cannot overwrite a different existing ROM. Failed GBA imports also cannot launch the old same-named file, and read failures no longer count as identical file contents.
+
 - **Wi-Fi firmware settings survive failed replacements.** The previous settings file is retained when a write cannot be installed; Switch keeps a rollback copy. Oversized or incomplete firmware files are rejected with bounded memory use before starting a DS game.
 
 - **Android document-provider folders can import DS and GBA ROMs** (#124). Declining broad file access no longer cancels the folder picker. Unsupported filesystem providers use bounded background imports with clear success/failure messages; source saves are never imported or overwritten. Existing save locations are pinned before changing ROM folders.

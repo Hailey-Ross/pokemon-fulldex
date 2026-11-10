@@ -734,3 +734,5 @@ A frontend or file manager can send an Android VIEW intent for an `.nds` ROM to 
 ### Android folders without ordinary file access
 
 Granting all-files access lets FullDex use a shared ROM folder directly. If that permission is declined, or a document provider exposes no filesystem path, choosing a folder imports its `.nds` and `.gba` files into FullDex storage instead. The app shows when it is importing and how many ROMs were found. Nested folders are supported; choose a smaller folder if a traversal/size limit is reached. Original files remain untouched. These are separate ROM copies: changes made by another emulator are not automatically synchronised, and source saves are not imported automatically. Existing FullDex save locations are retained and must remain accessible. This fallback needs testing on affected GrapheneOS devices.
+
+ROM imports reuse identical files and refuse to overwrite a different ROM with the same filename. Rename the incoming ROM or choose its existing ROM folder instead. An explicitly imported save still gets a safety backup before replacement.

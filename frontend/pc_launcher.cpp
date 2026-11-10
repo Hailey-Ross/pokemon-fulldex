@@ -373,12 +373,15 @@ bool SameContents(const std::filesystem::path& a, const std::filesystem::path& b
         if (fread(y, 1, n, fb) != n || memcmp(x, y, n)) same = false;
         else if (n == 0) break;
     }
+    if (fa && ferror(fa)) same = false;
+    if (fb && ferror(fb)) same = false;
     if (fa) fclose(fa);
     if (fb) fclose(fb);
     return same;
 }
 
-// Copies a ROM or save into the app's roms or saves folder. A file already there is left as it is.
+// Copies a ROM or save into the app. Different ROMs sharing a filename are never overwritten;
+// an explicitly imported save is backed up before replacement.
 bool ImportFile(const Folders& fo, const std::string& path)
 {
     std::string from = path;
@@ -408,6 +411,12 @@ bool ImportFile(const Folders& fo, const std::string& path)
     std::error_code ec;
     if (std::filesystem::exists(src, ec) && std::filesystem::exists(dst, ec) && std::filesystem::equivalent(src, dst, ec))
         return true;
+    if (!EndsWithCi(base, ".sav") && std::filesystem::exists(dst, ec))
+    {
+        if (SameContents(src, dst)) return true;
+        fprintf(stderr, "[launcher] not imported: %s already names a different ROM; rename the incoming file or choose its folder\n", dst.string().c_str());
+        return false;
+    }
     // A save already there is the player's progress: keep it beside the new one.
     if (EndsWithCi(base, ".sav") && std::filesystem::exists(dst, ec) && !SameContents(src, dst))
     {
@@ -2359,7 +2368,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 // or the Finder (Mac). Copied in, then the list looks again.
                 if (e.drop.file)
                 {
-                    ImportFile(fo, e.drop.file);
+                    if (!ImportFile(fo, e.drop.file)) note = "FILE NOT IMPORTED";
                     SDL_free(e.drop.file);
                     lastScan = 0;
                 }
@@ -3428,6 +3437,7 @@ bool Start(int& argc, char**& argv)
 
     std::map<std::string, std::vector<uint32_t>> artCache;
     std::vector<Launcher::Game> games = FindGames(fo, artCache);
+    bool copiedDirectGba = false;
     auto sameRom = [](const std::string& x, const std::string& y) {
         std::error_code e1, e2;
         const auto cx = std::filesystem::weakly_canonical(x, e1), cy = std::filesystem::weakly_canonical(y, e2);
@@ -3437,7 +3447,10 @@ bool Start(int& argc, char**& argv)
     // A shortcut into an existing library must not copy over another ROM with the same basename.
     if (!directRom.empty() && IsGbaRomName(directRom) &&
         std::none_of(games.begin(), games.end(), [&](const Launcher::Game& g) { return sameRom(g.rom, directRom); }))
-        if (ImportFile(fo, directRom)) games = FindGames(fo, artCache);
+    {
+        copiedDirectGba = ImportFile(fo, directRom);
+        if (copiedDirectGba) games = FindGames(fo, artCache);
+    }
 #endif
 
     // The list starts on the game played last.
@@ -3470,7 +3483,7 @@ bool Start(int& argc, char**& argv)
         for (size_t i = 0; i < games.size() && directGame < 0; i++)
             if (sameRom(games[i].rom, directRom) && Playable(fo, games[i])) directGame = (int)i;
         // Prefer an exact library path over an imported GBA copy with the same filename.
-        if (directGame < 0 && IsGbaRomName(directRom))
+        if (directGame < 0 && copiedDirectGba && IsGbaRomName(directRom))
             for (size_t i = 0; i < games.size() && directGame < 0; i++)
                 if (sameRom(games[i].rom, copy) && Playable(fo, games[i])) directGame = (int)i;
         if (directGame < 0) directGame = DirectRom::Ds(directRom, fo.saves, fo.art, games);
