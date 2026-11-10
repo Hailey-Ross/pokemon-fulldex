@@ -2540,9 +2540,10 @@ inline void Menu::DrawDialog(Canvas& c, const std::string& title, const std::str
     static std::string baseKey;
     static bool baseSolid = false;
     static int basePy = 0, basePh = 0;
-    const std::string key = std::to_string(c.w) + "x" + std::to_string(c.h) + " " + std::to_string(c.BackdropSig()) + " " + std::to_string(dialogIcon) + "|" +
+    const bool touch = touchRows > 1.0f;
+    const float k = std::max(0.42f, std::min(c.w / (touch ? 620.0f : 1400.0f), c.h / (touch ? 480.0f : 788.0f)));
+    const std::string key = std::to_string(c.w) + "x" + std::to_string(c.h) + " " + std::to_string(c.BackdropSig()) + " " + std::to_string(dialogIcon) + "|" + std::to_string(touch) + "|" +
         title + "|" + text + "|" + hint + "|" + std::to_string(UiLang::lang);
-    const float k = std::max(0.42f, std::min(c.w / 1400.0f, c.h / 788.0f));
     auto K = [&](float v) { return (int)std::lround(v * k); };
     if (key == baseKey && base.size() == c.px.size())
     {
@@ -2556,8 +2557,9 @@ inline void Menu::DrawDialog(Canvas& c, const std::string& title, const std::str
     else Glass::Round(c, 0, 0, c.w, c.h, 0, GlassShade);
     Glass::Round(c, 0, 0, c.w, c.h, 0, 0x1C000000); // (the game a touch darker behind the card)
     const int pw = std::min(c.w - K(32), K(520)), innerW = pw - K(64);
-    const auto lines = text.empty() ? std::vector<std::string>() : Wrap(text, K(17), innerW, 4);
-    const int ph = K(250) + (int)lines.size() * K(25);
+    const int bodyFont = K(touch ? 22 : 17), lineHeight = K(touch ? 32 : 25);
+    const auto lines = text.empty() ? std::vector<std::string>() : Wrap(text, bodyFont, innerW, 4);
+    const int ph = K(touch ? 280 : 250) + (int)lines.size() * lineHeight;
     const int px = (c.w - pw) / 2, py = (c.h - ph) / 2;
     Glass::Shadow(c, px, py, pw, ph, 26 * k, 30 * k, 0x90);
     if (solid) Glass::Frost(c, px, py, pw, ph, 26 * k);
@@ -2569,12 +2571,12 @@ inline void Menu::DrawDialog(Canvas& c, const std::string& title, const std::str
         Glass::Rim(c, c.w / 2 - K(30), py + K(26), K(60), K(60), 30 * k, std::max(1.0f, k), 0x60, 0x14);
         Glass::DrawIcon(c, dialogIcon, c.w * 0.5f, py + K(56), 15 * k, GlassText);
     }
-    TCentred(c, c.w / 2, py + K(124), title, K(26), GlassText, true);
+    TCentred(c, c.w / 2, py + K(124), title, K(touch ? 30 : 26), GlassText, true);
     int y = py + K(160);
     for (const std::string& l : lines)
     {
-        T(c, c.w / 2 - W(l, K(17), false, false) / 2, y, l, K(17), Desc, false, false);
-        y += K(25);
+        T(c, c.w / 2 - W(l, bodyFont, false, false) / 2, y, l, bodyFont, Desc, false, false);
+        y += lineHeight;
     }
     if (!hint.empty()) TCentred(c, c.w / 2, py + ph + K(34), hint, K(15), GlassHint);
     if (solid) Glass::Opaque(c);
@@ -2587,7 +2589,7 @@ inline void Menu::DrawDialogButtons(Canvas& c, int py, int ph, float k, bool sol
 {
     using namespace SettingsArt;
     auto K = [&](float v) { return (int)std::lround(v * k); };
-    const int bw = K(190), bh = K(48), gap = K(16), bx = c.w / 2 - bw - gap / 2, by = py + ph - bh - K(28);
+    const int bw = K(190), bh = K(touchRows > 1.0f ? 80 : 48), gap = K(16), bx = c.w / 2 - bw - gap / 2, by = py + ph - bh - K(28);
     const int n = (int)items.size();
     for (int b = 0; b < 2; b++)
     {
@@ -2597,7 +2599,7 @@ inline void Menu::DrawDialogButtons(Canvas& c, int py, int ph, float k, bool sol
         const int x = bx + b * (bw + gap);
         if (sel) Glass::Glow(c, x, by, bw, bh, bh * 0.5f, k);
         Glass::Round(c, x, by, bw, bh, bh * 0.5f, sel ? Pill : PillOff, sel ? 0 : PillOffEdge, std::max(1.0f, k));
-        TCentred(c, x + bw / 2, by + bh / 2 + K(7), items[item].label, K(18), sel ? PillInk : GlassText, true);
+        TCentred(c, x + bw / 2, by + bh / 2 + K(7), items[item].label, K(touchRows > 1.0f ? 22 : 18), sel ? PillInk : GlassText, true);
         dialogX[b] = x;
     }
     dialogY = by; dialogW = bw; dialogH = bh;

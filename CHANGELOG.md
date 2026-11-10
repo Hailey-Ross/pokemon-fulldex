@@ -3,6 +3,8 @@
 
 ## Unreleased
 
+- **Phone confirmation dialogs are easier to read and tap.** Quit and other confirmation cards use larger text and buttons sized for touch in both orientations.
+
 - **Very wide GBA screens keep full-screen backgrounds while hiding repeated windows** (#131).
   The level-up window no longer repeats at the opposite edge, and a background that reaches
   an edge can still fill that side of the wide view. The START-menu/help-bar width is unchanged.
