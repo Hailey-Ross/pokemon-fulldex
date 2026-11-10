@@ -13,3 +13,10 @@ class DirectRomTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             subprocess.run(['javac','-d',folder,str(ROOT/'tools/android/allgames/java/io/github/mamesj/pokemonds/RomImport.java'),str(ROOT/'tests/android/RomImportTest.java')],check=True)
             subprocess.run(['java','-cp',folder,'io.github.mamesj.pokemonds.RomImportTest',str(Path(folder)/'imports')],check=True,timeout=30)
+
+    @unittest.skipUnless(shutil.which('javac') and shutil.which('java'),'Java tools required')
+    def test_document_tree_import(self):
+        with tempfile.TemporaryDirectory() as folder:
+            java=ROOT/'tools/android/allgames/java/io/github/mamesj/pokemonds'
+            subprocess.run(['javac','-d',folder,str(java/'RomImport.java'),str(java/'RomTreeImport.java'),str(ROOT/'tests/android/RomTreeImportTest.java')],check=True)
+            subprocess.run(['java','-cp',folder,'io.github.mamesj.pokemonds.RomTreeImportTest',str(Path(folder)/'tree')],check=True,timeout=30)

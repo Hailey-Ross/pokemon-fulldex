@@ -843,6 +843,21 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
     // the chosen game is; a key, button or tap that chooses a game makes it follow again.
     bool follow = true;
     std::string note;
+#ifdef __ANDROID__
+    auto chooseRomFolder = [&]() {
+        // Pin an established save location before an import can fill storage or change the ROM root.
+        std::error_code error;
+        if (Launcher::ConfigValue(fo.cfg, "saves_folder").empty() && !fo.saves.empty() &&
+            (!fo.roms.empty() || std::filesystem::is_directory(std::filesystem::u8path(fo.saves), error))) {
+            SetConfigValues(fo.cfg, {{"saves_folder", fo.saves}});
+            if (Launcher::ConfigValue(fo.cfg, "saves_folder") != fo.saves) {
+                note = "COULD NOT KEEP THE SAVE FOLDER"; return;
+            }
+        }
+        JavaVoid("chooseFolder");
+    };
+#endif
+
 #ifdef SSR_UPDATER
     unsigned updateSeen = 0;
     bool updateAsked = false;
@@ -1425,7 +1440,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
 #ifdef __ANDROID__
                         // Keep saves at their current location when changing the shared ROM library.
                         SetConfigValues(fo.cfg, {{"saves_folder", fo.saves}});
-                        JavaVoid("chooseFolder");
+                        chooseRomFolder();
 #elif defined(_WIN32)
                         const std::string dir = PickFolder(window, L"Choose the folder containing your ROMs");
                         if (!dir.empty()) useRomFolder(dir);
@@ -1556,7 +1571,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
 #ifdef __ANDROID__
         if (needFolder || games.empty())
         {
-            JavaVoid("chooseFolder");
+            chooseRomFolder();
             return;
         }
 #endif
@@ -2637,7 +2652,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                     if (guide && mx < canvas.w / 4) { if (!page.Back()) guide = false; }
                     else if (!guide && mx > canvas.w * 3 / 4) toggleGuide();
 #ifdef __ANDROID__
-                    else if (!guide && mx < canvas.w / 4) JavaVoid("chooseFolder");
+                    else if (!guide && mx < canvas.w / 4) chooseRomFolder();
 #elif defined(SSR_IOS)
                     else if (!guide && mx < canvas.w / 4) OpenFolder(fo.roms);
 #endif

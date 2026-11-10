@@ -3,6 +3,8 @@
 
 ## Unreleased
 
+- **Android document-provider folders can import DS and GBA ROMs** (#124). Declining broad file access no longer cancels the folder picker. Unsupported filesystem providers use bounded background imports with clear success/failure messages; source saves are never imported or overwritten. Existing save locations are pinned before changing ROM folders.
+
 - **Android frontends can open a DS ROM directly** (#98). Granted document links are imported safely when no ordinary file path is available; failed imports keep the previous file. An active game is never replaced by a new request.
 - **Direct DS launches keep save checks and the existing save folder**, including files outside the selected ROM library.
 

@@ -254,10 +254,23 @@ public class GameActivity extends SDLActivity {
         return self == null ? "" : prefs().getString("roms", "");
     }
 
-    public static boolean canUseFiles() {
+    private static boolean broadFileAccess() {
         if (self == null) return false;
         if (Build.VERSION.SDK_INT >= 30) return Environment.isExternalStorageManager();
         return self.checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    public static boolean canUseFiles() {
+        if (self == null) return false;
+        if (broadFileAccess()) return true;
+        String chosen = romFolder();
+        if (chosen.isEmpty()) return false;
+        try {
+            File own = self.getExternalFilesDir(null); if (own == null) own = self.getFilesDir();
+            File root = own.getCanonicalFile(), folder = new File(chosen).getCanonicalFile();
+            return folder.isDirectory() && folder.canRead() &&
+                (folder.equals(root) || folder.getPath().startsWith(root.getPath() + File.separator));
+        } catch (java.io.IOException error) { return false; }
     }
 
     public static boolean picking() {
@@ -272,37 +285,30 @@ public class GameActivity extends SDLActivity {
     }
 
     private void nextStep() {
-        if (!canUseFiles()) {
-            if (waitingForAccess) {
-                // (Came back without allowing it.)
-                waitingForAccess = false;
-                picking = false;
-                return;
-            }
+        if (!broadFileAccess() && !waitingForAccess) {
             waitingForAccess = true;
             try {
                 if (Build.VERSION.SDK_INT >= 30) {
-                    startActivity(new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                            Uri.parse("package:" + getPackageName())));
+                    try {
+                        startActivity(new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                                Uri.parse("package:" + getPackageName())));
+                    } catch (Exception unavailable) {
+                        startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
+                    }
                 } else {
                     requestPermissions(new String[] { Manifest.permission.READ_EXTERNAL_STORAGE,
                             Manifest.permission.WRITE_EXTERNAL_STORAGE }, ASK_FILES);
                 }
-            } catch (Exception e) {
-                Log.e(TAG, "asking for access to files", e);
-                startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
-            }
-            return;
+                return;
+            } catch (Exception error) { Log.w(TAG, "File permission settings unavailable; using document picker", error); }
         }
+        // Declining broad access still permits an explicit grant from the document picker.
         waitingForAccess = false;
         Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+        pick.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         pick.putExtra("android.content.extra.SHOW_ADVANCED", true);
-        try {
-            startActivityForResult(pick, PICK_FOLDER);
-        } catch (Exception e) {
-            Log.e(TAG, "no folder picker", e);
-            picking = false;
-        }
+        try { startActivityForResult(pick, PICK_FOLDER); }
+        catch (Exception error) { romMessage("No folder picker is available."); picking = false; }
     }
 
     @Override
@@ -364,14 +370,54 @@ public class GameActivity extends SDLActivity {
     protected void onActivityResult(int request, int result, Intent data) {
         if (request == PICK_FOLDER) {
             if (result == RESULT_OK && data != null && data.getData() != null) {
-                String path = pathOf(data.getData());
-                Log.i(TAG, "ROM folder: " + path);
-                if (path != null) prefs().edit().putString("roms", path).apply();
+                final Uri tree = data.getData();
+                String path = pathOf(tree);
+                if (path != null && broadFileAccess()) {
+                    prefs().edit().putString("roms", path).apply(); picking = false;
+                    Log.i(TAG, "ROM folder: " + path);
+                } else importTree(tree);
+                return;
             }
             picking = false;
             return;
         }
         super.onActivityResult(request, result, data);
+    }
+
+    private void importTree(final Uri tree) {
+        romMessage("Importing ROM copies into FullDex. Existing saves stay in place.");
+        new Thread(() -> {
+            try {
+                File own = getExternalFilesDir(null); if (own == null) own = getFilesDir();
+                RomTreeImport.Result result = RomTreeImport.copy(new RomTreeImport.Provider() {
+                    public java.util.List<RomTreeImport.Entry> children(String id) throws java.io.IOException {
+                        java.util.List<RomTreeImport.Entry> list = new java.util.ArrayList<>();
+                        Uri children = DocumentsContract.buildChildDocumentsUriUsingTree(tree, id);
+                        String[] columns = { DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                            DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_MIME_TYPE };
+                        try (android.database.Cursor cursor = getContentResolver().query(children, columns, null, null, null)) {
+                            if (cursor == null) throw new java.io.IOException("ROM folder cannot be listed");
+                            while (cursor.moveToNext()) {
+                                if (list.size() >= 4096) throw new java.io.IOException("Too many files; choose a smaller folder");
+                                list.add(new RomTreeImport.Entry(cursor.getString(0), cursor.getString(1),
+                                    DocumentsContract.Document.MIME_TYPE_DIR.equals(cursor.getString(2))));
+                            }
+                        } catch (RuntimeException error) { throw new java.io.IOException("ROM folder could not be read", error); }
+                        return list;
+                    }
+                    public java.io.InputStream open(String id) throws java.io.IOException {
+                        return getContentResolver().openInputStream(DocumentsContract.buildDocumentUriUsingTree(tree, id));
+                    }
+                }, tree.toString(), DocumentsContract.getTreeDocumentId(tree), new File(own, "roms/folder-imports"));
+                if (self != this) return;
+                if (result.count == 0) romMessage("No .nds or .gba ROMs found in that folder. Your previous folder is unchanged.");
+                else {
+                    prefs().edit().putString("roms", result.folder.getPath()).apply();
+                    romMessage("Imported " + result.count + " ROMs. Source files and saves were not changed.");
+                }
+            } catch (Exception error) { romMessage("ROM folder import failed: " + error.getMessage()); }
+            finally { picking = false; }
+        }, "FullDex-import-folder").start();
     }
 
     // The file path of a folder chosen in the picker: its tree id is "<volume>:<path>", e.g.

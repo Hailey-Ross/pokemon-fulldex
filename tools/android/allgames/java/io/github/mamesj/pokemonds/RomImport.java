@@ -22,15 +22,22 @@ final class RomImport {
         } catch (Exception e) { throw new IllegalStateException(e); }
     }
 
+    static boolean isRom(String name) { return isDs(name) || (name != null && name.toLowerCase(Locale.ROOT).endsWith(".gba")); }
+
     static String name(String name) throws IOException {
-        if (!isDs(name) || name.length() > 200 || name.indexOf('/') >= 0 || name.indexOf((char)92) >= 0)
+        if (!isDs(name)) throw new IOException("Choose a Nintendo DS ROM (.nds)");
+        return romName(name);
+    }
+
+    static String romName(String name) throws IOException {
+        if (!isRom(name) || name.length() > 200 || name.indexOf('/') >= 0 || name.indexOf((char)92) >= 0)
             throw new IOException("Choose a Nintendo DS ROM (.nds)");
         for (int i=0;i<name.length();++i) if (name.charAt(i)<32) throw new IOException("Invalid ROM filename");
         return name;
     }
 
     static File copy(InputStream input, String source, String displayName, File root) throws IOException {
-        String leaf = name(displayName);
+        String leaf = romName(displayName);
         File folder = new File(root, key(source));
         if (!folder.isDirectory() && !folder.mkdirs()) throw new IOException("Cannot create ROM import folder");
         File destination = new File(folder, leaf);
@@ -44,10 +51,10 @@ final class RomImport {
                 while ((n=input.read(buffer))!=-1) {
                     if (n==0) throw new IOException("ROM provider returned no data");
                     count+=n;
-                    if (count>1024L*1024*1024) throw new IOException("ROM exceeds the 1 GB import limit");
+                    if (count>(isDs(leaf) ? 1024L*1024*1024 : 64L*1024*1024)) throw new IOException("ROM exceeds the import size limit");
                     output.write(buffer,0,n);
                 }
-                if (count<512) throw new IOException("ROM is too small or incomplete");
+                if (count<(isDs(leaf) ? 512 : 192)) throw new IOException("ROM is too small or incomplete");
                 output.getFD().sync();
             }
             // Same filesystem: a failed rename leaves the previous ROM in place.

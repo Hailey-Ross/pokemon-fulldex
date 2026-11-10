@@ -730,3 +730,7 @@ Companion additions: Based on PokeDaisy by Lidor Itzhari - https://github.com/li
 ### Open a DS game from an Android frontend
 
 A frontend or file manager can send an Android VIEW intent for an `.nds` ROM to FullDex. A readable file opens directly. Document-provider links are copied into FullDex storage before launch, so they also work when the provider exposes no ordinary file path; the original file is unchanged. Existing save-folder settings and save checks are retained. While FullDex is already showing its library, a new link starts the selected game. Quit an active game before opening another link. This integration still needs testing with individual frontends and devices.
+
+### Android folders without ordinary file access
+
+Granting all-files access lets FullDex use a shared ROM folder directly. If that permission is declined, or a document provider exposes no filesystem path, choosing a folder imports its `.nds` and `.gba` files into FullDex storage instead. The app shows when it is importing and how many ROMs were found. Nested folders are supported; choose a smaller folder if a traversal/size limit is reached. Original files remain untouched. These are separate ROM copies: changes made by another emulator are not automatically synchronised, and source saves are not imported automatically. Existing FullDex save locations are retained and must remain accessible. This fallback needs testing on affected GrapheneOS devices.
