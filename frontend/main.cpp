@@ -81,6 +81,7 @@
 #include "audiostretch.h"
 #include "audio_fast_forward.h"
 #include "menu_drag.h"
+#include "companion_tabs.h"
 #include "gpucompose.h"
 #include "emuthread.h"
 #include "pc_launcher.h"
@@ -4923,6 +4924,7 @@ int main(int argc, char** argv)
     int secondDrawnTab = -1;
     uint32_t secondSince = 0;
     int liveTab = 0, liveTabBeforeBattle = -1, liveTabRects[6][4] = {}, livePanel[4] = {};
+    bool liveWasInBattle = false;
     // A tap or click at (x, y) on the screen: on a tab, that tab; anywhere on the window, kept from the game.
     auto liveTouch = [&](float x, float y) {
         if (livePanel[2] <= 0 || x < livePanel[0] || y < livePanel[1] || x >= livePanel[0] + livePanel[2] || y >= livePanel[1] + livePanel[3]) return false;
@@ -5868,7 +5870,7 @@ int main(int argc, char** argv)
                 toggle(M_STATUS_BAR, "STATUS BAR", Glass::I_GLOBE, Menu::P_NONE, cfg.statusBar,
                        "A slim strip at the top of the game: where you are, your Poke Balls, the time and the battery.", "As PokeDaisy's.");
                 toggle(M_COMPANION_OVERLAY, "COMPANION WINDOW", Glass::I_WINDOW, Menu::P_NONE, cfg.companionOverlay,
-                       "Made for dual screens: the whole companion, party, bag, map, Pokedex, battle and guide, beside the game. On one screen it is a card in the corner; tap a tab to change it.",
+                       "Made for dual screens: party, bag, map, Pokedex, battle and guide beside the game, or in a corner card. Tap a tab or click the left stick to change it. A custom left-stick button binding takes priority.",
                        "Battle opens by itself when a battle starts. The HUD and status bar are hidden while this is on.");
                 section("YOUR GAME", Glass::I_POKEBALL);
                 if (snap.ready)
@@ -7298,8 +7300,7 @@ int main(int argc, char** argv)
             if (secondCanvas.w != sw || secondCanvas.h != sh) { secondCanvas.Resize(sw, sh); secondDrawnTab = -1; }
             if (companionSnapshot.ready && liveViewVersion != companionVersion) { fillCompanionView(liveView); liveViewVersion = companionVersion; }
             const bool inBattle = !liveView.battle.empty();
-            if (inBattle && liveTabBeforeBattle < 0 && liveTab != 4) { liveTabBeforeBattle = liveTab; liveTab = 4; }
-            if (!inBattle && liveTabBeforeBattle >= 0) { liveTab = liveTabBeforeBattle; liveTabBeforeBattle = -1; }
+            CompanionTabs::Battle(inBattle, liveWasInBattle, liveTab, liveTabBeforeBattle);
             if (++secondSince >= 30 || secondDrawnVersion != liveViewVersion || secondDrawnTab != liveTab)
             {
                 // (The game's top screen, stretched to the canvas and blurred, under the glass.)
@@ -9290,6 +9291,10 @@ int main(int argc, char** argv)
             // the setting says (for a controller with no mouse or touch screen). The setting itself
             // is not changed, so it is back as it was once the course ends.
             const bool padTouchNow = cfg.padTouch || athlonNow || touchOnlyNow;
+            const bool companionVisible = (cfg.companionOverlay && companionSnapshot.ready) ||
+                (DsDisplayState::Mode(secondScreenState) == 4 && (secondScreenState & DsDisplayState::Ready));
+            if (companionVisible && pressed(PAD_LS))
+                CompanionTabs::Next(liveTab, liveTabBeforeBattle);
             // (SWAP SCREENS given a button of its own in CONTROLS works without the touch cursor.)
             if (!padTouchNow && cfg.controls.pad[Controls::SWAP] >= 0 && pressed(PAD_RS)) focus.manualFlip = !focus.manualFlip;
             if (padTouchNow)
@@ -9297,7 +9302,7 @@ int main(int argc, char** argv)
                 if (pressed(PAD_RS)) focus.manualFlip = !focus.manualFlip;
 #ifndef __SWITCH__
                 // (Not on the Switch: a left stick pressed while walking would change the view.)
-                if (pressed(PAD_LS)) layout = LayoutNext(layout);
+                if (!companionVisible && pressed(PAD_LS)) layout = LayoutNext(layout);
 #endif
                 if (fabsf(ps.rx) > 0.2f) curDX += ps.rx;
                 if (fabsf(ps.ry) > 0.2f) curDY += ps.ry;
@@ -10837,8 +10842,7 @@ int main(int argc, char** argv)
             std::lock_guard<std::mutex> holdGlass(Glass::Live().lock);
             // (Battle while a battle runs, then the tab that was open.)
             const bool inBattle = !liveView.battle.empty();
-            if (inBattle && liveTabBeforeBattle < 0 && liveTab != 4) { liveTabBeforeBattle = liveTab; liveTab = 4; }
-            if (!inBattle && liveTabBeforeBattle >= 0) { liveTab = liveTabBeforeBattle; liveTabBeforeBattle = -1; }
+            CompanionTabs::Battle(inBattle, liveWasInBattle, liveTab, liveTabBeforeBattle);
             static int battery = -1;
             static uint32_t batteryAt = 0;
             char clock[8] = "";
