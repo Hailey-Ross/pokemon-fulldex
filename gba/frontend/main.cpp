@@ -821,6 +821,7 @@ struct App
     }
 
     bool ffWas = false;
+    int ffSpeedNow = 1; // Effective speed after the directional slow-down, set by the main loop.
     void Sound(bool queue, bool ff = false)
     {
         if (!core) return;
@@ -844,10 +845,13 @@ struct App
         double nudge = ff ? 0 : (target - queued) / target * 0.005;
         nudge = std::max(-0.005, std::min(0.005, nudge));
         mAudioResamplerSetSource(&resampler, buf, core->audioSampleRate(core) / ratio, true);
-        mAudioResamplerSetDestination(&resampler, &audioOut, have.freq * (1 + nudge));
+        // Fit accelerated game audio into the same wall-clock interval. Otherwise several
+        // frames of normal-speed sound accumulate for every displayed frame.
+        const double squeeze = ff ? std::max(1, ffSpeedNow) : 1;
+        mAudioResamplerSetDestination(&resampler, &audioOut, have.freq * (1 + nudge) / squeeze);
         mAudioResamplerProcess(&resampler);
         const size_t n = mAudioBufferRead(&audioOut, audioTmp.data(), audioTmp.size() / 2);
-        const double room = ff ? have.freq * 4.0 * 30 : std::max(frameBytes * 10, target * 3);
+        const double room = std::max(frameBytes * 10, target * 3);
         if (queue && n && queued < room) SDL_QueueAudio(audio, audioTmp.data(), (Uint32)(n * 4));
     }
 
@@ -2655,6 +2659,7 @@ struct App
                     tapDirs = dirs;
                     if (speed > 1 && dirs && SDL_GetTicks() - tapSince < 250) speed = 1;
                 }
+                ffSpeedNow = speed;
                 for (int i = 0; i < run * speed; i++) RunFrame(true, speed > 1);
             }
             else

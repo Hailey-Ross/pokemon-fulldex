@@ -3,6 +3,8 @@
 
 ## Unreleased
 
+- **GBA fast-forward audio keeps pace with the game** (#123). Audio speeds up with fast-forward instead of accumulating a long delayed soundtrack; mute and normal-speed playback are preserved. Adapted from ArmondesIvo's PR #130.
+
 - **ROM imports preserve different games sharing a filename.** An incoming ROM cannot overwrite a different existing ROM. Failed GBA imports also cannot launch the old same-named file, and read failures no longer count as identical file contents.
 
 - **Wi-Fi firmware settings survive failed replacements.** The previous settings file is retained when a write cannot be installed; Switch keeps a rollback copy. Oversized or incomplete firmware files are rejected with bounded memory use before starting a DS game.
