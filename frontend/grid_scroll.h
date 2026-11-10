@@ -11,6 +11,7 @@ class GridScrollMotion
     uint32_t tick = 0, lastMove = 0;
     bool active = false;
 public:
+    bool Active() const { return active; }
     void Stop() { active = false; velocity = 0; }
     void Begin(int value, uint32_t now) { Stop(); position = value; tick = lastMove = now; }
     void Drag(int value, uint32_t now)

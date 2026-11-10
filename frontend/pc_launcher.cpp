@@ -2015,7 +2015,11 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             return action < 0 || menuPresses.insert(action).second;
         };
         SDL_Event e;
-        bool any = SDL_WaitEventTimeout(&e, 50);
+        // Idle waits must not cap an animated grid at 20 Hz. Vsync paces accelerated
+        // renderers; the software fallback gets a short wait to avoid a busy loop.
+        const int inputWait = gridMotion.Active() || dragging ?
+            ((renderInfo.flags & SDL_RENDERER_PRESENTVSYNC) ? 0 : 8) : 50;
+        bool any = SDL_WaitEventTimeout(&e, inputWait);
         while (any)
         {
             const bool rawMenu = modalMenuOpen();
