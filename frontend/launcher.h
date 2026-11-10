@@ -3364,7 +3364,8 @@ inline int LookDo(int row, int dir)
         {
             static const char* const layouts[] = { "sidebar", "grid", "panel", "tiles" };
             int k = 0; for (int i = 0; i < 4; i++) if (l.layout == layouts[i]) k = i;
-            l.layout = layouts[(k + (dir < 0 ? 3 : 1)) % 4];
+            // Panel/carousel layouts are desktop-only; phone users choose the two grids.
+            l.layout = PhoneLook() ? (l.layout == "grid" ? "sidebar" : "grid") : layouts[(k + (dir < 0 ? 3 : 1)) % 4];
             Focus().banner = 0;
             LookSave(); Hub().version++; return 0;
         }

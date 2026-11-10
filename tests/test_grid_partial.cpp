@@ -82,6 +82,7 @@ int main(){
         LookDo(0,1);assert(GridOnly()&&Focus().banner==0);
         Look().loaded=false;LookLoad();assert(GridOnly()&&Look().fontSize==110&&Look().music=="off");
         LookDo(0,-1);assert(Look().layout=="sidebar");
+        PhoneUi()=true;LookDo(0,1);assert(GridOnly());LookDo(0,1);assert(Look().layout=="sidebar");
     }
     puts("Partial/grid-only cards: visible, clipped, clickable, controller-follow and layout persistence intact");
 }
