@@ -53,6 +53,7 @@
 #include "ui_lang_sdl.h"
 #include "controls.h"
 #include "rom_library.h"
+#include "direct_rom.h"
 #include "achievements.h"
 #include "ssr_os.h"
 #ifdef SSR_IOS
@@ -1359,6 +1360,24 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
         }
     };
     std::function<void()> savesRequestFn; // (savesRequest, below: what Manage Saves leaves to do)
+    auto launchSelected = [&]() {
+        if (games.empty() || selected < 0 || selected >= (int)games.size()) return;
+        if (Playable(fo, games[selected]))
+        {
+            // (A ROM not yet checked is, now: a hack plays with a save of its own.)
+            Launcher::ConfirmHack(games, (size_t)selected, fo.saves,
+                                  [](const Launcher::Game& g, const std::string& name) { return g.folder + "/" + name; });
+            if (Launcher::SavesPlayCheck(games[selected], fo.saves + "/" + games[selected].saveName)) return; // (a save with a problem: says so first)
+            note = PrepareLaunch(games[selected]);
+            if (!note.empty()) { fprintf(stderr, "[launcher] launch blocked: %s: %s\n", games[selected].rom.c_str(), note.c_str()); return; }
+            result = selected;
+            quit = true;
+        }
+        else
+            note = games[selected].comingSoon ? games[selected].name + ": COMING SOON"
+                 : !games[selected].problem.empty() ? "PATCH: " + games[selected].problem
+                 : games[selected].known ? "THIS DOWNLOAD DOES NOT HAVE THIS GAME" : "THIS GAME IS NOT ONE THAT THIS PLAYS";
+    };
     auto choose = [&]() {
         if (guide && onBack)
         {
@@ -1541,22 +1560,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             return;
         }
 #endif
-        if (games.empty() || selected < 0 || selected >= (int)games.size()) return;
-        if (Playable(fo, games[selected]))
-        {
-            // (A ROM not yet checked is, now: a hack plays with a save of its own.)
-            Launcher::ConfirmHack(games, (size_t)selected, fo.saves,
-                                  [](const Launcher::Game& g, const std::string& name) { return g.folder + "/" + name; });
-            if (Launcher::SavesPlayCheck(games[selected], fo.saves + "/" + games[selected].saveName)) return; // (a save with a problem: says so first)
-            note = PrepareLaunch(games[selected]);
-            if (!note.empty()) { fprintf(stderr, "[launcher] launch blocked: %s: %s\n", games[selected].rom.c_str(), note.c_str()); return; }
-            result = selected;
-            quit = true;
-        }
-        else
-            note = games[selected].comingSoon ? games[selected].name + ": COMING SOON"
-                 : !games[selected].problem.empty() ? "PATCH: " + games[selected].problem
-                 : games[selected].known ? "THIS DOWNLOAD DOES NOT HAVE THIS GAME" : "THIS GAME IS NOT ONE THAT THIS PLAYS";
+        launchSelected();
     };
     auto move = [&](int dir) { // 1 left, 2 right, 3 up, 4 down
         if (guide)
@@ -2901,6 +2905,15 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             }
         }
         wasPicking = pickingNow;
+        // A frontend can open a ROM while the library is already running. The Java side never
+        // queues this while a game is active, so no unsaved game is interrupted.
+        const std::string incoming = JavaString("takeLaunchRom");
+        if (!incoming.empty()) {
+            const int game = DirectRom::Ds(incoming, fo.saves, fo.art, games);
+            if (game >= 0) { selected = game; launchSelected(); }
+            else note = "COULD NOT OPEN THIS ROM";
+        }
+
 #endif
         // ROMs put in the folder (or taken out) show up by themselves.
         if (SDL_GetTicks() - lastScan > 5000)
@@ -3445,6 +3458,8 @@ bool Start(int& argc, char**& argv)
         if (directGame < 0 && IsGbaRomName(directRom))
             for (size_t i = 0; i < games.size() && directGame < 0; i++)
                 if (sameRom(games[i].rom, copy) && Playable(fo, games[i])) directGame = (int)i;
+        if (directGame < 0) directGame = DirectRom::Ds(directRom, fo.saves, fo.art, games);
+        if (directGame >= 0 && !Playable(fo, games[directGame])) directGame = -1;
         if (directGame < 0) fprintf(stderr, "[launcher] --rom %s: not in the list\n", directRom.c_str());
     }
 #ifdef SSR_UPDATER
@@ -3471,6 +3486,9 @@ bool Start(int& argc, char**& argv)
         if (chosen < 0) return false;
         if (directGame >= 0)
         {
+            Launcher::ConfirmHack(games, (size_t)chosen, fo.saves,
+                                  [](const Launcher::Game& g, const std::string& name) { return g.folder + "/" + name; });
+            if (Launcher::SavesPlayCheck(games[chosen], fo.saves + "/" + games[chosen].saveName)) { directGame = -1; continue; }
             const std::string error = PrepareLaunch(games[chosen]);
             if (!error.empty()) { fprintf(stderr, "[launcher] %s\n", error.c_str()); directGame = -1; continue; }
         }

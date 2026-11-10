@@ -40,6 +40,10 @@ public class GameActivity extends SDLActivity {
     // True from chooseFolder() until the picker (and the access question before it) is done.
     private static volatile boolean picking;
     private boolean waitingForAccess;
+    private Intent startupRomIntent;
+    private static final java.util.concurrent.atomic.AtomicBoolean openingRom = new java.util.concurrent.atomic.AtomicBoolean();
+    private static volatile String pendingRom = "";
+    private static final java.util.concurrent.atomic.AtomicInteger openRequest = new java.util.concurrent.atomic.AtomicInteger();
 
     @Override
     protected void onCreate(Bundle state) {
@@ -47,12 +51,82 @@ public class GameActivity extends SDLActivity {
         startupTrace("Starting Android " + Build.VERSION.SDK_INT + " ABI " + java.util.Arrays.toString(Build.SUPPORTED_ABIS), false);
         try { startupTrace("Memory page size " + Os.sysconf(OsConstants._SC_PAGESIZE), true); }
         catch (Exception ignored) { }
+        // SDL treats URI paths as local files. Resolve granted document URIs ourselves instead.
+        if (isRomIntent(getIntent())) {
+            startupRomIntent = new Intent(getIntent());
+            Intent clean = new Intent(getIntent()); clean.setData(null); setIntent(clean);
+        }
         super.onCreate(state);
         startupTrace("Activity created", true);
         getContentResolver().registerContentObserver(Settings.System.getUriFor(
             Settings.System.ACCELEROMETER_ROTATION), false, rotationObserver);
         secondScreen = new SecondScreen(this);
         applyScreenOrientation();
+    }
+
+    private static boolean isRomIntent(Intent intent) {
+        return intent != null && Intent.ACTION_VIEW.equals(intent.getAction()) && intent.getData() != null;
+    }
+
+    private void romMessage(String message) {
+        Log.w(TAG, message);
+        runOnUiThread(() -> android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show());
+    }
+
+    private String prepareRom(Intent intent) throws Exception {
+        Uri uri = intent.getData();
+        if ("file".equalsIgnoreCase(uri.getScheme())) {
+            File file = new File(uri.getPath()).getCanonicalFile();
+            RomImport.name(file.getName());
+            if (!file.isFile() || !file.canRead()) throw new java.io.IOException("ROM file cannot be read");
+            return file.getPath();
+        }
+        if (!"content".equalsIgnoreCase(uri.getScheme())) throw new java.io.IOException("Unsupported ROM link");
+        String name = null;
+        try (android.database.Cursor cursor = getContentResolver().query(uri,
+                new String[] { android.provider.OpenableColumns.DISPLAY_NAME }, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) name = cursor.getString(0);
+        }
+        RomImport.name(name);
+        File own = getExternalFilesDir(null); if (own == null) own = getFilesDir();
+        try (java.io.InputStream input = getContentResolver().openInputStream(uri)) {
+            if (input == null) throw new java.io.IOException("ROM provider could not open the file");
+            return RomImport.copy(input, uri.toString(), name, new File(own, "roms/imported")).getPath();
+        }
+    }
+
+    @Override protected String[] getArguments() {
+        // SDL calls this on its main/native thread, not Android's UI thread.
+        Intent launch = startupRomIntent; startupRomIntent = null;
+        if (launch != null) {
+            openingRom.set(true);
+            try { return new String[] { "--rom", prepareRom(launch) }; }
+            catch (Exception error) { romMessage("Cannot open ROM: " + error.getMessage()); }
+            finally { openingRom.set(false); }
+        }
+        return super.getArguments();
+    }
+
+    @Override protected void onNewIntent(Intent intent) {
+        Intent clean = new Intent(intent); clean.setData(null);
+        super.onNewIntent(clean); setIntent(clean);
+        if (!isRomIntent(intent)) return;
+        if (playingGame) { romMessage("Quit the current game before opening another ROM."); return; }
+        if (!openingRom.compareAndSet(false, true)) { romMessage("A ROM is already being opened."); return; }
+        final int request = openRequest.incrementAndGet();
+        new Thread(() -> {
+            try {
+                String path = prepareRom(intent);
+                if (self != this || request != openRequest.get()) return;
+                if (playingGame) { romMessage("Quit the current game before opening another ROM."); return; }
+                synchronized (GameActivity.class) { pendingRom = path; }
+            } catch (Exception error) { romMessage("Cannot open ROM: " + error.getMessage()); }
+            finally { openingRom.set(false); }
+        }, "FullDex-open-ROM").start();
+    }
+
+    public static synchronized String takeLaunchRom() {
+        String path = pendingRom; pendingRom = ""; return path;
     }
 
     private void startupTrace(String message, boolean append) {

@@ -726,3 +726,7 @@ Android players can move and resize on-screen controls in the paused layout edit
 The launcher and Fulldex menus offer AUTO, English, Spanish, Italian, French, German, Japanese and Korean interface languages. Embedded GBA menus follow the launcher language too. See [controls, regional games and build notes](docs/REGIONAL-AND-TOUCH-CONTROLS.md).
 
 Companion additions: Based on PokeDaisy by Lidor Itzhari - https://github.com/lidor30/pokedaisy
+
+### Open a DS game from an Android frontend
+
+A frontend or file manager can send an Android VIEW intent for an `.nds` ROM to FullDex. A readable file opens directly. Document-provider links are copied into FullDex storage before launch, so they also work when the provider exposes no ordinary file path; the original file is unchanged. Existing save-folder settings and save checks are retained. While FullDex is already showing its library, a new link starts the selected game. Quit an active game before opening another link. This integration still needs testing with individual frontends and devices.

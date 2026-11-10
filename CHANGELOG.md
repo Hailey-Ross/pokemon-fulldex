@@ -3,6 +3,9 @@
 
 ## Unreleased
 
+- **Android frontends can open a DS ROM directly** (#98). Granted document links are imported safely when no ordinary file path is available; failed imports keep the previous file. An active game is never replaced by a new request.
+- **Direct DS launches keep save checks and the existing save folder**, including files outside the selected ROM library.
+
 - **Optional battle timing logs** record game-frame rate, active speed and generated interpolation frames to help distinguish speed changes from uneven animation.
 
 - **Steam Deck game shortcuts target the selected ROM**, including hacks and multiple games sharing a code. Names and icons are kept separate, and filenames with spaces or special characters are escaped.
