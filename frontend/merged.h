@@ -359,6 +359,15 @@ inline MergedView MergedMakeView(int outW, int outH)
     return v;
 }
 
+// An unplaced world image covers the selected view, not the window's side bars.
+// Keep coverage tests, hole filling and both compositors in the same coordinate space.
+inline float MergedWideX(float outputX, int wideW, int outW, int outH)
+{
+    int x0, x1;
+    MergedViewColumns(outW, outH, x0, x1);
+    return (outputX - x0) * wideW / std::max(1, x1 - x0);
+}
+
 // What continues the top screen's row sy beside it in a wide view (side 0 left, 1 right):
 // rgb * eva / 16 + the wide world * evb / 16 (eva 0, evb 16: nothing, the world shows).
 // pattern: instead, the row's 16 pixels at that edge repeated outwards, as they are.
@@ -864,7 +873,7 @@ inline bool MergedKeyed(const Element& el, uint32_t rgb)
 // would be drawn over the world's floor, enlarged into a line.
 inline bool MergedWideCovers(const WideImage& wide, const MergedView& v, int outW, int outH, int sx, int sy)
 {
-    const int x = (int)((v.originX + (sx + 0.5f) * v.unit) * wide.w / outW);
+    const int x = (int)std::floor(MergedWideX(v.originX + (sx + 0.5f) * v.unit, wide.w, outW, outH));
     const int y = (int)((v.originY + (sy + 0.5f) * v.unit) * wide.h / outH);
     if (x < 0 || x >= wide.w || y < 0 || y >= wide.h) return false;
     return (wide.pixels[(size_t)y * wide.w + x] >> 24) != 0;
@@ -988,15 +997,16 @@ inline void MergedCompose(const Scene& scene, const ScreenImage screens[2], int 
     const bool placed = useWide && wide->placed;
     std::vector<uint32_t> wideFilled;
     const uint32_t* widePx = useWide && !placed
-        ? MergedFillWideHoles(*wide, (int)std::floor(v.originX * wide->w / outW),
-              (int)std::ceil((v.originX + 256 * v.unit) * wide->w / outW), wideFilled)
+        ? MergedFillWideHoles(*wide, (int)std::floor(MergedWideX(v.originX, wide->w, outW, outH)),
+              (int)std::ceil(MergedWideX(v.originX + 256 * v.unit, wide->w, outW, outH)), wideFilled)
         : nullptr;
     std::vector<int> wcol;
     if (useWide)
     {
         wcol.resize(outW);
         for (int x = 0; x < outW; x++)
-            wcol[x] = placed ? (int)std::floor((x + 0.5f - v.originX) / v.unit) - wide->baseX : (int)((int64_t)x * wide->w / outW);
+            wcol[x] = placed ? (int)std::floor((x + 0.5f - v.originX) / v.unit) - wide->baseX
+                            : std::clamp((int)MergedWideX((float)x, wide->w, outW, outH), 0, wide->w - 1);
     }
 
     // Each piece with its place in the output and, for nearest-pixel drawing, the source

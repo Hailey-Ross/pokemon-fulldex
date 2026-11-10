@@ -268,8 +268,8 @@ private:
         SDL_SetTextureScaleMode(tex, smooth ? SDL_ScaleModeLinear : SDL_ScaleModeNearest);
         const auto t0 = std::chrono::steady_clock::now();
         const uint32_t* px = wide.placed ? wide.pixels
-            : MergedFillWideHoles(wide, (int)std::floor(v.originX * wide.w / outW),
-                  (int)std::ceil((v.originX + 256 * v.unit) * wide.w / outW), WideFilled);
+            : MergedFillWideHoles(wide, (int)std::floor(MergedWideX(v.originX, wide.w, outW, outH)),
+                  (int)std::ceil(MergedWideX(v.originX + 256 * v.unit, wide.w, outW, outH)), WideFilled);
         SDL_UpdateTexture(tex, nullptr, px, wide.w * 4);
         WideUploadMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
         WideUploads++;
@@ -284,7 +284,10 @@ private:
         int k = 255;
         if (wide.fadeMode == 2) k = 255 * (16 - wide.fade) / 16;
         SDL_SetTextureColorMod(tex, k, k, k);
-        SDL_RenderCopy(R, tex, nullptr, nullptr);
+        int x0, x1;
+        MergedViewColumns(outW, outH, x0, x1);
+        const SDL_Rect worldRect = { x0, 0, x1 - x0, outH };
+        SDL_RenderCopy(R, tex, nullptr, &worldRect);
         if (wide.fadeMode == 1 && wide.fade)
         {
             SDL_SetRenderDrawBlendMode(R, SDL_BLENDMODE_BLEND);

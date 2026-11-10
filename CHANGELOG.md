@@ -3,6 +3,8 @@
 
 ## Unreleased
 
+- **Fixed aspect ratios keep world geometry aligned on ultrawide screens** (#139). The 3D world, 2D overlays and coverage checks use the same selected view width instead of stretching the world beneath the side bars.
+
 - **GBA fast-forward audio keeps pace with the game** (#123). Audio speeds up with fast-forward instead of accumulating a long delayed soundtrack; mute and normal-speed playback are preserved. Adapted from ArmondesIvo's PR #130.
 
 - **ROM imports preserve different games sharing a filename.** An incoming ROM cannot overwrite a different existing ROM. Failed GBA imports also cannot launch the old same-named file, and read failures no longer count as identical file contents.
