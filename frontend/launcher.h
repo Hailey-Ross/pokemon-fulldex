@@ -1893,6 +1893,8 @@ struct LookPrefs
     int rowX = 0, rowW = 0;                      // its rows across
 };
 inline LookPrefs& Look() { static LookPrefs l; return l; }
+struct LayoutPreviewHit { int x, y, w, h; std::string layout; };
+inline std::vector<LayoutPreviewHit>& LayoutPreviews() { static std::vector<LayoutPreviewHit> hits; return hits; }
 // The Launcher page's sub-pages: 0 its menu, 1 Theme Editor, 2 My Themes, 3 the Theme Library (its grid), 4 the fonts (a grid).
 inline int& LauncherMode() { static int m = 0; return m; }
 // My Themes: each a .zip in themes/ with the saves: theme.txt (as fulldex-look.txt, its pictures under
@@ -3563,6 +3565,16 @@ inline void LookMove(int dir)
 inline int LookTap(int x, int y)
 {
     LookPrefs& l = Look();
+    if (Focus().page == SIDE_LAUNCHER && LauncherMode() == 0 && Focus().prow == 0)
+    {
+        for (const auto& hit : LayoutPreviews())
+            if (x >= hit.x && x < hit.x + hit.w && y >= hit.y && y < hit.y + hit.h)
+            {
+                l.layout = hit.layout; Focus().banner = 0; Focus().side = -1;
+                LookSave(); Hub().version++; return 1;
+            }
+        return 0;
+    }
     if (Focus().page != SIDE_LAUNCHER || l.edit < 0) return 0;
     const int e = l.edit;
     const std::vector<int> fl = LookFieldList(e);
@@ -4944,8 +4956,67 @@ struct ClipGuard
         F.dMax = std::max(0, TextLow() + F.dScroll + pad - y1);
     }
 };
+// Small diagrams keep the alternatives visible without recursively drawing Home or
+// changing its focus, scroll position, cache or selected game.
+inline int DrawLayoutPreviews(Canvas& c, int x, int y, int width, float u, int clipTop, int clipBottom)
+{
+    LayoutPreviews().clear();
+    const bool phone = PhoneLook(), portrait = phone && c.h > c.w;
+    static const char* const keys[] = { "sidebar", "grid", "panel", "tiles" };
+    static const char* const labels[] = { "Sidebar", "Grid Only", "Panel", "Tiles" };
+    const int count = phone ? 2 : 4, gap = std::max(4, (int)(10 * u));
+    const int cellW = (width - gap) / 2;
+    const int thumbH = portrait ? (int)(142 * u) : cellW * 9 / 16;
+    const int thumbW = portrait ? thumbH * 9 / 16 : cellW;
+    const int rowH = thumbH + (int)(28 * u);
+    for (int k = 0; k < count; k++)
+    {
+        const int cx = x + (k % 2) * (cellW + gap), ty = y + (k / 2) * (rowH + gap);
+        const int tx = cx + (cellW - thumbW) / 2;
+        const bool selected = Look().layout == keys[k];
+        Glass::Round(c, tx, ty, thumbW, thumbH, 6 * u, 0xFF142231u,
+                     selected ? Glass::ChosenEdge() : 0x65798A9Au, (selected ? 2.0f : 1.0f) * u);
+        auto box = [&](float bx, float by, float bw, float bh, uint32_t colour) {
+            Glass::Round(c, tx + (int)(bx * thumbW), ty + (int)(by * thumbH),
+                         std::max(1, (int)(bw * thumbW)), std::max(1, (int)(bh * thumbH)), 2 * u, colour);
+        };
+        const uint32_t bar = 0xFF34485Cu, card = 0xFF789BBBu, ink = 0xFFE3EBF3u;
+        if (k <= 1)
+        {
+            const float left = portrait ? .05f : phone ? .12f : .19f;
+            if (!portrait) box(.03f, .04f, phone ? .06f : .12f, .92f, bar);
+            box(left, .05f, .95f - left, .07f, bar);
+            if (portrait) box(.05f, .90f, .90f, .06f, bar);
+            if (k == 0) { box(left, .17f, .95f - left, .22f, bar); box(left + .02f, .19f, .13f, .17f, card); }
+            const float top = k == 0 ? .44f : .19f, foot = portrait ? .86f : .95f;
+            const int cols = portrait ? 2 : 4, rows = k == 0 ? 2 : 3;
+            const float stepX = (.95f - left) / cols, stepY = (foot - top) / rows;
+            for (int i = 0; i < cols * rows; i++)
+                box(left + (i % cols) * stepX, top + (i / cols) * stepY, stepX - .02f, stepY - .035f, card);
+        }
+        else if (k == 2)
+        {
+            box(.05f, .07f, .90f, .09f, bar);
+            for (int i = 0; i < 5; i++) { box(.06f, .22f + i * .14f, .36f, .11f, bar); box(.075f, .23f + i * .14f, .07f, .09f, card); }
+            box(.57f, .24f, .25f, .42f, card); box(.51f, .77f, .17f, .08f, ink); box(.71f, .77f, .17f, .08f, bar);
+        }
+        else
+        {
+            box(.05f, .07f, .90f, .08f, bar);
+            box(.12f, .30f, .18f, .30f, bar); box(.36f, .23f, .28f, .46f, card); box(.70f, .30f, .18f, .30f, bar);
+            for (int i = 0; i < 6; i++) box(.08f + i * .145f, .80f, .12f, .13f, bar);
+        }
+        GT(c, cx + (cellW - GW(labels[k], 12 * u, selected)) / 2, ty + thumbH + 13 * u,
+           labels[k], 12 * u, selected ? Menu::GlassText : Menu::GlassHint, selected);
+        const int hitY = std::max(ty, clipTop), hitEnd = std::min(ty + rowH, clipBottom);
+        if (hitEnd > hitY) LayoutPreviews().push_back({cx, hitY, cellW, hitEnd - hitY, keys[k]});
+    }
+    return ((count + 1) / 2) * rowH + ((count + 1) / 2 - 1) * gap;
+}
+
 inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
 {
+    LayoutPreviews().clear();
     GlassFocus& F = Focus();
     const uint32_t text = Menu::GlassText, hint = Menu::GlassHint;
     const bool portP = PhoneLook() && c.h > c.w; // (upright: a thin bar over the page)
@@ -5638,6 +5709,11 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
                     "Avoid: every launcher screen keeps clear of the phone's camera hole, and the strip beside it stays black. Fill: the launcher runs across the whole screen, behind the camera hole, as the games do. Choose it to switch." };
                 GT(c, ix, y + 14 * u, titles[F.prow], 22 * u, text, true);
                 y += (int)(44 * u);
+                if (F.prow == 0)
+                {
+                    y += DrawLayoutPreviews(c, ix, y, iw, u, dTopP, bottom) + (int)(12 * u);
+                    TextLow() = std::max(TextLow(), y);
+                }
                 para(about[F.prow], text, 14 * u);
                 if (F.prow == 4)
                 {

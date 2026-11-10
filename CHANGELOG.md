@@ -3,6 +3,8 @@
 
 ## Unreleased
 
+- **Layout choices have mini previews.** Sidebar, Grid Only, Panel and Tiles appear together in the preview panel, with the active choice outlined. Tap a miniature to select it; phones show their two supported grid layouts.
+
 - **Grid Only launcher layout** hides Continue Playing and uses its space for more same-sized game cards. Sidebar, Panel and Tiles remain available.
 - **Launcher swipes coast gently and the mouse wheel scrolls the grid smoothly**, including fractional trackpad movement. A new press, controller navigation or an open menu stops coasting.
 - **Click the left stick to cycle visible companion tabs.** Existing custom button bindings take priority. Battle automatically opens its tab once when combat begins, allowing manual tab changes during the battle.
