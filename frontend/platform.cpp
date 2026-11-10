@@ -5,6 +5,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <mutex>
+#include <filesystem>
 #include <string>
 #include <thread>
 
@@ -190,11 +191,30 @@ void WriteFirmware(const Firmware& fw, u32, u32, void*)
     if (!f) return;
     const bool ok = fwrite(fw.Buffer(), 1, fw.Length(), f) == fw.Length();
     if (fclose(f) != 0 || !ok) { remove(tmp.c_str()); return; }
-    if (rename(tmp.c_str(), Host::FirmwarePath.c_str()) != 0)
-    {
-        remove(Host::FirmwarePath.c_str()); // (Windows: rename does not replace a file)
-        rename(tmp.c_str(), Host::FirmwarePath.c_str());
+#ifdef __SWITCH__
+    // Switch cannot replace a file with rename. Keep a rollback copy until the new one is in place.
+    const std::string backup = Host::FirmwarePath + ".old";
+    std::error_code error;
+    const bool hadOld = std::filesystem::exists(Host::FirmwarePath, error);
+    if (error || std::filesystem::exists(backup, error) || error) {
+        fprintf(stderr, "[firmware] could not replace settings; existing files kept\n"); return;
     }
+    if (hadOld && rename(Host::FirmwarePath.c_str(), backup.c_str()) != 0) {
+        fprintf(stderr, "[firmware] could not back up settings; existing file kept\n"); return;
+    }
+    if (rename(tmp.c_str(), Host::FirmwarePath.c_str()) != 0) {
+        if (hadOld && rename(backup.c_str(), Host::FirmwarePath.c_str()) != 0)
+            fprintf(stderr, "[firmware] settings preserved in %s\n", backup.c_str());
+        fprintf(stderr, "[firmware] could not install new settings\n"); return;
+    }
+    if (hadOld) remove(backup.c_str());
+#else
+    // filesystem::rename replaces an existing file on Windows as well as POSIX. On failure,
+    // leave the old settings in place; deleting them before retrying could lose the DNS setup.
+    std::error_code error;
+    std::filesystem::rename(tmp, Host::FirmwarePath, error);
+    if (error) fprintf(stderr, "[firmware] settings not replaced: %s; previous file kept\n", error.message().c_str());
+#endif
 }
 void WriteDateTime(int, int, int, int, int, int, void*) {}
 

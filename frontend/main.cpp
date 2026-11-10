@@ -1041,6 +1041,20 @@ static void ApplyRenderer3D(NDS& nds, bool gpu)
 // can move what achievements read.
 static bool AchievementsOn = false;
 
+// Firmware has a fixed expected length. Reject incomplete or oversized files without reading
+// an arbitrary amount into memory before discovering that they are not usable firmware.
+static std::vector<uint8_t> ReadFirmwareFile(const std::string& path, size_t expected)
+{
+    FILE* file = fopen(path.c_str(), "rb");
+    if (!file) return {};
+    std::vector<uint8_t> data(expected);
+    const bool complete = fread(data.data(), 1, data.size(), file) == data.size();
+    const bool exact = complete && fgetc(file) == EOF && !ferror(file);
+    const bool closed = fclose(file) == 0;
+    if (!exact || !closed) data.clear();
+    return data;
+}
+
 static std::unique_ptr<NDS> MakeConsole(const std::vector<uint8_t>& rom, const std::vector<uint8_t>& sav, bool fixedClock)
 {
     // Black 2 and White 2 (US) get 8 MB of main RAM, for their wider map (frontend/bw2map.h).
@@ -1071,20 +1085,21 @@ static std::unique_ptr<NDS> MakeConsole(const std::vector<uint8_t>& rom, const s
     // The firmware kept from before (firmware.bin, see Host::FirmwarePath), when it is one: the
     // same size as the firmware made fresh otherwise.
     if (!Host::FirmwarePath.empty())
-        if (FILE* f = fopen(Host::FirmwarePath.c_str(), "rb"))
+    {
+        const size_t expected = Firmware(0).Length();
+        const auto firmware = ReadFirmwareFile(Host::FirmwarePath, expected);
+        if (!firmware.empty())
         {
-            std::vector<u8> fw;
-            u8 buf[65536];
-            size_t n;
-            while ((n = fread(buf, 1, sizeof buf, f)) > 0) fw.insert(fw.end(), buf, buf + n);
-            fclose(f);
-            if (fw.size() == Firmware(0).Length())
-            {
-                args.Firmware = Firmware(fw.data(), (u32)fw.size());
-                fprintf(stderr, "[firmware] %s\n", Host::FirmwarePath.c_str());
-            }
-            else fprintf(stderr, "[firmware] %s: %zu bytes, not firmware: a new one\n", Host::FirmwarePath.c_str(), fw.size());
+            args.Firmware = Firmware(firmware.data(), (u32)firmware.size());
+            fprintf(stderr, "[firmware] %s\n", Host::FirmwarePath.c_str());
         }
+        else
+        {
+            std::error_code error;
+            if (std::filesystem::exists(std::filesystem::u8path(Host::FirmwarePath), error))
+                fprintf(stderr, "[firmware] cannot use %s; expected exactly %zu bytes; a fresh firmware is used\n", Host::FirmwarePath.c_str(), expected);
+        }
+    }
     auto nds = std::make_unique<NDS>(std::move(args));
 #ifdef JIT_ENABLED
     UseFastMem = UseJit && nds->JIT.FastMemoryEnabled();
