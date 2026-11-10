@@ -215,6 +215,8 @@ struct Settings
     {
         auto it = values.find(key);
         if (it != values.end()) return it->second;
+        const char* deck = std::getenv("SteamDeck");
+        if (!strcmp(key, "gba_start") && deck && !strcmp(deck, "1")) return "menu";
         for (const Setting& s : SettingsList())
             if (!strcmp(s.key, key)) return s.def;
         if (!strcmp(key, "fullscreen")) return "1";

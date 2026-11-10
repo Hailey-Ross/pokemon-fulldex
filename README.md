@@ -135,6 +135,8 @@ Launcher **Settings > Display** also lets you choose the **DS Screen Filter** or
 game on your desktop (on Linux also in your apps menu, and so in the Steam Deck's "Add a
 Non-Steam Game" list), with its box art; each starts its game straight away.
 
+**Steam Deck direct launches:** In Desktop Mode, use FullDex Settings > DESKTOP SHORTCUTS, then open Steam > Add a Game > Add a Non-Steam Game and select the generated game entries. They appear in Gaming Mode under Non-Steam and start the selected ROM directly, including hacks. Recreate shortcuts after moving a ROM. The desktop icon is included; Steam library cover artwork can be assigned separately in Steam. New Deck setups use Start for the pause menu; saved START BUTTON choices are respected.
+
 **What it needs:** Windows 10 or 11 (64-bit), or 64-bit Linux from late 2023 on
 (Ubuntu 24.04, Fedora 39, SteamOS 3.5 or newer); nothing else to install. For WORLD
 ON GPU, a graphics card with OpenGL 4.3, which nearly any from 2012 on has with

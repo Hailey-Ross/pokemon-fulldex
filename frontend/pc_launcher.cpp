@@ -3396,11 +3396,22 @@ bool Start(int& argc, char**& argv)
 #ifdef SSR_GBA
     for (int i = 1; i < argc; i++)
         if (argv[i] && IsGbaRomName(argv[i]) && directRom != argv[i]) ImportFile(fo, argv[i]);
-    if (!directRom.empty() && IsGbaRomName(directRom)) ImportFile(fo, directRom);
 #endif
 
     std::map<std::string, std::vector<uint32_t>> artCache;
     std::vector<Launcher::Game> games = FindGames(fo, artCache);
+    auto sameRom = [](const std::string& x, const std::string& y) {
+        std::error_code e1, e2;
+        const auto cx = std::filesystem::weakly_canonical(x, e1), cy = std::filesystem::weakly_canonical(y, e2);
+        return !e1 && !e2 && cx == cy;
+    };
+#ifdef SSR_GBA
+    // A shortcut into an existing library must not copy over another ROM with the same basename.
+    if (!directRom.empty() && IsGbaRomName(directRom) &&
+        std::none_of(games.begin(), games.end(), [&](const Launcher::Game& g) { return sameRom(g.rom, directRom); }))
+        if (ImportFile(fo, directRom)) games = FindGames(fo, artCache);
+#endif
+
     // The list starts on the game played last.
     const std::string lastPath = fo.dir + "/last-game.txt";
     int chosen = 0;
@@ -3427,14 +3438,13 @@ bool Start(int& argc, char**& argv)
     if (!direct.empty() && directGame < 0) fprintf(stderr, "[launcher] --game %s: not in the list\n", direct.c_str());
     if (!directRom.empty())
     {
-        auto same = [](const std::string& x, const std::string& y) {
-            std::error_code e1, e2;
-            const auto cx = std::filesystem::weakly_canonical(x, e1), cy = std::filesystem::weakly_canonical(y, e2);
-            return !e1 && !e2 && cx == cy;
-        };
         const std::string copy = fo.roms + "/" + directRom.substr(directRom.find_last_of("/\\") + 1);
         for (size_t i = 0; i < games.size() && directGame < 0; i++)
-            if ((same(games[i].rom, directRom) || same(games[i].rom, copy)) && Playable(fo, games[i])) directGame = (int)i;
+            if (sameRom(games[i].rom, directRom) && Playable(fo, games[i])) directGame = (int)i;
+        // Prefer an exact library path over an imported GBA copy with the same filename.
+        if (directGame < 0 && IsGbaRomName(directRom))
+            for (size_t i = 0; i < games.size() && directGame < 0; i++)
+                if (sameRom(games[i].rom, copy) && Playable(fo, games[i])) directGame = (int)i;
         if (directGame < 0) fprintf(stderr, "[launcher] --rom %s: not in the list\n", directRom.c_str());
     }
 #ifdef SSR_UPDATER

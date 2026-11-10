@@ -3,6 +3,11 @@
 
 ## Unreleased
 
+- **Optional battle timing logs** record game-frame rate, active speed and generated interpolation frames to help distinguish speed changes from uneven animation.
+
+- **Steam Deck game shortcuts target the selected ROM**, including hacks and multiple games sharing a code. Names and icons are kept separate, and filenames with spaces or special characters are escaped.
+- **New Steam Deck setups use Start for pause**, for DS and GBA. Existing saved button choices are kept. Confirmation menus also recover safely from an invalid selection.
+
 - **Phone confirmation dialogs are easier to read and tap.** Quit and other confirmation cards use larger text and buttons sized for touch in both orientations.
 
 - **Very wide GBA screens keep full-screen backgrounds while hiding repeated windows** (#131).

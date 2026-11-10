@@ -34,6 +34,22 @@ namespace GbaConfig {
 int main(int argc, char** argv) {
     assert(argc == 2);
     const std::string root = argv[1], cfgPath = root + "/settings.cfg", ini = root + "/gba-settings.ini";
+    // Fresh Deck defaults need a menu button even when Steam owns Guide.
+    SDL_setenv("SteamDeck", "1", 1);
+    DsConfig::Settings deckDs;
+    GbaConfig::Settings deckGba;
+    assert(deckDs.startMenu && deckGba.Get("gba_start") == "menu");
+    { std::ofstream f(cfgPath); f << "start_button=ds\n"; }
+    deckDs.Load(cfgPath);
+    deckGba.values["gba_start"] = "start";
+    assert(!deckDs.startMenu && deckGba.Get("gba_start") == "start");
+    std::remove(cfgPath.c_str());
+    SDL_setenv("SteamDeck", "0", 1);
+    GbaConfig::Settings desktopGba;
+    assert(desktopGba.Get("gba_start") == "start");
+#ifndef __SWITCH__
+    assert(!DsConfig::Settings{}.startMenu);
+#endif
     DsConfig::Settings cfg;
     cfg.Load(cfgPath);
     assert(!DsStartsFast(cfg)); // old files with no key keep the OFF default

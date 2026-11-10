@@ -1603,7 +1603,7 @@ struct Settings : OptionalFeatures
 #if defined(__SWITCH__) || defined(SSR_PHONE)
     bool startMenu = true;
 #else
-    bool startMenu = false;
+    bool startMenu = Controls::SteamDeck();
 #endif
     // While fast forwarding, the widescreen world at no more than 360 lines (more frames a
     // second, so a faster fast forward where drawing it is the limit). Off on a PC (the PC
@@ -6839,6 +6839,8 @@ int main(int argc, char** argv)
         }
         if (page >= PAGE_HUB_SAVE && page <= PAGE_HUB_QUIT) hubPage = page;
         if (page != menuPage) { menu.scrollPx = 0; menu.freeScroll = false; } // (a new page opens at its top, its chosen row then kept in view)
+        menu.npFocus = menu.npAction = -1;
+        menu.pickWanted = -1;
         menuPage = page;
         buildMenu();
         menu.selected = 0;
@@ -10523,6 +10525,32 @@ int main(int argc, char** argv)
             if (audio) SDL_ClearQueuedAudio(audio);
         }
         ffInBattle = std::strncmp(scene.name, "battle", 6) == 0;
+        // Opt-in timing evidence distinguishes fast emulation from uneven rendered frames.
+        static const bool battleTiming = getenv("SSR_BATTLE_TIMING") != nullptr;
+        if (battleTiming)
+        {
+            static std::string timingScene;
+            static double timingStart = 0;
+            static unsigned timingFrame = 0, timingInterp = 0;
+            const double now = perfNow();
+            const unsigned current = rc_frame;
+            const unsigned generated = nds->GPU.GPU3D.InterpolatedFrames;
+            if (paused || timingScene != scene.name || !timingStart || current < timingFrame)
+            {
+                timingScene = scene.name; timingStart = now;
+                timingFrame = current; timingInterp = generated;
+            }
+            else if (current - timingFrame >= 120)
+            {
+                const double elapsed = now - timingStart;
+                fprintf(stderr, "[battle-timing] scene=%s ds_frames=%u elapsed_ms=%.1f ds_fps=%.2f speed=%d interpolation=%d generated=%u\n",
+                    timingScene.c_str(), current - timingFrame, elapsed,
+                    elapsed > 0 ? (current - timingFrame) * 1000.0 / elapsed : 0.0,
+                    speed, cfg.fps60 ? 1 : 0, generated - timingInterp);
+                timingStart = now; timingFrame = current; timingInterp = generated;
+            }
+        }
+
         got = AudioFastForward(audioBuf.data(), got, speed);
 
         if (audio && got > 0)

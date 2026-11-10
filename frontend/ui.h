@@ -348,6 +348,8 @@ struct Menu
         if (style == 1) return UpdateSettings(in, dir);
         if (style == 2)
         {
+            // A dialog has only its first and last actions; an inherited row must not hide focus.
+            if (selected != 0 && selected != n - 1) selected = n - 1;
             // (Two buttons side by side: any direction goes to the other.)
             if (in.left || in.right || in.up || in.down) selected = selected == 0 ? n - 1 : 0;
             return in.accept ? selected : -1;

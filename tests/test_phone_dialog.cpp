@@ -6,6 +6,11 @@ int main() {
         Canvas c; c.Resize(size.first,size.second);
         Menu m; m.open=true; m.style=2;
         m.items={{"QUIT GAME",""},{"CANCEL",""}}; m.selected=1;
+        m.selected=17;
+        int repairedDir=0;
+        assert(m.Update(MenuInput{},repairedDir)==-1 && m.selected==1);
+        MenuInput choose; choose.accept=true;
+        assert(m.Update(choose,repairedDir)==1);
         m.touchRows=1;
         m.DrawDialog(c,"QUIT GAME?","Unsaved progress will be lost.","");
         const int oldHeight=m.dialogH;
