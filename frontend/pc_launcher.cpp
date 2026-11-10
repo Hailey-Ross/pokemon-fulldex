@@ -54,6 +54,7 @@
 #include "controls.h"
 #include "rom_library.h"
 #include "direct_rom.h"
+#include "grid_scroll.h"
 #include "achievements.h"
 #include "ssr_os.h"
 #ifdef SSR_IOS
@@ -1104,6 +1105,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
     // The settings page (Launcher::SettingsPage): H, F1 or a controller's Y; Esc or B back.
     // (Touch: a finger pressed at downY, dragged far enough to scroll the page.)
     int downY = 0, downScroll = 0;
+    GridScrollMotion gridMotion;
     bool pressed = false, dragging = false;
     int tapPlay = -1; // (the game a finger is on that was already chosen: played when it lifts)
     bool guide = false;
@@ -2764,23 +2766,27 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 {
                     downY = hz ? mx : my;
                     downScroll = scroll;
+                    gridMotion.Begin(scroll, SDL_GetTicks());
                     pressed = true;
                     dragging = false;
                 }
                 else if (e.type == SDL_MOUSEMOTION && pressed)
                 {
                     const int curP = hz ? mx : my;
-                    if (!dragging && std::abs(curP - downY) > 8 * s) dragging = true;
+                    if (!dragging && std::abs(curP - downY) > std::max(6, (int)(8 * Launcher::GU(canvas)))) dragging = true;
                     if (dragging)
                     {
                         follow = false;
                         tapPlay = -1;
                         scroll = std::max(0, downScroll - (curP - downY));
+                        Launcher::FollowSelection(view(), selected, scroll, false);
+                        gridMotion.Drag(scroll, SDL_GetTicks());
                         break;
                     }
                 }
                 if (e.type == SDL_MOUSEBUTTONUP && dragging)
                 {
+                    gridMotion.End(SDL_GetTicks());
                     dragging = pressed = false;
                     break;
                 }
@@ -2816,9 +2822,9 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                     selected = i;
                     onSettings = onTabs = false; Launcher::Focus() = Launcher::GlassFocus{};
                     note.clear();
-                    // (A tap: the list follows it, unless the finger goes on to drag. A mouse
-                    // passing over a tile leaves the list where it is.)
-                    if (e.type == SDL_MOUSEBUTTONDOWN) follow = true;
+                    // Pointer selection leaves the list under the finger; controller movement
+                    // follows its chosen card. A partial card must not jump at touch-down.
+                    if (e.type == SDL_MOUSEBUTTONDOWN) follow = false;
                 }
 #ifdef __ANDROID__
                 // (Asking for the ROM folder: a tap anywhere.)
@@ -2828,6 +2834,18 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             }
             case SDL_MOUSEWHEEL:
                 if (Launcher::Glassy(canvas) && !guide && Launcher::NotesScroll(e.wheel.y > 0 ? -2 : 2)) break; // (What's New)
+                if (!guide && !setMenu.open && Launcher::Focus().page < 0 && Launcher::Focus().dialog == 0 && Launcher::Focus().popup < 0 && !Launcher::TilesOn())
+                {
+                    double steps = e.wheel.y;
+#if SDL_VERSION_ATLEAST(2, 0, 18)
+                    if (e.wheel.preciseY != 0) steps = e.wheel.preciseY;
+#endif
+                    if (e.wheel.direction == SDL_MOUSEWHEEL_FLIPPED) steps = -steps;
+                    const auto g = Launcher::Layout(canvas);
+                    gridMotion.Wheel(-steps * std::max(24.0, g.rowStep * 0.45), scroll, SDL_GetTicks());
+                    follow = false;
+                    break;
+                }
                 move(e.wheel.y > 0 ? 3 : 4);
                 break;
             default:
@@ -2953,7 +2971,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             if (selected < 0 || view().SpotOf(selected) < 0) selected = Launcher::FirstIn(view());
         }
 
-        if (appBackgrounded) { SDL_Delay(50); continue; }
+        if (appBackgrounded) { gridMotion.Stop(); SDL_Delay(50); continue; }
         int ow = 1280, oh = 720;
 #ifdef SSR_IOS
         if (SDL_GetRendererOutputSize(renderer, &ow, &oh) != 0 || ow <= 0 || oh <= 0)
@@ -2988,6 +3006,13 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             canvas.Resize(ow, oh);
             if (texture) SDL_DestroyTexture(texture);
             texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, ow, oh);
+        }
+        if (follow || setMenu.open || guide || Launcher::Focus().page >= 0 || Launcher::Focus().dialog || Launcher::Focus().popup >= 0)
+            gridMotion.Stop();
+        else
+        {
+            const auto v = view();
+            gridMotion.Advance(SDL_GetTicks(), std::max(0, v.height - (v.g.horiz ? v.g.panelW : v.g.bottom - v.g.top)), scroll);
         }
         if (testBrowseDialog == 19) { folderBrowse = fo.roms; folderFirst = 0; showRomFolder(); testBrowseDialog = 0; }
         else if (testBrowseDialog == 20) { pictureBrowse = fo.roms; pictureRom = games.empty() ? "" : games[0].rom; pictureFirst = 0; showPictureFolder(); testBrowseDialog = 0; }

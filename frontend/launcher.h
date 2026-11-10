@@ -1278,6 +1278,7 @@ inline bool PhoneLook() { return PortraitNow() || ShortNow(); } // (a phone, or 
 inline float GU(const Canvas& c) { return c.h > c.w ? c.w / 405.0f : PhoneUi() ? c.h / 480.0f : c.h / 720.0f; } // one design pixel (the designs are 1280 x 720)
 inline bool PanelOn(); // (the Panel layout: Launcher > Layout)
 inline bool PanelHome(); // (the Panel layout, on the home screen: the sidebar's pages keep their sidebar)
+inline bool GridOnly();
 inline bool TilesOn(); // (the Tiles layout: Launcher > Layout)
 inline bool TilesHome(); // (the Tiles layout, on the home screen: a game carousel over a row of tiles, one per section)
 // The Panel home: one glass panel with the sections and the tabs along its top, the game list on its left,
@@ -1350,7 +1351,7 @@ inline Grid Layout(const Canvas& c)
             if (c.h > c.w)
             {
                 g.panelX = (int)(12 * u); g.panelW = c.w - 2 * g.panelX; g.gap = (int)(12 * u);
-                g.top = (int)(356 * u); g.bottom = c.h - (int)(12 * u) - (int)(62 * u) - (int)(6 * u);
+                g.top = (int)((GridOnly() ? 112 : 356) * u); g.bottom = c.h - (int)(12 * u) - (int)(62 * u) - (int)(6 * u);
                 g.cols = 2; g.cw = (g.panelW - g.gap) / 2; g.tile = g.cw - (int)(16 * u); g.ch = g.tile + (int)(38 * u);
                 g.gx = g.panelX; g.colStep = g.cw + g.gap; g.rowStep = g.ch + (int)(14 * u);
             }
@@ -1359,6 +1360,7 @@ inline Grid Layout(const Canvas& c)
                 g.panelX = (int)(74 * u); g.panelW = c.w - g.panelX - (int)(14 * u); g.gap = (int)(14 * u);
                 // (Rows that scroll down, as on every other screen: they went along in one row.)
                 g.top = (int)(196 * u); g.tile = (int)(150 * u); g.cw = g.tile + (int)(16 * u); g.ch = g.tile + (int)(38 * u); g.bottom = c.h - (int)(10 * u);
+                if (GridOnly()) g.top = (int)(66 * u);
                 g.cols = std::max(1, (g.panelW + g.gap) / (g.cw + g.gap)); g.gx = g.panelX; g.colStep = g.cw + g.gap; g.rowStep = g.ch + g.gap;
                 g.horiz = false;
             }
@@ -1387,6 +1389,8 @@ inline Grid Layout(const Canvas& c)
         // the room left over shared out between them.)
         const int minGap = (int)(14 * u);
         g.ch = (g.bottom - g.top - minGap) / 2;
+        // Keep card sizes when hiding the banner; spend the reclaimed space on more rows.
+        if (GridOnly()) g.top = (int)(126 * u);
         g.tile = g.ch - (int)(38 * u); // the picture
         g.cw = g.tile + (int)(16 * u);
         g.cols = std::max(2, std::min(8, (g.panelW + minGap) / std::max(1, g.cw + minGap)));
@@ -1701,6 +1705,7 @@ inline GlassSpots Spots(const Canvas& c)
     s.bannerX = s.tabsX; s.bannerY = (int)(90 * u); s.bannerW = c.w - s.bannerX - (int)(28 * u); s.bannerH = (int)(160 * u);
     s.contX = s.bannerX + (int)(168 * u); s.contY = s.bannerY + (int)(100 * u); s.contW = (int)(150 * u); s.contH = (int)(44 * u);
     s.headY = (int)(266 * u);
+    if (GridOnly()) s.headY = (int)(88 * u);
     if (phn)
     {
         if (phPort)
@@ -1785,13 +1790,13 @@ inline int SideAt(const Canvas& c, int x, int y)
 inline bool GameOptionsAt(const Canvas& c, int x, int y);
 inline bool ContinueAt(const Canvas& c, int x, int y)
 {
-    if (!Glassy(c)) return false;
+    if (!Glassy(c) || GridOnly()) return false;
     const GlassSpots s = Spots(c);
     return x >= s.contX && x < s.contX + s.contW && y >= s.contY && y < s.contY + s.contH;
 }
 inline bool GameOptionsAt(const Canvas& c, int x, int y)
 {
-    if (!Glassy(c) || PhoneLook()) return false; // (a phone: the banner has Continue only)
+    if (!Glassy(c) || PhoneLook() || GridOnly()) return false; // (a phone: the banner has Continue only)
     const GlassSpots s = Spots(c);
     const float u = GU(c);
     const int ox = s.contX + s.contW + (int)(10 * u), ow = GW("Game Options", 18 * u, true) + (int)(36 * u);
@@ -1801,6 +1806,7 @@ inline bool GameOptionsAt(const Canvas& c, int x, int y)
 // (not the chosen one: the banner would change, and be drawn again, with every press).
 inline int ContinueGame(const std::vector<Game>& games, int selected)
 {
+    if (GridOnly()) return -1; // Hidden buttons must not receive controller focus either.
     // (The Panel home: its buttons are for the chosen game, if it can be played.)
     if (PanelHome() || TilesHome()) return selected >= 0 && selected < (int)games.size() && games[selected].known && !games[selected].comingSoon ? selected : -1;
     for (size_t i = 0; i < games.size(); i++)
@@ -1876,7 +1882,7 @@ struct LookPrefs
     std::string music = "corner";                 // corner (sidebar foot), top (Launcher > Music Player)
     bool avoidCutout = true;                      // Android: the launcher's screens keep clear of the camera cutout (Launcher > Camera Cutout)
     bool cursorButton = false;                   // the selector outline in the button colour (Theme Editor > Buttons)
-    std::string layout = "sidebar";              // sidebar, tiles (panel is kept as a file value only) (Launcher > Layout)
+    std::string layout = "sidebar";              // sidebar, grid, panel, tiles (Launcher > Layout)
     bool loaded = false;
     std::string from;
     int edit = -1, field = 1;                    // (open: 0 to 5 a colour's wheel, 6 the blur and dim; its row)
@@ -2138,7 +2144,8 @@ inline void LookFrom(const std::map<std::string, std::string>& p)
     l.font = get("font", "noto-sans");
     l.fontSize = std::max(85, std::min(120, atoi(get("font_size", "100").c_str())));
     l.badges = get("badges", "on") != "off";
-    { const std::string lv = get("layout", l.layout); l.layout = lv == "panel" || lv == "tiles" ? lv : "sidebar"; }
+    { const std::string lv = get("layout", l.layout); l.layout = lv == "panel" || lv == "tiles" || lv == "grid" ? lv : "sidebar"; }
+    if (l.layout == "grid") Focus().banner = 0;
     { const std::string mv = get("music", l.music); l.music = mv == "top" || mv == "compact" || mv == "compactb" || mv == "off" ? mv : "corner"; }
 #ifdef __SWITCH__
     l.music = "off"; // (No music player on a Switch.)
@@ -2154,10 +2161,11 @@ inline void LookLoad()
     l.loaded = true;
     l.from = HubDir();
     LookFrom(ReadPairs(HubDir() + "/fulldex-look.txt"));
-    if (const char* e = getenv("SSR_LIST_LAYOUT")) l.layout = !strcmp(e, "panel") ? "panel" : !strcmp(e, "tiles") ? "tiles" : "sidebar"; // (test: shown, not kept)
+    if (const char* e = getenv("SSR_LIST_LAYOUT")) l.layout = !strcmp(e, "panel") ? "panel" : !strcmp(e, "tiles") ? "tiles" : !strcmp(e, "grid") ? "grid" : "sidebar"; // (test: shown, not kept)
     if (const char* e = getenv("SSR_LIST_MUSIC")) l.music = !strcmp(e, "top") || !strcmp(e, "compact") || !strcmp(e, "compactb") || !strcmp(e, "off") ? e : "corner"; // (test)
 }
 inline bool PanelOn() { LookLoad(); return Look().layout == "panel" && !PhoneLook(); }
+inline bool GridOnly() { LookLoad(); return Look().layout == "grid"; }
 inline bool PanelHome() { return PanelOn() && Focus().page < 0; }
 inline bool TilesOn() { LookLoad(); return Look().layout == "tiles" && !PhoneLook(); }
 inline bool TilesHome() { return TilesOn() && Focus().page < 0; }
@@ -3352,7 +3360,14 @@ inline int LookDo(int row, int dir)
     if (LauncherMode() == 0)
     {
         // (The menu: Layout, Theme Editor, My Themes, Theme Gallery.)
-        if (row == 0) { l.layout = l.layout == "tiles" ? "sidebar" : "tiles"; LookSave(); Hub().version++; return 0; }
+        if (row == 0)
+        {
+            static const char* const layouts[] = { "sidebar", "grid", "panel", "tiles" };
+            int k = 0; for (int i = 0; i < 4; i++) if (l.layout == layouts[i]) k = i;
+            l.layout = layouts[(k + (dir < 0 ? 3 : 1)) % 4];
+            Focus().banner = 0;
+            LookSave(); Hub().version++; return 0;
+        }
         if (row == 4) { l.music = l.music == "corner" ? "top" : l.music == "top" ? "compact" : l.music == "compact" ? "compactb" : l.music == "compactb" ? "off" : "corner"; LookSave(); Hub().version++; return 0; }
         if (row == 5) { l.avoidCutout = !l.avoidCutout; LookSave(); Hub().version++; return 0; } // (Android: Camera Cutout)
         if (row == 1) LauncherMode() = 1;
@@ -5577,7 +5592,7 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
             if (LauncherMode() == 0)
             {
                 const std::string count = std::to_string(ts.list.size()) + (ts.list.size() == 1 ? " Theme" : " Themes");
-                row(0, Glass::I_LAYOUT, "Layout", "How the home screen is set out: the sidebar with a grid, or tiles with a game carousel", TilesOn() ? "Tiles" : PanelOn() ? "Panel" : "Sidebar");
+                row(0, Glass::I_LAYOUT, "Layout", "Choose a home layout; Grid Only hides Continue Playing and shows more games", GridOnly() ? "Grid Only" : TilesOn() ? "Tiles" : PanelOn() ? "Panel" : "Sidebar");
                 row(1, Glass::I_SPARKLE, "Theme Editor", "Colours, pictures, blur and the rest of the launcher's look", "");
                 row(2, Glass::I_LAYERS, "My Themes", "Save this look, switch between your looks, share them as files", count);
                 row(3, Glass::I_GLOBE, "Theme Gallery", "Themes other players have shared, ready to try", "Online");
@@ -5614,7 +5629,7 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
             {
                 static const char* const titles[6] = { "Layout", "Theme Editor", "My Themes", "Theme Gallery", "Music Player", "Camera Cutout" };
                 static const char* const about[6] = {
-                    "How the home screen is set out. Sidebar: the Continue Playing banner above a grid of games. Tiles: one game at a time in a carousel, with a row of tiles for the sections under it. Choose it to switch.",
+                    "How the home screen is set out. Sidebar has Continue Playing above the games. Grid Only hides that banner and uses the space for more rows. Panel has a list and preview; Tiles has a game carousel. Choose it to switch, or use left and right.",
                     "Change the launcher's look: the accent, the panels, the sidebar and the top bar, the buttons, the background, its blur and dim, and the glass's grain. Each can be a colour or a picture.",
                     "Keep the look you have now as a theme, with its pictures, and switch between your themes. Each is one .zip file you can send to a friend.",
                     "Browse themes other players have shared, try one on before you keep it, enter a theme code from a friend, or share one of your own.",
@@ -6834,6 +6849,7 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
                     + (Focus().page == SIDE_ROMS ? "/r" + std::to_string(Focus().pact) + "," + std::to_string(RomList().size()) + ","
                        + std::to_string(std::count_if(RomList().begin(), RomList().end(), [](const Game& g) { return g.hidden; })) : std::string());
     if (Focus().page >= 0) key += "/scroll" + std::to_string(Focus().dScroll) + "," + std::to_string(Focus().rScroll) + "," + std::to_string(Focus().nScroll);
+    key += GridOnly() ? "/grid-only" : "/banner";
     for (const Game& g : games) key += "|" + g.rom + g.customName + (g.favourite ? "*" : "") + sig(g) + (g.soonAt ? ComingSoonText(g) : std::string());
     static std::vector<uint32_t> base;
     static std::string baseKey;

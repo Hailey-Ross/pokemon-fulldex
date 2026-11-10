@@ -10,4 +10,4 @@ class PartialGridTests(unittest.TestCase):
                             '-I'+os.environ.get('SSR_GRID_HEADERS',str(ROOT/'frontend')),
                             '-I'+str(ROOT/'frontend'),str(ROOT/'tests/test_grid_partial.cpp'),
                             str(ROOT/'frontend/launcher_cjk.cpp'),'-o',str(exe)],check=True)
-            subprocess.run([str(exe)],check=True)
+            subprocess.run([str(exe)],env=dict(os.environ,SSR_GRID_PREFS=folder),check=True)

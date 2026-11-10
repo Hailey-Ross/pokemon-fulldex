@@ -31,10 +31,18 @@ int main(){
         g.code="CPUE";g.known=true;g.platform=0;g.art.assign(Art*Art,0xFF306090u+i*0x030201u);
     }
     ContinueRom()=games[0].rom;BackdropRom()=games[0].rom;
-    for(int mode=0;mode<4;mode++)for(auto size:{std::pair<int,int>{1280,720},{1280,800},{720,1280},{640,360}}){
-        PhoneUi()=mode==2;GlassOn()=mode!=3;Look().layout=mode==1?"panel":"sidebar";
+    for(int mode=0;mode<6;mode++)for(auto size:{std::pair<int,int>{1280,720},{1280,800},{720,1280},{640,360}}){
+        PhoneUi()=mode==2||mode==5;GlassOn()=mode!=3;Look().layout=mode==1?"panel":"sidebar";
         Focus()=GlassFocus{};
         Canvas c;c.Resize(size.first,size.second);
+        if(mode>=4){
+            const auto original=Layout(c);const auto buttons=Spots(c);
+            Look().layout="grid";const auto compact=Layout(c);
+            assert(compact.top<original.top&&compact.ch==original.ch&&compact.cw==original.cw);
+            assert(ContinueGame(games,0)==-1);
+            assert(!ContinueAt(c,buttons.contX+2,buttons.contY+2));
+            assert(!GameOptionsAt(c,buttons.contX+buttons.contW+20,buttons.contY+2));
+        }
         auto v=MakeView(c,games,TAB_DS);const auto& g=v.g;
         int initialScroll=0;Draw(c,games,TAB_DS,0,initialScroll,"","",Theme(),false);
         Capture(c,"grid-"+std::to_string(mode)+"-"+std::to_string(c.w)+"x"+std::to_string(c.h));
@@ -67,5 +75,13 @@ int main(){
         const auto& last=v.spots[v.SpotOf(31)];
         assert(last.y>=scroll&&last.y+g.ch<=scroll+g.bottom-g.top);
     }
-    puts("Partial grid cards: visible above/below, clipped, clickable, controller-follow intact across layouts");
+    // The real layout action saves/reloads Grid Only without losing other preferences.
+    if(const char* dir=getenv("SSR_GRID_PREFS")){
+        HubDir()=dir;LookLoad();LauncherMode()=0;
+        Look().layout="sidebar";Look().music="off";Look().fontSize=110;Focus().banner=1;
+        LookDo(0,1);assert(GridOnly()&&Focus().banner==0);
+        Look().loaded=false;LookLoad();assert(GridOnly()&&Look().fontSize==110&&Look().music=="off");
+        LookDo(0,-1);assert(Look().layout=="sidebar");
+    }
+    puts("Partial/grid-only cards: visible, clipped, clickable, controller-follow and layout persistence intact");
 }
