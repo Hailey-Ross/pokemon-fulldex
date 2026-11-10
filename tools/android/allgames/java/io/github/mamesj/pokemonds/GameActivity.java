@@ -36,6 +36,34 @@ public class GameActivity extends SDLActivity {
     private static final int PICK_FOLDER = 4201;
     private static final int ASK_FILES = 4202;
     private static volatile GameActivity self;
+    private boolean resumed;
+    private final Handler fullscreenHandler = new Handler(Looper.getMainLooper());
+    private String fullscreenReason = "resume";
+    private final Runnable restoreFullscreen = () -> {
+        if (self != this || !resumed || isFinishing() || isDestroyed() || !hasWindowFocus()) return;
+        try {
+            boolean multiWindow = Build.VERSION.SDK_INT >= 24 && isInMultiWindowMode();
+            if (!FullscreenRestore.apply(getWindow(), mFullscreenModeActive, mScreenKeyboardShown, multiWindow)) {
+                startupTrace("[window] fullscreen restore skipped (" + fullscreenReason + ") full="
+                    + mFullscreenModeActive + " keyboard=" + mScreenKeyboardShown + " multi=" + multiWindow, true);
+                return;
+            }
+            applyCutoutMode(); // Retain the player's notch preference after SDL's style command.
+            android.view.View decor = getWindow().getDecorView();
+            startupTrace("[window] fullscreen restored (" + fullscreenReason + ") api=" + Build.VERSION.SDK_INT
+                + " decor=" + decor.getWidth() + "x" + decor.getHeight()
+                + " surface=" + (mSurface == null ? "none" : mSurface.getWidth() + "x" + mSurface.getHeight())
+                + " insets=" + decor.getRootWindowInsets(), true);
+        } catch (RuntimeException error) { Log.w(TAG, "Fullscreen restore failed", error); }
+    };
+
+    private void requestFullscreenRestore(String reason) {
+        fullscreenReason = reason;
+        fullscreenHandler.removeCallbacks(restoreFullscreen);
+        fullscreenHandler.post(restoreFullscreen);
+        // Some unlock transitions finish attaching/resizing the decor after focus returns.
+        fullscreenHandler.postDelayed(restoreFullscreen, 250);
+    }
     private SecondScreen secondScreen;
     // True from chooseFolder() until the picker (and the access question before it) is done.
     private static volatile boolean picking;
@@ -191,7 +219,8 @@ public class GameActivity extends SDLActivity {
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
-        if (hasFocus) applyCutoutMode();
+        if (hasFocus) { applyCutoutMode(); requestFullscreenRestore("focus"); }
+        else fullscreenHandler.removeCallbacks(restoreFullscreen);
     }
 
     private void applyScreenOrientation() {
@@ -314,8 +343,10 @@ public class GameActivity extends SDLActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        resumed = true;
         if (secondScreen != null) secondScreen.resumed(true);
         applyScreenOrientation();
+        requestFullscreenRestore("resume");
         // Back from Android's "All files access" page.
         if (picking && waitingForAccess) nextStep();
     }
@@ -323,11 +354,14 @@ public class GameActivity extends SDLActivity {
     @Override
     public void onConfigurationChanged(android.content.res.Configuration configuration) {
         super.onConfigurationChanged(configuration);
+        requestFullscreenRestore("configuration");
         if (secondScreen != null) secondScreen.refresh();
     }
 
     @Override
     protected void onPause() {
+        resumed = false;
+        fullscreenHandler.removeCallbacks(restoreFullscreen);
         if (secondScreen != null) secondScreen.resumed(false);
         super.onPause();
     }
@@ -351,6 +385,8 @@ public class GameActivity extends SDLActivity {
 
     @Override
     protected void onDestroy() {
+        resumed = false;
+        fullscreenHandler.removeCallbacks(restoreFullscreen);
         if (secondScreen != null) secondScreen.close();
         getContentResolver().unregisterContentObserver(rotationObserver);
         if (self == this) self = null;
