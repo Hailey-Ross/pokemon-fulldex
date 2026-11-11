@@ -713,8 +713,12 @@ struct Menu
         // (As many rows as fit at the smallest spacing; the rest scroll into view.)
         const int fit = std::max(1, (c.h - 4 - 6 * scale - (noteH ? noteH + 3 * scale : 0)) / ((UiLang::Tall() ? 14 : 9) * scale) - (hasTitle ? 3 : 2));
         const int shown = std::min((int)items.size(), fit);
-        if (selected < scroll) scroll = selected;
-        if (selected >= scroll + shown) scroll = selected - shown + 1;
+        // (A finger has scrolled the list, freeScroll: the chosen row need not be in view.)
+        if (!freeScroll)
+        {
+            if (selected < scroll) scroll = selected;
+            if (selected >= scroll + shown) scroll = selected - shown + 1;
+        }
         scroll = std::max(0, std::min(scroll, (int)items.size() - shown));
         // (The note's strip sits under the box, so the box leaves room for it: at 800x480 it was cut off.)
         const int availH = c.h - 4 - (noteH ? noteH + 3 * scale : 0);

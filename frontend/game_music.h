@@ -40,6 +40,10 @@ struct GameMusic
     // played by the game itself) by Sound Effects.)
     uint32_t streamChannels = 0, sampleChannels = 0;
     int16_t gameVolume[16] = {}; // the volume the game last asked for, before ours
+    // (For fast forward's music, ff_music.h: the players a song is on now, and a count that moves
+    // each time a song starts or stops.)
+    uint32_t musicOn = 0;
+    unsigned musicEvent = 0;
 
     uint8_t* players = nullptr; // the sound processor's 16 players, once found
     unsigned searchWait = 0;
@@ -115,8 +119,15 @@ struct GameMusic
             {
                 const int tracks = Tracks(a1, a2);
                 isMusic[a0] = tracks >= 4;
+                if (isMusic[a0]) { musicOn |= 1u << a0; musicEvent++; }
+                else if (musicOn >> a0 & 1) { musicOn &= ~(1u << a0); musicEvent++; }
                 gameVolume[a0] = 0; // (the sound processor starts a player at full: PlayerInit)
                 if (Log) fprintf(stderr, "[sound] player %u starts a sequence of %d tracks: %s\n", a0, tracks, isMusic[a0] ? "music" : "effect");
+            }
+            else if (id == 0x01 && a0 < 16 && (musicOn >> a0 & 1)) // STOP_SEQ: the song on this player ends
+            {
+                musicOn &= ~(1u << a0);
+                musicEvent++;
             }
             else if (id == 0x06 && a0 < 16 && a1 == 6 && a3 == 2) // PLAYER_PARAM: volume
             {

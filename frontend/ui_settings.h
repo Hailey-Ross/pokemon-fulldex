@@ -40,7 +40,7 @@ inline std::string Shown(const std::string& s, bool title)
 inline std::string Sentence(const std::string& s)
 {
     for (char ch : s) if (ch >= 'a' && ch <= 'z') return s; // (already written in sentence case)
-    static const char* const keep[] = { "FPS", "HUD", "GBA", "DS", "3D", "2D", "PC", "OK", "A", "B", "X", "Y", "L", "R", "MB", "GPU", "CPU", "JIT", "LCD", "HP", "TM", "HM" };
+    static const char* const keep[] = { "FPS", "HD", "HUD", "GBA", "DS", "3D", "2D", "PC", "OK", "A", "B", "X", "Y", "L", "R", "MB", "GPU", "CPU", "JIT", "LCD", "HP", "TM", "HM" };
     std::string out;
     bool start = true;
     size_t i = 0;

@@ -604,3 +604,40 @@ Play From Slot {}	スロット {} から遊ぶ
 Saved {}	保存 {}
 SAVES FOLDER	セーブフォルダ
 BESIDE THE ROMS	ROM の隣
+COULD NOT CREATE THE PICTURE FOLDER	画像フォルダを作成できませんでした
+COULD NOT KEEP THE SAVE FOLDER	セーブフォルダを保持できませんでした
+COULD NOT OPEN THIS ROM	このROMを開けませんでした
+COULD NOT SAVE THE PICTURE CHOICE	選んだ画像を保存できませんでした
+COULD NOT SAVE THE ROM FOLDER	ROMフォルダを保存できませんでした
+Choose A Picture	画像を選ぶ
+Choose ROMs Folder	ROMフォルダを選ぶ
+Choose the folder containing your ROMs	ROMが入っているフォルダを選んでください
+Choose the folder for your saves (they are copied there)	セーブデータのフォルダを選んでください(そこにコピーされます)
+DS GAMES: A RETRO LOOK OVER THE PICTURE. LCD GRID ADDS A FAINT PIXEL GRID. THE SAME CHOICE IS AVAILABLE IN THE GAME'S DISPLAY MENU.	DSゲーム：画面にレトロな見た目を重ねます。LCDグリッドは薄いピクセルの格子を加えます。同じ設定はゲーム中の画面メニューにもあります。
+DS SCREEN FILTER	DS画面フィルター
+FAST FORWARD BUTTON	早送りボタン
+FILE NOT IMPORTED	ファイルを取り込めませんでした
+GBA GAMES: A FAINT GRID BETWEEN THE PIXELS. AUTO KEEPS YOUR EXISTING GBA SETTING. CHANGES IN THE GAME'S DISPLAY MENU ARE REMEMBERED HERE.	GBAゲーム：ピクセルの間に薄い格子を入れます。自動は今のGBA設定をそのまま使います。ゲーム中の画面メニューでの変更はここに反映されます。
+GBA LCD EFFECT	GBA LCD効果
+Grid Only	グリッドのみ
+HOLD	長押し
+HOLD: RELEASE TO STOP. TOGGLE: PRESS ONCE TO START AND AGAIN TO STOP. APPLIES TO KEYBOARD, CONTROLLER AND ON-SCREEN FAST FORWARD.	長押し：離すと止まります。切り替え：一度押すと開始、もう一度押すと停止。キーボード、コントローラー、画面上の早送りに適用されます。
+HOLD: RELEASE TO STOP. TOGGLE: PRESS ONCE TO START AND AGAIN TO STOP. FOR THE KEYBOARD AND A CONTROLLER; THE >> BUTTON ON THE SCREEN IS ALWAYS A TAP ON, A TAP OFF.	長押し：離すと止まります。切り替え：一度押すと開始、もう一度押すと停止。キーボードとコントローラー用です。画面上の >> ボタンは常にタップでオン、もう一度タップでオフです。
+LCD GRID	LCDグリッド
+LOAD	ロード
+More Files	ほかのファイル
+More Folders	ほかのフォルダ
+NOT FOR THIS VERSION OF THE GAME.	このバージョンのゲームでは使えません。
+No ROMs found yet. Choose the folder containing your ROMs.	ROMがまだ見つかりません。ROMが入っているフォルダを選んでください。
+Parent Folder	上のフォルダ
+Previous Files	前のファイル
+Previous Folders	前のフォルダ
+QUIT GAME?	ゲームを終了しますか？
+RESET GAME?	ゲームをリセットしますか？
+ROM FOLDER CANNOT BE READ	ROMフォルダを読み込めません
+ROM FOLDER CHANGED	ROMフォルダを変更しました
+ROM FOLDER IS NOT AVAILABLE	ROMフォルダを利用できません
+SCANLINES	スキャンライン
+THE WIDESCREEN PATCH DOESN'T FIT	ワイドスクリーンパッチが合いません
+TOGGLE	切り替え
+Use This Folder	このフォルダを使う

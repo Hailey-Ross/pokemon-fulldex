@@ -240,6 +240,8 @@ Mon MonOf(const pksm::PKX& pk, int box, int slot)
     m.species = (int)pk.species();
     m.form = pk.alternativeForm();
     m.level = pk.level();
+    m.pid = (unsigned)pk.PID();
+    m.ability = (int)pk.ability();
     m.nickname = pk.nickname();
     m.speciesName = SpeciesName(m.species);
     m.trainer = pk.otName();
@@ -297,13 +299,28 @@ bool Save::FirstEmpty(int& box, int& slot) const
 
 namespace
 {
+// The ability a Pokémon has after evolving, as the games work it out: the new species' ability in
+// the slot it already had (first, second or hidden), or its first if it has none there (Haunter's
+// Levitate is Gengar's only one). Never through setAbility(): that takes 0, 1 or 2 where
+// abilityNumber() gives 1, 2 or 4, and in Gens 4 and 5 it makes the Pokémon a new personality value,
+// which the games never do (the evolved Pokémon then had the wrong ability or none, and a PID that
+// no longer matched how it was met). Gen 3 keeps its ability as one bit: nothing to write.
+void AbilityAfterEvolving(pksm::PKX& pk)
+{
+    if (pk.generation() == pksm::Generation::THREE) return;
+    const u8 n = pk.abilityNumber();
+    pksm::Ability a = pk.abilities(n == 4 ? 2 : n == 2 ? 1 : 0);
+    if (a == pksm::Ability::None) a = pk.abilities(0);
+    pk.ability(a);
+}
+
 // The trade evolution itself: species, ability by its slot, the item used up, the name if it had
 // none of its own (Gens 3 and 4 write names in capitals, from 5 on as words: "GOLEM", "Golem").
 void Evolve(pksm::PKX& pk, const TradeEvo& e, int generation)
 {
     const bool named = pk.nicknamed();
     pk.species(pksm::Species{(u16)e.to});
-    pk.setAbility(pk.abilityNumber());
+    AbilityAfterEvolving(pk);
     if (e.item) pk.heldItem((u16)0);
     if (!named)
     {

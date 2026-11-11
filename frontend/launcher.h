@@ -1304,6 +1304,32 @@ inline PanelBox PanelGeometry(const Canvas& c)
 }
 // The Tiles home: the chosen game's cover large in the middle of a row of covers, its name and the buttons under it,
 // a row of tiles (one per section) along the foot.
+// The Tiles home's carousel in motion: pos is where it stands among the games (2.5: halfway from
+// the third to the fourth), eased towards the chosen one each time it is drawn; drag is how far a
+// finger or the mouse holds it from there, in games. (The clock is the computer's own.)
+struct CarouselMotion
+{
+    double pos = -1, drag = 0;
+    std::string of;      // the tab and how many games pos is among: a change puts it at the chosen one
+    std::chrono::steady_clock::time_point at;
+    bool active = false; // still moving: the list draws again without waiting for input
+    void Release() { pos += drag; drag = 0; } // (the finger let go: on from where it was held)
+    double Step(int chosen, const std::string& among)
+    {
+        const auto now = std::chrono::steady_clock::now();
+        const double dt = std::min(0.1, std::chrono::duration<double>(now - at).count());
+        at = now;
+        if (pos < 0 || of != among) { pos = chosen; of = among; }
+        // (From further than three away the games in between are not run through.)
+        if (pos < chosen - 3) pos = chosen - 3;
+        if (pos > chosen + 3) pos = chosen + 3;
+        pos += (chosen - pos) * (1 - std::exp(-dt * 13));
+        if (std::abs(chosen - pos) < 0.004) pos = chosen;
+        active = pos != chosen;
+        return pos + drag;
+    }
+};
+inline CarouselMotion& Carousel() { static CarouselMotion m; return m; }
 struct TilesBox { int coverY, cover, nameY, metaY, btnY, tileY, tileH; int cols = 7, rows = 1, gapT = 14, musicH = 46; };
 inline TilesBox TilesGeometry(const Canvas& c)
 {
@@ -1630,7 +1656,8 @@ inline std::string ShortName(const Game& g)
 {
     if (!g.customName.empty()) return g.customName;
     std::string n = g.name;
-    if (const KnownGame* k = Known(g.code)) n = k->name;
+    const KnownGame* k = g.hack ? nullptr : Known(g.code); // (a hack by its own name: Renegade Platinum, not Platinum)
+    if (k) n = k->name;
     else n = TitleCase(n);
     for (const char* p : { "Pokemon ", "POKEMON ", "Pokémon " })
         if (n.rfind(p, 0) == 0) { n = n.substr(strlen(p)); break; }
@@ -1883,7 +1910,7 @@ struct LookPrefs
     std::string music = "corner";                 // corner (sidebar foot), top (Launcher > Music Player)
     bool avoidCutout = true;                      // Android: the launcher's screens keep clear of the camera cutout (Launcher > Camera Cutout)
     bool cursorButton = false;                   // the selector outline in the button colour (Theme Editor > Buttons)
-    std::string layout = "sidebar";              // sidebar, grid, panel, tiles (Launcher > Layout)
+    std::string layout = "sidebar";              // sidebar, grid, tiles (panel is kept as a file value only) (Launcher > Layout)
     bool loaded = false;
     std::string from;
     int edit = -1, field = 1;                    // (open: 0 to 5 a colour's wheel, 6 the blur and dim; its row)
@@ -3365,10 +3392,10 @@ inline int LookDo(int row, int dir)
         // (The menu: Layout, Theme Editor, My Themes, Theme Gallery.)
         if (row == 0)
         {
-            static const char* const layouts[] = { "sidebar", "grid", "panel", "tiles" };
-            int k = 0; for (int i = 0; i < 4; i++) if (l.layout == layouts[i]) k = i;
-            // Panel/carousel layouts are desktop-only; phone users choose the two grids.
-            l.layout = PhoneLook() ? (l.layout == "grid" ? "sidebar" : "grid") : layouts[(k + (dir < 0 ? 3 : 1)) % 4];
+            // (Panel is kept as a file value only. The carousel is for a desktop; a phone has the two grids.)
+            static const char* const layouts[] = { "sidebar", "grid", "tiles" };
+            int k = 0; for (int i = 0; i < 3; i++) if (l.layout == layouts[i]) k = i;
+            l.layout = PhoneLook() ? (l.layout == "grid" ? "sidebar" : "grid") : layouts[(k + (dir < 0 ? 2 : 1)) % 3];
             Focus().banner = 0;
             LookSave(); Hub().version++; return 0;
         }
@@ -4963,9 +4990,9 @@ inline int DrawLayoutPreviews(Canvas& c, int x, int y, int width, float u, int c
 {
     LayoutPreviews().clear();
     const bool phone = PhoneLook(), portrait = phone && c.h > c.w;
-    static const char* const keys[] = { "sidebar", "grid", "panel", "tiles" };
-    static const char* const labels[] = { "Sidebar", "Grid Only", "Panel", "Tiles" };
-    const int count = phone ? 2 : 4, gap = std::max(4, (int)(10 * u));
+    static const char* const keys[] = { "sidebar", "grid", "tiles" };
+    static const char* const labels[] = { "Sidebar", "Grid Only", "Tiles" };
+    const int count = phone ? 2 : 3, gap = std::max(4, (int)(10 * u));
     const int cellW = (width - gap) / 2;
     const int thumbH = portrait ? (int)(142 * u) : cellW * 9 / 16;
     const int thumbW = portrait ? thumbH * 9 / 16 : cellW;
@@ -4994,12 +5021,6 @@ inline int DrawLayoutPreviews(Canvas& c, int x, int y, int width, float u, int c
             const float stepX = (.95f - left) / cols, stepY = (foot - top) / rows;
             for (int i = 0; i < cols * rows; i++)
                 box(left + (i % cols) * stepX, top + (i / cols) * stepY, stepX - .02f, stepY - .035f, card);
-        }
-        else if (k == 2)
-        {
-            box(.05f, .07f, .90f, .09f, bar);
-            for (int i = 0; i < 5; i++) { box(.06f, .22f + i * .14f, .36f, .11f, bar); box(.075f, .23f + i * .14f, .07f, .09f, card); }
-            box(.57f, .24f, .25f, .42f, card); box(.51f, .77f, .17f, .08f, ink); box(.71f, .77f, .17f, .08f, bar);
         }
         else
         {
@@ -5702,7 +5723,7 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
             {
                 static const char* const titles[6] = { "Layout", "Theme Editor", "My Themes", "Theme Gallery", "Music Player", "Camera Cutout" };
                 static const char* const about[6] = {
-                    "How the home screen is set out. Sidebar has Continue Playing above the games. Grid Only hides that banner and uses the space for more rows. Panel has a list and preview; Tiles has a game carousel. Choose it to switch, or use left and right.",
+                    "How the home screen is set out. Sidebar has Continue Playing above the games. Grid Only hides that banner and uses the space for more rows. Tiles has a game carousel. Choose it to switch, or use left and right.",
                     "Change the launcher's look: the accent, the panels, the sidebar and the top bar, the buttons, the background, its blur and dim, and the glass's grain. Each can be a colour or a picture.",
                     "Keep the look you have now as a theme, with its pictures, and switch between your themes. Each is one .zip file you can send to a friend.",
                     "Browse themes other players have shared, try one on before you keep it, enter a theme code from a friend, or share one of your own.",
@@ -7017,7 +7038,7 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
             GT(c, x + (int)(32 * u), py + ph * 0.5f, i == SIDE_HOME ? "Games" : SideName(i), 14 * u, ink, true);
         }
     };
-    auto drawCarousel = [&]() {
+    auto drawCarousel = [&](bool animate) {
         // (The Tiles home: the chosen game's cover large in the middle, the ones either side smaller and dimmer; its name and details under it.)
         const TilesBox tb = TilesGeometry(c);
         const int k = v.SpotOf(selected);
@@ -7025,20 +7046,35 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
         const int S = tb.cover, cx = c.w / 2, cyc = tb.coverY + S / 2;
         const float ks = std::min(1.0f, S / (250.0f * u)); // (the covers either side smaller with the middle one)
         const int nearW = (int)(168 * u * ks), farW = (int)(112 * u * ks), sp1 = (int)(24 * u * ks), sp2 = (int)(16 * u * ks);
-        for (int d = -2; d <= 2; d++)
+        // Where each cover is and how large, a whole number of games from the middle; in between,
+        // part of the way from one place to the next, so the covers slide and grow as the
+        // carousel moves (Carousel: eased to the chosen game, or held by a finger).
+        const double at = animate ? Carousel().Step(k, std::to_string(tab) + "/" + std::to_string(v.spots.size())) : k;
+        const float widths[4] = { (float)S, (float)nearW, (float)farW, farW * 0.6f };
+        const float offs[4] = { 0, S / 2.0f + sp1 + nearW / 2.0f, S / 2.0f + sp1 + nearW + sp2 + farW / 2.0f, S / 2.0f + sp1 + nearW + sp2 + farW + sp2 + farW * 0.3f };
+        const float dims[4] = { 0, 0x70, 0xA0, 0xFF }, radii[4] = { 20, 14, 14, 14 };
+        const int mid = (int)std::floor(at + 0.5);
+        for (int pass = 0; pass < 2; pass++) // (the middle one last, over its neighbours as they pass)
+        for (int j = mid - 3; j <= mid + 3; j++)
         {
-            const int j = k + d;
-            if (j < 0 || j >= (int)v.spots.size()) continue;
+            if (j < 0 || j >= (int)v.spots.size() || (pass == 1) != (j == mid)) continue;
+            const float t = (float)(j - at), a = std::min(2.999f, std::fabs(t));
+            if (std::fabs(t) >= 2.95f) continue;
+            const int lo = (int)a;
+            const float f = a - lo;
+            auto mix = [&](const float* q) { return q[lo] + (q[lo + 1] - q[lo]) * f; };
+            const int w = std::max(2, (int)std::lround(mix(widths)));
+            const int x = cx + (int)std::lround((t < 0 ? -1 : 1) * mix(offs)) - w / 2, y = cyc - w / 2;
+            const float r = mix(radii) * u;
             const Game& g = games[v.spots[j].game];
-            const int a = d < 0 ? -d : d, w = d == 0 ? S : a == 1 ? nearW : farW;
-            const int off = d == 0 ? 0 : (d > 0 ? 1 : -1) * (a == 1 ? S / 2 + sp1 + w / 2 : S / 2 + sp1 + nearW + sp2 + w / 2);
-            const int x = cx + off - w / 2, y = cyc - w / 2;
-            if (d == 0) Glass::Glow(c, x, y, w, w, 20 * u, u);
-            DrawCover(c, g, x, y, w, w, (d == 0 ? 20 : 14) * u);
-            if (g.comingSoon) Glass::Round(c, x, y, w, w, (d == 0 ? 20 : 14) * u, 0x99000000u);
-            else if (d != 0) Glass::Round(c, x, y, w, w, 14 * u, a == 1 ? 0x70000000u : 0xA0000000u);
-            if (d == 0 && g.comingSoon) DrawComingSoon(c, g, x + w / 2, y + w * 0.5f, 16 * u, text);
-            if (d == 0 && g.favourite) Glass::DrawIcon(c, Glass::I_SPARKLE, x + w - 18 * u, y + 18 * u, 8 * u, 0xFFFFFFFFu);
+            const bool front = a < 0.5f;
+            if (front) Glass::Glow(c, x, y, w, w, r, u);
+            DrawCover(c, g, x, y, w, w, r);
+            const int dim = (int)mix(dims);
+            if (g.comingSoon) Glass::Round(c, x, y, w, w, r, 0x99000000u);
+            else if (dim > 0) Glass::Round(c, x, y, w, w, r, (uint32_t)std::min(255, dim) << 24);
+            if (front && g.comingSoon) DrawComingSoon(c, g, x + w / 2, y + w * 0.5f, 16 * u, text);
+            if (front && g.favourite) Glass::DrawIcon(c, Glass::I_SPARKLE, x + w - 18 * u, y + 18 * u, 8 * u, 0xFFFFFFFFu);
         }
         const Game& g = games[v.spots[k].game];
         const std::string nm = ShortName(g);
@@ -7225,7 +7261,7 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
                                    : tab == TAB_HACKS ? "No Romhacks Yet" : "No " + std::string(TabLabel(tab)) + " Games Yet";
             GT(c, (TilesHome() ? grid.gx : sp.tabsX) + (grid.cols * grid.colStep - GW(none, 16 * u, true)) / 2, (grid.top + grid.bottom) * 0.5f, none, 16 * u, hint, true);
         }
-    if (TilesHome()) drawCarousel();
+    if (TilesHome()) { /* (the carousel: over the kept picture, below, as it moves) */ }
     else for (const View::Spot& s : v.spots)
         if (visible(s) && !(PanelHome() && s.game == selected)) drawCard(s, false);
     moreBelow();
@@ -7233,7 +7269,7 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
     if (TilesOn() && Focus().page >= 0)
     {
         // The Tiles home's pages: over the home, dimmed, in a window.
-        drawCarousel(); drawTiles();
+        drawCarousel(false); drawTiles();
         // (The window is the launcher's own glass: inside it the theme's Background, so its boxes and rows take the Panels, Buttons and
         // Accent as on the other homes; outside it the home dimmed by the Background's Dim.)
         const int dimA = std::min(255, (int)(0xB0 * (0.5f + Look().dim / 20.0f)));
@@ -7265,7 +7301,7 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
     {
         if (Focus().page < 0)
         {
-            drawTiles(); drawBannerButtons();
+            drawCarousel(true); drawTiles(); drawBannerButtons();
             // NOW PLAYING: centred above the tile row, under the buttons.
             if (Music().shown && !Music().idle && Look().music != "off" && (Look().music != "top" || c.h > c.w))
             {

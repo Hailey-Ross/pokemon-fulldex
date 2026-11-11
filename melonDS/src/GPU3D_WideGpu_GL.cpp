@@ -17,6 +17,10 @@
 #include <mutex>
 #include <thread>
 #include "OpenGLSupport.h"
+#ifdef __ANDROID__
+#include <sched.h>
+#include <unistd.h>
+#endif
 #include "GPU3D_GLThread.h"
 
 #include "wide_gpu/wide_vsh_text.h"
@@ -35,12 +39,24 @@ namespace
 typedef void (*ClipControlFn)(GLenum origin, GLenum depth);
 constexpr GLenum LowerLeft = 0x8CA1, ZeroToOne = 0x935F; // GL_LOWER_LEFT, GL_ZERO_TO_ONE
 
-// The shaders are written for deko3D's compiler (GLSL 4.60); OpenGL 4.3 takes them as 4.30.
+// OpenGL ES (a phone: Android), where a few things are spelled differently: see Source, Texture,
+// Fetch and the final pass. Set by Init from the context's version.
+bool IsES = false;
+// What OpenGL ES needs done differently and desktop OpenGL can do too (vertices as attributes,
+// no noperspective, red and blue swapped for the read-back): on with OpenGL ES, and on a PC with
+// SSR_WIDEGPU_ES=1, so that the headless tests can compare those paths' pictures with the others.
+bool EsPaths = false;
+
+// The shaders are written for deko3D's compiler (GLSL 4.60); OpenGL 4.3 takes them as 4.30,
+// OpenGL ES 3.2 as 3.20 es with its precisions named and WIDE_ES defined (wide_vsh.glsl).
 std::string Source(const unsigned char* text, size_t size)
 {
     std::string s(reinterpret_cast<const char*>(text), size);
     const size_t at = s.find("#version 460");
-    if (at != std::string::npos) s.replace(at, 12, "#version 430 core");
+    if (at != std::string::npos)
+        s.replace(at, 12, IsES ? "#version 320 es\n#define WIDE_ES 1\nprecision highp float;\nprecision highp int;\n"
+                                 "precision highp sampler2D;\nprecision highp usampler2D;\nprecision highp usamplerBuffer;"
+                               : EsPaths ? "#version 430 core\n#define WIDE_ES 1" : "#version 430 core");
     return s;
 }
 
@@ -61,6 +77,25 @@ public:
     {
         // (SSR_WIDEGPU_SHADER=texbuf: the Switch's variant, the texture memory read as buffer
         // textures, to check its pictures here.)
+        const char* glVersion = (const char*)glGetString(GL_VERSION);
+        IsES = glVersion && strstr(glVersion, "OpenGL ES");
+        EsPaths = IsES || getenv("SSR_WIDEGPU_ES") != nullptr;
+        if (EsPaths && !IsES) fprintf(stderr, "[widegpu] OpenGL: the OpenGL ES paths (SSR_WIDEGPU_ES)\n");
+        if (IsES)
+        {
+            // (What the shaders need of it: storage buffers in both stages.)
+            GLint vs = 0, fs = 0;
+            glGetIntegerv(0x90D6 /* GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS */, &vs);
+            glGetIntegerv(0x90DA /* GL_MAX_FRAGMENT_SHADER_STORAGE_BLOCKS */, &fs);
+            fprintf(stderr, "[widegpu] %s: storage buffers a vertex shader %d, a fragment shader %d\n", glVersion, (int)vs, (int)fs);
+            // (The vertex shader takes its vertices as attributes there: phones' graphics chips
+            // give it none, Mali 0.)
+            if (fs < 3)
+            {
+                info = "this graphics chip gives the shaders too few storage buffers";
+                return false;
+            }
+        }
         const char* variant = getenv("SSR_WIDEGPU_SHADER");
         TexBuf = variant && !strcmp(variant, "texbuf");
         std::string fsh = Source(wide_fsh_text, sizeof(wide_fsh_text));
@@ -74,16 +109,38 @@ public:
             !OpenGL::CompileVertexFragmentProgram(EarlyProgram, Source(wide_vsh_text, sizeof(wide_vsh_text)),
                 Variant(fsh, "WIDE_EARLY"), "WideEarly", {}, {}) ||
             !OpenGL::CompileVertexFragmentProgram(FinalProgram, Source(final_vsh_text, sizeof(final_vsh_text)),
-                Source(final_fsh_text, sizeof(final_fsh_text)), "WideFinal", {}, {}))
+                EsPaths ? Variant(Source(final_fsh_text, sizeof(final_fsh_text)), "WIDE_SWAP_RB") : Source(final_fsh_text, sizeof(final_fsh_text)),
+                "WideFinal", {}, {}))
         {
             info = "the shaders did not compile (see the log)";
             return false;
+        }
+        if (EsPaths)
+        {
+            // (What each draw is told, as a plain uniform there: see wide_vsh.glsl.)
+            DrawLoc[0] = glGetUniformLocation(MainProgram, "uDraw");
+            DrawLoc[1] = glGetUniformLocation(EarlyProgram, "uDraw");
         }
         glGenBuffers(1, &FrameUBO);
         glGenBuffers(1, &DrawUBO);
         glGenBuffers(4, SSBO);
         glGenBuffers(1, &ReadPBO);
         glGenVertexArrays(1, &EmptyVAO);
+        if (EsPaths)
+        {
+            // The vertices as attributes, from the buffer the desktop's shader reads as storage.
+            glGenVertexArrays(1, &VertexVAO);
+            glBindVertexArray(VertexVAO);
+            glBindBuffer(GL_ARRAY_BUFFER, SSBO[0]);
+            const GLsizei stride = (GLsizei)sizeof(WideGpuVertex);
+            for (GLuint i = 0; i < 4; i++) glEnableVertexAttribArray(i);
+            glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, stride, (const void*)0);
+            glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, stride, (const void*)16);
+            glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, stride, (const void*)32);
+            glVertexAttribIPointer(3, 1, GL_UNSIGNED_INT, stride, (const void*)36);
+            glBindVertexArray(0);
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
+        }
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, SSBO[2]);
         glBufferData(GL_SHADER_STORAGE_BUFFER, 512 * 1024, nullptr, GL_DYNAMIC_DRAW);
         glBindBuffer(GL_SHADER_STORAGE_BUFFER, SSBO[3]);
@@ -93,7 +150,7 @@ public:
         glBindBuffer(GL_TEXTURE_BUFFER, AtlasBuf);
         glBufferData(GL_TEXTURE_BUFFER, WideGpuAtlas::Capacity * 4, nullptr, GL_DYNAMIC_DRAW);
         const GLenum formats[4] = { GL_R8UI, GL_R16UI, GL_R16UI, GL_R32UI };
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < 4 && (TexBuf || !IsES); i++)
         {
             glBindTexture(GL_TEXTURE_BUFFER, BufTex[i]);
             glTexBuffer(GL_TEXTURE_BUFFER, formats[i], i == 3 ? AtlasBuf : SSBO[i < 2 ? 2 : 3]);
@@ -103,7 +160,14 @@ public:
         glBufferData(GL_UNIFORM_BUFFER, sizeof(WideGpuFrameConstants), nullptr, GL_DYNAMIC_DRAW);
         glBindBuffer(GL_UNIFORM_BUFFER, DrawUBO);
         glBufferData(GL_UNIFORM_BUFFER, 16, nullptr, GL_DYNAMIC_DRAW);
-        if (WideGpuGLGetProc) ClipControl = (ClipControlFn)WideGpuGLGetProc("glClipControl");
+        if (WideGpuGLGetProc) ClipControl = (ClipControlFn)WideGpuGLGetProc(IsES ? "glClipControlEXT" : "glClipControl");
+        if (IsES)
+        {
+            // (Only where the extension is really there: a name alone may be answered with a stub.)
+            const char* ext = (const char*)glGetString(GL_EXTENSIONS);
+            if (!ext || !strstr(ext, "GL_EXT_clip_control")) ClipControl = nullptr;
+            fprintf(stderr, "[widegpu] depth from 0 to 1 (glClipControl): %s\n", ClipControl ? "yes" : "no");
+        }
         return glGetError() == GL_NO_ERROR;
     }
 
@@ -119,6 +183,7 @@ public:
         glDeleteBuffers(4, SSBO);
         glDeleteBuffers(1, &ReadPBO);
         glDeleteVertexArrays(1, &EmptyVAO);
+        if (VertexVAO) glDeleteVertexArrays(1, &VertexVAO);
         FreeTargets();
     }
 
@@ -207,7 +272,7 @@ public:
         glClearBufferfi(GL_DEPTH_STENCIL, 0, f.ClearDepthValue, f.ClearStencil);
 
         glUseProgram(MainProgram);
-        glBindVertexArray(EmptyVAO);
+        glBindVertexArray(EsPaths ? VertexVAO : EmptyVAO);
         glEnable(GL_DEPTH_TEST);
         glEnable(GL_STENCIL_TEST);
         glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE);
@@ -221,8 +286,12 @@ public:
                 earlyBound = d.Early;
             }
             const u32 params[4] = { d.First, d.Pixels, (u32)d.DepthBias, f.WDepth ? 1u : 0u };
-            glBindBuffer(GL_UNIFORM_BUFFER, DrawUBO);
-            glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(params), params);
+            if (EsPaths) glUniform4ui(DrawLoc[earlyBound ? 1 : 0], params[0], params[1], params[2], params[3]);
+            else
+            {
+                glBindBuffer(GL_UNIFORM_BUFFER, DrawUBO);
+                glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(params), params);
+            }
             glDepthFunc(f.WDepth ? (d.DepthLequal ? GL_GEQUAL : GL_GREATER) : (d.DepthLequal ? GL_LEQUAL : GL_LESS));
             glDepthMask(d.DepthWrite ? GL_TRUE : GL_FALSE);
             const GLenum func = d.StencilTest == WideGpuStencil::Always ? GL_ALWAYS :
@@ -233,7 +302,7 @@ public:
             if (d.Blend) glEnablei(GL_BLEND, 0);
             else glDisablei(GL_BLEND, 0);
             glColorMaski(1, d.WriteDepthAttr, d.WriteFogAttr, GL_FALSE, GL_FALSE);
-            glDrawArrays(GL_TRIANGLES, 0, d.Count);
+            glDrawArrays(GL_TRIANGLES, EsPaths ? (GLint)d.First : 0, d.Count);
         }
 
         // The final pass, and the picture read back.
@@ -245,6 +314,7 @@ public:
         glDrawBuffers(1, bufs);
         glColorMaski(0, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
         glUseProgram(FinalProgram);
+        glBindVertexArray(EmptyVAO);
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, ColorTex);
         glActiveTexture(GL_TEXTURE1);
@@ -254,7 +324,8 @@ public:
         glReadBuffer(GL_COLOR_ATTACHMENT0);
         glBindBuffer(GL_PIXEL_PACK_BUFFER, ReadPBO);
         glPixelStorei(GL_PACK_ALIGNMENT, 4);
-        glReadPixels(0, 0, W, H, GL_BGRA, GL_UNSIGNED_BYTE, nullptr);
+        // (OpenGL ES reads back RGBA only: there the final pass has swapped red and blue.)
+        glReadPixels(0, 0, W, H, EsPaths ? GL_RGBA : GL_BGRA, GL_UNSIGNED_BYTE, nullptr);
         glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
         glFlush();
         const GLenum err = glGetError();
@@ -270,7 +341,7 @@ public:
     {
         u32* out = Slots[slot].data();
         glBindBuffer(GL_PIXEL_PACK_BUFFER, ReadPBO);
-        const void* p = glMapBuffer(GL_PIXEL_PACK_BUFFER, GL_READ_ONLY);
+        const void* p = glMapBufferRange(GL_PIXEL_PACK_BUFFER, 0, (GLsizeiptr)W * H * 4, GL_MAP_READ_BIT);
         if (p) memcpy(out, p, (size_t)W * H * 4);
         else memset(out, 0, (size_t)W * H * 4);
         glUnmapBuffer(GL_PIXEL_PACK_BUFFER);
@@ -293,7 +364,10 @@ private:
         GLuint t;
         glGenTextures(1, &t);
         glBindTexture(GL_TEXTURE_2D, t);
-        glTexStorage2D(GL_TEXTURE_2D, 1, format, w, h);
+        // (glTexImage2D: glTexStorage2D is OpenGL 4.2, which the loader does not fetch for OpenGL ES.)
+        if (format == GL_RG32UI) glTexImage2D(GL_TEXTURE_2D, 0, GL_RG32UI, w, h, 0, GL_RG_INTEGER, GL_UNSIGNED_INT, nullptr);
+        else glTexImage2D(GL_TEXTURE_2D, 0, format, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         return t;
@@ -326,7 +400,8 @@ private:
     }
 
     GLuint MainProgram = 0, EarlyProgram = 0, FinalProgram = 0;
-    GLuint FrameUBO = 0, DrawUBO = 0, SSBO[4] {}, ReadPBO = 0, EmptyVAO = 0;
+    GLint DrawLoc[2] { -1, -1 };
+    GLuint FrameUBO = 0, DrawUBO = 0, SSBO[4] {}, ReadPBO = 0, EmptyVAO = 0, VertexVAO = 0;
     GLuint BufTex[4] {};   // the texture memory as bytes and 16-bit texels, the palette memory, the atlas (WIDE_TEXBUF)
     GLuint AtlasBuf = 0;
     bool TexBuf = false, AtlasSynced = false;
@@ -340,6 +415,43 @@ private:
 
 namespace
 {
+#ifdef __ANDROID__
+// A phone's processor has small cores beside its fast ones, and the system likes to put a thread
+// that mostly waits on a small one at a low clock. This thread's work is short but the emulation
+// waits for it (the picture's draw calls and its copy out of the graphics chip: now and then 6 to
+// 11 ms instead of 2, a frame shown late). So it is kept off the smallest cores: those whose top
+// clock is the lowest of all, when the cores differ. SSR_WIDEGPU_ANYCORE=1 leaves it alone.
+void KeepOffSmallCores()
+{
+    if (getenv("SSR_WIDEGPU_ANYCORE")) return;
+    long top[64] {}, lowest = 0, highest = 0;
+    int n = 0;
+    for (; n < 64; n++)
+    {
+        char path[96];
+        snprintf(path, sizeof(path), "/sys/devices/system/cpu/cpu%d/cpufreq/cpuinfo_max_freq", n);
+        FILE* f = fopen(path, "r");
+        if (!f) break;
+        if (fscanf(f, "%ld", &top[n]) != 1) top[n] = 0;
+        fclose(f);
+        if (!n || top[n] < lowest) lowest = top[n];
+        if (top[n] > highest) highest = top[n];
+    }
+    if (n < 2 || lowest == highest || lowest <= 0) return;
+    cpu_set_t set;
+    CPU_ZERO(&set);
+    int kept = 0;
+    for (int i = 0; i < n; i++)
+        if (top[i] > lowest)
+        {
+            CPU_SET(i, &set);
+            kept++;
+        }
+    if (kept && sched_setaffinity(0, sizeof(set), &set) == 0)
+        fprintf(stderr, "[widegpu] its thread keeps to the %d faster cores of %d\n", kept, n);
+}
+#endif
+
 // WideGpuGL on a thread of its own, its context current there for as long as it runs. Submit
 // copies the frame (and the texture memory it is drawn from) and hands it over; the thread draws
 // it and copies the picture into Target's memory; Fetch waits for that.
@@ -427,6 +539,9 @@ public:
 private:
     void Run()
     {
+#ifdef __ANDROID__
+        KeepOffSmallCores();
+#endif
         std::string info;
         bool ok = GLThreadRenderer::CreateContext && GLThreadRenderer::CreateContext(info);
         if (ok)
@@ -501,5 +616,12 @@ std::unique_ptr<WideGpuBackend> WideGpuMakeGL(std::string& info)
     if (!r->Init(info)) return nullptr;
     return r;
 }
+
+#ifdef __ANDROID__
+// The same for the software renderer's 3D thread (GPU3D_Soft.cpp). While fast forwarding it draws
+// one picture in several frames, mostly waits, and was put on a small core: 12 ms a picture
+// instead of 4, with the emulation waiting for it.
+void SsrKeepThreadOffSmallCores() { KeepOffSmallCores(); }
+#endif
 }
 #endif

@@ -31,6 +31,8 @@ struct Mon
     std::string speciesName;             // in English capitals: "SWAMPERT"
     bool shiny = false, egg = false;
     int heldItem = 0;
+    unsigned pid = 0;                    // its personality value: nothing the hub does may change it
+    int ability = 0;
 };
 
 class Save

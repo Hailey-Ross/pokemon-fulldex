@@ -16,6 +16,14 @@
 #endif
 
 // The context made by SsrCreateGLContext, and what was current before SsrEnterGLContext.
+// Android: OpenGL ES 3.2 (there is no desktop OpenGL on a phone); elsewhere desktop OpenGL.
+#ifdef __ANDROID__
+static const EGLenum OurApi = EGL_OPENGL_ES_API;
+static const EGLint OurRenderable = 0x0040; // EGL_OPENGL_ES3_BIT
+#else
+static const EGLenum OurApi = EGL_OPENGL_API;
+static const EGLint OurRenderable = EGL_OPENGL_BIT;
+#endif
 static EGLDisplay OurDisplay = EGL_NO_DISPLAY;
 static EGLContext OurContext = EGL_NO_CONTEXT;
 static EGLSurface OurSurface = EGL_NO_SURFACE;
@@ -49,7 +57,7 @@ static void SavePrevious()
 void SsrEnterGLContext()
 {
     SavePrevious();
-    eglBindAPI(EGL_OPENGL_API);
+    eglBindAPI(OurApi);
     eglMakeCurrent(OurDisplay, OurSurface, OurSurface, OurContext);
 }
 
@@ -110,7 +118,7 @@ bool SsrCreateGLContext(std::string& info)
         return false;
     }
     SavePrevious();
-    if (!eglBindAPI(EGL_OPENGL_API))
+    if (!eglBindAPI(OurApi))
     {
         info = EglError("eglBindAPI(OpenGL)");
         return false;
@@ -120,9 +128,9 @@ bool SsrCreateGLContext(std::string& info)
     // the context then failed with EGL_BAD_CONFIG); the drawing goes into the renderer's own
     // framebuffers anyway. (devkitPro's OpenGL example asks for the same.)
     const EGLint configLists[][16] = {
-        { EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT, EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8,
+        { EGL_RENDERABLE_TYPE, OurRenderable, EGL_RED_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_BLUE_SIZE, 8,
           EGL_ALPHA_SIZE, 8, EGL_DEPTH_SIZE, 24, EGL_STENCIL_SIZE, 8, EGL_NONE },
-        { EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT, EGL_NONE },
+        { EGL_RENDERABLE_TYPE, OurRenderable, EGL_NONE },
     };
     EGLConfig config = nullptr;
     EGLint count = 0;
@@ -130,19 +138,30 @@ bool SsrCreateGLContext(std::string& info)
         if (eglChooseConfig(display, attrs, &config, 1, &count) && count > 0) break;
     if (count < 1) config = nullptr;
     // OpenGL 4.3 core (as devkitPro's example), else 3.3 core, which melonDS's renderer needs.
+#ifdef __ANDROID__
+    const EGLint contextLists[][8] = {
+        { EGL_CONTEXT_MAJOR_VERSION, 3, EGL_CONTEXT_MINOR_VERSION, 2, EGL_NONE },
+        { EGL_CONTEXT_MAJOR_VERSION, 3, EGL_CONTEXT_MINOR_VERSION, 1, EGL_NONE },
+    };
+#else
     const EGLint contextLists[][8] = {
         { EGL_CONTEXT_OPENGL_PROFILE_MASK, EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT,
           EGL_CONTEXT_MAJOR_VERSION, 4, EGL_CONTEXT_MINOR_VERSION, 3, EGL_NONE },
         { EGL_CONTEXT_OPENGL_PROFILE_MASK, EGL_CONTEXT_OPENGL_CORE_PROFILE_BIT,
           EGL_CONTEXT_MAJOR_VERSION, 3, EGL_CONTEXT_MINOR_VERSION, 3, EGL_NONE },
     };
+#endif
     EGLContext context = EGL_NO_CONTEXT;
     std::string tried;
     for (const EGLint* attrs : contextLists)
     {
         context = eglCreateContext(display, config, EGL_NO_CONTEXT, attrs);
         if (context != EGL_NO_CONTEXT) break;
+        #ifdef __ANDROID__
+        tried += EglError(attrs[3] == 2 ? "eglCreateContext(ES 3.2)" : "eglCreateContext(ES 3.1)") + "; ";
+#else
         tried += EglError(attrs[3] == 4 ? "eglCreateContext(4.3 core)" : "eglCreateContext(3.3 core)") + "; ";
+#endif
     }
     if (context == EGL_NO_CONTEXT)
     {
@@ -164,7 +183,7 @@ bool SsrCreateGLContext(std::string& info)
     {
         const std::string surfacelessError = EglError("eglMakeCurrent without a surface");
         EGLSurface surface = EGL_NO_SURFACE;
-        const EGLint pbufferConfigAttrs[] = { EGL_SURFACE_TYPE, EGL_PBUFFER_BIT, EGL_RENDERABLE_TYPE, EGL_OPENGL_BIT, EGL_NONE };
+        const EGLint pbufferConfigAttrs[] = { EGL_SURFACE_TYPE, EGL_PBUFFER_BIT, EGL_RENDERABLE_TYPE, OurRenderable, EGL_NONE };
         EGLConfig pconfig = nullptr;
         EGLint pcount = 0;
         if (eglChooseConfig(display, pbufferConfigAttrs, &pconfig, 1, &pcount) && pcount > 0)

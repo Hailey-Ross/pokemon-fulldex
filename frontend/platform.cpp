@@ -195,16 +195,27 @@ void WriteFirmware(const Firmware& fw, u32, u32, void*)
     // Switch cannot replace a file with rename. Keep a rollback copy until the new one is in place.
     const std::string backup = Host::FirmwarePath + ".old";
     std::error_code error;
-    const bool hadOld = std::filesystem::exists(Host::FirmwarePath, error);
-    if (error || std::filesystem::exists(backup, error) || error) {
-        fprintf(stderr, "[firmware] could not replace settings; existing files kept\n"); return;
+    bool hadOld = std::filesystem::exists(Host::FirmwarePath, error);
+    if (error) { remove(tmp.c_str()); fprintf(stderr, "[firmware] could not replace settings; existing files kept\n"); return; }
+    // A rollback copy left by a save that was cut short (the power lost between the two renames):
+    // with no settings file it is the settings, and is put back; beside one it is out of date.
+    const bool staleBackup = std::filesystem::exists(backup, error);
+    if (error) { remove(tmp.c_str()); fprintf(stderr, "[firmware] could not replace settings; existing files kept\n"); return; }
+    if (staleBackup)
+    {
+        if (!hadOld) hadOld = rename(backup.c_str(), Host::FirmwarePath.c_str()) == 0;
+        else remove(backup.c_str());
+        if (std::filesystem::exists(backup, error) || error) {
+            remove(tmp.c_str()); fprintf(stderr, "[firmware] could not clear %s; existing files kept\n", backup.c_str()); return;
+        }
     }
     if (hadOld && rename(Host::FirmwarePath.c_str(), backup.c_str()) != 0) {
-        fprintf(stderr, "[firmware] could not back up settings; existing file kept\n"); return;
+        remove(tmp.c_str()); fprintf(stderr, "[firmware] could not back up settings; existing file kept\n"); return;
     }
     if (rename(tmp.c_str(), Host::FirmwarePath.c_str()) != 0) {
         if (hadOld && rename(backup.c_str(), Host::FirmwarePath.c_str()) != 0)
             fprintf(stderr, "[firmware] settings preserved in %s\n", backup.c_str());
+        remove(tmp.c_str());
         fprintf(stderr, "[firmware] could not install new settings\n"); return;
     }
     if (hadOld) remove(backup.c_str());
@@ -213,7 +224,11 @@ void WriteFirmware(const Firmware& fw, u32, u32, void*)
     // leave the old settings in place; deleting them before retrying could lose the DNS setup.
     std::error_code error;
     std::filesystem::rename(tmp, Host::FirmwarePath, error);
-    if (error) fprintf(stderr, "[firmware] settings not replaced: %s; previous file kept\n", error.message().c_str());
+    if (error)
+    {
+        remove(tmp.c_str());
+        fprintf(stderr, "[firmware] settings not replaced: %s; previous file kept\n", error.message().c_str());
+    }
 #endif
 }
 void WriteDateTime(int, int, int, int, int, int, void*) {}

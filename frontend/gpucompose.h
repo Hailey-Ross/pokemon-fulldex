@@ -337,9 +337,10 @@ private:
                 uint32_t* row = &Edge[y * 16];
                 if (c.pattern)
                 {
-                    if (inner) EdgeIn[y] = (EdgeCustomFailed ? 0xFF000000u : 0u) | (top.pixels[y * 256 + (side ? 239 : 16)] & 0xFFFFFF);
+                    const int from = c.row >= 0 ? c.row : y; // (another of the band's rows where a sprite is over this one's edge)
+                    if (inner) EdgeIn[y] = (EdgeCustomFailed ? 0xFF000000u : 0u) | (top.pixels[from * 256 + (side ? 239 : 16)] & 0xFFFFFF);
                     for (int k = 0; k < 16; k++)
-                        row[k] = (EdgeCustomFailed ? 0xFF000000u : 0u) | (top.pixels[y * 256 + (side ? 240 : 0) + k] & 0xFFFFFF);
+                        row[k] = (EdgeCustomFailed ? 0xFF000000u : 0u) | (top.pixels[from * 256 + (side ? 240 : 0) + k] & 0xFFFFFF);
                     continue;
                 }
                 uint32_t r = (c.rgb >> 16) & 0xFF, g = (c.rgb >> 8) & 0xFF, b = c.rgb & 0xFF;

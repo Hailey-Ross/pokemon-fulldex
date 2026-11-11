@@ -3,13 +3,31 @@
 
 ## Unreleased
 
-- Choose Hold or Toggle for the fast-forward button in launcher settings and in-game playback settings, shared by DS and GBA. Toggle works with a keyboard, controller or on-screen button.
+- **Catching a Pokémon: the nickname question no longer covers it** (#62). Only the Yes and No buttons are shown, at the right above the message, in every aspect ratio. In widescreen the Pokémon just caught is no longer cut in half.
+- **HeartGold and SoulSilver: the radio's words stay in view in widescreen.**
+- **Fast forward on Android is smooth, and faster.** Frames nobody sees no longer draw their 3D picture, the 3D thread keeps to the fast cores, and pictures reach the screen at an even pace. On a Pixel 9 Pro XL at 4x it went from about 2.2x with uneven pictures to 2.4x with even ones. The speed chosen is the most it will go: a phone runs as fast as it can keep smooth.
+- **DS fast forward: the music plays at its normal tempo and pitch** on Windows, Linux and Android, by playing the game's own music on a second, silent copy of the console (adapted from PokéDaisy). Switch, Mac, iPhone and iPad keep the earlier way for now.
+- **GBA games: the pause menu is the DS games' glass menu**, and **Save and Load have ten slots** with a picture of where each was saved, as in the DS games. A state saved before this update is Slot 1.
+- **Windows: steadier frame times** (#17). The wait before each picture woke up late on the system timer, about one picture in five on a 240 Hz screen; it now uses a precise timer.
+- **Android: WORLD ON GPU.** The widescreen world is drawn by the phone's graphics chip (OpenGL ES 3.2), with the processor as a fallback. On a Pixel 9 Pro XL this cut the power used at 60 FPS by about two thirds. The frame clock also follows the screen's own 60 Hz.
+- **Android: the in-game menus scroll by touch** (#117), also when the swipe starts on a heading.
+- **Moving Pokémon between games: trade evolutions keep the right Ability.** A Gen 4 Pokémon also keeps its personality value. (One already evolved this way can't be repaired, but the hub's backup of the save can be restored.)
+- **Launcher: Continue starts the last game** when tapped or clicked (it opened the game's menu), and **Android's Play starts a game found in the app's own folder** instead of asking for a ROMs folder first.
+- **GBA ROM hacks try widescreen** as their base game does.
+- **Black 2 and White 2: tidier edges** on the title screen and the banner corners in widescreen.
+- **New text translated** into Spanish, Italian, French, German, Japanese and Korean.
+
+- **The Tiles carousel slides.** The covers move and grow smoothly to the next game with the arrows, a click or a swipe, and follow the finger or the mouse while it drags.
+- **A ROM hack is shown by its own name** (Renegade Platinum, not Platinum) on the home screen.
+- **The game list finds the controller again after a GBA game** on a computer.
+
+- Choose Hold or Toggle for the fast-forward button in launcher settings and in-game playback settings, shared by DS and GBA. Toggle works with a keyboard or controller, and with the DS on-screen button; the GBA on-screen button stays a tap on, a tap off.
 
 - **Android restores fullscreen after resume/unlock.** Reapply system-bar and layout state when focus returns, with a bounded retry after the unlock transition. Windowed/multi-window mode, open keyboards and the chosen cutout preference are preserved. Retroid Pocket 6 hardware confirmation is pending.
 
-- **Layout choices have mini previews.** Sidebar, Grid Only, Panel and Tiles appear together in the preview panel, with the active choice outlined. Tap a miniature to select it; phones show their two supported grid layouts.
+- **Layout choices have mini previews.** Sidebar, Grid Only and Tiles appear together in the preview panel, with the active choice outlined. Tap a miniature to select it; phones show their two supported grid layouts.
 
-- **Grid Only launcher layout** hides Continue Playing and uses its space for more same-sized game cards. Sidebar, Panel and Tiles remain available.
+- **Grid Only launcher layout** hides Continue Playing and uses its space for more same-sized game cards. Sidebar and Tiles remain available.
 - **Launcher swipes coast gently and the mouse wheel scrolls the grid smoothly**, including fractional trackpad movement. A new press, controller navigation or an open menu stops coasting.
 - **Click the left stick to cycle visible companion tabs.** Existing custom button bindings take priority. Battle automatically opens its tab once when combat begins, allowing manual tab changes during the battle.
 
@@ -17,11 +35,11 @@
 
 - **Fixed aspect ratios keep world geometry aligned on ultrawide screens** (#139). The 3D world, 2D overlays and coverage checks use the same selected view width instead of stretching the world beneath the side bars.
 
-- **GBA fast-forward audio keeps pace with the game** (#123). Audio speeds up with fast-forward instead of accumulating a long delayed soundtrack; mute and normal-speed playback are preserved. Adapted from ArmondesIvo's PR #130.
+- **Fast-forward sound stays close to the picture** (#123), in the DS and the GBA games. The music keeps its own speed and pitch, and what is heard is never more than about two seconds behind the game (it could fall half a minute behind). Letting go of fast forward goes straight back to the live sound.
 
 - **ROM imports preserve different games sharing a filename.** An incoming ROM cannot overwrite a different existing ROM. Failed GBA imports also cannot launch the old same-named file, and read failures no longer count as identical file contents.
 
-- **Wi-Fi firmware settings survive failed replacements.** The previous settings file is retained when a write cannot be installed; Switch keeps a rollback copy. Oversized or incomplete firmware files are rejected with bounded memory use before starting a DS game.
+- **Wi-Fi firmware settings survive failed replacements.** The previous settings file is retained when a write cannot be installed; Switch keeps a rollback copy, and puts it back or clears it at the next start or save if a save was cut short. Oversized or incomplete firmware files are rejected with bounded memory use before starting a DS game.
 
 - **Android document-provider folders can import DS and GBA ROMs** (#124). Declining broad file access no longer cancels the folder picker. Unsupported filesystem providers use bounded background imports with clear success/failure messages; source saves are never imported or overwritten. Existing save locations are pinned before changing ROM folders.
 
@@ -71,14 +89,12 @@
 
 - **Choose a shared ROM folder from the launcher.** The ROMs page lets PC and Android players use an existing library without moving their saves.
 - **iOS: SideStore can register the app name.** Both app names now use Pokemon Fulldex without an accented letter.
-- **DS fast forward: sound keeps up with the picture.** Music and effects speed up together instead of playing from a growing backlog.
 - **Pause menu on touch screens: swipe settings rows to scroll.** Swiping no longer changes the setting under your finger; tapping still selects it.
 - **DS cheats can be named after a ROM.** A ROM-specific cheat file takes priority over the game-code files, and each ROM hack keeps its own enabled cheats.
-- **DS data-only hacks get separate saves too.** A matching code fingerprint is now checked against the complete ROM before it can be treated as the original game.
+- **A player's own clean game is not taken for a hack.** A copy whose program and files are a clean release's keeps the game's save and features, even where the dump differs from the listed one outside the game itself (the secure area, the padding at the end).
 
 - **Expanded DS ROM hacks get their own saves.** A ROM larger than its clean release is recognised as modified even if its code fingerprint, or an older cached result, says clean.
 - **GBA ultrawide screens: small text backgrounds no longer wrap across the picture.** The level-up window is kept from repeating at the opposite edge.
-- **GBA ROM hacks keep their own code when widescreen does not fit.** Incompatible widescreen patches are skipped, so the hack can play in its original layout.
 - **DS ROM hacks keep their own map memory and wild encounters.** Original-game memory modifications are no longer attached to recognised hacks.
 
 - **Switch: always close the network before handing a game back to the loader.** The launcher

@@ -1581,7 +1581,9 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             return;
         }
 #ifdef __ANDROID__
-        if (needFolder || games.empty())
+        // (Only with no game to play. With a ROM in the app's own folder and no ROMs folder
+        // chosen yet, Play asked for the folder instead of starting the game.)
+        if (games.empty())
         {
             chooseRomFolder();
             return;
@@ -2019,7 +2021,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
         SDL_Event e;
         // Idle waits must not cap an animated grid at 20 Hz. Vsync paces accelerated
         // renderers; the software fallback gets a short wait to avoid a busy loop.
-        const int inputWait = gridMotion.Active() || dragging ?
+        const int inputWait = gridMotion.Active() || dragging || (Launcher::TilesHome() && (Launcher::Carousel().active || Launcher::Carousel().drag != 0)) ?
             ((renderInfo.flags & SDL_RENDERER_PRESENTVSYNC) ? 0 : 8) : 50;
         bool any = SDL_WaitEventTimeout(&e, inputWait);
         while (any)
@@ -2548,16 +2550,41 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                     static int swX = 0, swY = 0;
                     const Launcher::TilesBox tb = Launcher::TilesGeometry(canvas);
                     const float su = Launcher::GU(canvas);
+                    // (One game along is from the middle cover to the one beside it.)
+                    const float ks = std::min(1.0f, tb.cover / (250.0f * su));
+                    const double oneGame = tb.cover / 2.0 + 24 * su * ks + 168 * su * ks / 2.0;
+                    Launcher::CarouselMotion& cm = Launcher::Carousel();
                     if (e.type == SDL_MOUSEBUTTONDOWN && e.button.button == SDL_BUTTON_LEFT) { swOn = my >= tb.coverY - (int)(10 * su) && my < tb.tileY; swX = mx; swY = my; }
+                    else if (e.type == SDL_MOUSEMOTION && swOn)
+                    {
+                        // The covers go along under the finger (once it has moved enough not to be a tap).
+                        const int dx = mx - swX, dy = my - swY;
+                        if (cm.drag != 0 || (std::abs(dx) > (int)(10 * su) && std::abs(dx) > std::abs(dy)))
+                        {
+                            const Launcher::View v = view();
+                            const int at = v.SpotOf(selected), last = (int)v.spots.size() - 1;
+                            double d = -dx / oneGame;
+                            // (Past the first or the last game the pull is only felt a little.)
+                            if (at >= 0 && at + d < 0) d = -at + (at + d) * 0.3;
+                            if (at >= 0 && at + d > last) d = last - at + (at + d - last) * 0.3;
+                            cm.drag = d == 0 ? 1e-6 : d;
+                        }
+                    }
                     else if (e.type == SDL_MOUSEBUTTONUP && swOn)
                     {
                         swOn = false;
                         const int dx = mx - swX, dy = my - swY;
-                        if (std::abs(dx) > (int)(48 * su) && std::abs(dx) > std::abs(dy) * 3 / 2)
+                        const bool held = cm.drag != 0;
+                        const double pulled = cm.drag;
+                        cm.Release(); // (on from where the finger left it, to the game it comes to rest on)
+                        if (held || (std::abs(dx) > (int)(48 * su) && std::abs(dx) > std::abs(dy) * 3 / 2))
                         {
                             // (The games, never the tiles or the buttons: whatever was chosen with a tap or the arrows is let go.)
                             Launcher::Focus() = Launcher::GlassFocus{}; onSettings = onTabs = false; follow = true;
-                            move(dx < 0 ? 2 : 1); // (left: the next game)
+                            // How many games along: the nearest to where it was let go, and a flick is at least one.
+                            int steps = (int)std::lround(pulled);
+                            if (steps == 0 && std::abs(dx) > (int)(48 * su)) steps = dx < 0 ? 1 : -1;
+                            for (int i = 0; i < std::abs(steps); i++) move(steps > 0 ? 2 : 1); // (left: the next game)
                             tapPlay = -1; pressed = dragging = false;
                             break;
                         }
@@ -2659,7 +2686,9 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                     if (Launcher::ContinueAt(canvas, mx, my))
                     {
                         const int cg = Launcher::ContinueGame(games, selected);
-                        if (cg >= 0) { selected = cg; onSettings = onTabs = false; Launcher::Focus() = Launcher::GlassFocus{}; choose(); }
+                        // (As A on the banner's Continue: the game starts. With the focus cleared and
+                        // nothing else, a tap or click here opened the game's menu instead.)
+                        if (cg >= 0) { selected = cg; onSettings = onTabs = false; Launcher::Focus() = Launcher::GlassFocus{}; Launcher::Focus().banner = 1; choose(); }
                         break;
                     }
                 }
@@ -2834,7 +2863,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 }
 #ifdef __ANDROID__
                 // (Asking for the ROM folder: a tap anywhere.)
-                if (e.type == SDL_MOUSEBUTTONDOWN && i < 0 && my >= (Launcher::Glassy(canvas) ? Launcher::Layout(canvas).top : 22 * s) && (needFolder || games.empty())) choose();
+                if (e.type == SDL_MOUSEBUTTONDOWN && i < 0 && my >= (Launcher::Glassy(canvas) ? Launcher::Layout(canvas).top : 22 * s) && games.empty()) choose();
 #endif
                 break;
             }
@@ -3619,7 +3648,23 @@ bool Start(int& argc, char**& argv)
     if (!Launcher::PlayState().empty() && game.platform == Launcher::DS && StateSlots::Exists(Launcher::PlayState())) { g_args.push_back("--state-load"); g_args.push_back(Launcher::PlayState()); }
     Launcher::PlayState().clear();
     // (Tests: SSR_TEST_ARGS, more arguments for the game chosen, e.g. "--frames 600".)
-    if (const char* extra = getenv("SSR_TEST_ARGS"))
+    // (On a phone, which cannot set the environment: the first line of test-args.txt in the
+    // app's own folder, e.g. "--env SSR_WIDE_THREADS=3". For measuring, never shipped in it.)
+    std::string testArgs = getenv("SSR_TEST_ARGS") ? getenv("SSR_TEST_ARGS") : "";
+#ifdef __ANDROID__
+    if (FILE* tf = fopen((fo.dir + "/test-args.txt").c_str(), "r"))
+    {
+        char line[512];
+        if (fgets(line, sizeof(line), tf))
+        {
+            testArgs = line;
+            while (!testArgs.empty() && (testArgs.back() == '\n' || testArgs.back() == '\r')) testArgs.pop_back();
+            fprintf(stderr, "[launcher] test-args.txt: %s\n", testArgs.c_str());
+        }
+        fclose(tf);
+    }
+#endif
+    if (const char* extra = testArgs.empty() ? nullptr : testArgs.c_str())
     {
         std::string a;
         for (const char* c = extra;; c++)

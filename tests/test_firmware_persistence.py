@@ -39,8 +39,14 @@ int main(int argc,char**argv){
  failBackup=true;WriteFirmware(fw,0,0,nullptr);assert(Read(Host::FirmwarePath)=="NEW");failBackup=false;
  failInstall=true;failRestore=true;WriteFirmware(fw,0,0,nullptr);
  assert(Read(Host::FirmwarePath+".old")=="NEW");
- failInstall=false;failRestore=false;WriteFirmware(fw,0,0,nullptr);
- assert(Read(Host::FirmwarePath+".old")=="NEW");
+ // The next save puts the rollback copy back, then replaces it: saving is not stuck.
+ failInstall=false;failRestore=false;Firmware later{{'L','A','T','E','R'}};WriteFirmware(later,0,0,nullptr);
+ assert(Read(Host::FirmwarePath)=="LATER");
+ assert(!std::filesystem::exists(Host::FirmwarePath+".old")&&!std::filesystem::exists(Host::FirmwarePath+".tmp"));
+ // A rollback copy left beside current settings is out of date and is cleared.
+ {std::ofstream f(Host::FirmwarePath+".old");f<<"STALE";}
+ WriteFirmware(fw,0,0,nullptr);
+ assert(Read(Host::FirmwarePath)=="NEW"&&!std::filesystem::exists(Host::FirmwarePath+".old"));
 #endif
 }
 '''

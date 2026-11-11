@@ -9,6 +9,9 @@
 // frame, for headless runs with SDL_VIDEODRIVER=offscreen; with GBAW_TEST_REALTIME set, at the
 // game's real pace on the graphics card, reporting how steadily the frames came), --data DIR
 // (the folder for roms, saves and settings).
+#include <sys/stat.h>
+#include <ctime>
+#include <cctype>
 #include <mgba/flags.h>
 #include <mgba/core/config.h>
 #include <mgba/core/core.h>
@@ -23,8 +26,10 @@
 
 #include "art.h"
 #include "fast_forward_button.h"
+#include "fast_forward_audio.h"
 #ifdef GBAW_EMBEDDED
 #include "embed.h"
+#include "gba_glass.h" // (the pause menu as the DS games draw it; Fulldex's frontend folder)
 // Cheats (CHEATS in the pause menu): Fulldex's, from its frontend folder (on the include path when
 // built into it). All off until the player turns one on.
 #if __has_include("gba_cheats.h")
@@ -164,7 +169,7 @@ const std::vector<Setting>& SettingsList()
           "GBA START: START IS THE GBA'S START, AND START AND SELECT TOGETHER OPEN THIS MENU." },
 #endif
         { "fast_button", "FAST FORWARD BUTTON", { { "hold", "HOLD" }, { "toggle", "TOGGLE" } }, "hold",
-          "HOLD: RELEASE TO STOP. TOGGLE: PRESS ONCE TO START AND AGAIN TO STOP. KEYBOARD, CONTROLLER AND ON-SCREEN BUTTON." },
+          "HOLD: RELEASE TO STOP. TOGGLE: PRESS ONCE TO START AND AGAIN TO STOP. FOR THE KEYBOARD AND A CONTROLLER; THE >> BUTTON ON THE SCREEN IS ALWAYS A TAP ON, A TAP OFF." },
         { "ff_speed", "FAST FORWARD SPEED", { { "2", "2X" }, { "3", "3X" }, { "4", "4X" }, { "8", "8X" } }, "3",
 #if defined(GBAW_PHONE)
           "HOW FAST FAST FORWARD GOES (THE >> BUTTON ON THE SCREEN, OR HOLD A CONTROLLER'S RIGHT TRIGGER)." },
@@ -558,6 +563,8 @@ struct App
     bool workersStarted = false;
     int bigW = 0, bigH = 0;
     SDL_Texture* uiTex = nullptr;
+    SDL_Texture* glassTex = nullptr; // (built into Fulldex: the glass pause menu, the window's size)
+    int glassTexW = 0, glassTexH = 0;
     int uiTexW = 0, uiTexH = 0;
     Canvas ui;
     bool testMode = false;
@@ -626,7 +633,18 @@ struct App
     // RetroAchievements, from the program this is built into (embed.h). None in the standalone game.
     const GbaWide::AchievementsHost* ra = nullptr;
     bool raReady = false;
-    enum PausePage { P_ROOT, P_RA, P_LIST, P_LOGIN, P_CHEATS, P_DISPLAY, P_SOUND, P_CONTROLS } pausePage = P_ROOT;
+    enum PausePage { P_ROOT, P_RA, P_LIST, P_LOGIN, P_CHEATS, P_DISPLAY, P_SOUND, P_CONTROLS, P_SETTINGS, P_QUIT, P_RESET, P_SAVE, P_LOAD } pausePage = P_ROOT;
+    // The pause menu as the DS games draw it (gba_glass.h): the page made from `pause` (BuildGlass),
+    // which of pause's rows each of its items is (-1: the page's own BACK), the item chosen on it
+    // (-1: the one for pause.selected), the paused game's picture it is drawn over, and a tap's
+    // slider value or choice card for the chosen setting.
+    GbaGlass::Page glass;
+    std::vector<int> glassRow;
+    int glassSel = -1;
+    PausePage glassPage = P_ROOT;
+    std::vector<uint32_t> glassShot;
+    int glassShotW = 0, glassShotH = 0;
+    int glassSlider = -1, glassPick = -1;
     std::vector<const Setting*> pageSettings; // the settings on the DISPLAY, SOUND or CONTROLS page, row by row
     bool typing = false;
     int raField = 0; // 0 the user name, 1 the password
@@ -826,7 +844,7 @@ struct App
     }
 
     bool ffWas = false;
-    int ffSpeedNow = 1; // Effective speed after the directional slow-down, set by the main loop.
+    FastForwardAudio ffAudio; // sound made while fast forwarding, played at its own speed
     void Sound(bool queue, bool ff = false)
     {
         if (!core) return;
@@ -843,19 +861,27 @@ struct App
         const double target = std::max(frameBytes * 4, deviceBytes * 2);
         if (ff != ffWas)
         {
-            if (!ff || set.Get("ff_mute") == "1") SDL_ClearQueuedAudio(audio);
+            // (Letting go drops what waited to be heard; the short device queue plays on.)
+            ffAudio.Clear();
+            if (ff && set.Get("ff_mute") == "1") SDL_ClearQueuedAudio(audio);
             ffWas = ff;
         }
         if (ff && set.Get("ff_mute") == "1") queue = false;
         double nudge = ff ? 0 : (target - queued) / target * 0.005;
         nudge = std::max(-0.005, std::min(0.005, nudge));
         mAudioResamplerSetSource(&resampler, buf, core->audioSampleRate(core) / ratio, true);
-        // Fit accelerated game audio into the same wall-clock interval. Otherwise several
-        // frames of normal-speed sound accumulate for every displayed frame.
-        const double squeeze = ff ? std::max(1, ffSpeedNow) : 1;
-        mAudioResamplerSetDestination(&resampler, &audioOut, have.freq * (1 + nudge) / squeeze);
+        mAudioResamplerSetDestination(&resampler, &audioOut, have.freq * (1 + nudge));
         mAudioResamplerProcess(&resampler);
-        const size_t n = mAudioBufferRead(&audioOut, audioTmp.data(), audioTmp.size() / 2);
+        size_t n = mAudioBufferRead(&audioOut, audioTmp.data(), audioTmp.size() / 2);
+        if (ff)
+        {
+            // Fast forward: the sound at its own speed and pitch, a stretch at a time, never more
+            // than about two seconds behind the picture (FastForwardAudio). The device's queue is
+            // kept topped up from it, so that queue is the clock.
+            if (queue) ffAudio.Push(audioTmp.data(), (int)n, have.freq);
+            const int want = (int)std::max(0.0, (target * 1.5 - queued) / 4);
+            n = queue ? (size_t)ffAudio.PullFrames(audioTmp.data(), std::min(want, (int)(audioTmp.size() / 2)), have.freq) : 0;
+        }
         const double room = std::max(frameBytes * 10, target * 3);
         if (queue && n && queued < room) SDL_QueueAudio(audio, audioTmp.data(), (Uint32)(n * 4));
     }
@@ -873,11 +899,11 @@ struct App
         const bool wantRa = false;
         (void)sold;
 #endif
-        // Hacks that fail a widescreen patch's checks play without that patch. Applying it
-        // over changed functions or occupied free space can overwrite the hack's own code.
+        // (A hack whose widescreen patch doesn't fit: tried anyway, unless the GBA's own shape
+        // was chosen, which is how to play it as it is when it glitches.)
         const std::string shape = set.Get("widescreen");
         const bool ownShape = shape == "off" || shape == "3:2" || shape == "4:3";
-        if (!Games::Prepare(g, rom, error, wantRa ? &sold : nullptr, !ownShape && !g.forced))
+        if (!Games::Prepare(g, rom, error, wantRa ? &sold : nullptr, !ownShape))
         {
             Toast(error, 5000);
             return false;
@@ -1016,7 +1042,7 @@ struct App
         for (auto& kv : artTex)
             if (kv.second) SDL_DestroyTexture(kv.second);
         artTex.clear();
-        for (SDL_Texture** t : { &uiTex, &bigTex, &gameTex, &hdTex, &lcdTex })
+        for (SDL_Texture** t : { &uiTex, &glassTex, &bigTex, &gameTex, &hdTex, &lcdTex })
             if (*t)
             {
                 SDL_DestroyTexture(*t);
@@ -1048,17 +1074,38 @@ struct App
         core->reloadConfigOption(core, "volume", nullptr);
     }
 
-    std::string StatePath() const { return states + "/" + game.key + ".ss"; }
-    void SaveState()
+    // Ten states a game, as the DS games have (SAVE and LOAD in the pause menu each open the
+    // slots). The first is the one state there was before: <game>.ss; the others <game>.2.ss ...
+    static constexpr int StateSlots = 10;
+    std::vector<uint32_t> slotThumb[StateSlots]; // (the slots' pictures while SAVE or LOAD is open)
+    int slotThumbW[StateSlots] = {}, slotThumbH[StateSlots] = {};
+    std::string StatePath(int slot = 0) const { return states + "/" + game.key + (slot > 0 ? "." + std::to_string(slot + 1) : std::string()) + ".ss"; }
+    // When the slot was saved ("12 NOV 21:05"); empty: nothing in it.
+    std::string StateDate(int slot) const
     {
-        struct VFile* vf = VFileOpen(StatePath().c_str(), O_CREAT | O_TRUNC | O_RDWR);
+        struct stat st;
+        if (stat(StatePath(slot).c_str(), &st) != 0) return "";
+        char buf[32] = "";
+        const time_t t = st.st_mtime;
+        if (const tm* lt = localtime(&t)) strftime(buf, sizeof(buf), "%d %b %H:%M", lt);
+        std::string out = buf;
+        for (char& c : out) c = (char)toupper((unsigned char)c);
+        return out;
+    }
+    void SaveState(int slot = 0)
+    {
+        struct VFile* vf = VFileOpen(StatePath(slot).c_str(), O_CREAT | O_TRUNC | O_RDWR);
         const bool ok = vf && mCoreSaveStateNamed(core, vf, SAVESTATE_RTC);
         if (vf) vf->close(vf);
+#ifdef GBAW_EMBEDDED
+        // (Its picture for the slot's card: the game as it was on the screen when the menu opened.)
+        if (ok && !glassShot.empty() && glassShotW > 0) GbaGlass::SaveSlotPicture(StatePath(slot), glassShot.data(), glassShotW, glassShotH);
+#endif
         Toast(ok ? "STATE SAVED" : "COULDN'T SAVE THE STATE");
     }
-    void LoadState()
+    void LoadState(int slot = 0)
     {
-        struct VFile* vf = VFileOpen(StatePath().c_str(), O_RDONLY);
+        struct VFile* vf = VFileOpen(StatePath(slot).c_str(), O_RDONLY);
         if (!vf)
         {
             Toast("NO SAVED STATE FOR THIS GAME YET");
@@ -1143,7 +1190,7 @@ struct App
     }
     bool FastDown() const
     {
-        return key[SDL_SCANCODE_LSHIFT] || pads.Axis(SDL_CONTROLLER_AXIS_TRIGGERRIGHT) > 16000 || (touchHeld & (1u << Touch::FAST));
+        return key[SDL_SCANCODE_LSHIFT] || pads.Axis(SDL_CONTROLLER_AXIS_TRIGGERRIGHT) > 16000;
     }
     bool FastForward() const
     {
@@ -1281,6 +1328,48 @@ struct App
             return;
         }
 #endif
+#ifdef GBAW_EMBEDDED
+        if (pausePage == P_SAVE || pausePage == P_LOAD)
+        {
+            // (A slot with nothing in it cannot be loaded.)
+            for (int i = 0; i < StateSlots; i++)
+            {
+                pause.items.push_back({ "SLOT " + std::to_string(i + 1), GbaGlass::SlotWhen(StatePath(i)), true });
+                GbaGlass::LoadSlotPicture(StatePath(i), slotThumb[i], slotThumbW[i], slotThumbH[i]);
+            }
+            pause.items.push_back({ "BACK", "" });
+            return;
+        }
+        if (pausePage == P_SETTINGS)
+        {
+            for (const char* l : { "DISPLAY", "SOUND", "CONTROLS", "RESET GAME", "BACK" }) pause.items.push_back({ l, "" });
+            return;
+        }
+        if (pausePage == P_QUIT || pausePage == P_RESET)
+        {
+            // (Asked first: either loses what was played since the last save in the game.)
+            pause.items.push_back({ pausePage == P_QUIT ? "QUIT GAME" : "RESET GAME", "" });
+            pause.items.push_back({ "CANCEL", "" });
+            return;
+        }
+        // (The first page as the DS games' pause menu has it: eight tiles. DISPLAY, SOUND, CONTROLS
+        // and RESET GAME are in SETTINGS.)
+        {
+            pause.items.push_back({ "RESUME", "" });
+            pause.items.push_back({ "SAVE STATE", "" });
+            pause.items.push_back({ "LOAD STATE", "" });
+#ifdef GBAW_CHEATS
+            pause.items.push_back({ "CHEATS", cheats.Active() && cheats.OnCount() ? std::to_string(cheats.OnCount()) + " ON" : "" });
+#else
+            pause.items.push_back({ "CHEATS", "" });
+#endif
+            pause.items.push_back({ "FAST FORWARD", fastToggle ? "ON" : "OFF" });
+            pause.items.push_back({ "RETROACHIEVEMENTS", raReady && ra && ra->on && ra->on(ra->ud) ? "ON" : "" });
+            pause.items.push_back({ "SETTINGS", "" });
+            pause.items.push_back({ "QUIT", "" });
+            return;
+        }
+#endif
         pause.items.push_back({ "RESUME", "" });
         pause.items.push_back({ "SAVE STATE", "" });
         pause.items.push_back({ "LOAD STATE", "" });
@@ -1317,6 +1406,11 @@ struct App
         pausePage = P_ROOT;
 #endif
         pause.selected = 0;
+#ifdef GBAW_EMBEDDED
+        glassSel = -1;
+        glassShotW = glassShotH = 0;
+        glassSlider = glassPick = -1;
+#endif
         BuildPause();
         if (audio)
         {
@@ -1431,8 +1525,7 @@ struct App
         }
         if (in.back || (in.accept && pause.selected == GbaCheats::COUNT))
         {
-            pausePage = P_ROOT;
-            pause.selected = 0;
+            GoPage(P_ROOT, "CHEATS");
             return;
         }
         if (!in.accept && !in.left && !in.right) return;
@@ -1463,7 +1556,7 @@ struct App
         if (in.back || (in.accept && pause.items[i].label == "BACK"))
         {
             const char* from = pausePage == P_DISPLAY ? "DISPLAY" : pausePage == P_SOUND ? "SOUND" : "CONTROLS";
-            pausePage = P_ROOT;
+            pausePage = P_SETTINGS;
             BuildPause();
             pause.selected = 0;
             for (size_t j = 0; j < pause.items.size(); j++)
@@ -1480,9 +1573,23 @@ struct App
             return;
         }
 #endif
-        if (!(in.left || in.right || in.accept) || i < 0 || i >= (int)pageSettings.size()) return;
+        if (i < 0 || i >= (int)pageSettings.size()) return;
         const Setting& s = *pageSettings[i];
-        set.Step(s, in.left ? -1 : 1);
+        int step = in.left ? -1 : 1;
+        bool go = in.left || in.right || in.accept;
+        // (A tap on the volume's bar, or on one of the preview's choices: straight to that value.)
+        const int want = glassSlider >= 0 && !strcmp(s.key, "volume") ? glassSlider : glassPick;
+        if (want >= 0 && want < (int)s.values.size())
+        {
+            int cur = 0;
+            const std::string v = set.Get(s.key);
+            for (size_t j = 0; j < s.values.size(); j++)
+                if (s.values[j].first == v) cur = (int)j;
+            step = want - cur;
+            go = step != 0;
+        }
+        if (!go) return;
+        set.Step(s, step);
         if (!strcmp(s.key, "fullscreen"))
         {
             const bool want = set.Int("fullscreen");
@@ -1494,9 +1601,419 @@ struct App
     }
 #endif
 
+#ifdef GBAW_EMBEDDED
+    // Another page of the pause menu, on the row named.
+    void GoPage(PausePage page, const char* row)
+    {
+        pausePage = page;
+        BuildPause();
+        pause.selected = 0;
+        for (size_t j = 0; j < pause.items.size(); j++)
+            if (pause.items[j].label == row) pause.selected = (int)j;
+    }
+    void ResetGame()
+    {
+        core->reset(core);
+#ifdef GBAW_CHEATS
+        cheats.Reset();
+#endif
+        if (raReady && ra && ra->reset) ra->reset(ra->ud);
+        Resume();
+    }
+    // SETTINGS (links to DISPLAY, SOUND, CONTROLS, and RESET GAME) and the two questions.
+    void HubPageInput(const MenuIn& in)
+    {
+        if (in.menu)
+        {
+            Resume();
+            return;
+        }
+        const int n = (int)pause.items.size();
+        const std::string item = pause.selected >= 0 && pause.selected < n ? pause.items[pause.selected].label : std::string();
+        if (pausePage == P_SAVE || pausePage == P_LOAD)
+        {
+            const bool saving = pausePage == P_SAVE;
+            if (in.back || (in.accept && item == "BACK")) GoPage(P_ROOT, saving ? "SAVE STATE" : "LOAD STATE");
+            else if (in.accept && pause.selected < StateSlots)
+            {
+                if (!saving && StateDate(pause.selected).empty()) return;
+                if (saving) SaveState(pause.selected);
+                else LoadState(pause.selected);
+                Resume();
+            }
+            return;
+        }
+        if (pausePage == P_SETTINGS)
+        {
+            if (in.back || (in.accept && item == "BACK")) GoPage(P_ROOT, "SETTINGS");
+            else if (!in.accept) return;
+            else if (item == "DISPLAY" || item == "SOUND" || item == "CONTROLS")
+            {
+                pausePage = item == "DISPLAY" ? P_DISPLAY : item == "SOUND" ? P_SOUND : P_CONTROLS;
+                BuildPause();
+                pause.selected = 0;
+            }
+            else if (item == "RESET GAME") GoPage(P_RESET, "CANCEL");
+            return;
+        }
+        const bool quitting = pausePage == P_QUIT;
+        if (in.back || (in.accept && item == "CANCEL"))
+        {
+            if (quitting) GoPage(P_ROOT, "QUIT");
+            else GoPage(P_SETTINGS, "RESET GAME");
+            return;
+        }
+        if (!in.accept) return;
+        if (quitting) Stop();
+        else ResetGame();
+    }
+
+    static const char* SettingIcon(const char* key, int& icon)
+    {
+        using namespace GbaGlass;
+        static const struct { const char* key; int icon; } icons[] = {
+            { "widescreen", IC_RATIO }, { "fullscreen", IC_FULLSCREEN }, { "scaling", IC_EXPAND }, { "hd_filter", IC_SPARKLE },
+            { "lcd", IC_GRID }, { "colour", IC_MONITOR }, { "show_fps", IC_GAUGE }, { "volume", IC_SPEAKER }, { "ff_mute", IC_FAST },
+            { "gba_start", IC_PAD }, { "buttons", IC_PAD }, { "ff_speed", IC_FAST }, { "fast_button", IC_FAST } };
+        icon = IC_GEAR;
+        for (const auto& i : icons)
+            if (!strcmp(i.key, key)) icon = i.icon;
+        return key;
+    }
+    std::string ShownOf(const char* key) const
+    {
+        for (const Setting& s : SettingsList())
+            if (!strcmp(s.key, key)) return set.Shown(s);
+        return std::string();
+    }
+
+    // The page of the pause menu that is open, as the DS games' menu draws it (gba_glass.h): the
+    // first page as tiles, the others as settings pages with a preview, the questions as cards.
+    void BuildGlass()
+    {
+        using namespace GbaGlass;
+        Page& g = glass;
+        g.items.clear();
+        glassRow.clear();
+        g.style = PAGE;
+        g.icon = -1;
+        g.tall = false;
+        g.slotGrid = false;
+        g.title.clear();
+        g.note.clear();
+        g.headerNote.clear();
+#ifdef GBAW_PHONE
+        g.touchRows = 1.5f; // (rows big enough for a finger)
+#endif
+        auto put = [&](const Item& it, int row) {
+            g.items.push_back(it);
+            glassRow.push_back(row);
+        };
+        auto page = [&](const char* title, int icon) {
+            g.title = title;
+            g.icon = icon;
+            Item b;
+            b.label = "BACK";
+            b.kind = BACK;
+            put(b, -1);
+        };
+        auto link = [&](int row, const char* label, int icon, const std::string& value, const char* sub, const char* desc) {
+            Item it;
+            it.label = label;
+            it.kind = LINK;
+            it.icon = icon;
+            it.value = value;
+            it.info = true;
+            it.sub = sub;
+            it.desc = desc;
+            put(it, row);
+        };
+        const int n = (int)pause.items.size();
+        g.hint = Hint("ENTER: SELECT   ESC: BACK", "A: SELECT   B: BACK", "TAP: CHOOSE   OUTSIDE: BACK");
+        if (pausePage == P_ROOT)
+        {
+            g.style = TILES;
+            g.title = game.name;
+            g.hint = Hint("ENTER: SELECT   ESC: RESUME", "A: SELECT   B: RESUME", "TAP: CHOOSE   OUTSIDE: RESUME");
+            for (int i = 0; i < n; i++)
+            {
+                const std::string& l = pause.items[i].label;
+                Item t;
+                t.label = l;
+                t.value = pause.items[i].value;
+                if (l == "RESUME") t.icon = IC_PLAY;
+                else if (l == "SAVE STATE") t.label = "SAVE", t.icon = IC_SAVE;
+                else if (l == "LOAD STATE") t.label = "LOAD", t.icon = IC_LOAD;
+                else if (l == "CHEATS")
+                {
+                    t.icon = IC_CHEATS;
+#ifdef GBAW_CHEATS
+                    t.disabled = !cheats.Active();
+#else
+                    t.disabled = true;
+#endif
+                }
+                else if (l == "FAST FORWARD") t.icon = IC_FAST;
+                else if (l == "RETROACHIEVEMENTS") t.label = "ACHIEVEMENTS", t.icon = IC_TROPHY, t.disabled = !raReady;
+                else if (l == "SETTINGS") t.icon = IC_GEAR;
+                else if (l == "QUIT") t.label = "QUIT GAME", t.icon = IC_POWER;
+                put(t, i);
+            }
+        }
+        else if (pausePage == P_SETTINGS)
+        {
+            page("SETTINGS", IC_GEAR);
+            g.tall = true;
+            for (int i = 0; i < n; i++)
+            {
+                const std::string& l = pause.items[i].label;
+                if (l == "DISPLAY")
+                    link(i, "DISPLAY", IC_MONITOR, ShownOf("widescreen"), "Aspect ratio, scaling, filters",
+                         "The shape of the picture, how the GBA's small picture is enlarged, the HD filter, the LCD effect, colour correction and the FPS counter.");
+                else if (l == "SOUND")
+                    link(i, "SOUND", IC_SPEAKER, ShownOf("volume"), "Volume, fast forward sound", "The game's volume, and whether its sound carries on while fast forwarding.");
+                else if (l == "CONTROLS")
+                    link(i, "CONTROLS", IC_PAD, ShownOf("ff_speed"), "START button, fast forward",
+                         "What a controller's START does, how the buttons are named, and fast forward's speed and button.");
+                else if (l == "RESET GAME")
+                    link(i, "RESET GAME", IC_REWIND, "", "Start again from the title screen", "Restarts the game. Progress since your last save in the game will be lost.");
+            }
+        }
+        else if (pausePage == P_SAVE || pausePage == P_LOAD)
+        {
+            const bool saving = pausePage == P_SAVE;
+            // (As the DS games' SAVE and LOAD: the ten slots as cards, each its picture and when it was saved.)
+            page(saving ? "SAVE" : "LOAD", saving ? IC_SAVE : IC_LOAD);
+            g.slotGrid = true;
+            for (int i = 0; i < n && i < StateSlots; i++)
+            {
+                Item it;
+                it.label = pause.items[i].label;
+                it.value = pause.items[i].value;
+                it.kind = SLOT;
+                it.disabled = !saving && it.value.empty();
+                it.thumb = slotThumb[i];
+                it.thumbW = slotThumbW[i];
+                it.thumbH = slotThumbH[i];
+                put(it, i);
+            }
+        }
+        else if (pausePage == P_QUIT || pausePage == P_RESET)
+        {
+            const bool quitting = pausePage == P_QUIT;
+            g.style = DIALOG;
+            g.icon = quitting ? IC_POWER : IC_REWIND;
+            g.title = quitting ? "QUIT GAME?" : "RESET GAME?";
+            g.note = "Progress since your last save in the game will be lost.";
+            for (int i = 0; i < n; i++)
+            {
+                Item it;
+                it.label = pause.items[i].label;
+                put(it, i);
+            }
+        }
+        else if (pausePage == P_DISPLAY || pausePage == P_SOUND || pausePage == P_CONTROLS)
+        {
+            page(pausePage == P_DISPLAY ? "DISPLAY" : pausePage == P_SOUND ? "SOUND" : "CONTROLS",
+                 pausePage == P_DISPLAY ? IC_MONITOR : pausePage == P_SOUND ? IC_SPEAKER : IC_PAD);
+            for (int i = 0; i < n; i++)
+            {
+                if (pause.items[i].label == "BACK") continue;
+                Item it;
+                it.label = pause.items[i].label;
+                it.value = pause.items[i].value;
+                if (i < (int)pageSettings.size())
+                {
+                    const Setting& s = *pageSettings[i];
+                    SettingIcon(s.key, it.icon);
+                    it.desc = s.text;
+                    for (size_t j = 0; j < s.values.size(); j++)
+                    {
+                        it.choices.push_back(s.values[j].second);
+                        if (s.values[j].second == it.value) it.choice = (int)j;
+                    }
+                    const bool onOff = s.values.size() == 2 &&
+                        ((s.values[0].second == "OFF" && s.values[1].second == "ON") || (s.values[0].second == "ON" && s.values[1].second == "OFF"));
+                    if (onOff)
+                    {
+                        // (Off is the left pill and On the right, whichever the setting keeps first.)
+                        it.kind = TOGGLE;
+                        it.choices = { "OFF", "ON" };
+                        it.choice = it.value == "ON" ? 1 : 0;
+                    }
+                    else
+                    {
+                        it.kind = PICKER;
+                        if (!strcmp(s.key, "volume")) it.slider = std::max(0, it.choice);
+                    }
+                }
+                else
+                {
+                    // (TOUCH CONTROLS, on a phone: opens the layout's editor.)
+                    it.kind = LINK;
+                    it.icon = IC_PAD;
+                    it.info = true;
+                    it.desc = "Move and resize the buttons on the screen.";
+                }
+                put(it, i);
+            }
+        }
+#ifdef GBAW_CHEATS
+        else if (pausePage == P_CHEATS)
+        {
+            page("CHEATS", IC_CHEATS);
+            if (cheats.OnCount()) g.headerNote = std::to_string(cheats.OnCount()) + " ON";
+            for (int i = 0; i < n && i < GbaCheats::COUNT; i++)
+            {
+                Item it;
+                it.label = pause.items[i].label;
+                it.kind = TOGGLE;
+                it.icon = IC_CHEATS;
+                it.choices = { "OFF", "ON" };
+                it.choice = cheats.Has(i) && cheats.On(i) ? 1 : 0;
+                it.value = it.choice ? "ON" : "OFF";
+                it.disabled = !cheats.Has(i);
+                it.desc = cheats.Has(i) ? GbaCheats::About(i).note : "NOT FOR THIS VERSION OF THE GAME.";
+                it.tip = "Achievements pause while any cheat is on.";
+                put(it, i);
+            }
+        }
+#endif
+        else
+        {
+            // RetroAchievements' pages: the account, the list, the log in.
+            page(pausePage == P_RA ? "RETROACHIEVEMENTS" : pausePage == P_LIST ? "ACHIEVEMENTS" : "LOG IN", IC_TROPHY);
+            if (pausePage == P_RA)
+            {
+                char detail[80] = {};
+                if (ra && ra->detail && ra->detail(ra->ud, detail, sizeof detail) && detail[0]) g.headerNote = detail;
+            }
+            for (int i = 0; i < n; i++)
+            {
+                const std::string& l = pause.items[i].label;
+                if (l == "BACK") continue;
+                Item it;
+                it.label = l;
+                it.value = pause.items[i].value;
+                it.info = true;
+                it.icon = IC_TROPHY;
+                if (pausePage == P_LIST)
+                {
+                    it.icon = it.value == "DONE" ? IC_TROPHY : IC_INFO;
+                    if (i < (int)achDesc.size()) it.desc = achDesc[i];
+                }
+                else if (pausePage == P_LOGIN)
+                {
+                    it.icon = i < 2 ? IC_INFO : IC_TROPHY;
+                    if (i >= 2) it.kind = LINK;
+                    it.desc = i < 2 ? "Type with the keyboard." : i == 2 ? "Log in to RetroAchievements with the name and password typed." : "Back without logging in.";
+                    if (i == 1) it.tip = "The password goes to RetroAchievements once and is then forgotten.";
+                }
+                else if (l == "RETROACHIEVEMENTS")
+                {
+                    it.kind = TOGGLE;
+                    it.info = false;
+                    it.choices = { "OFF", "ON" };
+                    it.choice = it.value == "ON" ? 1 : 0;
+                    it.desc = "Earn RetroAchievements while you play this game.";
+                    it.tip = "Achievements pause while any cheat is on.";
+                }
+                else if (pause.items[i].fixed) it.icon = IC_INFO;
+                else it.kind = LINK;
+                put(it, i);
+            }
+        }
+        // The item chosen: as it was left on this page, or the one for pause's row.
+        if (glassPage != pausePage)
+        {
+            glassPage = pausePage;
+            glassSel = -1;
+        }
+        const int count = (int)g.items.size();
+        if (glassSel < 0 || glassSel >= count)
+        {
+            glassSel = -1;
+            for (int i = 0; i < count && glassSel < 0; i++)
+                if (glassRow[i] == pause.selected) glassSel = i;
+            for (int i = 0; i < count && glassSel < 0; i++)
+                if (g.items[i].kind != BACK && g.items[i].kind != SECTION) glassSel = i;
+            if (glassSel < 0) glassSel = 0;
+        }
+        g.selected = glassSel;
+    }
+
+    // The glass menu over the game: the game as just drawn is read back once (blurred under the
+    // menu), the page drawn at the window's size and shown whole.
+    void DrawGlass(int ow, int oh)
+    {
+        BuildGlass();
+        if (glassShotW != ow || glassShotH != oh)
+        {
+            glassShotW = ow;
+            glassShotH = oh;
+            glassShot.assign((size_t)ow * oh, 0);
+            if (!SDL_RenderReadPixels(ren, nullptr, SDL_PIXELFORMAT_ARGB8888, glassShot.data(), ow * 4)) GbaGlass::Frame(glassShot.data(), ow, oh);
+            else GbaGlass::Frame(nullptr, 0, 0); // (a renderer that cannot be read: the menu over the darkened game)
+        }
+        bool changed = false;
+        const uint32_t* px = GbaGlass::Draw(glass, ow, oh, changed);
+        if (!glassTex || glassTexW != ow || glassTexH != oh)
+        {
+            if (glassTex) SDL_DestroyTexture(glassTex);
+            glassTex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, ow, oh);
+            glassTexW = ow;
+            glassTexH = oh;
+            if (glassTex) SDL_SetTextureBlendMode(glassTex, SDL_BLENDMODE_BLEND);
+            changed = true;
+        }
+        if (!glassTex) return;
+        if (changed) SDL_UpdateTexture(glassTex, nullptr, px, ow * 4);
+        SDL_RenderCopy(ren, glassTex, nullptr, nullptr);
+    }
+
+    // The highlight moves as in the DS games' menu (tiles in a grid, rows of a page, a question's
+    // two buttons); what is chosen is then acted on by PauseAct, as a press on its row.
+    void PauseInput(const MenuIn& raw)
+    {
+        BuildGlass();
+        GbaGlass::Input gi;
+        gi.up = raw.up; gi.down = raw.down; gi.left = raw.left; gi.right = raw.right; gi.accept = raw.accept;
+        int dir = 0;
+        const int hit = GbaGlass::Update(glass, gi, dir);
+        glassSel = glass.selected;
+        if (glassSel >= 0 && glassSel < (int)glassRow.size() && glassRow[glassSel] >= 0) pause.selected = glassRow[glassSel];
+        MenuIn in = raw;
+        in.up = in.down = in.left = in.right = in.accept = false;
+        if (hit >= 0 && hit < (int)glass.items.size())
+        {
+            if (glass.items[hit].kind == GbaGlass::BACK) in.back = true;
+            else if (glassRow[hit] >= 0)
+            {
+                pause.selected = glassRow[hit];
+                (dir < 0 ? in.left : dir > 0 ? in.right : in.accept) = true;
+            }
+        }
+        if (pausePage == P_LOGIN && pause.selected <= 1) raField = pause.selected;
+        const int selWas = pause.selected;
+        const PausePage pageWas = pausePage;
+        PauseAct(in);
+        if (pausePage != pageWas || pause.selected != selWas) glassSel = -1; // (the row the action chose)
+        glassSlider = glassPick = -1;
+    }
+#endif
+
+#ifdef GBAW_EMBEDDED
+    void PauseAct(const MenuIn& in)
+#else
     void PauseInput(const MenuIn& in)
+#endif
     {
 #ifdef GBAW_EMBEDDED
+        if (pausePage == P_SETTINGS || pausePage == P_QUIT || pausePage == P_RESET || pausePage == P_SAVE || pausePage == P_LOAD)
+        {
+            HubPageInput(in);
+            return;
+        }
         if (pausePage == P_LOGIN)
         {
             LoginInput(in);
@@ -1527,8 +2044,8 @@ struct App
             }
             if (in.back)
             {
-                pausePage = pausePage == P_LIST ? P_RA : P_ROOT;
-                pause.selected = 0;
+                if (pausePage == P_LIST) GoPage(P_RA, "ACHIEVEMENTS");
+                else GoPage(P_ROOT, "RETROACHIEVEMENTS");
                 return;
             }
             const bool turn = pausePage == P_RA && (in.left || in.right);
@@ -1562,10 +2079,7 @@ struct App
                 if (ra && ra->logout) ra->logout(ra->ud);
             }
             else if (item == "BACK")
-            {
-                pausePage = P_ROOT;
-                pause.selected = 0;
-            }
+                GoPage(P_ROOT, "RETROACHIEVEMENTS");
             return;
         }
 #endif
@@ -1590,6 +2104,35 @@ struct App
             return;
         }
         if (!in.accept) return;
+#ifdef GBAW_EMBEDDED
+        if (item == "SETTINGS")
+        {
+            GoPage(P_SETTINGS, "DISPLAY");
+            return;
+        }
+        // (SAVE and LOAD: the slots, on the one saved last.)
+        if (item == "SAVE STATE" || item == "LOAD STATE")
+        {
+            int newest = 0;
+            time_t when = 0;
+            for (int i = 0; i < StateSlots; i++)
+            {
+                struct stat st;
+                if (stat(StatePath(i).c_str(), &st) == 0 && st.st_mtime > when) { when = st.st_mtime; newest = i; }
+            }
+            GoPage(item == "SAVE STATE" ? P_SAVE : P_LOAD, ("SLOT " + std::to_string(newest + 1)).c_str());
+            return;
+        }
+        if (item == "QUIT")
+        {
+            GoPage(P_QUIT, "CANCEL");
+            return;
+        }
+        if (item == "RETROACHIEVEMENTS" && !raReady) return;
+#ifdef GBAW_CHEATS
+        if (item == "CHEATS" && !cheats.Active()) return;
+#endif
+#endif
         if (item == "RESUME") Resume();
         else if (item == "SAVE STATE")
         {
@@ -2080,6 +2623,13 @@ struct App
         bool any = true;
         if (screen == LIST) DrawList(ui);
         else if (screen == SETTINGS) DrawSettings(ui);
+#ifdef GBAW_EMBEDDED
+        else if (paused && core)
+        {
+            DrawGlass(ow, oh); // (shown here, under the messages)
+            any = false;
+        }
+#endif
         else if (paused)
         {
             std::string title = game.name;
@@ -2288,7 +2838,12 @@ struct App
                     }
                     break;
                 case SDL_SCANCODE_ESCAPE:
+#ifdef GBAW_EMBEDDED
+                    // (As the DS games' menu: ESC goes back a page, and from the first page to the game.)
+                    if (!e.key.repeat) (screen == LIST ? in.escape : paused ? in.back : in.menu) = true;
+#else
                     if (!e.key.repeat) (screen == LIST ? in.escape : in.menu) = true;
+#endif
                     break;
                 case SDL_SCANCODE_H: in.settings = true; break;
                 case SDL_SCANCODE_O: in.folder = true; break;
@@ -2436,13 +2991,15 @@ struct App
                 if (f.type == SDL_FINGERDOWN)
                 {
                     if (m & (1u << Touch::MENU)) in.menu = true;
+                    // (The >> button on the screen: a tap turns fast forward on, another off.)
+                    if (m & (1u << Touch::FAST)) fastToggle = !fastToggle;
                     if (m & 0x3FF)
                     {
                         touchTap |= m & 0x3FF;
                         touchTapFrames = 3;
                     }
                 }
-                fingers[f.fingerId] = m & (0x3FF | (1u << Touch::FAST));
+                fingers[f.fingerId] = m & 0x3FF;
             }
             touchHeld = 0;
             for (const auto& kv : fingers) touchHeld |= kv.second;
@@ -2461,6 +3018,20 @@ struct App
             in.settings = true;
             return;
         }
+#ifdef GBAW_EMBEDDED
+        if (screen == PLAY && paused)
+        {
+            // (The glass menu is the window's size: the tap in its pixels.)
+            GbaGlass::Input gi;
+            GbaGlass::Tap(glass, (int)(f.x * ow), (int)(f.y * oh), gi, glassSlider, glassPick);
+            glassSel = glass.selected;
+            if (gi.left) in.left = true;
+            if (gi.right) in.right = true;
+            if (gi.accept) in.accept = true;
+            if (gi.back) in.back = true;
+            return;
+        }
+#endif
         if (screen == PLAY && paused)
         {
             for (int i = 0; i < (int)pause.rows.size(); i++)
@@ -2674,7 +3245,6 @@ struct App
                     tapDirs = dirs;
                     if (speed > 1 && dirs && SDL_GetTicks() - tapSince < 250) speed = 1;
                 }
-                ffSpeedNow = speed;
                 for (int i = 0; i < run * speed; i++) RunFrame(true, speed > 1);
             }
             else
@@ -2829,7 +3399,7 @@ std::vector<ListGame> Find(const std::string& roms, const std::string& saves)
         l.file = g.ips.empty() ? g.rom : g.ips;
         l.art = g.patch.empty() ? std::string() : Games::ArtCode(g.sha1);
         l.hasSave = g.hasSave;
-        l.widescreen = !g.patch.empty() && !g.forced;
+        l.widescreen = !g.patch.empty();
         l.hack = !g.known;
         out.push_back(l);
     }
@@ -2848,6 +3418,16 @@ bool Art(const std::string& name, const unsigned char*& jpeg, size_t& size)
     return false;
 }
 
+// On a computer the game list closed SDL before the game and starts it again after: SDL is closed
+// here too, as the list left it. Left running, the list's own start would be a second one that
+// finds nothing new, and SDL tells of the controllers only when it starts: the list then had none.
+// (Not on a phone or the Switch: SDL stays up there between the list and the game.)
+static void LeaveSdl()
+{
+#if !defined(GBAW_PHONE) && !defined(__SWITCH__) && !defined(__ANDROID__) && !(defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE)
+    SDL_Quit();
+#endif
+}
 bool Play(const std::string& file, const Options& o)
 {
     if (!InitSdl()) return false;
@@ -2861,6 +3441,7 @@ bool Play(const std::string& file, const Options& o)
     {
         fprintf(stderr, "[gba] can't open a window: %s\n", SDL_GetError());
         app->Close();
+        LeaveSdl();
         return false;
     }
     app->OpenAudio();
@@ -2877,6 +3458,7 @@ bool Play(const std::string& file, const Options& o)
     if (started) app->Run();
     else fprintf(stderr, "[gba] %s: not a GBA game in %s\n", file.c_str(), o.roms.c_str());
     app->Close();
+    LeaveSdl();
     return started;
 }
 

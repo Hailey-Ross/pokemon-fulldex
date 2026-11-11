@@ -137,11 +137,12 @@ for abi in $ABIS; do
             -DSDL_STATIC=OFF -DSDL_TEST=OFF >/dev/null
     ninja -C "$DEPS/build-sdl2-$abi" install >/dev/null
     say "Compiling for Android ($abi)"
-    # The JIT for every game, no libpng (screenshots are for tests), the world drawn by the CPU
-    # (the graphics-chip version is OpenGL, Android has OpenGL ES), and on x86_64 SSE rather than
-    # the building machine's AVX2.
+    # The JIT for every game, no libpng (screenshots are for tests), WORLD ON GPU through
+    # OpenGL ES 3.2 (SSR_GPU3D: melonDS/src/GPU3D_WideGpu_GL.cpp; a phone that cannot do it
+    # draws the world with the processor as before), and on x86_64 SSE rather than the
+    # building machine's AVX2.
     cmake -S . -B "build-android-all-$abi" "${ARGS[@]}" -DSDL2_DIR="$SDL_PREFIX/lib/cmake/SDL2" \
-        -DSSR_JIT=ON -DSSR_PC_ALL_GAMES=ON -DSSR_PNG=OFF -DSSR_GPU3D=OFF -DSSR_PORTABLE_X86=ON \
+        -DSSR_JIT=ON -DSSR_PC_ALL_GAMES=ON -DSSR_PNG=OFF -DSSR_GPU3D=ON -DSSR_PORTABLE_X86=ON \
         -DSSR_GENERATED_DIR="$HERE/build-gen-tables" -DSSR_PC_ART="$ART" -DSSR_GBA_DIR="${SSR_GBA_DIR:-}" ${ONLINE[@]+"${ONLINE[@]}"} >/dev/null
     ninja -C "build-android-all-$abi" ssrecomp
     mkdir -p "build-android-dist/lib/$abi"

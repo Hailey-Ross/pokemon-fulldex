@@ -742,6 +742,9 @@ public:
         int streamL = w, streamR = -1;
         if (enemyShift > 0)
         {
+            // (The pieces that are neither Pokémon's, each with its middle: see below.)
+            std::vector<int> parts;
+            std::vector<std::pair<int, int>> partEnds;
             Comp.assign((size_t)w * 192, 0);
             for (size_t start = 0; start < Fg.size(); start++)
             {
@@ -794,7 +797,11 @@ public:
                 else if (atEnemy || (!atPlayer && bw <= 72 && bh <= 72 && nearEnemy(cx, cy, 36)))
                     for (int p : Members) Move[p] = 1;
                 else if (!atPlayer)
+                {
                     for (int p : Members) Bridge[p] = 1;
+                    parts.insert(parts.end(), Members.begin(), Members.end());
+                    partEnds.push_back({ (int)parts.size(), cx });
+                }
             }
             // One span for the whole stream. Lengthening each row by its own width put a
             // horizontal cut through Flamethrower: the rows above the middle of the screen
@@ -810,6 +817,22 @@ public:
                 // Not a stream between the two Pokémon. A short effect on the wild Pokémon's
                 // side (its shadow, a hit spark) moves with it.
                 streamR = -1;
+                // Each such piece whole, by where its middle is: with the wild Pokémon when it
+                // is nearer its place than the middle of the screen, else left where it is.
+                // Moved pixel by pixel from the gap's right edge on, the Pokémon just caught,
+                // shown in the middle of the screen while the game asks for a nickname, was cut
+                // in two there, its right half moved out.
+                int first = 0;
+                for (const auto& end : partEnds)
+                {
+                    const bool moves = end.second >= (128 + EnemyX) / 2;
+                    for (int k = first; k < end.first; k++)
+                    {
+                        Bridge[parts[k]] = 0;
+                        if (moves) Move[parts[k]] = 1;
+                    }
+                    first = end.first;
+                }
                 for (int y = 0; y < 192; y++)
                 {
                     uint8_t* bridge = &Bridge[(size_t)y * w];

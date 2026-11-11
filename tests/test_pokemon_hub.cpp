@@ -144,7 +144,7 @@ int main(int, char** argv)
                 auto again = Load((work / n).string());
                 bool ok = false;
                 for (const Mon& x : again->Box(m.box))
-                    if (x.slot == m.slot) { ok = x.species == c.evolvesTo; printf("%s: %s -> \"%s\"\n", n.c_str(), c.evolution.c_str(), x.nickname.c_str()); }
+                    if (x.slot == m.slot) { CHECK(x.pid == m.pid); CHECK(x.ability != 0); ok = x.species == c.evolvesTo; printf("%s: %s -> \"%s\" (ability %d -> %d, PID %08X -> %08X)\n", n.c_str(), c.evolution.c_str(), x.nickname.c_str(), m.ability, x.ability, m.pid, x.pid); }
                 if (!ok) printf("%s: %s -> NOT FOUND after reading back (box %d slot %d)\n", n.c_str(), c.evolution.c_str(), m.box + 1, m.slot + 1);
                 CHECK(ok);
                 done = true;

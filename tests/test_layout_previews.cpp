@@ -21,7 +21,8 @@ int main(int argc,char** argv){
         PhoneUi()=phone;GlassOn()=true;Focus()=GlassFocus{};Focus().page=SIDE_LAUNCHER;Focus().side=-1;
         Canvas c;c.Resize(size.first,size.second);Look().layout="sidebar";
         auto draw=[&](){c.Clear();DrawPage(c,Spots(c),false,GU(c));};
-        draw();auto choices=LayoutPreviews();assert(choices.size()==(PhoneLook()?2:4));
+        draw();auto choices=LayoutPreviews();assert(choices.size()==(PhoneLook()?2:3));
+        for(const auto& hit:choices)assert(hit.layout!="panel"); // (kept as a file value only)
         const auto original=c.px;
         for(const auto& hit:choices){
             assert(hit.w>0&&hit.h>0&&hit.x>=0&&hit.x+hit.w<=c.w&&hit.y>=0&&hit.y+hit.h<=c.h);

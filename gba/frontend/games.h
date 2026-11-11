@@ -304,8 +304,8 @@ struct Game
     uint32_t colour = 0xFF505A70;
     bool known = false;
     bool hasSave = false;
-    // A cached widescreen candidate that failed its checks. It plays without the patch unless
-    // a later explicit retry passes the checks.
+    // A hack whose widescreen patch doesn't fit (why says what is in the way): tried all the same,
+    // unless the player chose the GBA's own shape (ASPECT RATIO 3:2 or 4:3).
     bool forced = false;
 };
 
@@ -373,8 +373,8 @@ inline void Identify(Game& g, const std::vector<uint8_t>& rom)
     {
         PatchFits(rom, *p, why);
         g.why = why;
-        // Remember a candidate for old scan caches and diagnostics, but do not apply it over
-        // changed functions or occupied free space.
+        // A hack of one of the games (its code kept): widescreen tried anyway, its patch put on
+        // over what the hack changed. (Not when the ROM is too small for it.)
         if (why != "TOO SMALL")
         {
             g.patch = p->name;
@@ -651,7 +651,7 @@ inline std::vector<Game> Scan(const std::string& romsDir, const std::string& sav
 // (what RetroAchievements identifies the game by). tryForced false: a hack whose widescreen patch
 // doesn't fit (g.forced) plays as it is.
 inline bool Prepare(const Game& g, std::vector<uint8_t>& rom, std::string& error, std::vector<uint8_t>* beforeWide = nullptr,
-                    bool tryForced = false)
+                    bool tryForced = true)
 {
     if (!ReadFile(g.rom, rom))
     {
@@ -672,9 +672,7 @@ inline bool Prepare(const Game& g, std::vector<uint8_t>& rom, std::string& error
     if (g.patch.empty() || (g.forced && !tryForced)) return true;
     const WidePatch* p = FindPatch(g.patch);
     std::string why;
-    // A matching cartridge code does not mean a hack kept the game's functions or free
-    // space. Even an explicitly retried cached candidate must pass the safety checks.
-    if (p && g.forced && !PatchFits(rom, *p, why)) return true;
+    if (p && g.forced) return ApplyIps(rom, p->ips, p->ipsSize) || (error = "THE WIDESCREEN PATCH DOESN'T FIT", false);
     if (!p || !PatchFits(rom, *p, why) || !ApplyIps(rom, p->ips, p->ipsSize))
     {
         error = "THE WIDESCREEN PATCH DOESN'T FIT: " + why;
