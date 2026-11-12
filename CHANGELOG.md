@@ -3,6 +3,7 @@
 
 ## Unreleased
 
+- **Pokémon Omega Ruby and Alpha Sapphire join the list** (3DS tab), played by their own native programs from the player's own dump. **Windows:** a dump (.3ds) in the roms folder is listed; the first time it is chosen, its code is built from the dump once (5 to 15 minutes, the list showing how it goes, other games still playable), then it plays and quitting it returns to the list. The program comes in the download's 3ds folder; each game keeps its own folder and saves there. **Switch:** the folders the FullDex Builder makes are listed (one tile a game) and started from the list. Android has its own app for now. Their COMING SOON tiles are gone.
 - **Catching a Pokémon: the nickname question no longer covers it** (#62). Only the Yes and No buttons are shown, at the right above the message, in every aspect ratio. In widescreen the Pokémon just caught is no longer cut in half.
 - **HeartGold and SoulSilver: the radio's words stay in view in widescreen.**
 - **Fast forward on Android is smooth, and faster.** Frames nobody sees no longer draw their 3D picture, the 3D thread keeps to the fast cores, and pictures reach the screen at an even pace. On a Pixel 9 Pro XL at 4x it went from about 2.2x with uneven pictures to 2.4x with even ones. The speed chosen is the most it will go: a phone runs as fast as it can keep smooth.

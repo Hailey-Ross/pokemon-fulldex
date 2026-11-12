@@ -29,6 +29,20 @@ Windows may warn that the program is from an unknown publisher the first time: c
 On Linux there is nothing else to install: SDL2 comes with it (libSDL2-2.0.so.0).
 
 
+OMEGA RUBY AND ALPHA SAPPHIRE (WINDOWS)
+--------------------------------------
+
+The Windows download also plays your own copies of Pokemon Omega Ruby and Alpha Sapphire (3DS).
+1. Put your dump (a .3ds file) in the roms folder. It shows in the 3DS tab.
+2. The first time you choose it, it is prepared: the game's code is built from your dump, once,
+   on your PC (5 to 15 minutes, using every core). The list shows how it is going; you can carry
+   on choosing other games meanwhile. This needs no download.
+3. Then choose it again to play. Quitting it brings you back to the list.
+Each game keeps its own folder, with its saves and settings, in 3ds (3ds\000400000011C400 is
+Omega Ruby, 3ds\000400000011C500 Alpha Sapphire). For the Switch and Android, see the FullDex
+Builder on the releases page.
+
+
 STEAM DECK
 ----------
 

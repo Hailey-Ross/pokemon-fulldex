@@ -290,6 +290,7 @@ inline int Make(const std::string& dir, const std::vector<Launcher::Game>& games
     const HRESULT init = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     for (const Launcher::Game& g : games)
     {
+        if (g.platform == Launcher::N3DS) continue; // (3DS games: their own programs, n3ds.h)
         if (!g.known || g.hack || !done.insert(g.code).second) continue; // (the games, not hacks of them)
         IShellLinkW* link = nullptr;
         if (FAILED(CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER, IID_IShellLinkW, (void**)&link))) break;
@@ -355,6 +356,7 @@ inline int Make(const std::string& dir, const std::vector<Launcher::Game>& games
     quoted += "'";
     for (const Launcher::Game& g : games)
     {
+        if (g.platform == Launcher::N3DS) continue; // (3DS games: their own programs, n3ds.h)
         if (!g.known || g.hack || !done.insert(g.code).second) continue; // (the games, not hacks of them)
         std::string lower = g.code;
         for (char& c : lower) c = (char)tolower((unsigned char)c);
@@ -435,6 +437,7 @@ inline int Make(const std::string& dir, const std::vector<Launcher::Game>& games
     const std::string quoted = (strchr(exe, '%') ? std::string("/usr/bin/env -- ") : std::string()) + DesktopArg(exe);
     for (const Launcher::Game& g : games)
     {
+        if (g.platform == Launcher::N3DS) continue; // (3DS games: their own programs, n3ds.h)
         if (!g.known || g.rom.empty() || !done.insert(g.rom).second) continue;
         // A ROM path identifies hacks and duplicate releases without choosing another game.
         char suffix[16];

@@ -45,6 +45,7 @@
 #include "thirdparty/stb_image.h"
 #undef STB_IMAGE_IMPLEMENTATION
 #include "launcher.h"
+#include "n3ds.h" // (Omega Ruby and Alpha Sapphire: listed and started)
 #include "now_playing.h" // (the music bar on the home screen)
 #include "discord_presence.h" // (Discord shows "In the launcher" or the game being played; needs an Application ID)
 #include "cloud_autosync.h"
@@ -311,6 +312,7 @@ void ExtractFuncs(const Folders& fo)
 bool Playable(const Folders& fo, const Launcher::Game& g)
 {
     if (g.platform == Launcher::GBA) return true; // (any GBA game plays, with widescreen or without)
+    if (g.platform == Launcher::N3DS) return g.known && !g.comingSoon; // (n3ds.h: listed only where it plays)
     if (!g.known || !g.problem.empty()) return false;
     if (IsGame(g.code, "IPGE") || IsGame(g.code, "IPKE")) return rc_num_chunks > 0 && rc_portable_knows(g.code.c_str());
     return Exists(fo.funcs + "/" + g.code + ".txt");
@@ -559,10 +561,17 @@ std::vector<Launcher::Game> FindGames(const Folders& fo, std::map<std::string, s
             fprintf(stderr, "[launcher] GBA games: %zu in %s\n", gbaSeen, fo.roms.c_str());
     }
 #endif
+#ifdef _WIN32
+    // Omega Ruby and Alpha Sapphire: a dump (.3ds) with the ROMs, played by the 3ds folder's program.
+    N3ds::AddPc(romDirs, fo.dir, games);
+#endif
     Launcher::AddComingSoon(games);
+    N3ds::DropPlaceholders(games);
     for (Launcher::Game& g : games)
     {
-        if (!g.comingSoon) continue;
+        // (Games on their way, and the 3DS games: their art by their code, as for any game when the
+        // player has one, else the box art built into the program.)
+        if (!g.comingSoon && g.platform != Launcher::N3DS) continue;
         auto it = artCache.find("coming-soon:" + g.code);
         if (it == artCache.end())
         {
@@ -1388,6 +1397,18 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
     std::function<void()> savesRequestFn; // (savesRequest, below: what Manage Saves leaves to do)
     auto launchSelected = [&]() {
         if (games.empty() || selected < 0 || selected >= (int)games.size()) return;
+#ifdef _WIN32
+        // Omega Ruby and Alpha Sapphire: their code is made once from the dump (n3ds.h), the list
+        // staying open and saying how it goes; then they play.
+        if (games[selected].platform == Launcher::N3DS && !games[selected].comingSoon)
+        {
+            if (N3ds::Busy()) { note = N3ds::Status(); if (note.empty()) note = "ONE GAME IS BEING PREPARED: WAIT FOR IT TO FINISH"; return; }
+            if (!N3ds::Prepared(games[selected])) { N3ds::StartPrepare(fo.dir, games[selected]); note = N3ds::Status(); return; }
+            result = selected;
+            quit = true;
+            return;
+        }
+#endif
         if (Playable(fo, games[selected]))
         {
             // (A ROM not yet checked is, now: a hack plays with a save of its own.)
@@ -1549,6 +1570,11 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 if (item == 5 && valid) { Launcher::OpenAddToTab(games[selected].rom); return; }
                 if (item == 6 && valid) { F.dialog = 1; F.drow = 0; return; }
                 if (item == 3 && valid) { F.dialog = 4; F.drow = 0; return; }
+                if (item == 4 && valid && games[selected].platform == Launcher::N3DS)
+                {
+                    note = "3DS SAVES ARE KEPT IN THE GAME'S OWN FOLDER";
+                    return;
+                }
                 if (item == 4 && valid)
                 {
                     // Manage Saves: the game's saves on a page of their own (saves_page.h).
@@ -3162,6 +3188,9 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 if (np.artVersion != artSeen) { artSeen = np.artVersion; MB.art = np.art; MB.artW = np.artW; MB.artH = np.artH; }
                 if (MB.action >= 0) { if (!fake) NowPlaying::Command(MB.action); MB.action = -1; }
             }
+#ifdef _WIN32
+            if (N3ds::Busy()) { const std::string prep = N3ds::Status(); if (!prep.empty()) note = prep; }
+#endif
             Launcher::Draw(canvas, games, tab, !Launcher::TilesOn() && (onSettings || onTabs || Launcher::Focus().side >= 0 || Launcher::Focus().banner) ? -1 : selected, scroll, note, (Launcher::Focus().popup >= 0 || Launcher::Focus().dialog || Launcher::Focus().page >= 0) ? (padIn ? btn(Controls::A) + ": CHOOSE    " + btn(Controls::B) + ": BACK" : std::string("ENTER: CHOOSE    ESC: BACK")) : hint, theme, follow, onTabs, onSettings);
         }
 #ifdef SSR_UPDATER
@@ -3297,6 +3326,21 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
         static int keysAge = -1;
         if (keysAge >= 0) keysAge++;
         if (const char* tk = getenv("SSR_LIST_KEYS")) { static bool keysDone = false; if (!keysDone) { keysDone = true; keysAge = 0; for (const char* q = tk; *q; q++) move(*q == 'l' ? 1 : *q == 'r' ? 2 : *q == 'u' ? 3 : 4); } }
+        // (SSR_LIST_CHOOSE=a game code: that game chosen once as a player would, its menu's Play: a 3DS
+        // game not prepared yet starts preparing, and SSR_LIST_SHOT waits until that has ended.)
+        if (const char* tc = getenv("SSR_LIST_CHOOSE"))
+        {
+            static bool chosenOnce = false;
+            if (!chosenOnce)
+            {
+                chosenOnce = true;
+                for (size_t i = 0; i < games.size(); i++)
+                    if (games[i].code == tc) selected = (int)i;
+                fprintf(stderr, "[launcher] test: %s chosen as a player would\n", tc);
+                launchSelected();
+                if (quit) break;
+            }
+        }
         if (testPick && *testPick)
         {
             for (size_t i = 0; i < games.size(); i++)
@@ -3325,7 +3369,12 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             if (ls.state == HubLink::State::Linked && ls.mine.any && ls.theirs.any && ls.theyCanTake && !ls.iAccepted && !autoAccepted) { HubLink::Accept(true); autoAccepted = true; }
         }
         const char* shotWait = getenv("SSR_LIST_SHOT_WAIT");
-        if (testShot && *testShot && (keysAge < 0 || keysAge >= 4) && (!shotWait || std::chrono::steady_clock::now() - shotStart >= std::chrono::seconds(atoi(shotWait))))
+#ifdef _WIN32
+        const bool preparing = N3ds::P().running;
+#else
+        const bool preparing = false;
+#endif
+        if (testShot && *testShot && !preparing && (keysAge < 0 || keysAge >= 4) && (!shotWait || std::chrono::steady_clock::now() - shotStart >= std::chrono::seconds(atoi(shotWait))))
         {
             if (SDL_Surface* sf = SDL_CreateRGBSurfaceWithFormatFrom(canvas.px.data(), canvas.w, canvas.h, 32, canvas.w * 4, SDL_PIXELFORMAT_ARGB8888))
             {
@@ -3572,7 +3621,7 @@ bool Start(int& argc, char**& argv)
         }
 #endif
         if (chosen < 0) return false;
-        if (directGame >= 0)
+        if (directGame >= 0 && games[chosen].platform != Launcher::N3DS)
         {
             Launcher::ConfirmHack(games, (size_t)chosen, fo.saves,
                                   [](const Launcher::Game& g, const std::string& name) { return g.folder + "/" + name; });
@@ -3580,6 +3629,29 @@ bool Start(int& argc, char**& argv)
             const std::string error = PrepareLaunch(games[chosen]);
             if (!error.empty()) { fprintf(stderr, "[launcher] %s\n", error.c_str()); directGame = -1; continue; }
         }
+#ifdef _WIN32
+        // Omega Ruby or Alpha Sapphire: its own program plays it (n3ds.h), then the list again.
+        if (games[chosen].platform == Launcher::N3DS)
+        {
+            const std::string rom = games[chosen].rom;
+            if (FILE* f = fopen(lastPath.c_str(), "w"))
+            {
+                fprintf(f, "%s\n", rom.c_str());
+                fclose(f);
+            }
+            DiscordPresence::Playing(Launcher::TitleCase(games[chosen].name));
+            const auto start = std::chrono::steady_clock::now();
+            N3ds::Play(fo.dir, games[chosen]);
+            PlayTime::Add(fo.saves, (long long)std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start).count());
+            DiscordPresence::InLauncher();
+            directGame = -1;
+            games = FindGames(fo, artCache);
+            chosen = 0;
+            for (size_t i = 0; i < games.size(); i++)
+                if (games[i].rom == rom) chosen = (int)i;
+            continue;
+        }
+#endif
 #if defined(__ANDROID__) || defined(SSR_IOS)
         // Sideways before either engine opens its window. On Android the hint alone can
         // leave the shared activity upright; on iOS the same, until the window asks.
