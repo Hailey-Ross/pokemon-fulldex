@@ -7263,7 +7263,11 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
     for (const View::Head& h : v.heads)
         if (h.empty)
         {
+            // (No games at all: where they go, whichever tab is open.)
+            bool any = false;
+            for (const Game& g : games) any |= !g.comingSoon;
             const std::string none = !SearchText().empty() ? "No Games Match \"" + SearchText() + "\""
+                                   : !any ? std::string("No Games Yet: Add Your ROMs On The ROMs Page")
                                    : tab >= TABS ? std::string("Add Games To This Tab From A Game's Menu (A On A Game)")
                                    : tab == TAB_HOME ? "Add Games To Home From A Game's Menu (A On A Game)"
                                    : tab == TAB_HACKS ? "No Romhacks Yet" : "No " + std::string(TabLabel(tab)) + " Games Yet";

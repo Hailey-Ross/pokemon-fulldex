@@ -3316,7 +3316,13 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
 #endif
             }
         }
-        if (games.empty() && !guide)
+        // (The glass list says it itself, in its own place: this older text is for the plain list.)
+#ifdef __ANDROID__
+        const bool plainEmpty = !Launcher::Glassy(canvas) || needFolder; // (choosing the folder is still told here)
+#else
+        const bool plainEmpty = !Launcher::Glassy(canvas);
+#endif
+        if (games.empty() && !guide && plainEmpty)
         {
             const int s = std::max(1, std::min(canvas.w, canvas.h) / 240);
 #ifdef __ANDROID__
