@@ -6,7 +6,7 @@ widescreen, 60 fps, up to 4K on a PC and 720p on the Switch.** No more squinting
 
 **DS:** Black 2, White 2, Black, White, HeartGold, SoulSilver, Platinum, Diamond and Pearl.<br>
 **GBA:** Emerald, Ruby, Sapphire, FireRed, LeafGreen and Ultra Violet.<br>
-**3DS:** Omega Ruby, Alpha Sapphire, X, Y, Ultra Sun and Ultra Moon, coming soon.<br>
+**3DS (beta):** Omega Ruby and Alpha Sapphire on Windows, Android and Switch; X, Y, Ultra Sun and Ultra Moon coming soon.<br>
 Which languages: [Supported games](#supported-games).
 
 ![Pokémon Fulldex: Black 2, White 2, Black, White, SoulSilver, HeartGold, Platinum, Diamond and Pearl, and the GBA games Emerald, Ruby, Sapphire, FireRed, LeafGreen and Ultra Violet, in widescreen at 60 fps on a PC, a Mac, a Steam Deck, an Android phone and a Nintendo Switch; RetroAchievements, cheats, save states and your own colour and background built in](docs/screenshots/trailer-3.gif)
@@ -54,7 +54,8 @@ DS game, presented the way it should look on a modern screen.
 | **Ruby / Sapphire** (GBA) | English (1.0, 1.1, 1.2), German, French, Spanish, Italian, Japanese | |
 | **FireRed / LeafGreen** (GBA) | English (1.0, 1.1) | |
 | **Ultra Violet** (GBA, a FireRed hack) | 1.22 | as its `.gba`, or its `.ips` patch beside a FireRed 1.0 ROM |
-| **Omega Ruby / Alpha Sapphire, X / Y, Ultra Sun / Ultra Moon** (3DS) | | Coming soon |
+| **Omega Ruby / Alpha Sapphire** (3DS) | Every language on the cartridge | Beta: Windows, Android and Switch ([how](#omega-ruby-and-alpha-sapphire-3ds-beta)); Mac, iPhone and iPad coming soon |
+| **X / Y, Ultra Sun / Ultra Moon** (3DS) | | Coming soon |
 
 - **Beta** languages work with the exact ROM copies they were checked against, and complete
   playthroughs haven't been verified yet. Other GBA games play too, without widescreen.
@@ -338,6 +339,25 @@ pause menu may close the app rather than go back to the list (open it again to p
 Please tell us how it runs on yours, with your model (see [Reporting a bug](#reporting-a-bug)).
 
 </details>
+
+### Omega Ruby and Alpha Sapphire (3DS, beta)
+
+Played natively from your own game dump (a `.3ds` file; none is included), with widescreen or one
+screen, sharp 3D up to 4K, fast forward and the FullDex menus. They are in the **3DS Beta** tab.
+The game's code is built once from your dump for the best speed; until then it can still play.
+
+- **Windows:** put your `.3ds` in the roms folder and pick the game. The first time, FullDex
+  builds it (5 to 15 minutes, the list shows how it goes); then it plays.
+- **Android (64-bit phones):** put your `.3ds` in your ROMs folder and pick the game. It is copied
+  into FullDex once (about 2 GB) and starts. In the game's menu, **Build For Best Speed** builds it
+  on the phone (about 25 minutes, keep it plugged in), or **Use Game Code From PC** takes the file
+  the FullDex Builder makes.
+- **Switch:** the Switch cannot build it itself. Use the
+  [FullDex Builder](https://github.com/mamesj/pokemon-fulldex/releases/tag/fulldex-builder-0.1) on a
+  Windows PC to make the game's folder from your dump, copy it into `/switch/` with your
+  `game.3ds`, and FullDex lists it.
+
+It is a beta: back up your saves, and please [report](#reporting-a-bug) anything that goes wrong.
 
 ## Features
 
