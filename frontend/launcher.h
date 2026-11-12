@@ -229,10 +229,10 @@ inline bool SaveTabs()
 // kept apart from the focus, which a click can start again.
 inline std::string& SearchText() { static std::string s; return s; }
 inline std::string& SortKey() { static std::string s; return s; }
-inline const char* TabName(int t) { static const char* n[] = { "HOME", "ALL", "DS", "GBA", "3DS", "ROMHACKS" }; return t >= 0 && t < TABS ? n[t] : t < TabCount() ? "CUSTOM" : "ALL"; }
+inline const char* TabName(int t) { static const char* n[] = { "HOME", "ALL", "DS", "GBA", "3DS BETA", "ROMHACKS" }; return t >= 0 && t < TABS ? n[t] : t < TabCount() ? "CUSTOM" : "ALL"; }
 inline std::string TabLabel(int t)
 {
-    static const char* n[] = { "Home", "All", "DS", "GBA", "3DS", "Romhacks" };
+    static const char* n[] = { "Home", "All", "DS", "GBA", "3DS Beta", "Romhacks" };
     if (t >= 0 && t < TABS) return n[t];
     const int k = t - TABS;
     return k >= 0 && k < (int)CustomTabs().size() ? CustomTabs()[k].name : std::string("All");
@@ -6975,7 +6975,7 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
             DrawCover(c, g, tx0, ty0, t, t, 8 * u);
             if (g.comingSoon) Glass::Round(c, tx0, ty0, t, t, 8 * u, 0x99000000u);
             const int nx = tx0 + t + (int)(14 * u);
-            const std::string sub = g.comingSoon ? std::string("Coming Soon") : !g.known ? std::string("Not Playable") : g.platform == N3DS && g.built ? std::string("3DS \xC2\xB7 Built") : std::string(PlatformName(g.platform));
+            const std::string sub = g.comingSoon ? std::string("Coming Soon") : !g.known ? std::string("Not Playable") : g.platform == N3DS ? std::string(g.built ? "3DS Beta \xC2\xB7 Built" : "3DS Beta") : std::string(PlatformName(g.platform));
             const int sw = GW(sub, 13 * u, true);
             GTFit(c, nx, y + rh * 0.5f, ShortName(g), 17 * u, x + grid.cw - nx - sw - (int)(30 * u), text, true);
             GT(c, x + grid.cw - (int)(16 * u) - sw, y + rh * 0.5f, sub, 13 * u, !g.known && !g.comingSoon ? 0xFFF2A08Au : hint, true);
@@ -6996,7 +6996,7 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
         std::string name = ShortName(g);
         float npx = 17 * u;
         // (A 3DS game whose code is built says so beside 3DS.)
-        const std::string tag = g.platform == N3DS && g.built ? "3DS \xC2\xB7 Built" : PlatformName(g.platform);
+        const std::string tag = g.platform == N3DS ? (g.built ? "3DS Beta \xC2\xB7 Built" : "3DS Beta") : PlatformName(g.platform);
         const int room = iw - GW(tag, 13 * u, true) - (int)(14 * u);
         while (npx > 10 * u && GW(name, npx, true) > room) npx -= u;
         GT(c, ix + (int)(4 * u), cy, name, npx, text, true);
