@@ -25,6 +25,11 @@ struct Layout
     int padX = 0, padY = 0, padR = 0; // the D-pad's middle and size
     int aX = 0, aY = 0, bX = 0, bY = 0, abR = 0, bR = 0;
     SDL_Rect l{}, r{}, start{}, select{}, menu{}, fast{};
+    // (From the touch controls editor: what is taken off (a bit for each Button; the D-pad on its
+    // own) and how much they show, in percent.)
+    uint32_t hidden = 0;
+    bool padHidden = false;
+    int visible = 100;
 };
 
 // Where everything goes on a canvas of w x h (about 360 lines high): the D-pad bottom left, A
@@ -70,6 +75,12 @@ inline std::vector<TouchLayout::Control> Defaults(int w, int h)
 inline void Apply(Layout& t, const TouchLayout::Profile& profile, int w, int h)
 {
     auto controls = profile.Apply(Geometry(t), w, h);
+    static const Button which[] = { A, B, L, R, SELECT, START, MENU, FAST }; // (controls 1 to 8)
+    t.hidden = 0;
+    t.padHidden = controls[0].hidden;
+    for (int i = 0; i < 8; ++i)
+        if (controls[i + 1].hidden) t.hidden |= 1u << which[i];
+    t.visible = profile.visible;
     t.padX = (int)controls[0].x; t.padY = (int)controls[0].y; t.padR = (int)controls[0].rx;
     t.aX = (int)controls[1].x; t.aY = (int)controls[1].y; t.abR = (int)controls[1].rx;
     t.bX = (int)controls[2].x; t.bY = (int)controls[2].y; t.bR = (int)controls[2].rx;
@@ -87,7 +98,7 @@ inline uint32_t Hit(const Layout& t, float x, float y)
     uint32_t m = 0;
     const float dx = x - t.padX, dy = y - t.padY;
     const float d = std::sqrt(dx * dx + dy * dy);
-    if (d < t.padR * 1.4f && d > t.padR * 0.15f)
+    if (!t.padHidden && d < t.padR * 1.4f && d > t.padR * 0.15f)
     {
         // Eight directions: each of the four covers 135 degrees, so the diagonals press two.
         const float a = std::atan2(dy, dx), s = 3.14159265f / 8;
@@ -106,7 +117,7 @@ inline uint32_t Hit(const Layout& t, float x, float y)
     if (inRect(t.select)) m |= 1u << SELECT;
     if (inRect(t.menu)) m |= 1u << MENU;
     if (inRect(t.fast)) m |= 1u << FAST;
-    return m;
+    return m & ~t.hidden;
 }
 
 inline void Circle(Canvas& c, int cx, int cy, int r, uint32_t argb)
@@ -121,11 +132,15 @@ inline void Circle(Canvas& c, int cx, int cy, int r, uint32_t argb)
 // Drawn see-through over the game; a pressed button is brighter.
 inline void Draw(Canvas& c, const Layout& t, uint32_t held, bool fastOn)
 {
-    const uint32_t off = 0x60FFFFFF, on = 0xB0FFFFFF, text = 0xD0202020, edge = 0x50000000;
+    // (Every alpha scaled by the visibility chosen in the touch controls editor.)
+    auto fade = [&](uint32_t argb) { return ((argb >> 24) * (uint32_t)t.visible / 100) << 24 | (argb & 0xFFFFFFu); };
+    const uint32_t off = fade(0x60FFFFFF), on = fade(0xB0FFFFFF), text = fade(0xD0202020), edge = fade(0x50000000);
     auto col = [&](Button b) { return (held >> b) & 1 ? on : off; };
+    auto shown = [&](Button b) { return !((t.hidden >> b) & 1); };
     // The D-pad: a cross, each arm lit when pressed, on a darker edge so it shows on light
     // ground too.
     const int arm = t.padR, thick = std::max(8, t.padR * 3 / 5);
+    if (!t.padHidden) {
     c.Fill(t.padX - thick / 2 - 2, t.padY - arm - 2, thick + 4, 2 * arm + 4, edge);
     c.Fill(t.padX - arm - 2, t.padY - thick / 2 - 2, 2 * arm + 4, thick + 4, edge);
     c.Fill(t.padX - thick / 2, t.padY - thick / 2, thick, thick, off);
@@ -133,23 +148,20 @@ inline void Draw(Canvas& c, const Layout& t, uint32_t held, bool fastOn)
     c.Fill(t.padX - thick / 2, t.padY + thick / 2, thick, arm - thick / 2, col(DOWN));
     c.Fill(t.padX - arm, t.padY - thick / 2, arm - thick / 2, thick, col(LEFT));
     c.Fill(t.padX + thick / 2, t.padY - thick / 2, arm - thick / 2, thick, col(RIGHT));
-    Circle(c, t.aX, t.aY, t.abR + 2, edge);
-    Circle(c, t.bX, t.bY, t.bR + 2, edge);
-    Circle(c, t.aX, t.aY, t.abR, col(A));
-    Circle(c, t.bX, t.bY, t.bR, col(B));
-    c.TextCentred(t.aX, t.aY - 7, "A", 2, text);
-    c.TextCentred(t.bX, t.bY - 7, "B", 2, text);
+    }
+    if (shown(A)) { Circle(c, t.aX, t.aY, t.abR + 2, edge); Circle(c, t.aX, t.aY, t.abR, col(A)); c.TextCentred(t.aX, t.aY - 7, "A", 2, text); }
+    if (shown(B)) { Circle(c, t.bX, t.bY, t.bR + 2, edge); Circle(c, t.bX, t.bY, t.bR, col(B)); c.TextCentred(t.bX, t.bY - 7, "B", 2, text); }
     auto button = [&](const SDL_Rect& r, const std::string& label, uint32_t argb) {
         c.Fill(r.x - 2, r.y - 2, r.w + 4, r.h + 4, edge);
         c.Fill(r.x, r.y, r.w, r.h, argb);
         c.TextCentred(r.x + r.w / 2, r.y + (r.h - 7) / 2, label, 1, text);
     };
-    button(t.l, "L", col(L));
-    button(t.r, "R", col(R));
-    button(t.select, "SELECT", col(SELECT));
-    button(t.start, "START", col(START));
-    button(t.menu, "MENU", col(MENU));
-    button(t.fast, ">>", fastOn ? on : col(FAST));
+    if (shown(L)) button(t.l, "L", col(L));
+    if (shown(R)) button(t.r, "R", col(R));
+    if (shown(SELECT)) button(t.select, "SELECT", col(SELECT));
+    if (shown(START)) button(t.start, "START", col(START));
+    if (shown(MENU)) button(t.menu, "MENU", col(MENU));
+    if (shown(FAST)) button(t.fast, ">>", fastOn ? on : col(FAST));
 }
 
 }

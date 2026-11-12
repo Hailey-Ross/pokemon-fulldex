@@ -22,6 +22,9 @@
 #include <thread>
 #include <vector>
 #include <sys/stat.h>
+#ifdef __ANDROID__
+#include <sys/statvfs.h>
+#endif
 #include <dirent.h>
 #ifdef _WIN32
 #include <windows.h>
@@ -40,6 +43,12 @@ inline const Title* ById(const std::string& id)
     for (const Title& t : kTitles)
         if (id == t.id) return &t;
     return nullptr;
+}
+inline std::string IdOf(const Launcher::Game& g)
+{
+    for (const Title& t : kTitles)
+        if (g.code == t.code) return t.id;
+    return "";
 }
 
 inline bool IsDir(const std::string& p) { struct stat st; return stat(p.c_str(), &st) == 0 && S_ISDIR(st.st_mode); }
@@ -151,6 +160,52 @@ inline void AddSwitch(std::vector<Launcher::Game>& games, const std::string& roo
         fprintf(stderr, "[3ds] %s: listed from %s\n", t.name, best.c_str());
     }
 }
+
+#ifdef __ANDROID__
+// Android, with the Omega Ruby kit in the app (GameActivity.threeDsAvailable): a game already added
+// (<app files>/3ds/<title id>/game.3ds, the kit's own folder), else a dump in the ROM folders, which
+// is copied there the first time it is chosen (GameActivity.threeDsAdd).
+inline void AddAndroid(const std::vector<std::string>& romDirs, const std::string& appDir, std::vector<Launcher::Game>& games)
+{
+    auto have = [&](const Title& t) {
+        for (const Launcher::Game& o : games) if (o.platform == Launcher::N3DS && o.code == t.code) return true;
+        return false;
+    };
+    for (const Title& t : kTitles)
+    {
+        const std::string folder = appDir + "/3ds/" + t.id;
+        if (IsFile(folder + "/game.3ds")) games.push_back(Make(t, folder + "/game.3ds", folder));
+    }
+    for (const std::string& dir : romDirs)
+    {
+        DIR* d = opendir(dir.c_str());
+        if (!d) continue;
+        while (dirent* e = readdir(d))
+        {
+            const std::string path = dir + "/" + e->d_name;
+            if (!EndsWith(path, ".3ds") || !IsFile(path)) continue;
+            const Title* t = ById(DumpTitle(path));
+            if (!t || have(*t)) continue;
+            games.push_back(Make(*t, path, appDir + "/3ds/" + t->id));
+            fprintf(stderr, "[3ds] %s: %s\n", t->name, path.c_str());
+        }
+        closedir(d);
+    }
+}
+inline bool Added(const Launcher::Game& g) { return IsFile(g.folder + "/game.3ds"); }
+// Whether the phone has room to copy the dump in (its size and 300 MB to spare); how much is
+// needed, in GB, for the note when it has not.
+inline bool RoomFor(const Launcher::Game& g, const std::string& appDir, double& needGb)
+{
+    struct stat st;
+    if (stat(g.rom.c_str(), &st) != 0) return true; // (the copy itself will say what went wrong)
+    struct statvfs vs;
+    if (statvfs(appDir.c_str(), &vs) != 0) return true;
+    const double need = (double)st.st_size + 300.0 * 1024 * 1024;
+    needGb = need / (1024.0 * 1024 * 1024);
+    return (double)vs.f_bavail * vs.f_frsize >= need;
+}
+#endif
 
 #ifdef _WIN32
 inline std::wstring W(const std::string& s) { return std::filesystem::u8path(s).wstring(); }

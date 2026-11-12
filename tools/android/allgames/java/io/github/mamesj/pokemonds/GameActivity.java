@@ -35,6 +35,8 @@ public class GameActivity extends SDLActivity {
     private static final String TAG = "PokemonDS";
     private static final int PICK_FOLDER = 4201;
     private static final int ASK_FILES = 4202;
+    private static final int PICK_3DS_CODE = 4203, PLAY_3DS = 4204;
+    private static volatile String codeFor = "", playing3ds = "";
     private static volatile GameActivity self;
     private boolean resumed;
     private final Handler fullscreenHandler = new Handler(Looper.getMainLooper());
@@ -404,6 +406,17 @@ public class GameActivity extends SDLActivity {
 
     @Override
     protected void onActivityResult(int request, int result, Intent data) {
+        if (request == PICK_3DS_CODE) {
+            if (result == RESULT_OK && data != null && data.getData() != null)
+                call3ds("importCode", new Class<?>[] { android.content.Context.class, String.class, Uri.class }, this, codeFor, data.getData());
+            return;
+        }
+        if (request == PLAY_3DS) {
+            // (Restart game: the game asks to be started again.)
+            Object restart = call3ds("restartCode", new Class<?>[0]);
+            if (restart != null && result == (Integer) restart) threeDsPlay(playing3ds);
+            return;
+        }
         if (request == PICK_FOLDER) {
             if (result == RESULT_OK && data != null && data.getData() != null) {
                 final Uri tree = data.getData();
@@ -481,6 +494,45 @@ public class GameActivity extends SDLActivity {
 
     // Starts the app again in a new process (Restart, in a process of its own, ends this one
     // and opens the app).
+    // Pokemon Omega Ruby and Alpha Sapphire, inside FullDex when the Omega Ruby kit is in the app
+    // (io.github.mamesj.omeganx.FullDex3ds; tools/android/build_all.sh, SSR_3DS_ANDROID_KIT). Called
+    // by name, so the app builds and runs without it: then there are no 3DS games here.
+    private static Object call3ds(String method, Class<?>[] types, Object... args) {
+        try { return Class.forName("io.github.mamesj.omeganx.FullDex3ds").getMethod(method, types).invoke(null, args); }
+        catch (Throwable missing) { return null; }
+    }
+    public static boolean threeDsAvailable() {
+        return self != null && Boolean.TRUE.equals(call3ds("available", new Class<?>[] { android.content.Context.class }, self));
+    }
+    public static String threeDsNote() { Object n = call3ds("note", new Class<?>[0]); return n == null ? "" : (String) n; }
+    public static boolean threeDsBusy() { return Boolean.TRUE.equals(call3ds("busy", new Class<?>[0])); }
+    public static boolean threeDsBuilt(String id) {
+        return self != null && Boolean.TRUE.equals(call3ds("built", new Class<?>[] { android.content.Context.class, String.class }, self, id));
+    }
+    public static void threeDsAdd(String path) {
+        if (self != null) call3ds("add", new Class<?>[] { android.content.Context.class, String.class }, self.getApplicationContext(), path);
+    }
+    public static void threeDsBuild(String id) {
+        if (self != null) call3ds("build", new Class<?>[] { android.content.Context.class, String.class }, self.getApplicationContext(), id);
+    }
+    // The game code the FullDex Builder made on a PC (<title id>.so), picked by the player.
+    public static void threeDsImport(String id) {
+        if (self == null) return;
+        codeFor = id;
+        self.runOnUiThread(() -> {
+            Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            pick.addCategory(Intent.CATEGORY_OPENABLE);
+            pick.setType("*/*");
+            try { self.startActivityForResult(pick, PICK_3DS_CODE); }
+            catch (Exception error) { Log.w(TAG, "No file picker for the game code", error); }
+        });
+    }
+    public static void threeDsPlay(String id) {
+        if (self == null) return;
+        playing3ds = id;
+        call3ds("play", new Class<?>[] { android.app.Activity.class, String.class, int.class }, self, id, PLAY_3DS);
+    }
+
     public static void restart() {
         if (self == null) return;
         Intent i = new Intent(self, Restart.class);

@@ -241,6 +241,7 @@ inline std::string TabLabel(int t)
 struct Game
 {
     int platform = DS;
+    bool built = false;   // (a 3DS game: its game code is made, so it plays at its best)
     std::string rom;      // the ROM's full path
     std::string folder;   // where its save (and a funcs.txt of the player's own) live
     std::string code;     // the game code, e.g. IREO
@@ -313,6 +314,11 @@ inline int PopupItem(int row) { static const int order[] = { 0, 4, 1, 2, 3, 5, 6
 inline std::string PopupLabel(const Game& g, int i)
 {
     static const char* n[] = { "Play", "", "Rename", "Change Picture", "Manage Saves", "Add To Tab", "Remove Game" };
+#ifdef __ANDROID__
+    // (A 3DS game inside the app: its game code, from a PC's FullDex Builder or built on the phone.)
+    if (g.platform == N3DS && i == 3) return "Use Game Code From PC";
+    if (g.platform == N3DS && i == 4) return g.built ? "Game Code Built" : "Build For Best Speed (25 Min)";
+#endif
     return i == 1 ? (g.favourite ? "Remove From Home" : "Add To Home") : i >= 0 && i < 7 ? n[i] : "";
 }
 // The pause menu's keyboard page (Menu::keyGrid) for Rename: BACK, four rows of keys (capitals, small
@@ -6969,7 +6975,7 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
             DrawCover(c, g, tx0, ty0, t, t, 8 * u);
             if (g.comingSoon) Glass::Round(c, tx0, ty0, t, t, 8 * u, 0x99000000u);
             const int nx = tx0 + t + (int)(14 * u);
-            const std::string sub = g.comingSoon ? std::string("Coming Soon") : !g.known ? std::string("Not Playable") : std::string(PlatformName(g.platform));
+            const std::string sub = g.comingSoon ? std::string("Coming Soon") : !g.known ? std::string("Not Playable") : g.platform == N3DS && g.built ? std::string("3DS \xC2\xB7 Built") : std::string(PlatformName(g.platform));
             const int sw = GW(sub, 13 * u, true);
             GTFit(c, nx, y + rh * 0.5f, ShortName(g), 17 * u, x + grid.cw - nx - sw - (int)(30 * u), text, true);
             GT(c, x + grid.cw - (int)(16 * u) - sw, y + rh * 0.5f, sub, 13 * u, !g.known && !g.comingSoon ? 0xFFF2A08Au : hint, true);
@@ -6989,10 +6995,12 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
         const float cy = iy + ih + 16 * u;
         std::string name = ShortName(g);
         float npx = 17 * u;
-        const int room = iw - GW(PlatformName(g.platform), 13 * u, true) - (int)(14 * u);
+        // (A 3DS game whose code is built says so beside 3DS.)
+        const std::string tag = g.platform == N3DS && g.built ? "3DS \xC2\xB7 Built" : PlatformName(g.platform);
+        const int room = iw - GW(tag, 13 * u, true) - (int)(14 * u);
         while (npx > 10 * u && GW(name, npx, true) > room) npx -= u;
         GT(c, ix + (int)(4 * u), cy, name, npx, text, true);
-        const std::string sub = !g.known && !g.comingSoon ? "Not Playable" : PlatformName(g.platform);
+        const std::string sub = !g.known && !g.comingSoon ? "Not Playable" : tag;
         GT(c, ix + iw - (int)(4 * u) - GW(sub, 13 * u, true), cy, sub, 13 * u, !g.known && !g.comingSoon ? 0xFFF2A08Au : hint, true);
         if (g.favourite) Glass::DrawIcon(c, Glass::I_SPARKLE, ix + iw - 14 * u, iy + 14 * u, 7 * u, 0xFFFFFFFFu);
         // (Its save kept in the cloud: a cloud in the corner; amber when it changed on both.)

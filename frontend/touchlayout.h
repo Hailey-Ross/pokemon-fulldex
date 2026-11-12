@@ -34,11 +34,16 @@ struct Control
     std::string key, label;
     float x, y, rx, ry;
     bool round = false;
+    bool hidden = false; // (taken off the screen in the editor: not drawn, not pressed)
 };
-struct Placement { float x = 0.5f, y = 0.5f, size = 1; };
+struct Placement { float x = 0.5f, y = 0.5f, size = 1; bool hidden = false; };
 struct Profile
 {
     std::map<std::string, Placement> orientations[2];
+    // How much the controls show over the game, in percent (100: as they always were). One for
+    // both orientations; written as a "visible" line, which older versions skip.
+    int visible = 100;
+    static bool CanHide(const std::string& key) { return key != "MENU"; } // (the way to the menu stays)
     static int Orientation(int w, int h) { return h > w ? 1 : 0; }
     static std::string Path(const std::string& config, const char* system)
     {
@@ -56,10 +61,19 @@ struct Profile
         while (std::getline(in, line))
         {
             std::istringstream row(line);
+            if (line.rfind("visible ", 0) == 0)
+            {
+                std::string word;
+                int v = 100;
+                if (row >> word >> v && v >= 25 && v <= 100) parsed.visible = v;
+                continue;
+            }
             int orientation;
             std::string key;
             Placement p;
             if (!(row >> orientation >> key >> p.x >> p.y >> p.size)) continue;
+            int hidden = 0;
+            if (row >> hidden) p.hidden = hidden == 1 && CanHide(key); // (a sixth field: older files have none)
             if (orientation < 0 || orientation > 1 || key.size() > 16 ||
                 !std::isfinite(p.x) || !std::isfinite(p.y) || !std::isfinite(p.size) ||
                 p.x < 0 || p.x > 1 || p.y < 0 || p.y > 1 || p.size < 0.5f || p.size > 1.75f) continue;
@@ -72,9 +86,10 @@ struct Profile
         const std::string temp = path + ".tmp";
         std::ofstream out(temp, std::ios::trunc);
         out << "fulldex-touch-v1\n";
+        if (visible != 100) out << "visible " << visible << '\n';
         for (int o = 0; o < 2; ++o)
             for (const auto& entry : orientations[o])
-                out << o << ' ' << entry.first << ' ' << entry.second.x << ' ' << entry.second.y << ' ' << entry.second.size << '\n';
+                out << o << ' ' << entry.first << ' ' << entry.second.x << ' ' << entry.second.y << ' ' << entry.second.size << ' ' << (entry.second.hidden ? 1 : 0) << '\n';
         out.flush();
         if (!out) { out.close(); std::remove(temp.c_str()); return false; }
         out.close();
@@ -109,6 +124,7 @@ struct Profile
                 c.ry *= it->second.size;
                 c.x = it->second.x * w;
                 c.y = it->second.y * h;
+                c.hidden = it->second.hidden;
             }
             c.rx = std::min(c.rx, w * 0.49f);
             c.ry = std::min(c.ry, h * 0.49f);
@@ -131,6 +147,21 @@ struct Profile
             it = entries.emplace(current.key, Placement{current.x / w, current.y / h, 1}).first;
         it->second.size = std::clamp(it->second.size + delta, 0.5f, 1.75f);
     }
+    // Takes a control off the screen, or puts it back.
+    bool ToggleHidden(const Control& current, int w, int h)
+    {
+        if (!CanHide(current.key)) return false;
+        auto& entries = orientations[Orientation(w, h)];
+        auto it = entries.find(current.key);
+        if (it == entries.end())
+            it = entries.emplace(current.key, Placement{current.x / w, current.y / h, 1}).first;
+        it->second.hidden = !it->second.hidden;
+        return true;
+    }
+    // 100, 75, 50, 25, then 100 again.
+    void NextVisible() { visible = visible <= 25 ? 100 : visible - 25; }
+    // A colour's alpha scaled by how much the controls show.
+    uint32_t Fade(uint32_t argb) const { return ((argb >> 24) * (uint32_t)visible / 100) << 24 | (argb & 0xFFFFFFu); }
 };
 
 // A separate event loop keeps editor touches out of the game and pauses emulation.
@@ -145,7 +176,7 @@ bool Edit(SDL_Renderer* renderer, Profile& profile, const std::string& path, Def
     bool dragging = false, mouse = false, done = false, saved = false;
     SDL_FingerID finger = 0;
     float offsetX = 0, offsetY = 0;
-    std::string notice = "DRAG A CONTROL. USE - / + TO RESIZE.";
+    std::string notice = "DRAG A CONTROL. - / + RESIZE IT, HIDE TAKES IT OFF.";
     while (!done)
     {
         int w = 0, h = 0;
@@ -187,13 +218,15 @@ bool Edit(SDL_Renderer* renderer, Profile& profile, const std::string& path, Def
             {
                 if (y >= ch - 48)
                 {
-                    const int action = std::clamp((int)(x * 7 / cw), 0, 6);
+                    const int action = std::clamp((int)(x * 9 / cw), 0, 8);
                     if (action == 0) chosen = (chosen + (int)controls.size() - 1) % controls.size();
                     if (action == 1) chosen = (chosen + 1) % controls.size();
                     if (action == 2 || action == 3) working.Resize(controls[chosen], w, h, action == 2 ? -0.1f : 0.1f);
-                    if (action == 4) working.orientations[Profile::Orientation(w, h)].clear();
-                    if (action == 5) done = true;
-                    if (action == 6)
+                    if (action == 4 && !working.ToggleHidden(controls[chosen], w, h)) notice = "MENU STAYS: IT OPENS THE MENU.";
+                    if (action == 5) working.NextVisible();
+                    if (action == 6) working.orientations[Profile::Orientation(w, h)].clear();
+                    if (action == 7) done = true;
+                    if (action == 8)
                     {
                         if (working.Save(path)) { profile = working; saved = done = true; }
                         else notice = "COULD NOT SAVE. TRY AGAIN OR CANCEL.";
@@ -238,13 +271,15 @@ bool Edit(SDL_Renderer* renderer, Profile& profile, const std::string& path, Def
         text(12, 10, "TOUCH CONTROLS", 0xFFFFFFFF);
         const auto it = working.orientations[Profile::Orientation(w, h)].find(controls[chosen].key);
         const int size = it == working.orientations[Profile::Orientation(w, h)].end() ? 100 : (int)std::lround(it->second.size * 100);
-        text(12, 32, controls[chosen].label + "  " + UiLang::Tr("SIZE") + " " + std::to_string(size) + "%", 0xFF7DD3FC);
+        text(12, 32, controls[chosen].label + "  " + UiLang::Tr("SIZE") + " " + std::to_string(size) + "%" +
+             (controls[chosen].hidden ? "  " + UiLang::Tr("HIDDEN") : std::string()) + "    " + UiLang::Tr("VISIBILITY") + " " + std::to_string(working.visible) + "%", 0xFF7DD3FC);
         for (int i = 0; i < (int)controls.size(); ++i)
         {
             const auto& c = controls[i];
             const int cx = (int)(px + c.x * zoom), cy = (int)(py + c.y * zoom);
             const int rx = std::max(3, (int)(c.rx * zoom)), ry = std::max(3, (int)(c.ry * zoom));
-            const uint32_t colour = i == chosen ? 0xFF0284C7 : 0xFF52627A;
+            // (A hidden control stays in the editor, dim, so that it can be chosen and shown again.)
+            const uint32_t colour = c.hidden ? (i == chosen ? 0xFF1E4D6B : 0xFF2B3446) : i == chosen ? 0xFF0284C7 : 0xFF52627A;
             if (c.round)
                 for (int dy = -ry; dy <= ry; ++dy)
                 {
@@ -256,11 +291,11 @@ bool Edit(SDL_Renderer* renderer, Profile& profile, const std::string& path, Def
             canvas.Text(cx - ((int)c.label.size() * 6 - 1) * labelScale / 2, cy - 3 * labelScale, c.label, labelScale, 0xFFFFFFFF);
         }
         text(12, ch - 68, notice, 0xFFC5D3E5);
-        const char* actions[] = { "PREV", "NEXT", "-", "+", "RESET", "CANCEL", "SAVE" };
-        for (int i = 0; i < 7; ++i)
+        const char* actions[] = { "PREV", "NEXT", "-", "+", controls[chosen].hidden ? "SHOW" : "HIDE", "VISIBILITY", "RESET", "CANCEL", "SAVE" };
+        for (int i = 0; i < 9; ++i)
         {
-            const int left = i * cw / 7, right = (i + 1) * cw / 7;
-            canvas.Fill(left + 2, ch - 46, right - left - 4, 44, i == 6 ? 0xFF0369A1 : 0xFF34465F);
+            const int left = i * cw / 9, right = (i + 1) * cw / 9;
+            canvas.Fill(left + 2, ch - 46, right - left - 4, 44, i == 8 ? 0xFF0369A1 : 0xFF34465F);
             DrawAction(canvas,left,right,ch-46,44,actions[i],font,0xFFFFFFFF);
         }
         if (!texture || cw != tw || ch != th)

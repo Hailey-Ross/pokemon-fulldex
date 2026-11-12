@@ -270,6 +270,29 @@ void JavaBoolArg(const char* method, bool value)
     CallActivity(method, "(Z)V", [&](JNIEnv* env, jclass c, jmethodID m) { env->CallStaticVoidMethod(c, m, value ? JNI_TRUE : JNI_FALSE); });
 }
 
+void JavaStringArg(const char* method, const std::string& value)
+{
+    CallActivity(method, "(Ljava/lang/String;)V", [&](JNIEnv* env, jclass c, jmethodID m) {
+        jstring s = env->NewStringUTF(value.c_str());
+        env->CallStaticVoidMethod(c, m, s);
+        env->DeleteLocalRef(s);
+    });
+}
+
+// The game folder of a 3DS game whose first Play is copying it in: it starts when that is done.
+std::string& N3dsAutoPlay() { static std::string folder; return folder; }
+
+bool JavaBoolStringArg(const char* method, const std::string& value)
+{
+    bool out = false;
+    CallActivity(method, "(Ljava/lang/String;)Z", [&](JNIEnv* env, jclass c, jmethodID m) {
+        jstring s = env->NewStringUTF(value.c_str());
+        out = env->CallStaticBooleanMethod(c, m, s);
+        env->DeleteLocalRef(s);
+    });
+    return out;
+}
+
 // The ROM folder the player chose (GameActivity.romFolder), with the saves in a folder inside
 // it; until one is chosen, the app's own folder.
 void SetRomFolder(Folders& fo)
@@ -564,6 +587,13 @@ std::vector<Launcher::Game> FindGames(const Folders& fo, std::map<std::string, s
 #ifdef _WIN32
     // Omega Ruby and Alpha Sapphire: a dump (.3ds) with the ROMs, played by the 3ds folder's program.
     N3ds::AddPc(romDirs, fo.dir, games);
+    for (Launcher::Game& g : games)
+        if (g.platform == Launcher::N3DS) g.built = N3ds::Prepared(g);
+#elif defined(__ANDROID__)
+    // (Android: with the Omega Ruby kit in the app, its own folder and the ROM folders.)
+    if (JavaBool("threeDsAvailable")) N3ds::AddAndroid(romDirs, fo.dir, games);
+    for (Launcher::Game& g : games)
+        if (g.platform == Launcher::N3DS) g.built = JavaBoolStringArg("threeDsBuilt", N3ds::IdOf(g));
 #endif
     Launcher::AddComingSoon(games);
     N3ds::DropPlaceholders(games);
@@ -1408,6 +1438,30 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             quit = true;
             return;
         }
+#elif defined(__ANDROID__)
+        // Omega Ruby and Alpha Sapphire, inside the app (the Omega Ruby kit): the dump copied into the
+        // app once, then each time the game's own screen, the list waiting behind it.
+        if (games[selected].platform == Launcher::N3DS && !games[selected].comingSoon)
+        {
+            const Launcher::Game& g = games[selected];
+            std::string name = Launcher::TitleCase(g.name);
+            for (char& c : name) c = (char)toupper((unsigned char)c);
+            if (JavaBool("threeDsBusy")) { note = JavaString("threeDsNote"); if (note.empty()) note = "WAIT FOR " + name + " TO FINISH"; return; }
+            if (!N3ds::Added(g))
+            {
+                double needGb = 0;
+                char gb[16];
+                if (!N3ds::RoomFor(g, fo.dir, needGb)) { snprintf(gb, sizeof gb, "%.1f", needGb); note = "NOT ENOUGH SPACE: " + name + " NEEDS " + gb + " GB FREE ON THE PHONE"; return; }
+                // (Copied in once; it starts by itself when the copy is done.)
+                JavaStringArg("threeDsAdd", g.rom);
+                N3dsAutoPlay() = g.folder;
+                note = "ADDING " + name + " TO FULLDEX (ONE TIME, ABOUT 2 GB): IT STARTS WHEN READY";
+                return;
+            }
+            JavaStringArg("threeDsPlay", N3ds::IdOf(g));
+            note = "STARTING " + name;
+            return;
+        }
 #endif
         if (Playable(fo, games[selected]))
         {
@@ -1569,6 +1623,19 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 if (item == 2 && valid) { F.kbFor = 0; F.dialog = 3; F.drow = 0; F.text = Launcher::ShortName(games[selected]); SDL_StartTextInput(); return; }
                 if (item == 5 && valid) { Launcher::OpenAddToTab(games[selected].rom); return; }
                 if (item == 6 && valid) { F.dialog = 1; F.drow = 0; return; }
+#ifdef __ANDROID__
+                // (Android's 3DS games: Use Game Code From PC (the FullDex Builder's .so) and Build Game Code.)
+                if ((item == 3 || item == 4) && valid && games[selected].platform == Launcher::N3DS)
+                {
+                    const Launcher::Game& g = games[selected];
+                    if (JavaBool("threeDsBusy")) { note = JavaString("threeDsNote"); if (note.empty()) note = "WAIT FOR THE GAME TO FINISH"; return; }
+                    if (!N3ds::Added(g)) { note = "CHOOSE THE GAME ONCE FIRST: THAT ADDS IT TO FULLDEX"; return; }
+                    if (item == 3) JavaStringArg("threeDsImport", N3ds::IdOf(g));
+                    else if (g.built || JavaBoolStringArg("threeDsBuilt", N3ds::IdOf(g))) {} // (Game Code Built: nothing to do)
+                    else JavaStringArg("threeDsBuild", N3ds::IdOf(g));
+                    return;
+                }
+#endif
                 if (item == 3 && valid) { F.dialog = 4; F.drow = 0; return; }
                 if (item == 4 && valid && games[selected].platform == Launcher::N3DS)
                 {
@@ -3189,7 +3256,37 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 if (MB.action >= 0) { if (!fake) NowPlaying::Command(MB.action); MB.action = -1; }
             }
 #ifdef _WIN32
-            if (N3ds::Busy()) { const std::string prep = N3ds::Status(); if (!prep.empty()) note = prep; }
+            if (N3ds::Busy())
+            {
+                const std::string prep = N3ds::Status(); if (!prep.empty()) note = prep;
+                for (Launcher::Game& g : games) if (g.platform == Launcher::N3DS && !g.built) g.built = N3ds::Prepared(g);
+            }
+#elif defined(__ANDROID__)
+            // (The 3DS games' copying and building: how it goes, twice a second.)
+            static int n3dsPoll = 0;
+            if (++n3dsPoll >= 30)
+            {
+                n3dsPoll = 0;
+                const std::string n3 = JavaString("threeDsNote");
+                if (!n3.empty()) note = n3;
+                bool any = false;
+                for (const Launcher::Game& g : games) any |= g.platform == Launcher::N3DS;
+                if (any)
+                {
+                    const bool busy3ds = JavaBool("threeDsBusy");
+                    // (Built, or code from a PC taken: the tile and menu say so.)
+                    for (Launcher::Game& g : games)
+                        if (g.platform == Launcher::N3DS && !busy3ds) g.built = JavaBoolStringArg("threeDsBuilt", N3ds::IdOf(g));
+                    // (The first Play's copy done: the game starts.)
+                    std::string& autoPlay = N3dsAutoPlay();
+                    if (!autoPlay.empty() && !busy3ds)
+                    {
+                        for (const Launcher::Game& g : games)
+                            if (g.platform == Launcher::N3DS && g.folder == autoPlay && N3ds::Added(g)) { JavaStringArg("threeDsPlay", N3ds::IdOf(g)); note = "STARTING " + g.name; }
+                        autoPlay.clear();
+                    }
+                }
+            }
 #endif
             Launcher::Draw(canvas, games, tab, !Launcher::TilesOn() && (onSettings || onTabs || Launcher::Focus().side >= 0 || Launcher::Focus().banner) ? -1 : selected, scroll, note, (Launcher::Focus().popup >= 0 || Launcher::Focus().dialog || Launcher::Focus().page >= 0) ? (padIn ? btn(Controls::A) + ": CHOOSE    " + btn(Controls::B) + ": BACK" : std::string("ENTER: CHOOSE    ESC: BACK")) : hint, theme, follow, onTabs, onSettings);
         }

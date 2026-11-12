@@ -6865,9 +6865,9 @@ int main(int argc, char** argv)
             {
                 const TouchPad& touchPad = *touchPadForMenu;
                 const float tw = (float)touchPad.w, th = (float)touchPad.h;
-                menu.touchShapes.push_back({ touchPad.dpadX / tw, touchPad.dpadY / th, touchPad.dpadR / th, 0, 0, "" });
+                if (!touchPad.dpadHidden) menu.touchShapes.push_back({ touchPad.dpadX / tw, touchPad.dpadY / th, touchPad.dpadR / th, 0, 0, "" });
                 for (const TouchPad::Button& b : touchPad.buttons)
-                    menu.touchShapes.push_back({ b.x / tw, b.y / th, b.r / th, b.w / tw, b.h / th, b.label ? b.label : "" });
+                    if (!b.hidden) menu.touchShapes.push_back({ b.x / tw, b.y / th, b.r / th, b.w / tw, b.h / th, b.label ? b.label : "" });
             }
 #endif
             toggle(M_STARTBTN, "START BUTTON", Glass::I_PLAY, Menu::P_NONE, cfg.startMenu,
@@ -11121,9 +11121,10 @@ int main(int argc, char** argv)
             avoid.clear();
             if (touchPadUsed && touchPad.visible && touchPad.w == outW && touchPad.h == outH)
             {
-                avoid.push_back({ (int)(touchPad.dpadX - touchPad.dpadR), (int)(touchPad.dpadY - touchPad.dpadR), (int)(touchPad.dpadX + touchPad.dpadR), (int)(touchPad.dpadY + touchPad.dpadR) });
+                if (!touchPad.dpadHidden) avoid.push_back({ (int)(touchPad.dpadX - touchPad.dpadR), (int)(touchPad.dpadY - touchPad.dpadR), (int)(touchPad.dpadX + touchPad.dpadR), (int)(touchPad.dpadY + touchPad.dpadR) });
                 for (const TouchPad::Button& b : touchPad.buttons)
                 {
+                    if (b.hidden) continue; // (a hidden control leaves the picture alone)
                     const float rx = b.w > 0 ? b.w / 2 : b.r, ry = b.w > 0 ? b.h / 2 : b.r;
                     avoid.push_back({ (int)(b.x - rx), (int)(b.y - ry), (int)(b.x + rx), (int)(b.y + ry) });
                 }
