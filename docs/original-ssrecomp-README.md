@@ -8,10 +8,7 @@ build output; the melonDS core (GPLv3, vendored in `melonDS/` at tag 1.1 with a
 few patches) provides the DS hardware: graphics, sound, cartridge, save memory
 and the ARM7.
 
-**Made with heavy use of AI.** Nearly all of the code, documentation and
-testing in this project was done by an AI coding assistant (Anthropic's Claude,
-through Claude Code), directed and play-tested by the maintainer. Expect bugs a
-person would not have made, and review the code with that in mind before
+**Built with AI assistance.** Expect some bugs, and review the code before
 reusing it.
 
 **This repository contains no game code or data.** It holds the recompiler,

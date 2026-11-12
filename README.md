@@ -690,7 +690,7 @@ open an issue and it will be taken out.
 
 ---
 
-Built with the help of [Claude](https://claude.ai), Anthropic's AI.
+Built with AI assistance.
 
 ## Custom touch controls and regional profiles
 
