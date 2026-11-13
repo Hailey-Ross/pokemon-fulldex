@@ -247,6 +247,12 @@ struct Watcher
     std::atomic<bool> quit{ false };
     std::thread thread;
 
+    ~Watcher()
+    {
+        quit = true;
+        if (thread.joinable()) thread.join();
+    }
+
     void Run()
     {
         Detail::Api api;
@@ -375,6 +381,12 @@ struct Watcher
     std::atomic<int> wanted{ 0 };
     std::atomic<bool> quit{ false };
     std::thread thread;
+
+    ~Watcher()
+    {
+        quit = true;
+        if (thread.joinable()) thread.join();
+    }
     JavaVM* vm = nullptr;
     jclass cls = nullptr;
     jmethodID infoM = nullptr, artM = nullptr, commandM = nullptr, settingsM = nullptr;

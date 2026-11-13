@@ -17,6 +17,7 @@
 #include <chrono>
 #include <thread>
 #include "sampler.h"
+#include "../gba/frontend/fast_forward_button.h"
 #include "ssr_os.h"
 #ifdef SSR_IOS
 #include "ios_orient.h"
@@ -63,6 +64,9 @@
 #include "host.h"
 #include "layout.h"
 #include "ui.h"
+#ifdef SSR_GBA
+#include "gba_glass_impl.h" // (the GBA games' pause menu, drawn by this one's Menu)
+#endif
 #include "companion_types.h"
 #include "companion_rom.h"
 #include "companion_guides.h"
@@ -79,6 +83,10 @@
 #include "android_second_screen.h"
 #include "merged.h"
 #include "audiostretch.h"
+#include "../gba/frontend/fast_forward_audio.h"
+#include "ff_music.h"
+#include "menu_drag.h"
+#include "companion_tabs.h"
 #include "gpucompose.h"
 #include "emuthread.h"
 #include "pc_launcher.h"
@@ -123,6 +131,33 @@ static unsigned PortableOverlaySize(int) { return 0; }
 #if defined(__SWITCH__) && defined(SSR_DEKO3D)
 #include "dekoprobe.h"
 #endif
+
+// Waits `seconds` and wakes on time. On Windows std::this_thread::sleep_for wakes on the system's
+// timer tick, which can be up to 15.6 ms apart: a wait of 14 ms before a frame then came back
+// over 10 ms late every dozen frames or so, and the frames after it were hurried to catch up
+// (28, 7, 25, 7 ms instead of four frames of 16.7 on a 240 Hz screen; issue #17). A
+// high-resolution waitable timer (Windows 10 1803 on) wakes within a fraction of a millisecond
+// whatever that tick is. FULLDEX_COARSE_WAIT=1 keeps the old wait, for comparing.
+static void SleepPrecise(double seconds)
+{
+    if (seconds <= 0) return;
+#ifdef _WIN32
+    static const bool coarse = getenv("FULLDEX_COARSE_WAIT") != nullptr;
+    thread_local HANDLE timer = coarse ? nullptr
+        : CreateWaitableTimerExW(nullptr, nullptr, 0x00000002 /* CREATE_WAITABLE_TIMER_HIGH_RESOLUTION */, TIMER_ALL_ACCESS);
+    if (timer)
+    {
+        LARGE_INTEGER due;
+        due.QuadPart = -(LONGLONG)(seconds * 1e7); // (in 100 ns steps, from now)
+        if (due.QuadPart < 0 && SetWaitableTimer(timer, &due, 0, nullptr, nullptr, FALSE))
+        {
+            WaitForSingleObject(timer, INFINITE);
+            return;
+        }
+    }
+#endif
+    std::this_thread::sleep_for(std::chrono::duration<double>(seconds));
+}
 
 #ifdef __ANDROID__
 // The app holds the player's own game, so it cannot update itself as the setup window does:
@@ -306,7 +341,7 @@ static void Bw2DexCover(Scene& sc, float viewWidth, const ScreenImage* screens)
 
 // Defined in the 2D renderer: layers not to draw, per engine (see GPU2D_Soft.cpp).
 extern unsigned rc_hide_layers[2];
-extern bool rc_frame_hidden, rc_wide_render_skip; // melonDS/src/GPU.cpp
+extern bool rc_frame_hidden, rc_wide_render_skip, rc_3d_render_skip; // melonDS/src/GPU.cpp
 
 using namespace melonDS;
 
@@ -519,10 +554,10 @@ static std::vector<uint8_t> ReadFile(const std::string& path)
 #endif
     FILE* f = fopen(path.c_str(), "rb");
     if (!f) return data;
-    fseek(f, 0, SEEK_END);
-    long len = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    data.resize(len);
+    if (fseek(f, 0, SEEK_END) != 0) { fclose(f); return data; }
+    const long len = ftell(f);
+    if (len < 0 || fseek(f, 0, SEEK_SET) != 0) { fclose(f); return data; }
+    data.resize((size_t)len);
     if (fread(data.data(), 1, len, f) != (size_t)len) data.clear();
     fclose(f);
     return data;
@@ -1039,6 +1074,20 @@ static void ApplyRenderer3D(NDS& nds, bool gpu)
 // can move what achievements read.
 static bool AchievementsOn = false;
 
+// Firmware has a fixed expected length. Reject incomplete or oversized files without reading
+// an arbitrary amount into memory before discovering that they are not usable firmware.
+static std::vector<uint8_t> ReadFirmwareFile(const std::string& path, size_t expected)
+{
+    FILE* file = fopen(path.c_str(), "rb");
+    if (!file) return {};
+    std::vector<uint8_t> data(expected);
+    const bool complete = fread(data.data(), 1, data.size(), file) == data.size();
+    const bool exact = complete && fgetc(file) == EOF && !ferror(file);
+    const bool closed = fclose(file) == 0;
+    if (!exact || !closed) data.clear();
+    return data;
+}
+
 static std::unique_ptr<NDS> MakeConsole(const std::vector<uint8_t>& rom, const std::vector<uint8_t>& sav, bool fixedClock)
 {
     // Black 2 and White 2 (US) get 8 MB of main RAM, for their wider map (frontend/bw2map.h).
@@ -1069,20 +1118,29 @@ static std::unique_ptr<NDS> MakeConsole(const std::vector<uint8_t>& rom, const s
     // The firmware kept from before (firmware.bin, see Host::FirmwarePath), when it is one: the
     // same size as the firmware made fresh otherwise.
     if (!Host::FirmwarePath.empty())
-        if (FILE* f = fopen(Host::FirmwarePath.c_str(), "rb"))
+    {
+        const size_t expected = Firmware(0).Length();
+#ifdef __SWITCH__
+        // (A save of the settings that was cut short can leave them in the rollback copy alone.)
         {
-            std::vector<u8> fw;
-            u8 buf[65536];
-            size_t n;
-            while ((n = fread(buf, 1, sizeof buf, f)) > 0) fw.insert(fw.end(), buf, buf + n);
-            fclose(f);
-            if (fw.size() == Firmware(0).Length())
-            {
-                args.Firmware = Firmware(fw.data(), (u32)fw.size());
-                fprintf(stderr, "[firmware] %s\n", Host::FirmwarePath.c_str());
-            }
-            else fprintf(stderr, "[firmware] %s: %zu bytes, not firmware: a new one\n", Host::FirmwarePath.c_str(), fw.size());
+            std::error_code missing;
+            if (!std::filesystem::exists(Host::FirmwarePath, missing) && !missing)
+                rename((Host::FirmwarePath + ".old").c_str(), Host::FirmwarePath.c_str());
         }
+#endif
+        const auto firmware = ReadFirmwareFile(Host::FirmwarePath, expected);
+        if (!firmware.empty())
+        {
+            args.Firmware = Firmware(firmware.data(), (u32)firmware.size());
+            fprintf(stderr, "[firmware] %s\n", Host::FirmwarePath.c_str());
+        }
+        else
+        {
+            std::error_code error;
+            if (std::filesystem::exists(std::filesystem::u8path(Host::FirmwarePath), error))
+                fprintf(stderr, "[firmware] cannot use %s; expected exactly %zu bytes; a fresh firmware is used\n", Host::FirmwarePath.c_str(), expected);
+        }
+    }
     auto nds = std::make_unique<NDS>(std::move(args));
 #ifdef JIT_ENABLED
     UseFastMem = UseJit && nds->JIT.FastMemoryEnabled();
@@ -1601,7 +1659,7 @@ struct Settings : OptionalFeatures
 #if defined(__SWITCH__) || defined(SSR_PHONE)
     bool startMenu = true;
 #else
-    bool startMenu = false;
+    bool startMenu = Controls::SteamDeck();
 #endif
     // While fast forwarding, the widescreen world at no more than 360 lines (more frames a
     // second, so a faster fast forward where drawing it is the limit). Off on a PC (the PC
@@ -1609,6 +1667,8 @@ struct Settings : OptionalFeatures
     bool ffLowRes = true;
     int fastSpeed = 4, slowDivisor = 1, rewindMb = 0;
     bool smartFast = false, turboA = false;
+    bool fastButtonToggle = false;
+    bool fastLock = false; // pause-menu FAST FORWARD, retained for the next launch
     int screenFilter=0;
     bool companionOverlay=false,partyHud=false;
     // STATUS BAR: a slim strip at the top while you play: the area, Poke Balls, the time, the battery.
@@ -1625,6 +1685,8 @@ struct Settings : OptionalFeatures
     bool ffMute = false;
     // QUIET GAME MUSIC: while the player's own music app plays (now_playing.h), the game's music is off.
     bool musicQuiet = false;
+    std::string gbaLcd; // Empty keeps the GBA player's existing LCD preference.
+    std::string romsFolder, savesFolder; // Keep launcher paths when in-game settings are saved.
     std::string listColour, listBackground, listLang, listSort; // (GAME LIST: COLOUR, BACKGROUND; LANGUAGE)
     bool cpuBoost = true; // Switch only: the processor's boost mode (see SwitchPlatform)
     bool jit = true;      // Switch, games that are not recompiled: melonDS's JIT (read at start-up)
@@ -1632,6 +1694,7 @@ struct Settings : OptionalFeatures
     bool cgearOff = true; // Black 2: answer its C-Gear question on starting (cgear_start=off|ask)
     bool pipeline = true; // Switch: show each frame while the next one is emulated (emuthread.h)
     bool frameAhead = true; // ... and one frame further ahead, shown at even times (`ahead`)
+    bool displayPacing = true; // Android: pictures follow the screen's refresh ("display_pacing=0" in the settings file: the DS's own clock, as before)
     // The 3D scene drawn by the graphics chip (melonDS/src/GPU3D_GLThread.h). Off unless asked
     // for: on the Switch, turning it on hung the whole console (Oct 24), so there it is only
     // read from ssrecomp.cfg ("gpu3d_test=1"), never offered in the menu or on by default. (The
@@ -1688,6 +1751,7 @@ struct Settings : OptionalFeatures
             else if (k == "large_screen") focusMode = v == "top" ? 1 : v == "bottom" ? 2 : 0;
             else if (k == "fullscreen") fullscreen = v == "1";
             else if (k == "smooth") smooth = v == "1";
+            else if (k == "gba_lcd") gbaLcd = v == "0" || v == "1" || v == "auto" ? v : "";
             else if (k == "wide") wide = v == "1";
             else if (k == "wide_map") wideMap = v == "1";
             else if (k == "wide_lines") wideLines = std::clamp(atoi(v.c_str()), 192, 2160);
@@ -1708,8 +1772,12 @@ struct Settings : OptionalFeatures
             else if (k == "list_colour") { listColour = v; Menu::Accent = AccentNamed(v); }
             else if (k == "list_background") listBackground = v;
             else if (k == "list_sort") listSort = v;
+            else if (k == "roms_folder") romsFolder = v;
+            else if (k == "saves_folder") savesFolder = v;
             else if (k == "list_lang" || k == "language") { listLang = v; UiLang::Set(v); }
             else if (k == "ff_low_res") ffLowRes = v == "1";
+            else if (k == "fast_button") fastButtonToggle = v == "toggle";
+            else if (k == "fast_lock") fastLock = v == "1";
             else if (k == "fast_speed") fastSpeed = std::clamp(atoi(v.c_str()),2,8);
             else if (k == "slow_divisor") slowDivisor = v=="4"?4:v=="2"?2:1;
             else if (k == "rewind_mb") rewindMb = v=="128"?128:v=="64"?64:0;
@@ -1726,6 +1794,7 @@ struct Settings : OptionalFeatures
             else if (k == "cgear_start") cgearOff = v != "ask";
             else if (k == "pipeline") pipeline = v != "0";
             else if (k == "frame_ahead") frameAhead = v != "0";
+            else if (k == "display_pacing") displayPacing = v != "0";
             else if (k == "gpu3d_test") gpu3d = v == "1";
             else if (k == "wide_gpu") wideGpu = v == "1";
             else if (k == "ds3d_gpu") ds3dGpu = v != "0";
@@ -1770,6 +1839,8 @@ struct Settings : OptionalFeatures
         f << "pad_touch=" << (padTouch ? 1 : 0) << "\n";
         f << "show_fps=" << (showFps ? 1 : 0) << "\n";
         f << "ff_low_res=" << (ffLowRes ? 1 : 0) << "\n";
+        f << "fast_button=" << (fastButtonToggle ? "toggle" : "hold") << "\n";
+        f << "fast_lock=" << (fastLock ? 1 : 0) << "\n";
         f << "fast_speed=" << fastSpeed << "\n";
         f << "slow_divisor=" << slowDivisor << "\n";
         f << "rewind_mb=" << rewindMb << "\n";
@@ -1777,6 +1848,7 @@ struct Settings : OptionalFeatures
         f << "party_hud=" << partyHud << "\n";
         f << "status_bar=" << statusBar << "\n";
         f << "screen_filter=" << screenFilter << "\n";
+        if (!gbaLcd.empty()) f << "gba_lcd=" << gbaLcd << "\n";
         SaveExtras(f);
         f << "smart_fast=" << smartFast << "\n";
         f << "turbo_a=" << turboA << "\n";
@@ -1789,6 +1861,8 @@ struct Settings : OptionalFeatures
         f << "music_quiet=" << (musicQuiet ? 1 : 0) << "\n";
         if (!listColour.empty()) f << "list_colour=" << listColour << "\n";
         if (!listSort.empty()) f << "list_sort=" << listSort << "\n";
+        if (!romsFolder.empty()) f << "roms_folder=" << romsFolder << "\n";
+        if (!savesFolder.empty()) f << "saves_folder=" << savesFolder << "\n";
         if (!listBackground.empty()) f << "list_background=" << listBackground << "\n";
         if (!listLang.empty()) f << "list_lang=" << listLang << "\n";
         f << "start_button=" << (startMenu ? "menu" : "ds") << "\n";
@@ -1813,6 +1887,7 @@ struct Settings : OptionalFeatures
         f << "cgear_start=" << (cgearOff ? "off" : "ask") << "\n";
         f << "pipeline=" << (pipeline ? 1 : 0) << "\n";
         f << "frame_ahead=" << (frameAhead ? 1 : 0) << "\n";
+        if (!displayPacing) f << "display_pacing=0\n"; // (kept only when turned off by hand)
 #endif
     }
 };
@@ -1844,9 +1919,12 @@ static void StartTyping(const char* guide = "", bool password = false)
 static void SearchTyping(const char* guide) { StartTyping(guide); }
 
 // Draws the overlay canvas over an ARGB image of the same size.
-static void BlendCanvas(const Canvas& c, std::vector<uint32_t>& img)
+static void BlendCanvas(const Canvas& c, std::vector<uint32_t>& img, int width, int height)
 {
-    for (size_t i = 0; i < img.size() && i < c.px.size(); i++)
+    // A differently sized export omits the window-sized overlay rather than changing its row stride.
+    if (width <= 0 || height <= 0 || c.w != width || c.h != height ||
+        img.size() != (size_t)width * height || c.px.size() != img.size()) return;
+    for (size_t i = 0; i < img.size(); i++)
     {
         uint32_t o = c.px[i];
         uint32_t a = o >> 24;
@@ -1970,11 +2048,17 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    // Gate only the newly validated profiles; existing English revisions keep their behaviour.
+    // Clean regional releases must match their validated profile. Recognised ROM hacks
+    // deliberately change its bytes, revision or size; they use normal emulation instead.
     if (const char* problem = RegionalProfiles::Check(rom.data(),rom.size()))
     {
-        fprintf(stderr,"[regional] %s ROM unchanged; no save was loaded.\n",problem);
-        return 1;
+        if (!opt.romHack)
+        {
+            fprintf(stderr,"[regional] %s ROM unchanged; no save was loaded.\n",problem);
+            return 1;
+        }
+        opt.recomp = false;
+        fprintf(stderr,"[regional] ROM hack: %s Continuing with normal emulation.\n",problem);
     }
 
     // CLOUD SAVES (cloud_autosync.h): a newer save in the cloud comes down before the game reads it.
@@ -2035,7 +2119,7 @@ int main(int argc, char** argv)
     const std::string gameCode = rom.size() >= 0x200 ? std::string((const char*)&rom[0x0C], 4) : std::string();
     if (!opt.lockstep && rom.size() >= 0x200)
     {
-        cheats.Load(Cheats::FolderFor(opt.save), gameCode, rom.data());
+        cheats.Load(Cheats::FolderFor(opt.save), gameCode, rom.data(), opt.rom, opt.romHack);
         cheats.Apply(nds->AREngine);
         fprintf(stderr, "[cheats] %zu for %s in %s, %d on, %zu folders\n", cheats.items.size(), gameCode.c_str(), cheats.folder.c_str(), cheats.On(), cheats.folders.size());
         for (const std::string& src : cheats.sources) fprintf(stderr, "[cheats]   from %s\n", src.c_str());
@@ -2130,7 +2214,7 @@ int main(int argc, char** argv)
     static GameMusic gameMusic;
     gameMusic.Attach(*nds);
     static VersionExclusives exclusives;
-    if (soulSilverRom && !opt.lockstep && rc_num_chunks) exclusives.Init(opt.rom, gameCode, *nds);
+    if (soulSilverRom && !opt.lockstep && !opt.romHack && rc_num_chunks) exclusives.Init(opt.rom, gameCode, *nds);
     // (Attached once the layouts' functions are known, below.)
     if (!opt.traceFuncsAt.empty() && !funcWatchOn)
     {
@@ -2353,6 +2437,7 @@ int main(int argc, char** argv)
     bool syncToDisplay = false;
     int refreshesPerFrame = 1;
     double refreshPeriod = 1001.0 / 60000.0;
+    double screenPace = 0; // Android: seconds a picture when the frames keep the screen's rate (0: the DS's own)
     SDL_Renderer* renderer = nullptr;
     SDL_Texture* tex[2] = { nullptr, nullptr };
     SDL_Texture* overlayTex = nullptr;
@@ -2503,6 +2588,31 @@ int main(int argc, char** argv)
         // The frames keep their own pace (nextTick, 59.8 a second): one a little under the
         // screen's 60 never waits for it, with Metal's three pictures in flight.
         rendererFlags |= SDL_RENDERER_PRESENTVSYNC;
+#elif defined(__ANDROID__)
+        // Android: the frames keep the screen's rate (60 a second, also on a 120 Hz screen),
+        // not the DS's own 59.8 a second. Keeping the DS clock, the two walked past
+        // each other and a picture was shown twice about every six seconds (measured on a
+        // Pixel 9 Pro XL: 6 or 7 of 1,800 frames, more with the in-between frames), where an
+        // app that follows the screen shows none. The game then runs a third of a percent
+        // faster than a DS, and the sound is stretched to match (AudioQueueSlowdown).
+        // "display_pacing=0" in the settings file keeps the DS clock.
+        {
+            SDL_DisplayMode mode;
+            const int display = SDL_GetWindowDisplayIndex(window);
+            const int hz = display >= 0 && SDL_GetCurrentDisplayMode(display, &mode) == 0 ? mode.refresh_rate : 0;
+            const int near60 = hz > 0 ? (hz + 30) / 60 * 60 : 0;
+            const bool follow = cfg.displayPacing && near60 > 0 && std::abs(hz - near60) <= 1;
+            // (Not syncToDisplay's measuring of the refresh from when Present returns: on a
+            // 120 Hz phone showing the game at 60 it settled on 121.9 Hz and a picture was
+            // shown twice 62 times in 1,800. The frames keep their own clock, set to the
+            // screen's rate, and the picture queue takes up the small differences.)
+            if (follow)
+            {
+                rendererFlags |= SDL_RENDERER_PRESENTVSYNC;
+                screenPace = (double)std::max(1, (hz + 30) / 60) / hz;
+            }
+            fprintf(stderr, "[display] %d Hz: %s\n", hz, follow ? "frames at the screen's rate, 60 a second" : "frames at the DS's own rate, 59.8 a second");
+        }
 #elif !defined(__SWITCH__) && !defined(__ANDROID__)
         // Windows and Linux: in step with the screen (vsync) when it shows 60 pictures a
         // second or a multiple of that (59.94 or 60, 120, 240 Hz). The pictures then follow
@@ -2908,9 +3018,12 @@ int main(int argc, char** argv)
                 if (fseek(rf, 0x0C, SEEK_SET) != 0 || fread(code, 1, 4, rf) != 4) code[0] = 0;
                 fclose(rf);
             }
-            bw2map.Init(code, funcWatch, bw2Names, *nds, cfg.wide && cfg.wideMap && !AchievementsOn);
+            // These modifications use the original game's heap and encounter layouts. A hack
+            // keeping the same game code may have repurposed either, so do not attach them.
+            if (!opt.romHack) bw2map.Init(code, funcWatch, bw2Names, *nds, cfg.wide && cfg.wideMap && !AchievementsOn);
+            else fprintf(stderr, "[romhacks] base-game map and encounter modifications disabled\n");
             // OTHER VERSION POKEMON (exclusives.h): Black, White, Black 2 and White 2.
-            if (!opt.lockstep)
+            if (!opt.lockstep && !opt.romHack)
             {
                 exclusives.Init(code, funcWatch, bw2Names, *nds);
                 exclusives.on = cfg.bothVersions && exclusives.Supported();
@@ -3161,6 +3274,19 @@ int main(int argc, char** argv)
                 }
             }
             sc.items.insert(sc.items.end(), shades.begin(), shades.end());
+        }
+        else if (!pt.dp && red(128, 64) && blue(128, 136) && !blue(128, 166) && !orange(40, 160))
+        {
+            // The Yes / No panel ("Would you like to give a nickname?" after a catch): only the two
+            // buttons, at the right above the message bar, so the caught Pokemon and the message
+            // stay in sight (the whole touch screen pasted at the lower left covered them).
+            sc.name = "battle-yesno";
+            const float viewR = 128 + viewWidth / 2;
+            const float scale = viewWidth < 300 ? 0.4f : 0.5f, w = 244 * scale, h = 60 * scale, gap = 4;
+            const float x = viewR - w - 4, y1 = 144 - 2 * h - gap - 4;
+            put(6, 35, 244, 60, x, y1, scale);
+            put(6, 107, 244, 60, x, y1 + h + gap, scale);
+            for (size_t k = sc.items.size() - 2; k < sc.items.size(); k++) sc.items[k].border = true;
         }
         else if (viewWidth < 300 || battleUnknown >= 20)
         {
@@ -3667,12 +3793,25 @@ int main(int argc, char** argv)
             Element closing = Crop(1, regionalMenu ? 0 : 22, 109, regionalMenu ? 256 : 214, 6);
             list.drop = cards.drop = closing.drop = LAYER_BACKDROP;
             sc = CleanMenu("launch-menu", { list, cards }, viewWidth, 0x1c1c1c);
-            const Element& c = sc.items.back();
-            closing.scale = c.scale;
-            closing.dx = c.dx;
-            closing.dy = c.dy + c.sh * c.scale;
-            closing.crisp = true;
-            sc.items.push_back(closing);
+            // The key system's card is only there once the game has it to show (not in a new
+            // save): without it there is nothing to close, and the closing edge would stand
+            // alone under the saved game's card. It is there when anything other than the
+            // background's own stripes (each row's colour at the screen's left edge) is drawn
+            // where the card would be.
+            bool keyCard = false;
+            if (screens)
+                for (int y = 120; y < 166 && !keyCard; y += 2)
+                    for (int x = 30; x < 226; x += 4)
+                        if (screens[1].pixels[y * 256 + x] != screens[1].pixels[y * 256 + 4]) { keyCard = true; break; }
+            if (keyCard)
+            {
+                const Element& c = sc.items.back();
+                closing.scale = c.scale;
+                closing.dx = c.dx;
+                closing.dy = c.dy + c.sh * c.scale;
+                closing.crisp = true;
+                sc.items.push_back(closing);
+            }
             sc.extraRows[0] = extra;
             sc.redrawSkip[0] = 1 << 3;   // the list without the Poke Ball and stripes (BG3)
             sc.redrawUnscroll[0] = 2;     // the list whole, also when the game has scrolled it
@@ -4447,6 +4586,10 @@ int main(int argc, char** argv)
             sc.bgX = 128;
             sc.bgY = 58;
         }
+        else if (appActive("GearRadio"))
+            // The radio: who is speaking and what they say are in a box at the foot of the other
+            // screen (rows 120 to 191); shown above the radio, as the phone's clock is.
+            sc = Stack("radio", { Crop(0, 0, 120, 256, 72), Crop(1, 0, 0, 256, 192) }, false, viewWidth);
         else if (appActive("GearPhone") && screens[1].flags &&
             LayerClass(screens[1].flags[170 * 256 + 30]) == LAYER_OBJ)
             // A call in progress (the contact list is inactive and a sprite panel covers its
@@ -4883,6 +5026,7 @@ int main(int argc, char** argv)
     int secondDrawnTab = -1;
     uint32_t secondSince = 0;
     int liveTab = 0, liveTabBeforeBattle = -1, liveTabRects[6][4] = {}, livePanel[4] = {};
+    bool liveWasInBattle = false;
     // A tap or click at (x, y) on the screen: on a tab, that tab; anywhere on the window, kept from the game.
     auto liveTouch = [&](float x, float y) {
         if (livePanel[2] <= 0 || x < livePanel[0] || y < livePanel[1] || x >= livePanel[0] + livePanel[2] || y >= livePanel[1] + livePanel[3]) return false;
@@ -5047,7 +5191,7 @@ int main(int argc, char** argv)
         M_COMPANION, M_CPARTY, M_CBAG, M_CDEX, M_CLOCATION, M_CMAP, M_CENCOUNTERS, M_REFERENCE, M_REFERENCE_KIND, M_REFERENCE_QUERY, M_CPOCKET, M_CDEX_FILTER, M_CBATTLE, M_CGUIDE, M_CGUIDE_REVEAL, M_NUZLOCKE, M_RUN_ENABLED, M_RUN_RESET, M_RUN_RESET_CONFIRM, M_QUICK_ACTIONS, M_OPEN_PC, M_HUB_SAVE, M_HUB_LOAD, M_HUB_CHEATS, M_HUB_FAST, M_HUB_SETTINGS, M_HUB_QUIT,
         M_QUIT_YES, M_RESET_YES, // (QUIT GAME / RESET GAME asked first: PAGE_QUIT_CONFIRM)
         M_SHORTCUTS, // (CONTROLS: Fulldex's own four shortcuts, opening KEYS AND BUTTONS at them)
-        M_EXTRAS, M_EXTRA0=92000, M_EXTRA_END=92006, M_PLAYBACK=93000, M_FAST_SPEED, M_SMART_FAST, M_SLOW_MOTION, M_REWIND_MB, M_REWIND, M_TURBO_A, M_SCREEN_FILTER, M_COMPANION_OVERLAY, M_PARTY_HUD, M_STATUS_BAR,
+        M_EXTRAS, M_EXTRA0=92000, M_EXTRA_END=92006, M_PLAYBACK=93000, M_FAST_SPEED, M_SMART_FAST, M_SLOW_MOTION, M_REWIND_MB, M_REWIND, M_TURBO_A, M_SCREEN_FILTER, M_COMPANION_OVERLAY, M_PARTY_HUD, M_STATUS_BAR, M_FAST_BUTTON,
         M_STATES, M_SLOT_SAVE, M_SLOT_LOAD, M_SLOT_PREVIOUS, M_UNDO_LOAD,
         M_KEY0=94000, M_KEY_LAYER=94900, M_KEY_SPACE, M_KEY_DEL, M_KEY_DONE, M_KEY_SYMBOLS, // (the keyboard's keys, Menu::keyGrid: SEARCH, the log in)
         M_CPARTY0=80000, M_CDEX0=81000, M_CITEM0=83000, M_RRESULT0=86000, M_SLOT0=90000, M_GUIDE0=91000,
@@ -5069,8 +5213,16 @@ int main(int argc, char** argv)
     int sliderTap = -1; // a tap on a slider's bar (Menu::SliderAt): the value, for its row's action
     std::string raTyped, raUser;
     std::vector<int> menuIds;
-    bool fastLock = false;
+    bool fastLock = cfg.fastLock;
+    FastForwardButton fastButton;
+    bool fastInputFocused = true;
     double ffFrameMs = 0; // emulation time of one frame while fast forwarding (see speed)
+    // (The same in two parts: the frame that is shown, which draws its screens, and each of the
+    // hidden ones before it, which cost a third of that.)
+    double ffShownMs = 0, ffHiddenMs = 0;
+    // Fast forward's pictures are shown this many refreshes of the screen apart (see speed): 1,
+    // or more where the frames of one picture take longer than a refresh.
+    int ffRefreshes = 1;
     // World detail choices: the most lines the widescreen 3D is drawn at (192 is the DS's own).
     static const int detailLines[] = { 192, 288, 384, 540, 720, 1080, 1440, 2160 };
     const int detailCount = (int)(sizeof(detailLines) / sizeof(detailLines[0]));
@@ -5689,7 +5841,9 @@ int main(int argc, char** argv)
             settingsPage(Glass::I_FAST);
             section("SPEED", Glass::I_FAST);
             toggle(M_FAST, "FAST FORWARD", Glass::I_FAST, Menu::P_NONE, fastLock,
-                   "Keep the game fast forwarding until you turn it off.", "The fast forward key or button does the same while you hold it.");
+                   "Keep the game fast forwarding until you turn it off.", "The fast forward button follows the Hold / Toggle setting below.");
+            picker(M_FAST_BUTTON, "FAST FORWARD BUTTON", Glass::I_PAD, Menu::P_NONE, { "HOLD", "TOGGLE" }, cfg.fastButtonToggle ? 1 : 0,
+                   "Hold: release to stop. Toggle: press once to start and again to stop.", "Applies to the keyboard, controller and on-screen fast forward button.");
             {
                 static const int speeds[] = { 2, 3, 4, 8 };
                 int i = 0;
@@ -5828,7 +5982,7 @@ int main(int argc, char** argv)
                 toggle(M_STATUS_BAR, "STATUS BAR", Glass::I_GLOBE, Menu::P_NONE, cfg.statusBar,
                        "A slim strip at the top of the game: where you are, your Poke Balls, the time and the battery.", "As PokeDaisy's.");
                 toggle(M_COMPANION_OVERLAY, "COMPANION WINDOW", Glass::I_WINDOW, Menu::P_NONE, cfg.companionOverlay,
-                       "Made for dual screens: the whole companion, party, bag, map, Pokedex, battle and guide, beside the game. On one screen it is a card in the corner; tap a tab to change it.",
+                       "Made for dual screens: party, bag, map, Pokedex, battle and guide beside the game, or in a corner card. Tap a tab or click the left stick to change it. A custom left-stick button binding takes priority.",
                        "Battle opens by itself when a battle starts. The HUD and status bar are hidden while this is on.");
                 section("YOUR GAME", Glass::I_POKEBALL);
                 if (snap.ready)
@@ -6711,9 +6865,9 @@ int main(int argc, char** argv)
             {
                 const TouchPad& touchPad = *touchPadForMenu;
                 const float tw = (float)touchPad.w, th = (float)touchPad.h;
-                menu.touchShapes.push_back({ touchPad.dpadX / tw, touchPad.dpadY / th, touchPad.dpadR / th, 0, 0, "" });
+                if (!touchPad.dpadHidden) menu.touchShapes.push_back({ touchPad.dpadX / tw, touchPad.dpadY / th, touchPad.dpadR / th, 0, 0, "" });
                 for (const TouchPad::Button& b : touchPad.buttons)
-                    menu.touchShapes.push_back({ b.x / tw, b.y / th, b.r / th, b.w / tw, b.h / th, b.label ? b.label : "" });
+                    if (!b.hidden) menu.touchShapes.push_back({ b.x / tw, b.y / th, b.r / th, b.w / tw, b.h / th, b.label ? b.label : "" });
             }
 #endif
             toggle(M_STARTBTN, "START BUTTON", Glass::I_PLAY, Menu::P_NONE, cfg.startMenu,
@@ -6813,7 +6967,9 @@ int main(int argc, char** argv)
             if (hubFor(select) >= 0) page = hubFor(select);
         }
         if (page >= PAGE_HUB_SAVE && page <= PAGE_HUB_QUIT) hubPage = page;
-        if (page != menuPage) menu.scrollPx = 0; // (a new page opens at its top, its chosen row then kept in view)
+        if (page != menuPage) { menu.scrollPx = 0; menu.freeScroll = false; } // (a new page opens at its top, its chosen row then kept in view)
+        menu.npFocus = menu.npAction = -1;
+        menu.pickWanted = -1;
         menuPage = page;
         buildMenu();
         menu.selected = 0;
@@ -6981,18 +7137,18 @@ int main(int argc, char** argv)
     std::vector<int16_t> audioOut;
     uint64_t audioTick = 0;
     double audioSlow = 1.0;
-    // Sound generated while fast forwarding, not yet played. Playback stays at the DS's
-    // own rate (below); this holds the rest. ffAudioAt is the index of the next unplayed
-    // sample (stereo, so two entries per frame).
-    std::vector<int16_t> ffAudio;
-    int ffAudioAt = 0;
-    double ffAudioFrac = 0;
+    // Sound made while fast forwarding, played at its own speed (FastForwardAudio).
+    FastForwardAudio ffAudio;
     bool ffInBattle = false;
     bool audioWasFastForward = false;
     bool running = true;
     bool mouseDown = false;
     int mouseTapHold = 0;      // frames a click lasts at least (see SDL_MOUSEBUTTONDOWN)
     int mouseX = 0, mouseY = 0;
+#if !defined(__SWITCH__) && !defined(SSR_PHONE)
+    uint32_t lastPointerUse = 0;
+    bool pointerUsed = false, pointerHeld = false;
+#endif
     // On-screen controls (touch screens): shown while no controller is connected.
     TouchPad touchPad;
     touchPadForMenu = &touchPad;
@@ -7012,6 +7168,10 @@ int main(int argc, char** argv)
         float x0 = 0, y0 = 0;
     } dexSwipe;
     int dexSwipeKey = 0, dexSwipeFrames = 0;
+    MenuDrag menuDrag;
+    SDL_FingerID menuDragFinger = 0;
+    int menuDragPage = -1;
+
 #ifdef __SWITCH__
     // The Switch's touch screen: its SDL sends finger events and no mouse events made from them,
     // so a finger is followed here (the first one down) and taken as the mouse below.
@@ -7030,6 +7190,7 @@ int main(int argc, char** argv)
     bool swallowMenuButtons = false; // keeps the buttons that closed the menu from reaching the game
     uint32_t kbKeysHeld = 0; // the keyboard's DS buttons held this frame
     const double frameTime = 1.0 / 59.8261;
+    const double paceTime = screenPace > 0 ? screenPace : frameTime; // (between pictures: see screenPace)
     uint64_t perfFreq = opt.headless ? 1 : SDL_GetPerformanceFrequency();
     uint64_t nextTick = opt.headless ? 0 : SDL_GetPerformanceCounter();
     uint64_t lastRefresh = 0; // the last vsync'd present's return, a refresh of the screen
@@ -7194,11 +7355,19 @@ int main(int argc, char** argv)
     });
 #endif
     int emuSpeed = 1, emuGot = 0;
+    // Fast forward's music at its own speed (ff_music.h): a copy of the console that only plays
+    // the song, a frame of it for each frame shown. Its sound instead of the game's while there
+    // is any (emuMusicGot); else the stretches of FastForwardAudio, as before.
+    FfMusic ffMusic;
+    std::vector<int16_t> musicBuf(4096 * 2);
+    int emuMusicGot = 0, ffMusicWait = 0, ffMusicFind = 0;
+    unsigned ffMusicEvent = 0;
+    bool ffMusicWanted = false; // (set before each run: fast forward's sound is on)
     double emuMs = 0, perfEmu = 0;
     uint64_t perfDsFrames = 0; // DS frames emulated since the last timing line (several a frame when fast forwarding)
 
     // The emulation of one frame (several when fast-forwarding). Every frame's sound is kept
-    // and played back at normal speed; see the fast-forward queue below.
+    // and played back at normal speed; see the fast-forward sound below.
     // Fast forward runs several frames at once and shows the last: the others' 2D and widescreen
     // world are not drawn (rc_frame_hidden, rc_wide_render_skip), so it goes faster and shows
     // more frames. SSR_FF_FULL=1 draws them all, for comparing.
@@ -7206,14 +7375,48 @@ int main(int argc, char** argv)
     auto runFrames = [&]() {
         const double t0 = perfNow();
         int filled = 0;
+        if (ffMusicWanted && emuSpeed > 1 && gameMusic.musicOn && !gameMusic.streamChannels)
+        {
+            // (Another song, or the song stopped: the copy ends, and a new one starts a few frames
+            // on, once the sound processor has taken the command.)
+            if (ffMusicEvent != gameMusic.musicEvent)
+            {
+                ffMusicEvent = gameMusic.musicEvent;
+                if (ffMusic.playing) ffMusicWait = 4;
+                ffMusic.End();
+                ffMusic.gaveUp = false;
+            }
+            if (!ffMusic.playing && !ffMusic.gaveUp)
+            {
+                if (ffMusicWait > 0) ffMusicWait--;
+                else if (!ffMusic.Begin(*nds)) ffMusic.gaveUp = true;
+            }
+        }
+        else if (ffMusic.playing || ffMusic.gaveUp || ffMusicWait)
+        {
+            ffMusic.End();
+            ffMusic.gaveUp = false;
+            ffMusicWait = 0;
+            ffMusicEvent = gameMusic.musicEvent;
+        }
         for (int i = 0; i < emuSpeed; i++)
         {
             // (The widescreen world drawn during a frame is shown after the next one.)
             rc_frame_hidden = !ffFull && emuSpeed > 1 && i < emuSpeed - 1;
             rc_wide_render_skip = !ffFull && emuSpeed > 1 && i < emuSpeed - 2;
+            // (The DS-resolution 3D picture on the graphics chip, drawn at the end of this frame
+            // for the next: only the one the shown frame takes, see WideGpuDSLazy.)
+            melonDS::WideGpuDSLazy = rc_3d_render_skip = !ffFull && emuSpeed > 1 && i != emuSpeed - 2;
             rc_frame++;
             if (funcWatchOn) funcWatch.NextFrame();
+            const double f0 = perfNow();
             nds->RunFrame();
+            if (emuSpeed > 1)
+            {
+                double& part = i == emuSpeed - 1 ? ffShownMs : ffHiddenMs;
+                const double ms = perfNow() - f0;
+                part = part > 0 ? part * 0.9 + 0.1 * ms : ms;
+            }
             if (testMusicOffAt && rc_frame == testMusicOffAt) gameMusic.Music = 0;
             gameMusic.Apply(); // (MUSIC / SOUND EFFECTS: a change heard at once)
             pokeActions.Frame();
@@ -7229,6 +7432,18 @@ int main(int argc, char** argv)
         }
         emuGot = filled;
         rc_frame_hidden = rc_wide_render_skip = false;
+        melonDS::WideGpuDSLazy = rc_3d_render_skip = false;
+        if (ffMusic.playing)
+        {
+            // (The song's volume as the game has it now: its fades in and out.)
+            if (!gameMusic.players && ffMusicFind-- <= 0)
+            {
+                gameMusic.players = gameMusic.FindPlayers();
+                ffMusicFind = 120;
+            }
+            ffMusic.MirrorVolumes(*nds, gameMusic.players && GameMusic::PlayersAt(gameMusic.players) ? gameMusic.players : nullptr, gameMusic.musicOn);
+        }
+        emuMusicGot = ffMusic.playing ? ffMusic.Frame(musicBuf.data(), (int)(musicBuf.size() / 2)) : 0;
         emuMs = perfNow() - t0;
     };
     if (pipelined)
@@ -7254,8 +7469,7 @@ int main(int argc, char** argv)
             if (secondCanvas.w != sw || secondCanvas.h != sh) { secondCanvas.Resize(sw, sh); secondDrawnTab = -1; }
             if (companionSnapshot.ready && liveViewVersion != companionVersion) { fillCompanionView(liveView); liveViewVersion = companionVersion; }
             const bool inBattle = !liveView.battle.empty();
-            if (inBattle && liveTabBeforeBattle < 0 && liveTab != 4) { liveTabBeforeBattle = liveTab; liveTab = 4; }
-            if (!inBattle && liveTabBeforeBattle >= 0) { liveTab = liveTabBeforeBattle; liveTabBeforeBattle = -1; }
+            CompanionTabs::Battle(inBattle, liveWasInBattle, liveTab, liveTabBeforeBattle);
             if (++secondSince >= 30 || secondDrawnVersion != liveViewVersion || secondDrawnTab != liveTab)
             {
                 // (The game's top screen, stretched to the canvas and blurred, under the glass.)
@@ -7533,7 +7747,7 @@ int main(int argc, char** argv)
             if (now < nextTick)
             {
                 const double left = (double)(nextTick - now) / perfFreq;
-                if (left > 0.0008) std::this_thread::sleep_for(std::chrono::duration<double>(left - 0.0006));
+                if (left > 0.0008) SleepPrecise(left - 0.0006);
                 while (SDL_GetPerformanceCounter() < nextTick) {}
             }
         }
@@ -7550,10 +7764,10 @@ int main(int argc, char** argv)
                 // Sleep for most of the wait and spin for the last part of a millisecond.
                 // (With the pipeline only the sleep, leaving the core to the widescreen thread.)
                 const double left = (double)(nextTick - now) / perfFreq;
-                if (pipelined) std::this_thread::sleep_for(std::chrono::duration<double>(left));
+                if (pipelined) SleepPrecise(left);
                 else
                 {
-                    if (left > 0.0008) std::this_thread::sleep_for(std::chrono::duration<double>(left - 0.0006));
+                    if (left > 0.0008) SleepPrecise(left - 0.0006);
                     while (SDL_GetPerformanceCounter() < nextTick) {}
                 }
             }
@@ -7563,10 +7777,10 @@ int main(int argc, char** argv)
                 // up to a quarter of a frame back from the next one, so that frames a little late
                 // and a little early in turn still average out to full speed, but a longer stall
                 // is not won back.
-                const uint64_t carry = (uint64_t)(frameTime * perfFreq / 4);
+                const uint64_t carry = (uint64_t)(paceTime * perfFreq / 4);
                 if (now - nextTick > carry) nextTick = now - carry;
             }
-            nextTick += (uint64_t)(frameTime * perfFreq);
+            nextTick += (uint64_t)(paceTime * ffRefreshes * perfFreq);
             perfMark(4);
         }
         // How evenly the frames are handed to the screen, for the timing lines: gaps between
@@ -7629,7 +7843,7 @@ int main(int argc, char** argv)
             lastRefresh = returned;
             // 2 ms early when Present itself waits out that last bit, so a late wake still
             // meets this refresh. When Present does not wait, the whole refresh is left.
-            double untilNext = refreshPeriod * refreshesPerFrame;
+            double untilNext = refreshPeriod * refreshesPerFrame * ffRefreshes;
             if (blocked > 0.0005) untilNext -= 0.002;
             if (untilNext < 0.002) untilNext = 0.002;
             nextTick = returned + (uint64_t)(untilNext * (double)perfFreq);
@@ -7666,7 +7880,7 @@ int main(int argc, char** argv)
         if (!aheadCount) return false;
         uint64_t t = SDL_GetPerformanceCounter();
         if (!now && t < nextTick) return false;
-        const uint64_t ft = (uint64_t)(frameTime * perfFreq);
+        const uint64_t ft = (uint64_t)(paceTime * perfFreq);
         if (t > nextTick + perfFreq / 500) aheadLate++; // (over 2 ms after its time)
         aheadShown++;
         DrawJob& j = aheadJobs[aheadHead];
@@ -7862,6 +8076,17 @@ int main(int argc, char** argv)
             while (SDL_PollEvent(&ev))
             {
                 menuEvents++; // (the pause menu is drawn again after any input: see menuKeep)
+#if !defined(__SWITCH__) && !defined(SSR_PHONE)
+                if ((ev.type == SDL_MOUSEMOTION && ev.motion.which != SDL_TOUCH_MOUSEID) ||
+                    (ev.type == SDL_MOUSEBUTTONDOWN && ev.button.which != SDL_TOUCH_MOUSEID))
+                {
+                    lastPointerUse = SDL_GetTicks();
+                    pointerUsed = true;
+                    if (ev.type == SDL_MOUSEBUTTONDOWN) pointerHeld = true;
+                }
+                if ((ev.type == SDL_MOUSEBUTTONUP && ev.button.which != SDL_TOUCH_MOUSEID) ||
+                    (ev.type == SDL_WINDOWEVENT && ev.window.event == SDL_WINDOWEVENT_FOCUS_LOST)) pointerHeld = false;
+#endif
                 if (ev.type == SDL_CONTROLLERBUTTONDOWN && ev.cbutton.button < PAD_COUNT)
                 {
                     int b = ev.cbutton.button;
@@ -7913,6 +8138,51 @@ int main(int argc, char** argv)
                     raTyped += ev.text.text;
                     if (raTyped.size() > 128) raTyped.resize(128);
                     buildMenu();
+                }
+                else if ((menu.open || menuDrag.active) &&
+                         (ev.type == SDL_FINGERDOWN || ev.type == SDL_FINGERMOTION || ev.type == SDL_FINGERUP))
+                {
+                    int ow = 0, oh = 0;
+                    SDL_GetRendererOutputSize(renderer, &ow, &oh);
+                    const int x = (int)(ev.tfinger.x * ow), y = (int)(ev.tfinger.y * oh);
+                    if (menuDrag.active)
+                    {
+                        if (ev.tfinger.fingerId != menuDragFinger) continue;
+                        if (!menu.open || menuPage != menuDragPage) { menuDrag.active = false; continue; }
+                        if (menu.style == 1)
+                        {
+                            if (menuDrag.Move(y, std::max(12, oh / 60), menu.scrollPx)) menu.freeScroll = true;
+                        }
+                        else
+                        {
+                            // (A plain list scrolls by whole rows.)
+                            int px = 0;
+                            if (menuDrag.Move(y, std::max(12, oh / 60), px) && menu.drawnLineH > 0)
+                            {
+                                menu.scroll = std::max(0, px / menu.drawnLineH);
+                                menu.freeScroll = true;
+                            }
+                        }
+                        if (ev.type == SDL_FINGERUP && menuDrag.End()) menuTap(x, y);
+                    }
+                    else if (ev.type == SDL_FINGERDOWN)
+                    {
+                        const int item = menu.ItemAt(x, y);
+                        // A finger put down on a page that scrolls may be the start of a drag: a
+                        // settings page anywhere across its rows (on a heading or between rows
+                        // too, not only on a row), and a plain list (cheats, the companion's
+                        // lists) anywhere in its box. Let go without moving, it is a tap.
+                        const bool settingsRows = menu.style == 1 && !menu.keyGrid && !menu.slotGrid &&
+                            !(item >= 0 && menu.items[item].kind == Menu::K_BACK) && x >= menu.rowX && x < menu.rowX + menu.rowW;
+                        const bool plainList = menu.style == 0 && menu.columns == 0 && menu.drawnLineH > 0 && item != -2;
+                        if (settingsRows || plainList)
+                        {
+                            menuDrag.Begin(y, menu.style == 1 ? menu.scrollPx : menu.scroll * menu.drawnLineH);
+                            menuDragFinger = ev.tfinger.fingerId;
+                            menuDragPage = menuPage;
+                        }
+                        else menuTap(x, y);
+                    }
                 }
 #ifdef __SWITCH__
                 else if (ev.type == SDL_FINGERDOWN || ev.type == SDL_FINGERMOTION || ev.type == SDL_FINGERUP)
@@ -8069,7 +8339,9 @@ int main(int argc, char** argv)
                     }
                 }
                 else if (ev.type == SDL_WINDOWEVENT && ev.window.event == SDL_WINDOWEVENT_FOCUS_LOST)
-                    mouseDown = false;
+                    { mouseDown = false; fastInputFocused = false; fastButton.Block(); }
+                else if (ev.type == SDL_WINDOWEVENT && ev.window.event == SDL_WINDOWEVENT_FOCUS_GAINED)
+                    fastInputFocused = true;
 #ifdef SSR_PC_LAUNCHER
                 // (The size the window is given, kept for next time; not the screen's when fullscreen.)
                 else if (ev.type == SDL_WINDOWEVENT && ev.window.event == SDL_WINDOWEVENT_SIZE_CHANGED &&
@@ -8128,6 +8400,14 @@ int main(int argc, char** argv)
             }
             mouseX = int(double(mouseX) * outW / windowW);
             mouseY = int(double(mouseY) * outH / windowH);
+#if !defined(__SWITCH__) && !defined(SSR_PHONE)
+            // Fullscreen still accepts mouse/trackpad touches. Show where they will land,
+            // including during a held drag, then clear the pointer after it becomes idle.
+            const uint32_t pointerNow = SDL_GetTicks();
+            if (pointerHeld) lastPointerUse = pointerNow;
+            SDL_ShowCursor(!cfg.fullscreen || (pointerUsed && pointerNow - lastPointerUse < 2500)
+                           ? SDL_ENABLE : SDL_DISABLE);
+#endif
 #ifdef __SWITCH__
             if (switchFinger)
             {
@@ -8434,6 +8714,7 @@ int main(int argc, char** argv)
             nav.accept |= pressed(cfg.byLabel ? PAD_A : PAD_B);
             nav.back |= pressed(cfg.byLabel ? PAD_B : PAD_A);
         }
+        if (menu.open && (nav.up || nav.down || nav.left || nav.right)) menu.freeScroll = false;
         heldNav = heldNow;
 
         // A choice card tapped in a settings page's preview (Menu::pickWanted): left or right pressed
@@ -8733,6 +9014,8 @@ int main(int argc, char** argv)
             case M_STATUS_BAR:cfg.statusBar=!cfg.statusBar;cfg.Save(opt.config);readCompanion();break;
             case M_SCREEN_FILTER:cfg.screenFilter=(cfg.screenFilter+(dir<0?2:1))%3;cfg.Save(opt.config);break;
             case M_PLAYBACK:goPage(PAGE_PLAYBACK,M_FAST_SPEED);hit=-1;break;
+            case M_FAST_BUTTON:
+                cfg.fastButtonToggle = !cfg.fastButtonToggle; cfg.Save(opt.config); fastButton.Block(); break;
             case M_FAST_SPEED:
             {
                 static const int speeds[]={2,3,4,8};int i=0;while(i<3&&speeds[i]<cfg.fastSpeed)i++;
@@ -9064,6 +9347,8 @@ int main(int argc, char** argv)
                 break;
             case M_FAST:
                 fastLock = !fastLock;
+                cfg.fastLock = fastLock;
+                cfg.Save(opt.config);
                 break;
             case M_VOLUME:
                 // (Left goes down, right and A up; past 100 it comes round to OFF, and back. A
@@ -9180,9 +9465,16 @@ int main(int argc, char** argv)
                 {liveTab=i;liveTabBeforeBattle=-1;}
         }
         companionFingerDown=panelDown;
-        const bool fastRequested=fastLock||kbFast||ps.rt>0.5f;
+        const bool fastDown = kbFast || ps.rt > 0.5f;
+        if (fastButton.Update(cfg.fastButtonToggle, fastDown, fastInputFocused && !menu.open && !swallowMenuButtons, fastLock))
+        {
+            cfg.fastLock = fastLock;
+            cfg.Save(opt.config);
+        }
+        const bool fastRequested = fastButton.Requested(cfg.fastButtonToggle, fastDown, fastLock);
         bool paused = menu.open || (!fastRequested && cfg.slowDivisor>1 && frame%cfg.slowDivisor!=0);
         int speed = 1;
+        ffRefreshes = 1;
         if (!paused && !swallowMenuButtons)
         {
             if (saveEdge) saveQuick();
@@ -9198,6 +9490,10 @@ int main(int argc, char** argv)
             // the setting says (for a controller with no mouse or touch screen). The setting itself
             // is not changed, so it is back as it was once the course ends.
             const bool padTouchNow = cfg.padTouch || athlonNow || touchOnlyNow;
+            const bool companionVisible = (cfg.companionOverlay && companionSnapshot.ready) ||
+                (DsDisplayState::Mode(secondScreenState) == 4 && (secondScreenState & DsDisplayState::Ready));
+            if (companionVisible && pressed(PAD_LS))
+                CompanionTabs::Next(liveTab, liveTabBeforeBattle);
             // (SWAP SCREENS given a button of its own in CONTROLS works without the touch cursor.)
             if (!padTouchNow && cfg.controls.pad[Controls::SWAP] >= 0 && pressed(PAD_RS)) focus.manualFlip = !focus.manualFlip;
             if (padTouchNow)
@@ -9205,7 +9501,7 @@ int main(int argc, char** argv)
                 if (pressed(PAD_RS)) focus.manualFlip = !focus.manualFlip;
 #ifndef __SWITCH__
                 // (Not on the Switch: a left stick pressed while walking would change the view.)
-                if (pressed(PAD_LS)) layout = LayoutNext(layout);
+                if (!companionVisible && pressed(PAD_LS)) layout = LayoutNext(layout);
 #endif
                 if (fabsf(ps.rx) > 0.2f) curDX += ps.rx;
                 if (fabsf(ps.ry) > 0.2f) curDY += ps.ry;
@@ -9219,7 +9515,38 @@ int main(int argc, char** argv)
         // the limit (the Switch, 10 ms or more a frame) running 4 at once is no faster than 3, it
         // only shows fewer of them.
         if (!paused && fastRequested && (!cfg.smartFast || ((pokeActions.Flags() & PK_NDS_FIELD_SCREEN) && !(pokeActions.Flags() & (PK_NDS_FIELD_LOCKED|PK_NDS_FIELD_TEXT))) || ((pokeActions.Flags() & PK_NDS_FIELD_BATTLE) && !(pokeActions.Flags() & PK_NDS_FIELD_BATTLE_INPUT)) || (!pokeActions.Supported() && (ffInBattle || lastFieldForSpeed))))
+        {
             speed = ffFrameMs > 0 && !opt.headless ? std::clamp((int)(33.3 / ffFrameMs), 2, cfg.fastSpeed) : cfg.fastSpeed; // (tests: always 4)
+            // Where two frames or more fit in one refresh of the screen with the picture's own
+            // work (about 3 ms), and that is no slower than the above over two refreshes, that
+            // many: a picture every refresh. (A Pixel 9 Pro at 4x ran four frames in a little
+            // under or over two refreshes by turns: 33 to 48 pictures a second, unevenly.) The
+            // number in use is kept until it clearly no longer fits, or one more clearly does,
+            // so that it does not flicker between two.
+            static int oneRefresh = 0;
+            if (ffShownMs > 0 && ffHiddenMs > 0 && !opt.headless)
+            {
+                const double room = paceTime * 1000 - 3.0;
+                auto fits = [&](int n, double slack) { return n >= 2 && n <= cfg.fastSpeed && (ffShownMs + (n - 1) * ffHiddenMs) * slack <= room; };
+                if (!fits(oneRefresh, 0.95)) oneRefresh = 0;
+                for (int n = cfg.fastSpeed; n > oneRefresh && n >= 2; n--)
+                    if (fits(n, 1.1)) { oneRefresh = n; break; }
+                if (oneRefresh * 2 >= speed) speed = oneRefresh;
+                // Otherwise the pictures are shown a whole number of refreshes apart, as many as
+                // their frames take. Shown as each was ready, pictures 25 ms apart reached a
+                // 60 Hz screen 17 and 33 ms apart by turns, which is the judder in the
+                // fast forward report. (Kept as the number in use, as above.)
+                static int refreshes = 1;
+                if (speed != oneRefresh)
+                {
+                    const double need = (ffShownMs + (speed - 1) * ffHiddenMs + 3.0) / (paceTime * 1000);
+                    if (need > refreshes) refreshes = (int)std::ceil(need);
+                    else if (need * 1.1 < refreshes - 1) refreshes = std::max(1, (int)std::ceil(need * 1.1));
+                    ffRefreshes = refreshes = std::clamp(refreshes, 1, 4);
+                }
+                else refreshes = 1;
+            }
+        }
         // A direction just pressed runs at normal speed for its first quarter of a second. The
         // games repeat a held direction in menus after a few frames: at 4x a quick tap lasted
         // long enough to move the cursor two or three times (shops, the elevator, the Bag).
@@ -9239,6 +9566,7 @@ int main(int argc, char** argv)
             // (FAST FORWARD turned on in the menu stays on whatever is pressed (#111): the quarter second is for
             // fast forward held on its button, where a quick tap in a menu would otherwise move two or three places.)
             if (speed > 1 && dirs && !freeWalk && !fastLock && now - dirSince < 250) speed = 1;
+            if (speed == 1) ffRefreshes = 1;
         }
         prevPad = ps;
 
@@ -9900,6 +10228,7 @@ int main(int argc, char** argv)
             else nds->ReleaseScreen();
 
             emuSpeed = speed;
+            ffMusicWanted = FfMusic::Supported() && !cfg.ffMute && !opt.lockstep;
             // (No in-between frames while fast forwarding: only one frame in several is shown.)
             nds->GPU.GPU3D.InterpolationEnabled = cfg.fps60 && !opt.lockstep && speed == 1;
             if (ahead)
@@ -9909,7 +10238,7 @@ int main(int argc, char** argv)
                     if (!presentDue(false))
                     {
                         renderAhead();
-                        if (!presentDue(false)) std::this_thread::sleep_for(std::chrono::duration<double>(std::max(0.0002, secondsToTick())));
+                        if (!presentDue(false)) SleepPrecise(std::max(0.0002, secondsToTick()));
                     }
                 emuThread.Kick();
                 // The newest waiting picture's widened battle picture, from what its frame
@@ -9979,7 +10308,7 @@ int main(int argc, char** argv)
         {
             // (Not emulating, as while paused: the waiting pictures shown in turn.)
             while (aheadCount)
-                if (!presentDue(false)) std::this_thread::sleep_for(std::chrono::duration<double>(std::max(0.0002, secondsToTick())));
+                if (!presentDue(false)) SleepPrecise(std::max(0.0002, secondsToTick()));
         }
         if(pokeActionJob)
         {
@@ -10434,17 +10763,13 @@ int main(int argc, char** argv)
         }
 
         // Fast forward runs several DS frames in one go, and each one produces a frame of
-        // sound. Playing all of it in that one moment would rush the music; keeping a single
-        // slice and throwing the rest away makes the song skip ahead. Keep every sample and
-        // hand the device one frame's worth per wall-clock frame, so the music stays at its
-        // normal speed while the picture runs ahead. The queue holds up to half a minute
-        // of sound so a long fast forward cannot store the whole song. Past that, further
-        // sound is left out; once what is queued has played, playback takes up from where
-        // the game is now. Letting go drops that long backlog. Keep the short device queue
-        // (normally about 100 ms) playing so the next samples have time to arrive; clearing
-        // it here creates a hole in playback. A battle has its own music: when one
-        // starts or ends, the queue is dropped so that track starts with the battle
-        // instead of waiting behind whatever was playing before it.
+        // sound. Playing all of it in that one moment would rush the music and raise its pitch.
+        // It is played at its normal speed and pitch instead, a stretch at a time, never more
+        // than about two seconds behind the picture (FastForwardAudio). Letting go drops what
+        // waits. Keep the short device queue (normally about 100 ms) playing so the next samples
+        // have time to arrive; clearing it here creates a hole in playback. A battle has its own
+        // music: when one starts or ends, what waits is dropped so that track starts with the
+        // battle instead of waiting behind whatever was playing before it.
         const bool audioFastForward = speed > 1;
         if (audioFastForward != audioWasFastForward)
         {
@@ -10456,50 +10781,58 @@ int main(int argc, char** argv)
             audioWasFastForward = audioFastForward;
         }
         const bool inBattle = std::strncmp(scene.name, "battle", 6) == 0;
-        if (speed > 1 && inBattle != ffInBattle && (ffAudioAt != 0 || !ffAudio.empty()))
+        if (speed > 1 && inBattle != ffInBattle && !ffAudio.Empty())
         {
-            ffAudio.clear();
-            ffAudioAt = 0;
-            ffAudioFrac = 0;
+            ffAudio.Clear();
             if (audio) SDL_ClearQueuedAudio(audio);
         }
         ffInBattle = inBattle;
-        if (speed > 1)
+        // Opt-in timing evidence distinguishes fast emulation from uneven rendered frames.
+        static const bool battleTiming = getenv("SSR_BATTLE_TIMING") != nullptr;
+        if (battleTiming)
         {
-            const int cap = 48000 * 30;
-            int have = ((int)ffAudio.size() - ffAudioAt) / 2;
-            if (have <= 0)
+            static std::string timingScene;
+            static double timingStart = 0;
+            static unsigned timingFrame = 0, timingInterp = 0;
+            const double now = perfNow();
+            const unsigned current = rc_frame;
+            const unsigned generated = nds->GPU.GPU3D.InterpolatedFrames;
+            if (paused || timingScene != scene.name || !timingStart || current < timingFrame)
             {
-                ffAudio.clear();
-                ffAudioAt = 0;
-                have = 0;
+                timingScene = scene.name; timingStart = now;
+                timingFrame = current; timingInterp = generated;
             }
-            if (got > 0 && (have == 0 || have + got <= cap))
-                ffAudio.insert(ffAudio.end(), audioBuf.begin(), audioBuf.begin() + (size_t)got * 2);
-            ffAudioFrac += 48000.0 * frameTime;
-            int take = (int)ffAudioFrac;
-            ffAudioFrac -= take;
-            have = ((int)ffAudio.size() - ffAudioAt) / 2;
-            if (take > have) take = have;
-            if (take > 0)
+            else if (current - timingFrame >= 120)
             {
-                std::copy(ffAudio.begin() + ffAudioAt, ffAudio.begin() + ffAudioAt + (size_t)take * 2, audioBuf.begin());
-                ffAudioAt += take * 2;
-                if (ffAudioAt >= 8192)
-                {
-                    ffAudio.erase(ffAudio.begin(), ffAudio.begin() + ffAudioAt);
-                    ffAudioAt = 0;
-                }
+                const double elapsed = now - timingStart;
+                fprintf(stderr, "[battle-timing] scene=%s ds_frames=%u elapsed_ms=%.1f ds_fps=%.2f speed=%d interpolation=%d generated=%u\n",
+                    timingScene.c_str(), current - timingFrame, elapsed,
+                    elapsed > 0 ? (current - timingFrame) * 1000.0 / elapsed : 0.0,
+                    speed, cfg.fps60 ? 1 : 0, generated - timingInterp);
+                timingStart = now; timingFrame = current; timingInterp = generated;
             }
-            got = take;
-        }
-        else if (ffAudioAt != 0 || !ffAudio.empty())
-        {
-            ffAudio.clear();
-            ffAudioAt = 0;
-            ffAudioFrac = 0;
         }
 
+        const bool steadyMusic = speed > 1 && emuMusicGot > 0;
+        if (steadyMusic)
+        {
+            // (The song at its own speed, from the copy that only plays it: nothing waits.)
+            if (!ffAudio.Empty()) ffAudio.Clear();
+            got = std::min(emuMusicGot, (int)(audioBuf.size() / 2));
+            memcpy(audioBuf.data(), musicBuf.data(), (size_t)got * 4);
+        }
+        else if (speed > 1)
+        {
+            ffAudio.Push(audioBuf.data(), got, 48000);
+            got = ffAudio.Pull(audioBuf.data(), frameTime, 48000, (int)(audioBuf.size() / 2));
+        }
+        else if (!ffAudio.Empty()) ffAudio.Clear();
+
+        // (Tests, FULLDEX_AUDIO_RAW=file: what is heard, before the volume, as 16-bit stereo at 48000.)
+        {
+            static FILE* raw = getenv("FULLDEX_AUDIO_RAW") ? fopen(getenv("FULLDEX_AUDIO_RAW"), "wb") : nullptr;
+            if (raw && got > 0) fwrite(audioBuf.data(), 4, (size_t)got, raw);
+        }
         if (audio && got > 0)
         {
             // How much longer than a DS frame the frames are taking: above full speed's 1 the
@@ -10515,7 +10848,7 @@ int main(int argc, char** argv)
                 if (dt < 0.25) audioSlow += (std::min(dt / frameTime, 4.0) - audioSlow) * 0.03;
             }
             audioTick = t;
-            const double slowdown = speed == 1 ? AudioQueueSlowdown(audioSlow, queued) : 1.0;
+            const double slowdown = speed == 1 || steadyMusic ? AudioQueueSlowdown(audioSlow, queued) : 1.0;
             audioOut.clear();
             audioStretch.Process(audioBuf.data(), got, slowdown, audioOut);
             // VOLUME: scaled here, after the game's own mixing (silence at OFF, still queued, so
@@ -10769,8 +11102,7 @@ int main(int argc, char** argv)
             std::lock_guard<std::mutex> holdGlass(Glass::Live().lock);
             // (Battle while a battle runs, then the tab that was open.)
             const bool inBattle = !liveView.battle.empty();
-            if (inBattle && liveTabBeforeBattle < 0 && liveTab != 4) { liveTabBeforeBattle = liveTab; liveTab = 4; }
-            if (!inBattle && liveTabBeforeBattle >= 0) { liveTab = liveTabBeforeBattle; liveTabBeforeBattle = -1; }
+            CompanionTabs::Battle(inBattle, liveWasInBattle, liveTab, liveTabBeforeBattle);
             static int battery = -1;
             static uint32_t batteryAt = 0;
             char clock[8] = "";
@@ -10789,9 +11121,10 @@ int main(int argc, char** argv)
             avoid.clear();
             if (touchPadUsed && touchPad.visible && touchPad.w == outW && touchPad.h == outH)
             {
-                avoid.push_back({ (int)(touchPad.dpadX - touchPad.dpadR), (int)(touchPad.dpadY - touchPad.dpadR), (int)(touchPad.dpadX + touchPad.dpadR), (int)(touchPad.dpadY + touchPad.dpadR) });
+                if (!touchPad.dpadHidden) avoid.push_back({ (int)(touchPad.dpadX - touchPad.dpadR), (int)(touchPad.dpadY - touchPad.dpadR), (int)(touchPad.dpadX + touchPad.dpadR), (int)(touchPad.dpadY + touchPad.dpadR) });
                 for (const TouchPad::Button& b : touchPad.buttons)
                 {
+                    if (b.hidden) continue; // (a hidden control leaves the picture alone)
                     const float rx = b.w > 0 ? b.w / 2 : b.r, ry = b.w > 0 ? b.h / 2 : b.r;
                     avoid.push_back({ (int)(b.x - rx), (int)(b.y - ry), (int)(b.x + rx), (int)(b.y + ry) });
                 }
@@ -11290,9 +11623,9 @@ int main(int argc, char** argv)
                     MergedBlackBars(shot, opt.composeW, opt.composeH);
                 }
                 else Compose(layout, opt.composeW, opt.composeH, top, bot, shot);
-                if (liveUsed && frostCanvas.w == opt.composeW && frostCanvas.h == opt.composeH) BlendCanvas(frostCanvas, shot);
-                if (liveUsed && liveCanvas.w == opt.composeW && liveCanvas.h == opt.composeH) BlendCanvas(liveCanvas, shot);
-                BlendCanvas(canvas, shot);
+                if (liveUsed && frostCanvas.w == opt.composeW && frostCanvas.h == opt.composeH) BlendCanvas(frostCanvas, shot, opt.composeW, opt.composeH);
+                if (liveUsed && liveCanvas.w == opt.composeW && liveCanvas.h == opt.composeH) BlendCanvas(liveCanvas, shot, opt.composeW, opt.composeH);
+                BlendCanvas(canvas, shot, opt.composeW, opt.composeH);
                 WritePNG(opt.shotDir + name, shot.data(), opt.composeW, opt.composeH);
             }
             else

@@ -348,6 +348,8 @@ struct Menu
         if (style == 1) return UpdateSettings(in, dir);
         if (style == 2)
         {
+            // A dialog has only its first and last actions; an inherited row must not hide focus.
+            if (selected != 0 && selected != n - 1) selected = n - 1;
             // (Two buttons side by side: any direction goes to the other.)
             if (in.left || in.right || in.up || in.down) selected = selected == 0 ? n - 1 : 0;
             return in.accept ? selected : -1;
@@ -711,8 +713,12 @@ struct Menu
         // (As many rows as fit at the smallest spacing; the rest scroll into view.)
         const int fit = std::max(1, (c.h - 4 - 6 * scale - (noteH ? noteH + 3 * scale : 0)) / ((UiLang::Tall() ? 14 : 9) * scale) - (hasTitle ? 3 : 2));
         const int shown = std::min((int)items.size(), fit);
-        if (selected < scroll) scroll = selected;
-        if (selected >= scroll + shown) scroll = selected - shown + 1;
+        // (A finger has scrolled the list, freeScroll: the chosen row need not be in view.)
+        if (!freeScroll)
+        {
+            if (selected < scroll) scroll = selected;
+            if (selected >= scroll + shown) scroll = selected - shown + 1;
+        }
         scroll = std::max(0, std::min(scroll, (int)items.size() - shown));
         // (The note's strip sits under the box, so the box leaves room for it: at 800x480 it was cut off.)
         const int availH = c.h - 4 - (noteH ? noteH + 3 * scale : 0);

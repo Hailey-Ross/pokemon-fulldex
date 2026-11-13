@@ -220,7 +220,7 @@ inline void Draw(Canvas& c, int x, int y, const std::string& s, int px, uint32_t
 // Extended-A are lowered too, so translated labels change the same way.
 inline std::string Title(const std::string& s)
 {
-    static const char* const keep[] = { "FPS", "HUD", "GBA", "DS", "3DS", "PC", "RA", "3D", "2D", "USB", "ID", "OK", "A", "B", "X", "Y", "L", "R",
+    static const char* const keep[] = { "FPS", "HD", "HUD", "GBA", "DS", "3DS", "PC", "RA", "3D", "2D", "USB", "ID", "OK", "A", "B", "X", "Y", "L", "R",
                                         "ZL", "ZR", "PP", "HP", "IV", "IVS", "EV", "EVS", "TM", "HM", "HMS", "TMS", "NDS", "SD", "UI", "LCD", "CRT",
                                         "MB", "GB", "KB", "AI", "TV", "CPU", "GPU", "SFX", "BGM", "XP", "EXP", "PS", "XBOX", "HGSS", "BW", "B2W2", "UV", "IPS", "BPS",
                                         "LB", "RB", "LT", "RT", "L1", "R1", "L2", "R2", "L3", "R3", "ZL", "ZR", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12" };

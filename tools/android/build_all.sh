@@ -137,11 +137,12 @@ for abi in $ABIS; do
             -DSDL_STATIC=OFF -DSDL_TEST=OFF >/dev/null
     ninja -C "$DEPS/build-sdl2-$abi" install >/dev/null
     say "Compiling for Android ($abi)"
-    # The JIT for every game, no libpng (screenshots are for tests), the world drawn by the CPU
-    # (the graphics-chip version is OpenGL, Android has OpenGL ES), and on x86_64 SSE rather than
-    # the building machine's AVX2.
+    # The JIT for every game, no libpng (screenshots are for tests), WORLD ON GPU through
+    # OpenGL ES 3.2 (SSR_GPU3D: melonDS/src/GPU3D_WideGpu_GL.cpp; a phone that cannot do it
+    # draws the world with the processor as before), and on x86_64 SSE rather than the
+    # building machine's AVX2.
     cmake -S . -B "build-android-all-$abi" "${ARGS[@]}" -DSDL2_DIR="$SDL_PREFIX/lib/cmake/SDL2" \
-        -DSSR_JIT=ON -DSSR_PC_ALL_GAMES=ON -DSSR_PNG=OFF -DSSR_GPU3D=OFF -DSSR_PORTABLE_X86=ON \
+        -DSSR_JIT=ON -DSSR_PC_ALL_GAMES=ON -DSSR_PNG=OFF -DSSR_GPU3D=ON -DSSR_PORTABLE_X86=ON \
         -DSSR_GENERATED_DIR="$HERE/build-gen-tables" -DSSR_PC_ART="$ART" -DSSR_GBA_DIR="${SSR_GBA_DIR:-}" ${ONLINE[@]+"${ONLINE[@]}"} >/dev/null
     ninja -C "build-android-all-$abi" ssrecomp
     mkdir -p "build-android-dist/lib/$abi"
@@ -160,10 +161,52 @@ if [ -n "${SSR_GBA_DIR:-}" ]; then
     FILES+=("assets/LICENSE-mGBA.txt=$GBA_WORK/mgba/LICENSE")
 fi
 
+# Pokemon Omega Ruby and Alpha Sapphire inside the app (SSR_3DS_ANDROID_KIT: the Omega Ruby
+# project's builds/android/embed folder, see its README.txt): the game, the phone's compiler that
+# turns the player's own dump into game code (lib/arm64-v8a), the compiler's headers and each
+# game's settings (assets/cc, assets/titles), and its Java code. arm64 only; without it, or on
+# another kind of phone, FullDex simply lists no 3DS games. Never a dump or game code.
+KIT="${SSR_3DS_ANDROID_KIT:-}"
+KIT_JAVA=()
+if [ -n "$KIT" ]; then
+    for need in jniLibs/arm64-v8a/libpocketnative.so assets/cc assets/titles java/io/github/mamesj/omeganx/Oras.java AndroidManifest-snippet.xml; do
+        [ -e "$KIT/$need" ] || fail "the Omega Ruby kit in $KIT has no $need"
+    done
+    for f in "$KIT"/jniLibs/arm64-v8a/*.so; do FILES+=("lib/arm64-v8a/$(basename "$f")=$f"); done
+    while IFS= read -r -d '' f; do FILES+=("assets/${f#"$KIT/assets/"}=$f"); done < <(find "$KIT/assets/cc" "$KIT/assets/titles" -type f -print0 | sort -z)
+    mapfile -t KIT_JAVA < <(find "$KIT/java" tools/android/n3ds/java -name '*.java')
+    echo "3DS: Omega Ruby / Alpha Sapphire kit from $KIT"
+fi
+
 say "The app around it: manifest, icon, SDL's Java code and the app's own"
 W="$HERE/build-android-dist/skeleton"
 rm -rf "$W"
 mkdir -p "$W/classes" "$W/dex"
+# The manifest (SSR_ANDROID_MANIFEST for another, e.g. a test app's), with the kit's part merged in.
+MANIFEST="${SSR_ANDROID_MANIFEST:-tools/android/allgames/AndroidManifest.xml}"
+if [ -n "$KIT" ]; then
+    python3 - "$MANIFEST" "$KIT/AndroidManifest-snippet.xml" "$W/AndroidManifest.xml" <<'PY'
+import re, sys
+app = open(sys.argv[1], encoding='utf-8').read()
+snip = open(sys.argv[2], encoding='utf-8').read()
+out = sys.argv[3]
+snip = re.sub(r'<!--.*?-->', '', snip, flags=re.S)
+tops = ''
+for m in re.finditer(r'<uses-(?:feature|permission)\b[^>]*/>', snip):
+    tag = m.group(0)
+    key = re.search(r'android:(?:name|glEsVersion)="([^"]+)"', tag).group(1)
+    if key not in app:   # (the app's own line wins if it has one)
+        tops += '    ' + tag + '\n'
+inner = snip[snip.index('<activity'):]
+assert app.count('<application') == 1 and app.count('</application>') == 1 and 'extractNativeLibs="true"' in app
+app = app.replace('    <application', tops + '    <application', 1)
+app = app.replace('</application>', inner.strip() + '\n    </application>', 1)
+open(out, 'w', encoding='utf-8').write(app)
+PY
+    MANIFEST="$W/AndroidManifest.xml"
+fi
+RENAME=()
+[ -n "${SSR_ANDROID_PACKAGE:-}" ] && RENAME=(--rename-manifest-package "$SSR_ANDROID_PACKAGE")
 BUILD_EPOCH="$(date +%s)"
 printf '%s\n' "$BUILD_EPOCH" > "$HERE/build-android-dist/fulldex-build-id.txt"
 printf 'package io.github.mamesj.pokemonds; final class BuildInfo { static final long BUILT_AT = %s000L; }\n' "$BUILD_EPOCH" > "$W/BuildInfo.java"
@@ -211,11 +254,12 @@ cat > "$W/res/mipmap-anydpi-v26/ic_launcher.xml" <<'XML'
 </adaptive-icon>
 XML
 "$BT/aapt2" compile --dir "$W/res" -o "$W/res.zip"
-"$BT/aapt2" link -o "$W/base.apk" -I "$JAR" --manifest tools/android/allgames/AndroidManifest.xml \
+"$BT/aapt2" link -o "$W/base.apk" -I "$JAR" --manifest "$MANIFEST" ${RENAME[@]+"${RENAME[@]}"} \
     --min-sdk-version 24 --target-sdk-version 34 "$W/res.zip"
 javac -nowarn --release 11 -cp "$JAR" -d "$W/classes" \
-    "$W/BuildInfo.java" $(find "$DEPS/$SDL_NAME/android-project/app/src/main/java" tools/android/allgames/java -name '*.java') 2>&1
+    "$W/BuildInfo.java" $(find "$DEPS/$SDL_NAME/android-project/app/src/main/java" tools/android/allgames/java -name '*.java') ${KIT_JAVA[@]+"${KIT_JAVA[@]}"} 2>&1
 [ -f "$W/classes/io/github/mamesj/pokemonds/GameActivity.class" ] || fail "the app's Java code did not compile"
+[ -z "$KIT" ] || [ -f "$W/classes/io/github/mamesj/omeganx/FullDex3ds.class" ] || fail "the 3DS kit's Java code did not compile"
 "$BT/d8" --release --min-api 24 --lib "$JAR" --output "$W/dex" $(find "$W/classes" -name '*.class')
 (cd "$W/dex" && zip -q -X "$W/base.apk" classes.dex)
 
@@ -230,11 +274,14 @@ files = [tuple(a.split('=', 1)) for a in sys.argv[4:]]
 apk.build_files(skeleton, files, key, out)
 PY
 # Only the app's own files may be in it: never a ROM, save or game code.
-SSR_SRC="$HERE" python3 - "$APK" <<'PY'
+SSR_SRC="$HERE" SSR_KIT="$KIT" python3 - "$APK" <<'PY'
 import re, sys, zipfile
 regional_codes = '|'.join(p['code'] for p in __import__('json').loads(__import__('pathlib').Path(__import__('os').environ['SSR_SRC'], 'tools/regions/profiles.json').read_text())['profiles'] if p['kind']=='functions')
 ok = re.compile(r'^(AndroidManifest\.xml|resources\.arsc|classes\.dex|res/.*\.png|res/mipmap-anydpi-v26/ic_launcher\.xml|lib/(arm64-v8a|x86_64)/lib(main|SDL2)\.so|assets/funcs/(?:IREO|IRDO|IRBO|IRAO|CPUE|ADAE|APAE|ADAS|APAF|APAS|APAD|ADAD|ADAI|IRAS|CPUS|IREF|IRDF|CPUF|IRBF|IRAF|IRBS|IRES|IRDS|' + regional_codes + r')\.txt|assets/FONT-LICENSES\.txt|assets/LICENSE(-mGBA|-Noto)?\.txt)$')
-bad = [n for n in zipfile.ZipFile(sys.argv[1]).namelist() if not ok.match(n)]
+# The 3DS kit: its game, the compiler, the compiler's headers and each game's settings (text).
+kit = re.compile(r'^(lib/arm64-v8a/lib(pocketnative|cc_[a-z0-9]+)\.so|assets/cc/[A-Za-z0-9_./-]+\.h|assets/titles/[0-9A-F]{16}/[A-Za-z0-9_./-]+\.(toml|txt|reach|c))$')
+names = zipfile.ZipFile(sys.argv[1]).namelist()
+bad = [n for n in names if not ok.match(n) and not (__import__('os').environ.get('SSR_KIT') and kit.match(n))]
 if bad: sys.exit('unexpected files in the APK: %s' % bad)
 PY
 python3 tools/android/check_native_alignment.py "$APK"

@@ -5,6 +5,7 @@
 #include "cheats.h"
 #include <cassert>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include "Platform.h"
 // (No .mch or usrcheat.dat here, so melonDS's file functions are never called: stubs to link.)
@@ -51,6 +52,42 @@ int main()
         assert(other.On() == 0);
     }
     { Cheats::List none; none.Load(folder, "BPEE", nullptr); assert(none.items.empty() && none.folders.empty()); }
+    // Hacks sharing a game code must not inherit the base game's enabled cheats.
+    {
+        Cheats::List hack;
+        hack.Load(folder, "IPKP", nullptr, "/roms/First Hack.nds", true);
+        assert(hack.On() == 0);
+        hack.Toggle(0);
+        Cheats::List other;
+        other.Load(folder, "IPKP", nullptr, "C:\\roms\\Second Hack.nds", true);
+        assert(other.On() == 0 && other.OnFile() != hack.OnFile());
+        Cheats::List again;
+        again.Load(folder, "IPKP", nullptr, "/roms/First Hack.nds", true);
+        assert(again.On() == 1 && again.items[0].on);
+    }
+    fs::create_directories(folder);
+    std::ofstream(folder + "/IPKP.txt") << "Generic code\n02000000 00000001\n";
+    std::ofstream(folder + "/First Hack.txt") << "Custom code\n02000000 00000002\n";
+    std::ofstream(folder + "/Second Hack.txt") << "Custom code\n02000000 00000003\n";
+    {
+        Cheats::List first, second, plain;
+        first.Load(folder, "IPKP", nullptr, "/roms/First Hack.nds", true);
+        second.Load(folder, "IPKP", nullptr, "C:\\roms\\Second Hack.nds", true);
+        plain.Load(folder, "IPKP", nullptr, "/roms/Original.nds");
+        assert(first.items.back().code.back() == 2);
+        assert(second.items.back().code.back() == 3);
+        assert(plain.items.back().code.back() == 1);
+        assert(first.items.back().key == second.items.back().key);
+        first.Toggle(first.items.size() - 1);
+        second.Load(folder, "IPKP", nullptr, "/roms/Second Hack.nds", true);
+        assert(!second.items.back().on);
+        first.Load(folder, "IPKP", nullptr, "/roms/First Hack.nds", true);
+        assert(first.items.back().on);
+        assert(plain.OnFile() == folder + "/IPKP-on.txt");
+        // Explicit ROM-specific files also work without hack detection.
+        second.Load(folder, "IPKP", nullptr, "/roms/Second Hack.nds");
+        assert(second.items.back().code.back() == 3 && second.On() == 0);
+    }
     fs::remove_all(root);
     std::cout << "PASS: built-in cheats for " << games << " DS releases, all off, kept on when turned on\n";
 }

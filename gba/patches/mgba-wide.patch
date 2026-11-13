@@ -392,7 +392,7 @@ index 4f7e9f8..f314e79 100644
  		localX = -(inY % mosaicV) * background->dmx;                                                                  \
  		localY = -(inY % mosaicV) * background->dmy;                                                                  \
 diff --git a/src/gba/renderers/video-software.c b/src/gba/renderers/video-software.c
-index c5bc37b..48f3a79 100644
+index c5bc37b..75a2902 100644
 --- a/src/gba/renderers/video-software.c
 +++ b/src/gba/renderers/video-software.c
 @@ -48,7 +48,7 @@ static void _updatePalettes(struct GBAVideoSoftwareRenderer* renderer);
@@ -456,7 +456,7 @@ index c5bc37b..48f3a79 100644
  	default:
  		mLOG(GBA_VIDEO, GAME_ERROR, "Invalid video register: 0x%03X", address);
  	}
-@@ -443,41 +474,78 @@ static void GBAVideoSoftwareRendererWritePalette(struct GBAVideoRenderer* render
+@@ -443,41 +474,154 @@ static void GBAVideoSoftwareRendererWritePalette(struct GBAVideoRenderer* render
  	memset(softwareRenderer->scanlineDirty, 0xFFFFFFFF, sizeof(softwareRenderer->scanlineDirty));
  }
  
@@ -472,17 +472,93 @@ index c5bc37b..48f3a79 100644
 +	return x + softwareRenderer->xOrigin;
 +}
 +
-+// Widescreen: layers outside wideMask (bit 4 = OBJ) are only drawn in the 240-pixel middle.
-+// Narrows start/end for one layer; _wideUnclip puts them back. Returns false if nothing is left.
-+static bool _wideClip(struct GBAVideoSoftwareRenderer* softwareRenderer, int layer) {
-+	if (!softwareRenderer->xOrigin || (softwareRenderer->wideMask & (1 << layer))) {
++// Widescreen: a text BG's map that is 256 pixels wide (screen size 0 or 2) holds 16 columns the
++// game never shows (240-255 past its scroll); further into the sides it repeats what is on screen.
++#define GBA_VIDEO_WIDE_UNSEEN_COLUMNS 16
++
++// Widescreen: whether the 8-pixel tile row under the game's x on line y of a text BG with a
++// 256-pixel map has anything drawn in it (any non-zero colour index).
++static bool _wideTextTileRowOpaque(struct GBAVideoSoftwareRenderer* softwareRenderer, const struct GBAVideoSoftwareBackground* background, int y, int x) {
++	uint16_t* vram = softwareRenderer->d.vram;
++	if (background->mosaic) {
++		int mosaicV = GBAMosaicControlGetBgV(softwareRenderer->mosaic) + 1;
++		y -= y % mosaicV;
++	}
++	int inX = (x + background->x - background->offsetX) & 0xFF;
++	int inY = y + background->y - background->offsetY;
++	unsigned yBase = inY & 0xF8;
++	if (background->size == 2) {
++		yBase += inY & 0x100;
++	}
++	yBase = (background->screenBase >> 1) + (yBase << 2);
++	uint16_t mapData;
++	LOAD_16(mapData, (yBase + (inX >> 3)) << 1, vram);
++	int localY = inY & 0x7;
++	if (GBA_TEXT_MAP_VFLIP(mapData)) {
++		localY = 7 - localY;
++	}
++	uint32_t tileData;
++	uint32_t charBase;
++	if (!background->multipalette) {
++		charBase = background->charBase + (GBA_TEXT_MAP_TILE(mapData) << 5) + (localY << 2);
++		if (charBase >= 0x10000) {
++			return false;
++		}
++		LOAD_32(tileData, charBase, vram);
++		return tileData != 0;
++	}
++	charBase = background->charBase + (GBA_TEXT_MAP_TILE(mapData) << 6) + (localY << 3);
++	if (charBase >= 0x10000) {
++		return false;
++	}
++	LOAD_32(tileData, charBase, vram);
++	if (tileData) {
 +		return true;
++	}
++	LOAD_32(tileData, charBase + 4, vram);
++	return tileData != 0;
++}
++
++// Widescreen: layers outside wideMask (bit 4 = OBJ) are only drawn in the 240-pixel middle.
++// A text BG in wideMask with a 256-pixel map (and no RAM map, GBA_REG_WIDEMAP) goes at most its
++// 16 unseen columns into a side, unless on this line it reaches that edge of the screen: a
++// window at one edge (FireRed and LeafGreen's level-up box, at the right on BG1) would otherwise
++// show again in the far side once that is wider than 16 (a 20:9 phone), while a background
++// that fills the screen (a move's animation) still carries on all the way.
++// Narrows start/end for one layer; _wideUnclip puts them back. Returns false if nothing is left.
++static bool _wideClip(struct GBAVideoSoftwareRenderer* softwareRenderer, int layer, int y) {
++	if (!softwareRenderer->xOrigin) {
++		return true;
++	}
++	int left = softwareRenderer->xOrigin;
++	int right = softwareRenderer->xOrigin + GBA_VIDEO_HORIZONTAL_PIXELS;
++	if (softwareRenderer->wideMask & (1 << layer)) {
++		if (layer > 3 || softwareRenderer->xOrigin <= GBA_VIDEO_WIDE_UNSEEN_COLUMNS) {
++			return true;
++		}
++		const int mode = GBARegisterDISPCNTGetMode(softwareRenderer->dispcnt);
++		if (mode != 0 && !(mode == 1 && layer < 2)) {
++			return true; // affine or bitmap: not a text map
++		}
++		const struct GBAVideoSoftwareBackground* background = &softwareRenderer->bg[layer];
++		if ((background->size & 1) || background->wideMap) {
++			return true; // 512 pixels wide: nothing repeats
++		}
++		left = softwareRenderer->xOrigin - GBA_VIDEO_WIDE_UNSEEN_COLUMNS;
++		right = softwareRenderer->xOrigin + GBA_VIDEO_HORIZONTAL_PIXELS + GBA_VIDEO_WIDE_UNSEEN_COLUMNS;
++		if (_wideTextTileRowOpaque(softwareRenderer, background, y, 0)) {
++			left = 0;
++		}
++		if (_wideTextTileRowOpaque(softwareRenderer, background, y, GBA_VIDEO_HORIZONTAL_PIXELS - 1)) {
++			right = softwareRenderer->width;
++		}
++		if (!left && right == softwareRenderer->width) {
++			return true;
++		}
 +	}
 +	softwareRenderer->wideSavedStart = softwareRenderer->start;
 +	softwareRenderer->wideSavedEnd = softwareRenderer->end;
 +	softwareRenderer->wideClipped = true;
-+	int left = softwareRenderer->xOrigin;
-+	int right = softwareRenderer->xOrigin + GBA_VIDEO_HORIZONTAL_PIXELS;
 +	if (softwareRenderer->start < left) {
 +		softwareRenderer->start = left;
 +	}
@@ -550,7 +626,7 @@ index c5bc37b..48f3a79 100644
  						if (VIDEO_CHECKS && activeWindow >= MAX_WINDOW) {
  							mLOG(GBA_VIDEO, FATAL, "Out of bounds window write will occur");
  							return;
-@@ -567,6 +635,58 @@ static void GBAVideoSoftwareRendererDrawScanline(struct GBAVideoRenderer* render
+@@ -567,6 +711,58 @@ static void GBAVideoSoftwareRendererDrawScanline(struct GBAVideoRenderer* render
  		softwareRenderer->nextY = y + 1;
  	}
  
@@ -609,7 +685,7 @@ index c5bc37b..48f3a79 100644
  	bool dirty = softwareRenderer->scanlineDirty[y >> 5] & (1U << (y & 0x1F));
  	if (memcmp(softwareRenderer->nextIo, softwareRenderer->cache[y].io, sizeof(softwareRenderer->nextIo))) {
  		memcpy(softwareRenderer->cache[y].io, softwareRenderer->nextIo, sizeof(softwareRenderer->nextIo));
-@@ -611,9 +731,32 @@ static void GBAVideoSoftwareRendererDrawScanline(struct GBAVideoRenderer* render
+@@ -611,9 +807,32 @@ static void GBAVideoSoftwareRendererDrawScanline(struct GBAVideoRenderer* render
  	CLEAN_SCANLINE(softwareRenderer, y);
  
  	mColor* row = &softwareRenderer->outputBuffer[softwareRenderer->outputBufferStride * y];
@@ -643,36 +719,36 @@ index c5bc37b..48f3a79 100644
  			row[x] = M_COLOR_WHITE;
  		}
  		return;
-@@ -635,13 +778,15 @@ static void GBAVideoSoftwareRendererDrawScanline(struct GBAVideoRenderer* render
+@@ -635,13 +854,15 @@ static void GBAVideoSoftwareRendererDrawScanline(struct GBAVideoRenderer* render
  			if (spriteLayers & (1 << priority)) {
  				GBAVideoSoftwareRendererPostprocessSprite(softwareRenderer, priority);
  			}
 -			if (TEST_LAYER_ENABLED(0) && GBARegisterDISPCNTGetMode(softwareRenderer->dispcnt) < 2) {
-+			if (TEST_LAYER_ENABLED(0) && GBARegisterDISPCNTGetMode(softwareRenderer->dispcnt) < 2 && _wideClip(softwareRenderer, 0)) {
++			if (TEST_LAYER_ENABLED(0) && GBARegisterDISPCNTGetMode(softwareRenderer->dispcnt) < 2 && _wideClip(softwareRenderer, 0, y)) {
  				GBAVideoSoftwareRendererDrawBackgroundMode0(softwareRenderer, &softwareRenderer->bg[0], y);
  			}
 -			if (TEST_LAYER_ENABLED(1) && GBARegisterDISPCNTGetMode(softwareRenderer->dispcnt) < 2) {
 +			_wideUnclip(softwareRenderer);
-+			if (TEST_LAYER_ENABLED(1) && GBARegisterDISPCNTGetMode(softwareRenderer->dispcnt) < 2 && _wideClip(softwareRenderer, 1)) {
++			if (TEST_LAYER_ENABLED(1) && GBARegisterDISPCNTGetMode(softwareRenderer->dispcnt) < 2 && _wideClip(softwareRenderer, 1, y)) {
  				GBAVideoSoftwareRendererDrawBackgroundMode0(softwareRenderer, &softwareRenderer->bg[1], y);
  			}
 -			if (TEST_LAYER_ENABLED(2)) {
 +			_wideUnclip(softwareRenderer);
-+			if (TEST_LAYER_ENABLED(2) && _wideClip(softwareRenderer, 2)) {
++			if (TEST_LAYER_ENABLED(2) && _wideClip(softwareRenderer, 2, y)) {
  				switch (GBARegisterDISPCNTGetMode(softwareRenderer->dispcnt)) {
  				case 0:
  					GBAVideoSoftwareRendererDrawBackgroundMode0(softwareRenderer, &softwareRenderer->bg[2], y);
-@@ -661,7 +806,8 @@ static void GBAVideoSoftwareRendererDrawScanline(struct GBAVideoRenderer* render
+@@ -661,7 +882,8 @@ static void GBAVideoSoftwareRendererDrawScanline(struct GBAVideoRenderer* render
  					break;
  				}
  			}
 -			if (TEST_LAYER_ENABLED(3)) {
 +			_wideUnclip(softwareRenderer);
-+			if (TEST_LAYER_ENABLED(3) && _wideClip(softwareRenderer, 3)) {
++			if (TEST_LAYER_ENABLED(3) && _wideClip(softwareRenderer, 3, y)) {
  				switch (GBARegisterDISPCNTGetMode(softwareRenderer->dispcnt)) {
  				case 0:
  					GBAVideoSoftwareRendererDrawBackgroundMode0(softwareRenderer, &softwareRenderer->bg[3], y);
-@@ -671,6 +817,7 @@ static void GBAVideoSoftwareRendererDrawScanline(struct GBAVideoRenderer* render
+@@ -671,6 +893,7 @@ static void GBAVideoSoftwareRendererDrawScanline(struct GBAVideoRenderer* render
  					break;
  				}
  			}
@@ -680,7 +756,7 @@ index c5bc37b..48f3a79 100644
  		}
  	}
  
-@@ -706,7 +853,7 @@ static void GBAVideoSoftwareRendererDrawScanline(struct GBAVideoRenderer* render
+@@ -706,7 +929,7 @@ static void GBAVideoSoftwareRendererDrawScanline(struct GBAVideoRenderer* render
  
  	int x;
  	if (softwareRenderer->stereo) {
@@ -689,7 +765,7 @@ index c5bc37b..48f3a79 100644
  			row[x] = softwareRenderer->row[x] & (M_COLOR_RED | M_COLOR_BLUE);
  			row[x] |= softwareRenderer->row[x + 1] & M_COLOR_GREEN;
  			row[x + 1] = softwareRenderer->row[x + 1] & (M_COLOR_RED | M_COLOR_BLUE);
-@@ -719,16 +866,27 @@ static void GBAVideoSoftwareRendererDrawScanline(struct GBAVideoRenderer* render
+@@ -719,16 +942,27 @@ static void GBAVideoSoftwareRendererDrawScanline(struct GBAVideoRenderer* render
  		}
  	} else {
  #ifdef COLOR_16_BIT
@@ -719,7 +795,7 @@ index c5bc37b..48f3a79 100644
  }
  
  static void GBAVideoSoftwareRendererFinishFrame(struct GBAVideoRenderer* renderer) {
-@@ -784,7 +942,7 @@ static void GBAVideoSoftwareRendererPutPixels(struct GBAVideoRenderer* renderer,
+@@ -784,7 +1018,7 @@ static void GBAVideoSoftwareRendererPutPixels(struct GBAVideoRenderer* renderer,
  	const mColor* colorPixels = pixels;
  	unsigned i;
  	for (i = 0; i < GBA_VIDEO_VERTICAL_PIXELS; ++i) {
@@ -728,7 +804,7 @@ index c5bc37b..48f3a79 100644
  	}
  }
  
-@@ -893,14 +1051,14 @@ void GBAVideoSoftwareRendererStepWindow(struct GBAVideoSoftwareRenderer* softwar
+@@ -893,14 +1127,14 @@ void GBAVideoSoftwareRendererStepWindow(struct GBAVideoSoftwareRenderer* softwar
  
  void GBAVideoSoftwareRendererPreprocessBuffer(struct GBAVideoSoftwareRenderer* softwareRenderer) {
  	int x;
@@ -745,7 +821,7 @@ index c5bc37b..48f3a79 100644
  	softwareRenderer->nWindows = 1;
  	if (GBARegisterDISPCNTIsWin0Enable(softwareRenderer->dispcnt) || GBARegisterDISPCNTIsWin1Enable(softwareRenderer->dispcnt) || GBARegisterDISPCNTIsObjwinEnable(softwareRenderer->dispcnt)) {
  		softwareRenderer->windows[0].control = softwareRenderer->winout;
-@@ -1021,7 +1179,7 @@ int GBAVideoSoftwareRendererPreprocessSpriteLayer(struct GBAVideoSoftwareRendere
+@@ -1021,7 +1255,7 @@ int GBAVideoSoftwareRendererPreprocessSpriteLayer(struct GBAVideoSoftwareRendere
  	int spriteLayers = 0;
  	if (GBARegisterDISPCNTIsObjEnable(renderer->dispcnt) && !renderer->d.disableOBJ) {
  		if (renderer->oamDirty) {
@@ -754,14 +830,14 @@ index c5bc37b..48f3a79 100644
  			renderer->oamDirty = false;
  		}
  		int mosaicV = GBAMosaicControlGetObjV(renderer->mosaic) + 1;
-@@ -1058,8 +1216,13 @@ int GBAVideoSoftwareRendererPreprocessSpriteLayer(struct GBAVideoSoftwareRendere
+@@ -1058,8 +1292,13 @@ int GBAVideoSoftwareRendererPreprocessSpriteLayer(struct GBAVideoSoftwareRendere
  					continue;
  				}
  
 -				int drawn = GBAVideoSoftwareRendererPreprocessSprite(renderer, &sprite->obj, sprite->index, localY);
 -				spriteLayers |= drawn << GBAObjAttributesCGetPriority(sprite->obj.c);
 +				int windowEnd = renderer->end;
-+				if (_wideClip(renderer, 4)) {
++				if (_wideClip(renderer, 4, y)) {
 +					int drawn = GBAVideoSoftwareRendererPreprocessSprite(renderer, &sprite->obj, sprite->index, localY);
 +					spriteLayers |= drawn << GBAObjAttributesCGetPriority(sprite->obj.c);
 +				}

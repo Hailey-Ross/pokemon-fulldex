@@ -26,6 +26,13 @@ bool rc_frame_hidden = false;
 // ssrecomp: the widescreen world drawn at line 215 of this frame would not be shown either (it is
 // shown after the next frame), so it is not drawn (GPU3D::VCount215).
 bool rc_wide_render_skip = false;
+// ssrecomp: set while a hidden frame takes its 3D lines without looking at them (see skip2D), so
+// that a renderer with nothing to count out need not draw that picture (GPU3D_WideGpu.cpp).
+bool rc_3d_line_unseen = false;
+// ssrecomp: fast forward, set by the frontend around a frame whose 3D picture (drawn at its end,
+// taken by the next frame) goes to a frame nobody sees: the software renderer does not draw it
+// (GPU3D_Soft.cpp). Drawing it cost about 4 ms a frame on a Pixel 9 Pro, four for every frame shown.
+bool rc_3d_render_skip = false;
 #include <string.h>
 #include "NDS.h"
 #include "GPU.h"
@@ -898,7 +905,12 @@ void GPU::StartHBlank(u32 line) noexcept
         // ssrecomp: a frame nobody sees (rc_frame_hidden), when the 2D engines draw only for the screen.
         const bool skip2D = rc_frame_hidden && !(GPU2D_A.CaptureCnt & (1u << 31)) && ((GPU2D_A.DispCnt >> 16) & 3) != 3;
         // (The 3D lines are still taken: the 3D thread counts them out frame after frame.)
-        if (line < 192 && skip2D) GPU3D.GetLine(line);
+        if (line < 192 && skip2D)
+        {
+            rc_3d_line_unseen = true;
+            GPU3D.GetLine(line);
+            rc_3d_line_unseen = false;
+        }
         if (line < 192 && !skip2D)
         {
             GPU2D_Renderer->DrawScanline(line, &GPU2D_A);

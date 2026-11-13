@@ -359,6 +359,15 @@ inline MergedView MergedMakeView(int outW, int outH)
     return v;
 }
 
+// An unplaced world image covers the selected view, not the window's side bars.
+// Keep coverage tests, hole filling and both compositors in the same coordinate space.
+inline float MergedWideX(float outputX, int wideW, int outW, int outH)
+{
+    int x0, x1;
+    MergedViewColumns(outW, outH, x0, x1);
+    return (outputX - x0) * wideW / std::max(1, x1 - x0);
+}
+
 // What continues the top screen's row sy beside it in a wide view (side 0 left, 1 right):
 // rgb * eva / 16 + the wide world * evb / 16 (eva 0, evb 16: nothing, the world shows).
 // pattern: instead, the row's 16 pixels at that edge repeated outwards, as they are.
@@ -367,6 +376,7 @@ struct EdgeContinuation
     uint32_t rgb;
     int eva, evb;
     bool pattern = false;
+    int row = -1; // (pattern: the row whose 16 edge pixels are repeated; another of the band's when a sprite is over this one's)
     bool none() const { return eva == 0 && evb == 16 && !pattern; }
 };
 
@@ -388,6 +398,22 @@ inline bool MergedEdgeTileRepeats(const ScreenImage& top, int y, int side)
             ((top.pixels[y * 256 + x] ^ top.pixels[y * 256 + inner]) & 0xFFFFFF)) return false;
     }
     return true;
+}
+
+// Whether the 16 pixels at the edge repeat within themselves (the same 8 twice): a fine tiled
+// pattern, as the dotted bands with a place's name and the season. Those go on as tiles even
+// where the next tile in has letters on it (Black 2's SUMMER reaches the last tile but one).
+inline bool MergedEdgePeriodic(const ScreenImage& top, int y, int side)
+{
+    const int x0 = side ? 240 : 0;
+    for (int k = 0; k < 8; ++k)
+        if (top.flags[y * 256 + x0 + k] != top.flags[y * 256 + x0 + k + 8] ||
+            ((top.pixels[y * 256 + x0 + k] ^ top.pixels[y * 256 + x0 + k + 8]) & 0xFFFFFF)) return false;
+    return true;
+}
+inline bool MergedEdgeTiled(const ScreenImage& top, int y, int side)
+{
+    return MergedEdgeTileRepeats(top, y, side) || MergedEdgePeriodic(top, y, side);
 }
 
 // Find whole opaque background bands with a non-repeating edge, once per scene.
@@ -419,7 +445,7 @@ inline void MergedPrepareEdgeWindows(Scene& scene, const ScreenImage* screens)
                         const int sx = side ? 255 - k : k;
                         if (top.flags[y * 256 + sx] != flag || scene.items[0].Skips(sx, y)) { band = false; break; }
                     }
-                    if (band && !MergedEdgeTileRepeats(top, y, side)) window = true;
+                    if (band && !MergedEdgeTiled(top, y, side)) window = true;
                 }
                 ++y;
             } while (y < 192 && LayerClass(top.flags[y * 256 + x]) == cls && (top.edgeBlend[y * 2 + side] >> 8) == 0);
@@ -442,12 +468,39 @@ inline int MergedEdgeColumn(const ScreenImage& top, int sy, int side)
     return x + dir;
 }
 
-inline EdgeContinuation MergedEdgeContinuation(const Scene& scene, const ScreenImage& top, int sy, int side)
+inline EdgeContinuation MergedEdgeContinuation(const Scene& scene, const ScreenImage& top, int sy, int side, bool borrow = true)
 {
     const int sx = MergedEdgeColumn(top, sy, side);
     const EdgeContinuation none = { 0, 0, 16 };
     // (Nor where the piece leaves the screen out: that part is drawn elsewhere.)
-    if (scene.items[0].Skips(sx, sy) || scene.edgeWindow[side][sy]) return none;
+    if (scene.items[0].Skips(sx, sy)) return none;
+    // A sprite over a band at the edge (the badge beside a place's name, a pixel in from the
+    // screen's side in Black 2): the row goes on as the band's nearest row of the same kind
+    // does (two, four... rows away: the bands' dots alternate by row), where the band is at
+    // the edge on both rows in the same colour and that row has no sprite on its edge tile.
+    if (borrow && scene.smartEdges && top.edge && top.edgeBlend && top.edgeFlat && (LayerClass(top.flags[sy * 256 + sx]) & 0x0F))
+    {
+        bool sprite = false;
+        for (int k = 0; k < 16 && !sprite; k++)
+            sprite = LayerClass(top.flags[sy * 256 + (side ? 255 - k : k)]) == LAYER_OBJ;
+        if (sprite)
+            for (int d = 2; d <= 32; d += 2)
+                for (int dir = -1; dir <= 1; dir += 2)
+                {
+                    const int y = sy + dir * d;
+                    if (y < 0 || y >= 192) continue;
+                    if (top.flags[y * 256 + sx] != top.flags[sy * 256 + sx] || ((top.pixels[y * 256 + sx] ^ top.pixels[sy * 256 + sx]) & 0xFFFFFF)) continue;
+                    bool clear = true;
+                    for (int k = 0; k < 16 && clear; k++)
+                        clear = LayerClass(top.flags[y * 256 + (side ? 255 - k : k)]) != LAYER_OBJ;
+                    if (!clear) continue;
+                    EdgeContinuation c = MergedEdgeContinuation(scene, top, y, side, false);
+                    if (c.none()) continue;
+                    if (c.pattern && c.row < 0) c.row = y;
+                    return c;
+                }
+    }
+    if (scene.edgeWindow[side][sy]) return none;
     const uint8_t cls = LayerClass(top.flags[sy * 256 + sx]);
     // (Not a layer the scene leaves out: that one is not drawn on the screen either.)
     if (cls == LAYER_3D || (cls & scene.items[0].drop)) return none;
@@ -475,19 +528,27 @@ inline EdgeContinuation MergedEdgeContinuation(const Scene& scene, const ScreenI
         // world showing.
         const uint8_t flag = top.flags[sy * 256 + sx];
         if (evb != 0 || (top.edgeFlat[sy * 2 + side] & 2) || !(cls & 0x0F)) return none;
-        for (int k = 0; k < 16; k++)
-        {
-            const int x = side ? 255 - k : k;
-            const int inner = side ? x - 16 : x + 16;
-            // A frame edge or advance arrow can occupy one background just like a tiled
-            // banner. Repeat only when the next inward tile actually has the same pattern;
-            // otherwise Platinum's frame 18 grows extra borders and arrows in the margins.
-            if (top.flags[sy * 256 + x] != flag || top.flags[sy * 256 + inner] != flag ||
-                scene.items[0].Skips(x, sy) || scene.items[0].Skips(inner, sy) ||
-                ((top.pixels[sy * 256 + x] ^ top.pixels[sy * 256 + inner]) & 0xFFFFFF)) return none;
-        }
+        // A frame edge or advance arrow can occupy one background just like a tiled
+        // banner. Repeat only when the next inward tile actually has the same pattern
+        // (otherwise Platinum's frame 18 grows extra borders and arrows in the margins), or
+        // when the edge tile repeats within itself (MergedEdgePeriodic).
+        auto tiled = [&](int y) {
+            bool inner = true;
+            for (int k = 0; k < 16; k++)
+            {
+                const int x = side ? 255 - k : k;
+                const int in = side ? x - 16 : x + 16;
+                if (top.flags[y * 256 + x] != flag || scene.items[0].Skips(x, y)) return false;
+                if (top.flags[y * 256 + in] != flag || scene.items[0].Skips(in, y) ||
+                    ((top.pixels[y * 256 + x] ^ top.pixels[y * 256 + in]) & 0xFFFFFF)) inner = false;
+            }
+            return inner || MergedEdgePeriodic(top, y, side);
+        };
+        const int row = tiled(sy) ? sy : -1;
+        if (row < 0) return none;
         EdgeContinuation p = finished;
         p.pattern = true;
+        p.row = row;
         return p;
     }
     // Not mixed with the 3D world: as the screen shows it (with any fade or brightening).
@@ -864,7 +925,7 @@ inline bool MergedKeyed(const Element& el, uint32_t rgb)
 // would be drawn over the world's floor, enlarged into a line.
 inline bool MergedWideCovers(const WideImage& wide, const MergedView& v, int outW, int outH, int sx, int sy)
 {
-    const int x = (int)((v.originX + (sx + 0.5f) * v.unit) * wide.w / outW);
+    const int x = (int)std::floor(MergedWideX(v.originX + (sx + 0.5f) * v.unit, wide.w, outW, outH));
     const int y = (int)((v.originY + (sy + 0.5f) * v.unit) * wide.h / outH);
     if (x < 0 || x >= wide.w || y < 0 || y >= wide.h) return false;
     return (wide.pixels[(size_t)y * wide.w + x] >> 24) != 0;
@@ -988,15 +1049,16 @@ inline void MergedCompose(const Scene& scene, const ScreenImage screens[2], int 
     const bool placed = useWide && wide->placed;
     std::vector<uint32_t> wideFilled;
     const uint32_t* widePx = useWide && !placed
-        ? MergedFillWideHoles(*wide, (int)std::floor(v.originX * wide->w / outW),
-              (int)std::ceil((v.originX + 256 * v.unit) * wide->w / outW), wideFilled)
+        ? MergedFillWideHoles(*wide, (int)std::floor(MergedWideX(v.originX, wide->w, outW, outH)),
+              (int)std::ceil(MergedWideX(v.originX + 256 * v.unit, wide->w, outW, outH)), wideFilled)
         : nullptr;
     std::vector<int> wcol;
     if (useWide)
     {
         wcol.resize(outW);
         for (int x = 0; x < outW; x++)
-            wcol[x] = placed ? (int)std::floor((x + 0.5f - v.originX) / v.unit) - wide->baseX : (int)((int64_t)x * wide->w / outW);
+            wcol[x] = placed ? (int)std::floor((x + 0.5f - v.originX) / v.unit) - wide->baseX
+                            : std::clamp((int)MergedWideX((float)x, wide->w, outW, outH), 0, wide->w - 1);
     }
 
     // Each piece with its place in the output and, for nearest-pixel drawing, the source
@@ -1164,7 +1226,7 @@ inline void MergedCompose(const Scene& scene, const ScreenImage screens[2], int 
                                 for (int x = xa; x < xb; x++)
                                 {
                                     const int bx = (int)std::floor((x - v.originX) / v.unit);
-                                    dst[x] = 0xFF000000 | MergedEdgePatternPixel(top, sy, side ? std::max(bx, 256) : std::min(bx, -1));
+                                    dst[x] = 0xFF000000 | MergedEdgePatternPixel(top, c.row >= 0 ? c.row : sy, side ? std::max(bx, 256) : std::min(bx, -1));
                                 }
                                 continue;
                             }

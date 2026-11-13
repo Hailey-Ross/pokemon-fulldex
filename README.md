@@ -6,7 +6,7 @@ widescreen, 60 fps, up to 4K on a PC and 720p on the Switch.** No more squinting
 
 **DS:** Black 2, White 2, Black, White, HeartGold, SoulSilver, Platinum, Diamond and Pearl.<br>
 **GBA:** Emerald, Ruby, Sapphire, FireRed, LeafGreen and Ultra Violet.<br>
-**3DS:** Omega Ruby, Alpha Sapphire, X, Y, Ultra Sun and Ultra Moon, coming soon.<br>
+**3DS (beta):** Omega Ruby and Alpha Sapphire on Windows, Android and Switch; X, Y, Ultra Sun and Ultra Moon coming soon.<br>
 Which languages: [Supported games](#supported-games).
 
 ![Pokémon Fulldex: Black 2, White 2, Black, White, SoulSilver, HeartGold, Platinum, Diamond and Pearl, and the GBA games Emerald, Ruby, Sapphire, FireRed, LeafGreen and Ultra Violet, in widescreen at 60 fps on a PC, a Mac, a Steam Deck, an Android phone and a Nintendo Switch; RetroAchievements, cheats, save states and your own colour and background built in](docs/screenshots/trailer-3.gif)
@@ -54,7 +54,8 @@ DS game, presented the way it should look on a modern screen.
 | **Ruby / Sapphire** (GBA) | English (1.0, 1.1, 1.2), German, French, Spanish, Italian, Japanese | |
 | **FireRed / LeafGreen** (GBA) | English (1.0, 1.1) | |
 | **Ultra Violet** (GBA, a FireRed hack) | 1.22 | as its `.gba`, or its `.ips` patch beside a FireRed 1.0 ROM |
-| **Omega Ruby / Alpha Sapphire, X / Y, Ultra Sun / Ultra Moon** (3DS) | | Coming soon |
+| **Omega Ruby / Alpha Sapphire** (3DS) | Every language on the cartridge | Beta: Windows, Android and Switch ([how](#omega-ruby-and-alpha-sapphire-3ds-beta)); Mac, iPhone and iPad coming soon |
+| **X / Y, Ultra Sun / Ultra Moon** (3DS) | | Coming soon |
 
 - **Beta** languages work with the exact ROM copies they were checked against, and complete
   playthroughs haven't been verified yet. Other GBA games play too, without widescreen.
@@ -97,11 +98,26 @@ The `README.txt` inside has the full list. **CONTROLS > KEYS AND BUTTONS** in th
 the game list's settings page) changes any of them, including fast forward, swapping the screens,
 save state and load state, on the keyboard and on a controller (the game list follows the ones you change).
 
+**Steam Deck trackpad:** when launching through Steam, set the right trackpad to **Mouse**
+and its click to **Left Mouse Click** in the game's Steam Input layout. Keep the game buttons
+mapped as gamepad buttons. The pointer can touch the DS screen and click launcher, pause and
+GBA menus. In DS fullscreen it appears while used and hides after a short idle period.
+Layouts that also send keyboard shortcuts for the same gamepad buttons can produce duplicate
+input; the launcher combines matching actions received together. Direct trackpad behaviour
+outside Steam still depends on the controller driver and needs device verification.
+
 **Saves** go in the `saves` folder, one per game (`black2.sav`, `soulsilver.sav`,
 `platinum.sav`, ...). To carry on from another emulator, put its `.sav` there
 under that name. **Pictures**: the list shows each game's box art; for your own,
 put a JPEG or PNG in an `icons` folder beside the program, named after the game's
 code (`IREO.jpg` for Black 2, see the `README.txt`).
+You can also open a game's menu and choose **Change Picture > Import A Picture**.
+On Linux and Steam Deck, use the folder browser to select a PNG or JPEG; on Windows,
+the system file picker opens. The chosen image is copied into the save folder, leaving
+your original picture alone. Games with the same filename can keep different pictures.
+
+
+Launcher **Settings > Display** also lets you choose the **DS Screen Filter** or **GBA LCD Effect** before starting a game. GBA AUTO keeps its existing in-game choice; selecting ON or OFF overrides it. Changes in the in-game display menus are remembered by the launcher.
 
 ![The settings page: its groups (DISPLAY, SOUND, GRAPHICS, CONTROLS, SHORTCUTS, GAME LIST, HELP), each with the options in it](docs/screenshots/settings-page.png)
 
@@ -119,6 +135,8 @@ code (`IREO.jpg` for Black 2, see the `README.txt`).
 **Desktop shortcuts:** DESKTOP SHORTCUTS on the settings page puts a shortcut for each
 game on your desktop (on Linux also in your apps menu, and so in the Steam Deck's "Add a
 Non-Steam Game" list), with its box art; each starts its game straight away.
+
+**Steam Deck direct launches:** In Desktop Mode, use FullDex Settings > DESKTOP SHORTCUTS, then open Steam > Add a Game > Add a Non-Steam Game and select the generated game entries. They appear in Gaming Mode under Non-Steam and start the selected ROM directly, including hacks. Recreate shortcuts after moving a ROM. The desktop icon is included; Steam library cover artwork can be assigned separately in Steam. New Deck setups use Start for the pause menu; saved START BUTTON choices are respected.
 
 **What it needs:** Windows 10 or 11 (64-bit), or 64-bit Linux from late 2023 on
 (Ubuntu 24.04, Fedora 39, SteamOS 3.5 or newer); nothing else to install. For WORLD
@@ -322,6 +340,25 @@ Please tell us how it runs on yours, with your model (see [Reporting a bug](#rep
 
 </details>
 
+### Omega Ruby and Alpha Sapphire (3DS, beta)
+
+Played natively from your own game dump (a `.3ds` file; none is included), with widescreen or one
+screen, sharp 3D up to 4K, fast forward and the FullDex menus. They are in the **3DS Beta** tab.
+The game's code is built once from your dump for the best speed; until then it can still play.
+
+- **Windows:** put your `.3ds` in the roms folder and pick the game. The first time, FullDex
+  builds it (5 to 15 minutes, the list shows how it goes); then it plays.
+- **Android (64-bit phones):** put your `.3ds` in your ROMs folder and pick the game. It is copied
+  into FullDex once (about 2 GB) and starts. In the game's menu, **Build For Best Speed** builds it
+  on the phone (about 25 minutes, keep it plugged in), or **Use Game Code From PC** takes the file
+  the FullDex Builder makes.
+- **Switch:** the Switch cannot build it itself. Use the
+  [FullDex Builder](https://github.com/mamesj/pokemon-fulldex/releases/tag/fulldex-builder-0.1) on a
+  Windows PC to make the game's folder from your dump, copy it into `/switch/` with your
+  `game.3ds`, and FullDex lists it.
+
+It is a beta: back up your saves, and please [report](#reporting-a-bug) anything that goes wrong.
+
 ## Features
 
 ### Settings
@@ -332,7 +369,7 @@ controller, or SETTINGS at the top), or in the pause menu while you play (**Esc*
 
 | Group | Settings |
 |---|---|
-| DISPLAY | LANGUAGE, SCREEN LAYOUT (MERGED: the one widescreen picture), LARGE SCREEN, BORDERLESS FULLSCREEN, SMOOTH SCALING, BATTLE BUTTONS, FPS COUNTER |
+| DISPLAY | LANGUAGE, SCREEN LAYOUT (MERGED: the one widescreen picture), LARGE SCREEN, BORDERLESS FULLSCREEN, SMOOTH SCALING, DS SCREEN FILTER (OFF / SCANLINES / LCD GRID), GBA LCD EFFECT, BATTLE BUTTONS, FPS COUNTER |
 | SOUND | VOLUME (a slider: OFF, then 10% to 100%) |
 | GRAPHICS | 60 FPS, WIDESCREEN WORLD, WIDE MAP LOADING, 3D RESOLUTION (WORLD DETAIL on the Switch), LOWER RES WHEN BUSY, WORLD ON GPU, FAST FORWARD LOW RES |
 | CONTROLS | **KEYS AND BUTTONS** (give any DS button, the pause menu, fast forward, swapping the screens, save state or load state another key or controller button), START BUTTON, BUTTONS, STICK TOUCH CURSOR |
@@ -407,7 +444,14 @@ SETTINGS > HELP any time). Downloads are checked against the release's SHA256SUM
 anything is replaced, and the previous program is kept; your ROMs, saves and settings stay
 where they are. Android uses its own installer; on a Mac, iPhone or iPad it opens the download page.
 
-### Cheats
+### Using an existing ROM library
+
+On PC and Android, open **ROMs → Choose ROMs Folder** in the launcher. Choose the folder
+where you already keep your games, including a library shared with another emulator.
+Fulldex scans its subfolders too. The games stay where they are, and changing the ROM folder
+does not move your saves. On Android, allow file access when the system asks.
+
+## Cheats
 
 Action Replay codes, turned on and off as you play: **CHEATS** in the pause menu. They go
 in a `cheats` folder (make it if it isn't there):
@@ -454,6 +498,10 @@ in a `cheats` folder (make it if it isn't there):
   D2000000 00000000
   ```
   melonDS's own cheat files (`IPKE.mch` and so on) work too.
+- **Codes for one ROM:** name the text or melonDS cheat file after the ROM, without `.nds`:
+  `My Hack.txt` for `My Hack.nds`. If either ROM-specific file exists, those files take
+  priority over the game-code files. ROM hacks keep their enabled cheats separately,
+  so turning a code on for one hack does not turn it on for another or the original game.
 
 The codes must be for your version of the game (US or Europe). A cheat changes the game's
 memory while it runs: **save first**, and turn it off if the game misbehaves.
@@ -698,3 +746,13 @@ Android players can move and resize on-screen controls in the paused layout edit
 The launcher and Fulldex menus offer AUTO, English, Spanish, Italian, French, German, Japanese and Korean interface languages. Embedded GBA menus follow the launcher language too. See [controls, regional games and build notes](docs/REGIONAL-AND-TOUCH-CONTROLS.md).
 
 Companion additions: Based on PokeDaisy by Lidor Itzhari - https://github.com/lidor30/pokedaisy
+
+### Open a DS game from an Android frontend
+
+A frontend or file manager can send an Android VIEW intent for an `.nds` ROM to FullDex. A readable file opens directly. Document-provider links are copied into FullDex storage before launch, so they also work when the provider exposes no ordinary file path; the original file is unchanged. Existing save-folder settings and save checks are retained. While FullDex is already showing its library, a new link starts the selected game. Quit an active game before opening another link. This integration still needs testing with individual frontends and devices.
+
+### Android folders without ordinary file access
+
+Granting all-files access lets FullDex use a shared ROM folder directly. If that permission is declined, or a document provider exposes no filesystem path, choosing a folder imports its `.nds` and `.gba` files into FullDex storage instead. The app shows when it is importing and how many ROMs were found. Nested folders are supported; choose a smaller folder if a traversal/size limit is reached. Original files remain untouched. These are separate ROM copies: changes made by another emulator are not automatically synchronised, and source saves are not imported automatically. Existing FullDex save locations are retained and must remain accessible. This fallback needs testing on affected GrapheneOS devices.
+
+ROM imports reuse identical files and refuse to overwrite a different ROM with the same filename. Rename the incoming ROM or choose its existing ROM folder instead. An explicitly imported save still gets a safety backup before replacement.

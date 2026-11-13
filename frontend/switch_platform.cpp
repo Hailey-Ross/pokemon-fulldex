@@ -23,6 +23,7 @@
 #include "thirdparty/stb_image.h"
 #undef STB_IMAGE_IMPLEMENTATION
 #include "launcher.h"
+#include "n3ds.h" // (Omega Ruby and Alpha Sapphire: listed and started)
 #include "cloud_autosync.h"
 #include "ui_lang_sdl.h"
 #include "controls.h"
@@ -93,6 +94,7 @@ bool RomfsReady()
 bool Playable(const Launcher::Game& g)
 {
     if (g.platform == Launcher::GBA) return true; // (any GBA game plays, with widescreen or without)
+    if (g.platform == Launcher::N3DS) return g.known && !g.comingSoon; // (its own program: n3ds.h)
     if (!g.known || !g.problem.empty()) return false;
     if (IsGame(g.code, "IPGE") || IsGame(g.code, "IPKE")) return rc_num_chunks > 0 && rc_portable_knows(g.code.c_str());
     struct stat st;
@@ -143,7 +145,7 @@ std::string InstallHomeIcons(const std::vector<Launcher::Game>& games)
     std::vector<std::string> done;
     for (const Launcher::Game& g : games)
     {
-        if (!Playable(g) || g.hack || std::find(done.begin(), done.end(), g.code) != done.end()) continue;
+        if (!Playable(g) || g.hack || g.platform == Launcher::N3DS || std::find(done.begin(), done.end(), g.code) != done.end()) continue;
         done.push_back(g.code);
         SwitchForwarder::Entry e;
         const Launcher::KnownGame* k = Launcher::Known(g.code);
@@ -846,6 +848,7 @@ int PickGame(const std::vector<Launcher::Game>& gamesIn, int selected, const std
                     }
                     else if (item == 2) { F.kbFor = 0; F.text = Launcher::ShortName(g); F.dialog = 3; F.drow = 0; kbLayer = 0; kbBuild(); }
                     else if (item == 3) { F.dialog = 4; F.drow = 0; }
+                    else if (item == 4 && g.platform == Launcher::N3DS) note = "3DS SAVES ARE KEPT IN THE GAME'S OWN FOLDER";
                     else if (item == 4) Launcher::OpenSaves(g, SavePath(g)); // (Manage Saves: a page of its own, saves_page.h)
                     else if (item == 5) Launcher::OpenAddToTab(g.rom);
                     else if (item == 6) { F.dialog = 1; F.drow = 0; }
@@ -1009,7 +1012,13 @@ int PickGame(const std::vector<Launcher::Game>& gamesIn, int selected, const std
             }
             if (play && selected >= 0 && selected < (int)games.size())
             {
-                if (Playable(games[selected])) { if (!Launcher::SavesPlayCheck(games[selected], SavePath(games[selected]))) { result = selected; break; } }
+                if (Playable(games[selected]))
+                {
+                    fprintf(stderr, "[launch] save check begin: %s\n", games[selected].code.c_str());
+                    const bool blocked = Launcher::SavesPlayCheck(games[selected], SavePath(games[selected]));
+                    fprintf(stderr, "[launch] save check: %s\n", blocked ? "confirmation needed" : "ready");
+                    if (!blocked) { result = selected; break; }
+                }
                 else note = games[selected].known ? "THIS DOWNLOAD DOES NOT HAVE THIS GAME" : "THIS GAME IS NOT ONE THAT THIS PLAYS";
             }
             if (quitList) break;
@@ -1296,9 +1305,10 @@ std::vector<Launcher::Game> FindGames(const std::string& dir, bool& ownFolder)
     // (Each DS ROM checked against the clean releases, in the background the first time: a hack
     // gets a save of its own. romhacks.h)
     Launcher::BeginScan(dir + "/saves");
+    fprintf(stderr, "[launch] library scan begin\n");
     struct EndScan
     {
-        ~EndScan() { Launcher::EndScan(); }
+        ~EndScan() { Launcher::EndScan(); fprintf(stderr, "[launch] library scan complete\n"); }
     } endScan;
     if (Launcher::ReadGame(dir + "/rom.nds", dir, g))
     {
@@ -1356,7 +1366,10 @@ std::vector<Launcher::Game> FindGames(const std::string& dir, bool& ownFolder)
 #endif
     savesIn(games);
     Launcher::AdoptHackSaves(games, SavePathFor);
+    // Omega Ruby and Alpha Sapphire: the FullDex Builder's folders in /switch (n3ds.h).
+    N3ds::AddSwitch(games);
     Launcher::AddComingSoon(games);
+    N3ds::DropPlaceholders(games);
     Launcher::Sort(games);
     // The same game in two folders (two ROMs, two saves): each says where it is.
     for (size_t i = 0; i < games.size(); i++)
@@ -1397,7 +1410,30 @@ void ExitTraceIn(const std::string& dir)
     if (FILE* f = fopen(g_exitTrace, "w")) fclose(f);
     ExitTrace("started");
 }
-extern "C" void userAppExit(void) { ExitTrace("libnx: closing the services"); }
+extern "C" void userAppExit(void)
+{
+    ExitTrace("libnx: final network cleanup");
+    Achievements::ShutdownNetwork();
+    ExitTrace("libnx: closing the services");
+}
+
+// Omega Ruby or Alpha Sapphire: its own program started as this one ends, told where this one is
+// (FULLDEX_RETURN), so that quitting the game from its menu brings the list back.
+static bool Start3ds(const Launcher::Game& g)
+{
+    if (!envHasNextLoad())
+    {
+        fprintf(stderr, "[3ds] cannot start another program from here (no homebrew loader)\n");
+        return false;
+    }
+    const std::string args = "\"" + g.rom + "\"" + (g_self.empty() ? std::string() : " \"FULLDEX_RETURN=" + g_self + "\"");
+    const Result rc = envSetNextLoad(g.rom.c_str(), args.c_str());
+    fprintf(stderr, "[3ds] %s: %s (0x%x)\n", g.name.c_str(), args.c_str(), (unsigned)rc);
+    ExitTrace("3ds handoff: closing network");
+    Achievements::ShutdownNetwork();
+    ExitTrace("3ds handoff: returning to loader");
+    return false;
+}
 
 bool Start(int& argc, char**& argv)
 {
@@ -1592,6 +1628,7 @@ bool Start(int& argc, char**& argv)
                     fprintf(f, "%s\n", games[chosen].rom.c_str());
                     fclose(f);
                 }
+                if (games[chosen].platform == Launcher::N3DS) return Start3ds(games[chosen]);
                 if (!g_self.empty() && envHasNextLoad())
                 {
                     if (FILE* f = fopen(chosenMarker.c_str(), "wb")) fclose(f);
@@ -1599,7 +1636,17 @@ bool Start(int& argc, char**& argv)
                     const Result rc = envSetNextLoad(g_self.c_str(), cmd.c_str());
                     fprintf(stderr, "[switch] %s chosen: the program starts again to play it (0x%x)\n",
                         games[chosen].rom.c_str(), (unsigned)rc);
-                    if (R_SUCCEEDED(rc)) return false;
+                    if (R_SUCCEEDED(rc))
+                    {
+                        // The loader reuses this process. Close the updater's sockets
+                        // now, while curl and all services are still alive, rather than
+                        // relying on an atexit registration that may have been refused.
+                        ExitTrace("handoff: closing network");
+                        Achievements::ShutdownNetwork();
+                        fprintf(stderr, "[launch] network closed; returning to loader\n");
+                        ExitTrace("handoff: returning to loader");
+                        return false;
+                    }
                     remove(chosenMarker.c_str());
                 }
             }
@@ -1607,6 +1654,7 @@ bool Start(int& argc, char**& argv)
         }
     }
 #endif
+    if (games[chosen].platform == Launcher::N3DS) return Start3ds(games[chosen]);
 #ifdef SSR_GBA
     // A GBA game (chosen in the list, which started the program again for it, or from its HOME
     // Menu icon): played here, Pokemon GBA Widescreen built in; then the program starts again for
@@ -1638,7 +1686,11 @@ bool Start(int& argc, char**& argv)
     }
 #endif
     // (A ROM not yet checked is, now: a hack plays with a save of its own.)
+    const u64 checkStart = armGetSystemTick();
+    fprintf(stderr, "[launch] ROM check begin: code %s, hack %d\n", games[chosen].code.c_str(), (int)games[chosen].hack);
     Launcher::ConfirmHack(games, (size_t)chosen, dir + "/saves", SavePathFor);
+    fprintf(stderr, "[launch] ROM check complete: hack %d, %llu ms\n", (int)games[chosen].hack,
+        (unsigned long long)(armTicksToNs(armGetSystemTick() - checkStart) / 1000000));
     const Launcher::Game& game = games[chosen];
     const std::string rom = game.rom, gameDir = game.folder;
     char code[5] = {};
@@ -1780,6 +1832,7 @@ bool Start(int& argc, char**& argv)
     g_argv.push_back(nullptr);
     argc = (int)g_args.size();
     argv = g_argv.data();
+    fprintf(stderr, "[launch] emulator arguments ready\n");
     return true;
 }
 

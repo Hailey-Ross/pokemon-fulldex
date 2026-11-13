@@ -54,16 +54,24 @@ layout (std140, binding = 0) uniform Frame
     uvec4 uFogDensity[9];
 };
 
+#ifdef WIDE_ES
+uniform uvec4 uDraw; // (see wide_vsh.glsl)
+#else
 layout (std140, binding = 1) uniform Draw
 {
     uvec4 uDraw;
 };
+#endif
 
 flat in uint vPoly;
 flat in uvec4 vPolyData;
 in vec3 vColor;
 in vec2 vTex;
+#ifdef WIDE_ES
+in float vZLinear; // (times W: see wide_vsh.glsl)
+#else
 noperspective in float vZLinear;
+#endif
 in float vZPersp;
 
 layout (location = 0) out vec4 oColor;
@@ -302,6 +310,10 @@ void main()
     oColor = vec4(vec3(c) / 255.0, float(alpha + 1u) / 32.0);
 
     // (The depth tested is the graphics chip's, wide_vsh.glsl; this one is the fog's.)
+#ifdef WIDE_ES
+    int z = (poly.flags & 1u) != 0u ? int(vZPersp) : int(vZLinear * gl_FragCoord.w);
+#else
     int z = (poly.flags & 1u) != 0u ? int(vZPersp) : int(vZLinear);
+#endif
     oAttr = uvec2(uint(max(z, 0)), (attr >> 15) & 1u);
 }

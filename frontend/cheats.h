@@ -3,6 +3,9 @@
 // time the DS's second processor answers the screen's vertical blank, as a real Action Replay
 // does. They come from the cheats folder (beside the saves folder, or in the save's folder):
 //
+//   <ROM filename without .nds>.txt / .mch take precedence when present.
+//   Hacks keep their enabled codes in <ROM filename>-on.txt, separately from the base game.
+//
 //   <game code>.txt   codes of your own: a line with the cheat's name, then its code lines
 //                     ("92247612 00002801"); a line starting with # is a comment
 //   <game code>.mch   a melonDS cheat file (as melonDS saves them)
@@ -134,7 +137,7 @@ struct List
 
     std::vector<Cheat> items;
     std::vector<Folder> folders;
-    std::string folder, code;
+    std::string folder, code, profile;
     std::vector<std::string> messages; // Player-readable failures and missing game entries.
     std::vector<std::string> sources; // what was read, for game.log
 
@@ -207,13 +210,24 @@ struct List
         return std::to_string(n) + " ON";
     }
 
-    void Load(const std::string& cheatFolder, const std::string& gameCode, const unsigned char* romHeader)
+    void Load(const std::string& cheatFolder, const std::string& gameCode, const unsigned char* romHeader,
+              const std::string& romPath = "", bool romHack = false)
     {
         items.clear();
+        messages.clear();
         folders.clear();
         sources.clear();
         folder = cheatFolder;
         code = gameCode;
+        const size_t slash = romPath.find_last_of("/\\");
+        std::string stem = romPath.substr(slash == std::string::npos ? 0 : slash + 1);
+        const size_t dot = stem.find_last_of('.');
+        if (dot != std::string::npos) stem.resize(dot);
+        if (stem == "." || stem == "..") stem.clear();
+        const bool ownFiles = !stem.empty() &&
+            (Exists(folder + "/" + stem + ".txt") || Exists(folder + "/" + stem + ".mch"));
+        const std::string fileCode = ownFiles ? stem : code;
+        profile = !stem.empty() && (romHack || ownFiles) ? stem : code;
         // Built in (builtin_cheats.h): 15 popular codes for this release, all off until turned on.
         // First, so POPULAR CHEATS is the first folder.
         if (const BuiltinCheats::Game* g = BuiltinCheats::Find(code.c_str()))
@@ -234,7 +248,7 @@ struct List
             sources.push_back("built in (" + std::to_string(g->count) + " codes)");
         }
         // Codes of one's own: a name line, then code lines.
-        const std::string txt = folder + "/" + code + ".txt";
+        const std::string txt = folder + "/" + fileCode + ".txt";
         if (FILE* f = fopen(txt.c_str(), "r"))
         {
             char buf[512];
@@ -262,7 +276,7 @@ struct List
             sources.push_back(txt);
         }
         // melonDS's own cheat files.
-        const std::string mch = folder + "/" + code + ".mch";
+        const std::string mch = folder + "/" + fileCode + ".mch";
         if (Exists(mch))
         {
             melonDS::ARCodeFile file(mch);
@@ -335,7 +349,7 @@ struct List
         }
     }
 
-    std::string OnFile() const { return folder + "/" + code + "-on.txt"; }
+    std::string OnFile() const { return folder + "/" + profile + "-on.txt"; }
 
     // Turns cheat i on or off (another of its folder off, if only one may be on), and keeps it.
     void Toggle(size_t i)

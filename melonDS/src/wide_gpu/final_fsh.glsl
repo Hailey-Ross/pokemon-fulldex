@@ -92,5 +92,10 @@ void main()
             rgb = (fog * density + rgb * (128u - density)) >> 7;
         }
     }
+#ifdef WIDE_SWAP_RB
+    // (Read back as RGBA where BGRA cannot be asked for: OpenGL ES.)
+    oColor = vec4(vec3(rgb.bgr) / 255.0, float(a8) / 255.0);
+#else
     oColor = vec4(vec3(rgb) / 255.0, float(a8) / 255.0);
+#endif
 }

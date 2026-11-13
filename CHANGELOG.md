@@ -3,6 +3,110 @@
 
 ## Unreleased
 
+- **Pokémon Omega Ruby and Alpha Sapphire join the list, in beta** (the 3DS Beta tab; their tiles say 3DS Beta), played by their own native programs from the player's own dump. **Windows:** a dump (.3ds) in the roms folder is listed; the first time it is chosen, its code is built from the dump once (5 to 15 minutes, the list showing how it goes, other games still playable), then it plays and quitting it returns to the list. The program comes in the download's 3ds folder; each game keeps its own folder and saves there. **Switch:** the folders the FullDex Builder makes are listed (one tile a game) and started from the list. **Android** (64-bit phones, with the Omega Ruby project's kit built into the app): a dump in the ROM folders is copied into FullDex the first time it is chosen, then plays on a screen of its own and returns to the list. The first Play copies the dump in (after checking there is room) and then starts it. The game's menu has Build For Best Speed (on the phone, about 25 minutes; Game Code Built once done, and the tile says 3DS · Built) and Use Game Code From PC (the FullDex Builder's). In the 3DS games the FullDex menu works by touch, the game's touch screen takes quick taps, the on-screen Start and Select reach the game, the game uses the screen round a phone's camera, and Display has Battle Button Size (80 to 160%, 120% on phones). Their COMING SOON tiles are gone.
+- **Catching a Pokémon: the nickname question no longer covers it** (#62). Only the Yes and No buttons are shown, at the right above the message, in every aspect ratio. In widescreen the Pokémon just caught is no longer cut in half.
+- **HeartGold and SoulSilver: the radio's words stay in view in widescreen.**
+- **Fast forward on Android is smooth, and faster.** Frames nobody sees no longer draw their 3D picture, the 3D thread keeps to the fast cores, and pictures reach the screen at an even pace. On a Pixel 9 Pro XL at 4x it went from about 2.2x with uneven pictures to 2.4x with even ones. The speed chosen is the most it will go: a phone runs as fast as it can keep smooth.
+- **DS fast forward: the music plays at its normal tempo and pitch** on Windows, Linux and Android, by playing the game's own music on a second, silent copy of the console (adapted from PokéDaisy). Switch, Mac, iPhone and iPad keep the earlier way for now.
+- **GBA games: the pause menu is the DS games' glass menu**, and **Save and Load have ten slots** with a picture of where each was saved, as in the DS games. A state saved before this update is Slot 1.
+- **Windows: steadier frame times** (#17). The wait before each picture woke up late on the system timer, about one picture in five on a 240 Hz screen; it now uses a precise timer.
+- **Android: WORLD ON GPU.** The widescreen world is drawn by the phone's graphics chip (OpenGL ES 3.2), with the processor as a fallback. On a Pixel 9 Pro XL this cut the power used at 60 FPS by about two thirds. The frame clock also follows the screen's own 60 Hz.
+- **Touch controls: hide single buttons and choose how much they show.** In Touch Controls, HIDE takes the picked control off the screen (it stays in the editor, dim, so SHOW brings it back) and VISIBILITY sets them all to 100, 75, 50 or 25%. DS and GBA games; MENU always stays. Each control could already be resized on its own.
+- **Android: the in-game menus scroll by touch** (#117), also when the swipe starts on a heading.
+- **Moving Pokémon between games: trade evolutions keep the right Ability.** A Gen 4 Pokémon also keeps its personality value. (One already evolved this way can't be repaired, but the hub's backup of the save can be restored.)
+- **Launcher: Continue starts the last game** when tapped or clicked (it opened the game's menu), and **Android's Play starts a game found in the app's own folder** instead of asking for a ROMs folder first.
+- **GBA ROM hacks try widescreen** as their base game does.
+- **Black 2 and White 2: tidier edges** on the title screen and the banner corners in widescreen.
+- **New text translated** into Spanish, Italian, French, German, Japanese and Korean.
+
+- **The Tiles carousel slides.** The covers move and grow smoothly to the next game with the arrows, a click or a swipe, and follow the finger or the mouse while it drags.
+- **A ROM hack is shown by its own name** (Renegade Platinum, not Platinum) on the home screen.
+- **The game list finds the controller again after a GBA game** on a computer.
+
+- Choose Hold or Toggle for the fast-forward button in launcher settings and in-game playback settings, shared by DS and GBA. Toggle works with a keyboard or controller, and with the DS on-screen button; the GBA on-screen button stays a tap on, a tap off.
+
+- **Android restores fullscreen after resume/unlock.** Reapply system-bar and layout state when focus returns, with a bounded retry after the unlock transition. Windowed/multi-window mode, open keyboards and the chosen cutout preference are preserved. Retroid Pocket 6 hardware confirmation is pending.
+
+- **Layout choices have mini previews.** Sidebar, Grid Only and Tiles appear together in the preview panel, with the active choice outlined. Tap a miniature to select it; phones show their two supported grid layouts.
+
+- **Grid Only launcher layout** hides Continue Playing and uses its space for more same-sized game cards. Sidebar and Tiles remain available.
+- **Launcher swipes coast gently and the mouse wheel scrolls the grid smoothly**, including fractional trackpad movement. A new press, controller navigation or an open menu stops coasting.
+- **Click the left stick to cycle visible companion tabs.** Existing custom button bindings take priority. Battle automatically opens its tab once when combat begins, allowing manual tab changes during the battle.
+
+- **The launcher grid shows partially visible rows.** Games fill the available grid area and scroll through its edges instead of disappearing until their whole card fits. Headers and bottom controls stay clear.
+
+- **Fixed aspect ratios keep world geometry aligned on ultrawide screens** (#139). The 3D world, 2D overlays and coverage checks use the same selected view width instead of stretching the world beneath the side bars.
+
+- **Fast-forward sound stays close to the picture** (#123), in the DS and the GBA games. The music keeps its own speed and pitch, and what is heard is never more than about two seconds behind the game (it could fall half a minute behind). Letting go of fast forward goes straight back to the live sound.
+
+- **ROM imports preserve different games sharing a filename.** An incoming ROM cannot overwrite a different existing ROM. Failed GBA imports also cannot launch the old same-named file, and read failures no longer count as identical file contents.
+
+- **Wi-Fi firmware settings survive failed replacements.** The previous settings file is retained when a write cannot be installed; Switch keeps a rollback copy, and puts it back or clears it at the next start or save if a save was cut short. Oversized or incomplete firmware files are rejected with bounded memory use before starting a DS game.
+
+- **Android document-provider folders can import DS and GBA ROMs** (#124). Declining broad file access no longer cancels the folder picker. Unsupported filesystem providers use bounded background imports with clear success/failure messages; source saves are never imported or overwritten. Existing save locations are pinned before changing ROM folders.
+
+- **Android frontends can open a DS ROM directly** (#98). Granted document links are imported safely when no ordinary file path is available; failed imports keep the previous file. An active game is never replaced by a new request.
+- **Direct DS launches keep save checks and the existing save folder**, including files outside the selected ROM library.
+
+- **Optional battle timing logs** record game-frame rate, active speed and generated interpolation frames to help distinguish speed changes from uneven animation.
+
+- **Steam Deck game shortcuts target the selected ROM**, including hacks and multiple games sharing a code. Names and icons are kept separate, and filenames with spaces or special characters are escaped.
+- **New Steam Deck setups use Start for pause**, for DS and GBA. Existing saved button choices are kept. Confirmation menus also recover safely from an invalid selection.
+
+- **Phone confirmation dialogs are easier to read and tap.** Quit and other confirmation cards use larger text and buttons sized for touch in both orientations.
+
+- **Very wide GBA screens keep full-screen backgrounds while hiding repeated windows** (#131).
+  The level-up window no longer repeats at the opposite edge, and a background that reaches
+  an edge can still fill that side of the wide view. The START-menu/help-bar width is unchanged.
+
+- **FAST FORWARD stays as you left it** (#136). The DS and GBA pause-menu choice is remembered
+  across launches and shared when changing between DS and GBA games. Held shortcuts and the
+  GBA on-screen fast-forward button remain temporary.
+
+- **Choose LCD effects before launching a game.** Launcher Display settings now include DS Screen Filter (Off, Scanlines, LCD Grid) and GBA LCD Effect, with choices shared with the in-game menus.
+
+- **Custom-sized screenshots keep clean overlays.** Window-sized text and menus are omitted when their dimensions differ from the requested export, avoiding scrambled rows.
+
+- **Launcher pages refresh when scrolled.** Cached page images now follow detail, list and release-note scroll positions.
+
+- **Portrait About pages scroll inside their panel.** Support codes and long credits stay above the navigation bar, and hidden links cannot be tapped.
+
+- **Closing the Windows launcher exits cleanly.** Its music-status worker is stopped before the application finishes, including when media controls are unavailable.
+
+- **Launcher dialog arrows act once with overlapping inputs.** Controller remappings keep their first direction press, and navigating a dialog no longer moves the game list behind it.
+
+- **Import game pictures on Linux and Steam Deck.** Change Picture now has a folder browser for PNG and JPEG files. Pictures for games with the same filename are kept separately.
+
+- **Unreadable ROM and snapshot files stop cleanly when a file seek fails.** Invalid file lengths are rejected before allocating memory.
+
+- **Modified regional DS games can use the ROM-hack launch path.** A recognised hack is no longer rejected for differing from its clean regional release; it uses normal emulation and keeps its separate save.
+
+- **Portrait ROMs page keeps controller actions in view.** Lower buttons scroll into reach, and the entire last button can be reached by touch scrolling.
+
+- **DS fullscreen shows the mouse or trackpad pointer while it is used.** The pointer stays visible during clicks and drags, then hides after a short idle period.
+
+- **Launcher: overlapping keyboard and controller presses act once.** A Steam Input press arriving through both paths no longer selects twice or skips a menu level.
+
+- **GBA menus accept mouse and trackpad clicks.** Click the pause menu and game list without enabling on-screen touch controls.
+
+- **Choose a shared ROM folder from the launcher.** The ROMs page lets PC and Android players use an existing library without moving their saves.
+- **iOS: SideStore can register the app name.** Both app names now use Pokemon Fulldex without an accented letter.
+- **Pause menu on touch screens: swipe settings rows to scroll.** Swiping no longer changes the setting under your finger; tapping still selects it.
+- **DS cheats can be named after a ROM.** A ROM-specific cheat file takes priority over the game-code files, and each ROM hack keeps its own enabled cheats.
+- **A player's own clean game is not taken for a hack.** A copy whose program and files are a clean release's keeps the game's save and features, even where the dump differs from the listed one outside the game itself (the secure area, the padding at the end).
+
+- **Expanded DS ROM hacks get their own saves.** A ROM larger than its clean release is recognised as modified even if its code fingerprint, or an older cached result, says clean.
+- **GBA ultrawide screens: small text backgrounds no longer wrap across the picture.** The level-up window is kept from repeating at the opposite edge.
+- **DS ROM hacks keep their own map memory and wild encounters.** Original-game memory modifications are no longer attached to recognised hacks.
+
+- **Switch: always close the network before handing a game back to the loader.** The launcher
+  no longer relies only on registering a shutdown callback, which the Switch runtime can refuse
+  when its callback table fills up. This targets the black screen after selecting a game.
+
+- **ROM checks use less memory before starting a DS game.** File tables and fingerprint regions
+  are read in blocks. If the background check cannot start, the launcher logs the failure instead
+  of closing. Switch logs now show the launch stages to help investigate black-screen reports.
+
 - **RetroAchievements: a wrong clock is named when logging in fails.** A device whose date is
   wrong (a Switch set years ahead, often) cannot check the server's certificate, and the settings
   only said LOGIN FAILED. They now say CHECK THE CLOCK, and the message asks whether the date and

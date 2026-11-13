@@ -25,6 +25,13 @@
 
 namespace Controls
 {
+// Steam reserves Guide for its overlay, so a new Deck setup needs another menu button.
+inline bool SteamDeck()
+{
+    const char* value = SDL_getenv("SteamDeck");
+    return value && !strcmp(value, "1");
+}
+
 
 enum Action
 {

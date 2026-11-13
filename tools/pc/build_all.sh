@@ -176,8 +176,9 @@ check_contents() { # list of paths, one per line, relative to the download's top
     python3 -c "
 import re, sys
 regional_codes = '|'.join(p['code'] for p in __import__('json').loads(__import__('pathlib').Path('$HERE/tools/regions/profiles.json').read_text())['profiles'] if p['kind']=='functions')
-ok = re.compile(r'^pokemon-ds-wide/(pokemon-ds-wide|Pokemon Fulldex\.exe|SDL2\.dll|libSDL2-2\.0\.so\.0|LICENSE\.txt|LICENSE-SDL2\.txt|LICENSE-mGBA\.txt|LICENSE-Noto\.txt|FONT-LICENSES\.txt|README\.txt|roms/|data/|data/funcs/|data/funcs/(?:IREO|IRDO|IRBO|IRAO|CPUE|ADAE|APAE|ADAS|APAF|APAS|APAD|ADAD|ADAI|IRAS|CPUS|IREF|IRDF|CPUF|IRBF|IRAF|IRBS|IRES|IRDS|' + regional_codes + r')\.txt)?$')
-bad = [l for l in sys.stdin.read().splitlines() if l and not ok.match(l)]
+ok = re.compile(r'^pokemon-ds-wide/(pokemon-ds-wide|Pokemon Fulldex\.exe|SDL2\.dll|libSDL2-2\.0\.so\.0|LICENSE\.txt|LICENSE-SDL2\.txt|LICENSE-mGBA\.txt|LICENSE-Noto\.txt|FONT-LICENSES\.txt|README\.txt|roms/|data/|3ds/|3ds/program/.*|data/funcs/|data/funcs/(?:IREO|IRDO|IRBO|IRAO|CPUE|ADAE|APAE|ADAS|APAF|APAS|APAD|ADAD|ADAI|IRAS|CPUS|IREF|IRDF|CPUF|IRBF|IRAF|IRBS|IRES|IRDS|' + regional_codes + r')\.txt)?$')
+game = re.compile(r'(?i)(\.3ds|\.cia|\.cxi|title\.dll|title\.so|rom\.txt)$')  # (nothing of a game, nor code made from one)
+bad = [l for l in sys.stdin.read().splitlines() if l and (not ok.match(l) or game.search(l))]
 if bad: sys.exit('unexpected files in the download: %s' % bad)
 "
 }
@@ -206,6 +207,16 @@ if [ "$TARGET" = windows ] || [ "$TARGET" = both ]; then
     x86_64-w64-mingw32-strip "$OUT/Pokemon Fulldex.exe"
     cp "$SDL_ROOT/bin/SDL2.dll" "$OUT/"
     cp "$DEPS/SDL2-$SDL_VERSION/LICENSE.txt" "$OUT/LICENSE-SDL2.txt"
+    # Omega Ruby and Alpha Sapphire (frontend/n3ds.h): SSR_3DS_WIN_DIR, the folder of their Windows
+    # program, Pokemon ORAS.exe (optional), put in 3ds/program. It holds nothing of the games: each
+    # player's PC builds a game's code once from their own dump.
+    if [ -n "${SSR_3DS_WIN_DIR:-}" ]; then
+        [ -f "$SSR_3DS_WIN_DIR/Pokemon ORAS.exe" ] || fail "SSR_3DS_WIN_DIR: no Pokemon ORAS.exe in $SSR_3DS_WIN_DIR"
+        mkdir -p "$OUT/3ds/program"
+        cp -r "$SSR_3DS_WIN_DIR/." "$OUT/3ds/program/"
+        rm -f "$OUT/3ds/program/game.3ds" "$OUT/3ds/program/rom.txt" "$OUT/3ds/program/title.dll" "$OUT/3ds/program/title.hints"
+        say "Omega Ruby and Alpha Sapphire too: $SSR_3DS_WIN_DIR"
+    fi
     ZIP=pokemon-ds-wide-pc-windows-x86_64.zip
     UPDATE_BUILDS+=(--build "$ZIP=$HERE/build-pc-windows/fulldex-build-id.txt")
     rm -f "build-pc-dist/$ZIP"

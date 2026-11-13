@@ -10,6 +10,12 @@ name: iOS download
 
 on:
   workflow_dispatch:
+    inputs:
+      simulator:
+        description: "A first start in the iOS Simulator: none (just the .ipa, quickest), arm64, or both (arm64 and Intel)"
+        type: choice
+        options: [none, arm64, both]
+        default: none
 
 permissions:
   contents: write
@@ -18,18 +24,9 @@ jobs:
   build:
     strategy:
       fail-fast: false
+      # (The Simulator builds and first starts only when asked for: see the simulator input.)
       matrix:
-        include:
-          - target: device
-            os: xcode-27
-            arch: arm64
-          - target: simulator
-            os: xcode-27
-            arch: arm64
-          # Retain coverage of older Intel simulator toolchains as well.
-          - target: simulator
-            os: macos-15-intel
-            arch: x86_64
+        include: ${{ fromJSON(inputs.simulator == 'both' && '[{"target":"device","os":"xcode-27","arch":"arm64"},{"target":"simulator","os":"xcode-27","arch":"arm64"},{"target":"simulator","os":"macos-15-intel","arch":"x86_64"}]' || inputs.simulator == 'arm64' && '[{"target":"device","os":"xcode-27","arch":"arm64"},{"target":"simulator","os":"xcode-27","arch":"arm64"}]' || '[{"target":"device","os":"xcode-27","arch":"arm64"}]') }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     steps:

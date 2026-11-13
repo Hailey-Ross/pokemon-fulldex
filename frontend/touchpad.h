@@ -24,12 +24,14 @@ struct TouchPad
         float x, y, r;     // centre and radius in output pixels (pills use w/h)
         float w, h;        // non-zero: a rounded rectangle instead of a circle
         const char* label;
+        bool hidden = false; // (taken off in the touch controls editor)
     };
 
     TouchLayout::Profile profile;
     bool visible = true;
     std::vector<Button> buttons;
     float dpadX = 0, dpadY = 0, dpadR = 0;
+    bool dpadHidden = false;
     int w = 0, h = 0;
 
     std::map<SDL_FingerID, int> fingerOn;          // what each finger went down on
@@ -45,6 +47,7 @@ struct TouchPad
         if (outW == w && outH == h) return;
         w = outW;
         h = outH;
+        dpadHidden = false;
         const float u = outH / 10.0f;
         dpadR = 1.55f * u;
         dpadX = 0.35f * u + dpadR;
@@ -78,11 +81,11 @@ struct TouchPad
         if (customise)
         {
             const auto controls = profile.Apply(Geometry(), w, h);
-            dpadX = controls[0].x; dpadY = controls[0].y; dpadR = controls[0].rx;
+            dpadX = controls[0].x; dpadY = controls[0].y; dpadR = controls[0].rx; dpadHidden = controls[0].hidden;
             for (size_t i = 0; i < buttons.size(); ++i)
             {
                 auto& b = buttons[i]; const auto& c = controls[i + 1];
-                b.x = c.x; b.y = c.y;
+                b.x = c.x; b.y = c.y; b.hidden = c.hidden;
                 if (b.w > 0) { b.w = c.rx * 2; b.h = c.ry * 2; }
                 else b.r = c.rx;
             }
@@ -114,6 +117,7 @@ struct TouchPad
     {
         for (const Button& b : buttons)
         {
+            if (b.hidden) continue;
             if (b.w > 0)
             {
                 // A little slack around the small pills.
@@ -122,7 +126,7 @@ struct TouchPad
             else if ((x - b.x) * (x - b.x) + (y - b.y) * (y - b.y) <= b.r * b.r * 1.3f) return b.pad;
         }
         float dx = x - dpadX, dy = y - dpadY;
-        if (dx * dx + dy * dy <= dpadR * dpadR * 1.2f) return DPAD;
+        if (!dpadHidden && dx * dx + dy * dy <= dpadR * dpadR * 1.2f) return DPAD;
         return NONE;
     }
 
@@ -284,9 +288,12 @@ struct TouchPad
         if (!visible) return;
         MakeLabels(r);
         std::vector<SDL_Vertex> v;
-        const SDL_Color idle = { 255, 255, 255, 46 }, down = { 255, 255, 255, 110 }, dark = { 0, 0, 0, 70 };
+        // (Visibility, from the touch controls editor: every alpha scaled by it.)
+        auto fade = [&](Uint8 a) { return (Uint8)(a * profile.visible / 100); };
+        const SDL_Color idle = { 255, 255, 255, fade(46) }, down = { 255, 255, 255, fade(110) }, dark = { 0, 0, 0, fade(70) };
         // D-pad: a cross on a faint disc.
-        Disc(v, dpadX, dpadY, dpadR, dpadR, { 0, 0, 0, 40 });
+        if (!dpadHidden) {
+        Disc(v, dpadX, dpadY, dpadR, dpadR, { 0, 0, 0, fade(40) });
         const float arm = dpadR * 0.36f;
         // (A dark edge around the cross, as around the buttons, so that it shows on light
         // scenery too: towns and snow.)
@@ -302,8 +309,10 @@ struct TouchPad
         if (held[PAD_RIGHT]) armLit(dpadX + arm, dpadY - arm, dpadX + dpadR * 0.92f, dpadY + arm);
         if (held[PAD_UP]) armLit(dpadX - arm, dpadY - dpadR * 0.92f, dpadX + arm, dpadY - arm);
         if (held[PAD_DOWN]) armLit(dpadX - arm, dpadY + arm, dpadX + arm, dpadY + dpadR * 0.92f);
+        }
         for (const Button& b : buttons)
         {
+            if (b.hidden) continue;
             bool on = b.pad == MENU ? menuHeld : b.pad == FAST ? FastHeld() : held[b.pad];
             if (b.w > 0)
             {
@@ -321,10 +330,11 @@ struct TouchPad
         // Labels.
         for (const Button& b : buttons)
         {
+            if (b.hidden) continue;
             const SDL_Rect& src = labelRect[b.label];
             float s = (b.w > 0 ? b.h * 0.42f : b.r * 0.7f) / src.h;
             SDL_FRect dst = { b.x - src.w * s / 2, b.y - src.h * s / 2, src.w * s, src.h * s };
-            SDL_SetTextureAlphaMod(labels, 170);
+            SDL_SetTextureAlphaMod(labels, fade(170));
             SDL_RenderCopyF(r, labels, &src, &dst);
         }
     }

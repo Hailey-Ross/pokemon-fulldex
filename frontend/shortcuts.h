@@ -237,7 +237,32 @@ inline std::vector<uint8_t> Icns(const Launcher::Game& g)
 }
 #endif
 
-// Makes the shortcuts: one per game (once each, the first of any in several folders). dir is
+// Desktop entries have both string escaping and Exec argument escaping. Percent signs
+// must be doubled in Exec so a filename cannot be interpreted as a field code.
+inline std::string DesktopValue(const std::string& value)
+{
+    std::string out;
+    for (char c : value)
+        if (c == '\\') out += "\\\\";
+        else if (c == '\n') out += "\\n";
+        else if (c == '\r') out += "\\r";
+        else if (c == '\t') out += "\\t";
+        else out += c;
+    return out;
+}
+inline std::string DesktopArg(const std::string& value)
+{
+    std::string out(1, '"');
+    for (char c : value)
+    {
+        if (c == '%') out += "%%";
+        else { if (c == '\\' || c == '"' || c == '`' || c == '$') out += '\\'; out += c; }
+    }
+    out += '"';
+    return DesktopValue(out);
+}
+
+// Makes shortcuts for the library. Linux targets each ROM separately, including hacks. dir is
 // the program's folder (for the icons). Returns how many were made; where says where they went,
 // or what failed.
 inline int Make(const std::string& dir, const std::vector<Launcher::Game>& games, std::string& where)
@@ -265,6 +290,7 @@ inline int Make(const std::string& dir, const std::vector<Launcher::Game>& games
     const HRESULT init = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
     for (const Launcher::Game& g : games)
     {
+        if (g.platform == Launcher::N3DS) continue; // (3DS games: their own programs, n3ds.h)
         if (!g.known || g.hack || !done.insert(g.code).second) continue; // (the games, not hacks of them)
         IShellLinkW* link = nullptr;
         if (FAILED(CoCreateInstance(CLSID_ShellLink, nullptr, CLSCTX_INPROC_SERVER, IID_IShellLinkW, (void**)&link))) break;
@@ -330,6 +356,7 @@ inline int Make(const std::string& dir, const std::vector<Launcher::Game>& games
     quoted += "'";
     for (const Launcher::Game& g : games)
     {
+        if (g.platform == Launcher::N3DS) continue; // (3DS games: their own programs, n3ds.h)
         if (!g.known || g.hack || !done.insert(g.code).second) continue; // (the games, not hacks of them)
         std::string lower = g.code;
         for (char& c : lower) c = (char)tolower((unsigned char)c);
@@ -405,30 +432,25 @@ inline int Make(const std::string& dir, const std::vector<Launcher::Game>& games
     }
     struct stat st;
     const bool hasDesk = stat(desk.c_str(), &st) == 0 && S_ISDIR(st.st_mode);
-    // (A path in Exec is quoted, with its backslashes, quotes, backticks and dollars escaped.)
-    std::string quoted = "\"";
-    for (char c : std::string(exe))
-    {
-        // (The file's own escaping doubles the backslash the Exec rules want before these.)
-        if (c == '\\') quoted += "\\\\\\\\";
-        else
-        {
-            if (c == '"' || c == '`' || c == '$') quoted += "\\\\";
-            quoted += c;
-        }
-    }
-    quoted += "\"";
+    // GIO checks the executable before expanding %% field escapes; env avoids that check
+    // interpreting a literal percent sign in an AppImage filename.
+    const std::string quoted = (strchr(exe, '%') ? std::string("/usr/bin/env -- ") : std::string()) + DesktopArg(exe);
     for (const Launcher::Game& g : games)
     {
-        if (!g.known || g.hack || !done.insert(g.code).second) continue; // (the games, not hacks of them)
-        const std::string png = iconDir + "/" + g.code + ".png";
+        if (g.platform == Launcher::N3DS) continue; // (3DS games: their own programs, n3ds.h)
+        if (!g.known || g.rom.empty() || !done.insert(g.rom).second) continue;
+        // A ROM path identifies hacks and duplicate releases without choosing another game.
+        char suffix[16];
+        snprintf(suffix, sizeof suffix, "%08x", Crc32((const uint8_t*)g.rom.data(), g.rom.size()));
+        const std::string id = g.code + "-" + suffix;
+        const std::string png = iconDir + "/" + id + ".png";
         const std::vector<uint32_t> px = Picture(g, 256);
         const bool icon = !px.empty() && WriteFile(png, Png(px, 256, 256));
-        std::string lower = g.code;
+        std::string lower = id;
         for (char& c : lower) c = (char)tolower((unsigned char)c);
-        const std::string entry = "[Desktop Entry]\nType=Application\nName=" + Title(g) +
-            "\nComment=Pokémon Fulldex\nExec=" + quoted + " --game " + g.code +
-            "\nPath=" + dir + "\n" + (icon ? "Icon=" + png + "\n" : "") + "Terminal=false\nCategories=Game;\n";
+        const std::string entry = "[Desktop Entry]\nType=Application\nName=" + DesktopValue(!g.customName.empty() ? g.customName : g.hack ? g.name : Title(g)) +
+            "\nComment=Pokémon Fulldex\nExec=" + quoted + " --rom " + DesktopArg(g.rom) +
+            "\nPath=" + DesktopValue(dir) + "\n" + (icon ? "Icon=" + DesktopValue(png) + "\n" : "") + "Terminal=false\nCategories=Game;\n";
         const std::string file = "pokemon-ds-wide-" + lower + ".desktop";
         bool ok = WriteFile(apps + "/" + file, std::vector<uint8_t>(entry.begin(), entry.end()));
         if (hasDesk)
