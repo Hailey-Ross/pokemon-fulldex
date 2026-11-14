@@ -272,9 +272,19 @@ struct Menu
         struct DexEntry
         {
             int id = 0, type1 = -1, type2 = -1, base[6] = {}; bool seen = false, caught = false, hidden = false; // (hidden: not seen, not yet shown)
+            bool stateKnown = true; // (false: whether seen or caught is not known (the GBA games'), so not said)
             std::string name, desc; std::vector<std::string> abilities, evolutions; std::vector<uint32_t> icon;
-            struct Learn { int level = 0, type = -1; std::string move; };
+            struct Learn { int level = 0, type = -1; std::string move, label; };
             std::vector<Learn> learns; // (moves it learns by level, in order)
+            // (Its own page, P_CDEXMON on PAGE_CDEXDETAIL: the battle picture from the ROM (ARGB,
+            // normal and shiny), its details as label and value, what hits it hard or not, the
+            // machines it can use (label "TM06") and its egg moves; companion_dex.h.)
+            std::vector<uint32_t> pic, shinyPic; int picW = 0, picH = 0;
+            std::vector<std::pair<std::string, std::string>> facts;
+            struct Weakness { int pct = 100; std::vector<int> types; };
+            std::vector<Weakness> weak; // (4x, 2x, half, quarter, none; 1x left out)
+            std::vector<Learn> machines, eggs, tutors;
+            std::vector<std::pair<std::string, std::string>> found; // (where to find it: place, how and levels)
         };
         std::vector<DexEntry> dex;
         // (GUIDE's answers, P_CGUIDE: each shown once chosen with Enter or a tap.)
@@ -621,7 +631,9 @@ struct Menu
         TX(c, gx + gridW - TW("PAUSED", scale), headY, "PAUSED", scale, GlassHint);
         for (int i = 0; i < n; i++)
         {
-            const int x = gx + (i % cols) * (s + gap), y = gy + (i / cols) * (s + gap);
+            // (A last row that isn't full is centred under the others.)
+            const int inRow = i / cols == rows - 1 ? n - (rows - 1) * cols : cols;
+            const int x = gx + (cols - inRow) * (s + gap) / 2 + (i % cols) * (s + gap), y = gy + (i / cols) * (s + gap);
             tileX[i] = x; tileY[i] = y;
             const bool sel = false, off = items[i].disabled; // (the highlight: DrawChosenTile, over this)
             if (sel) Glass::Glow(c, x, y, s, s, s * 0.09f, s / 200.0f);

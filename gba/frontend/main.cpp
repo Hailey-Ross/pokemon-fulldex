@@ -30,6 +30,10 @@
 #ifdef GBAW_EMBEDDED
 #include "embed.h"
 #include "gba_glass.h" // (the pause menu as the DS games draw it; Fulldex's frontend folder)
+#include "gba_dex.h"       // (POKEDEX: the game's own Pokedex data and pictures, read from its ROM)
+#include "gba_companion.h" // (COMPANION: the party, bag and place, read from the paused game)
+#include "gba_guides.h"    // (COMPANION's GUIDE)
+#include "companion_types.h"
 // Cheats (CHEATS in the pause menu): Fulldex's, from its frontend folder (on the include path when
 // built into it). All off until the player turns one on.
 #if __has_include("gba_cheats.h")
@@ -59,6 +63,12 @@
 #include <mutex>
 #include <thread>
 #include "third_party/xbrz/xbrz.h"
+// ZOOM and the look-around: PokeDaisy's WIDE (GPL-3.0), the overworld past the picture rebuilt from the game's memory.
+extern "C" {
+#include "pokedaisy/pk_wide.h"
+}
+extern "C" int pk_wide_take_fail;   // pk_wide.c, test log only
+#include "pokedaisy/wide_camera.h"
 #if defined(__SWITCH__)
 #include <switch.h>
 #endif
@@ -153,6 +163,12 @@ const std::vector<Setting>& SettingsList()
         { "colour", "COLOUR CORRECTION", onOff, "0",
           "ON: THE COLOURS AS THEY LOOKED ON A GBA'S SCREEN (THE GAMES WERE MADE EXTRA BRIGHT FOR IT). "
           "OFF: THE GAME'S OWN COLOURS." },
+        { "zoom", "ZOOM AND LOOK AROUND", onOff, "1",
+          "ON: A CLICK OF THE RIGHT STICK (C ON A KEYBOARD) ZOOMS OUT IN STEPS TO SHOW MORE OF THE MAP, AND THE RIGHT STICK "
+          "(I, J, K, L) LOOKS AROUND IT. MENUS AND BATTLES COME BACK CLOSE BY THEMSELVES. RUBY, SAPPHIRE, EMERALD, FIRERED, "
+          "LEAFGREEN, ULTRA VIOLET AND MONOMYTH." },
+        { "zoom_text", "AUTO ZOOM IN", onOff, "1",
+          "ON: A TEXT BOX BRINGS A ZOOMED-OUT VIEW BACK CLOSE WHILE YOU READ IT. MENUS AND BATTLES ALWAYS DO." },
         { "show_fps", "FPS COUNTER", onOff, "0", "SHOWS THE FRAMES A SECOND IN A CORNER." },
         { "volume", "VOLUME",
           { { "0", "OFF" }, { "10", "10%" }, { "20", "20%" }, { "30", "30%" }, { "40", "40%" }, { "50", "50%" },
@@ -167,6 +183,11 @@ const std::vector<Setting>& SettingsList()
 #else
           "PAUSE MENU: A CONTROLLER'S START OPENS THIS MENU, AND START AND SELECT TOGETHER ARE THE GBA'S START. "
           "GBA START: START IS THE GBA'S START, AND START AND SELECT TOGETHER OPEN THIS MENU." },
+#endif
+#ifdef GBAW_EMBEDDED
+        // (FAST FORWARD on or off, in CONTROLS: the pause menu's tiles are the DS games' eight.)
+        { "fast_lock", "FAST FORWARD", { { "0", "OFF" }, { "1", "ON" } }, "0",
+          "FAST FORWARD ON OR OFF UNTIL IT IS CHANGED AGAIN, AS THE FAST FORWARD BUTTON TOGGLES IT." },
 #endif
         { "fast_button", "FAST FORWARD BUTTON", { { "hold", "HOLD" }, { "toggle", "TOGGLE" } }, "hold",
           "HOLD: RELEASE TO STOP. TOGGLE: PRESS ONCE TO START AND AGAIN TO STOP. FOR THE KEYBOARD AND A CONTROLLER; THE >> BUTTON ON THE SCREEN IS ALWAYS A TAP ON, A TAP OFF." },
@@ -493,10 +514,13 @@ struct App
     SDL_Window* win = nullptr;
     SDL_Renderer* ren = nullptr;
     SDL_Texture* gameTex = nullptr;   // the GBA picture, MaxW x 160
+    SDL_Texture* zoomTex = nullptr;   // ZOOM / LOOK AROUND: the window shown, up to 800 x 800
+    SDL_Texture* zoomHdTex = nullptr; // ... through the HD filter (grown to the largest asked for)
+    int zoomHdW = 0, zoomHdH = 0;
     SDL_Texture* bigTex = nullptr;    // the same scaled up by a whole number (SCALING: SHARP)
     SDL_Texture* hdTex = nullptr;     // HD FILTER: the picture redrawn by xBRZ, HdFactor times as big
     SDL_Texture* lcdTex = nullptr;    // LCD EFFECT: the grid, the size the picture is drawn at
-    int lcdW = 0, lcdH = 0, lcdCols = 0;
+    int lcdW = 0, lcdH = 0, lcdCols = 0, lcdRows = 0;
     std::vector<uint32_t> fxSrc, fxOut, colourLut;
     // Helpers for HD FILTER: xBRZ shares the picture out among the processor's cores by rows.
     struct Workers
@@ -617,6 +641,15 @@ struct App
     struct mCore* core = nullptr;
     Games::Game game;
     std::vector<uint32_t> video = std::vector<uint32_t>((size_t)MaxW * GbaH);
+    // ZOOM and the look-around (pokedaisy/): the game known to WIDE (by its ROM's CRC-32 before the widescreen
+    // patch), the camera, the frame's middle 240 x 160 as WIDE wants it, and the window drawn after the last frame
+    // (shown instead of the picture while zoomShown: past what the widescreen patch draws).
+    bool pkWide = false;
+    PkWideCamera::Camera camera;
+    std::vector<uint32_t> frame240 = std::vector<uint32_t>((size_t)GbaW * GbaH);
+    std::vector<uint32_t> zoomBuf = std::vector<uint32_t>((size_t)PkWideCamera::Camera::MaxW * PkWideCamera::Camera::MaxH);
+    PkWideCamera::Window zoomWin;
+    bool zoomShown = false;
     int wideExtra = -1;
     bool paused = false;
     Menu pause;
@@ -633,7 +666,23 @@ struct App
     // RetroAchievements, from the program this is built into (embed.h). None in the standalone game.
     const GbaWide::AchievementsHost* ra = nullptr;
     bool raReady = false;
-    enum PausePage { P_ROOT, P_RA, P_LIST, P_LOGIN, P_CHEATS, P_DISPLAY, P_SOUND, P_CONTROLS, P_SETTINGS, P_QUIT, P_RESET, P_SAVE, P_LOAD } pausePage = P_ROOT;
+    enum PausePage { P_ROOT, P_RA, P_LIST, P_LOGIN, P_CHEATS, P_DISPLAY, P_SOUND, P_CONTROLS, P_SETTINGS, P_QUIT, P_RESET, P_SAVE, P_LOAD, P_DEX, P_DEXENTRY, P_COMP, P_PARTY, P_BAG, P_PLACE, P_BATTLE, P_GUIDE } pausePage = P_ROOT;
+    // POKEDEX (gba_dex.h): the ROM as it was before the widescreen patch, read when first opened;
+    // the species of each of its list's rows, the one whose page is open, and that one's pictures.
+    std::vector<uint8_t> dexRom;
+    GbaDex::Data dex;
+    bool dexTried = false;
+    std::vector<int> dexRows;
+    int dexSpecies = 0, dexPicFor = -1;
+    GbaDex::Picture dexPic, dexShiny;
+    // COMPANION (gba_companion.h): this game's addresses (none: not a game it knows), what was read
+    // when the pause menu opened, and each party Pokemon's picture.
+    const GbaCompanion::Config* compConfig = nullptr;
+    GbaCompanion::Snapshot comp;
+    std::vector<GbaDex::Picture> compPics;
+    GbaDex::Picture foePic;
+    std::vector<bool> guideShown; // (GUIDE: the answers chosen, while this game runs)
+    std::string gameCode;
     // The pause menu as the DS games draw it (gba_glass.h): the page made from `pause` (BuildGlass),
     // which of pause's rows each of its items is (-1: the page's own BACK), the item chosen on it
     // (-1: the one for pause.selected), the paused game's picture it is drawn over, and a tap's
@@ -903,7 +952,8 @@ struct App
         // was chosen, which is how to play it as it is when it glitches.)
         const std::string shape = set.Get("widescreen");
         const bool ownShape = shape == "off" || shape == "3:2" || shape == "4:3";
-        if (!Games::Prepare(g, rom, error, wantRa ? &sold : nullptr, !ownShape))
+        // (sold: the ROM before the widescreen patch, also what ZOOM knows the game by.)
+        if (!Games::Prepare(g, rom, error, &sold, !ownShape))
         {
             Toast(error, 5000);
             return false;
@@ -958,6 +1008,19 @@ struct App
         CheatsToHost();
 #endif
         SetVolume();
+        dexRom = sold.empty() ? rom : sold;
+        compConfig = rom.size() > 0xBD ? GbaCompanion::ConfigFor((const char*)rom.data() + 0xAC, rom[0xBC]) : nullptr;
+        gameCode = rom.size() > 0xB0 ? std::string((const char*)rom.data() + 0xAC, 4) : std::string();
+        guideShown.assign(GbaGuides::For(gameCode.c_str()).size(), false);
+        comp = GbaCompanion::Snapshot();
+        dex = GbaDex::Data();
+        dexTried = false;
+        dexPicFor = -1;
+        pkWide = pk_wide_configure(doCrc32(sold.data(), sold.size())) != 0;
+        camera.Reset();
+        camera.level = 0;
+        zoomShown = false;
+        fprintf(stderr, "[gba] zoom: %s\n", pkWide ? "this game is known" : "off for this game");
         game = g;
         screen = PLAY;
         paused = false;
@@ -975,7 +1038,7 @@ struct App
         // The ROM RetroAchievements knows is the one sold (sold), not the widescreen patch.
         if (wantRa)
         {
-            const std::vector<uint8_t>& id = sold.empty() ? rom : sold;
+            const std::vector<uint8_t>& id = sold.empty() ? rom : sold; // (the ROM as sold: before the widescreen patch)
             raReady = ra->begin(ra->ud, id.data(), id.size(), core, ReadRa);
         }
 #endif
@@ -1042,7 +1105,7 @@ struct App
         for (auto& kv : artTex)
             if (kv.second) SDL_DestroyTexture(kv.second);
         artTex.clear();
-        for (SDL_Texture** t : { &uiTex, &glassTex, &bigTex, &gameTex, &hdTex, &lcdTex })
+        for (SDL_Texture** t : { &uiTex, &glassTex, &bigTex, &gameTex, &hdTex, &lcdTex, &zoomTex, &zoomHdTex })
             if (*t)
             {
                 SDL_DestroyTexture(*t);
@@ -1113,6 +1176,7 @@ struct App
         }
         const bool ok = mCoreLoadStateNamed(core, vf, SAVESTATE_RTC);
         vf->close(vf);
+        if (ok && ZoomOn()) { camera.Reset(); pk_wide_jump(core, frame240.data()); zoomShown = false; }
 #ifdef GBAW_CHEATS
         if (ok) cheats.Reset();
 #endif
@@ -1198,7 +1262,98 @@ struct App
     }
 
     // Runs one GBA frame, with sound if `sound`.
-    void RunFrame(bool sound, bool ff = false)
+    // ZOOM and the look-around, after a frame: the camera's window for it, drawn by WIDE where it goes past the
+    // picture the widescreen patch draws (whose own pixels are laid over the middle); a frame not shown only notes
+    // the game's memory for the next.
+    double zoomCost = 0, zoomCostMax = 0, zoomDrawCost = 0;   // ms in pk_wide_view and DrawZoom (test log)
+    void ZoomFrame(bool shown)
+    {
+        zoomShown = false;
+        if (!ZoomOn()) return;
+        const int e = std::max(0, wideExtra);
+        for (int y = 0; y < GbaH; y++)
+            memcpy(frame240.data() + (size_t)y * GbaW, video.data() + (size_t)y * MaxW + e, GbaW * 4);
+        int ow = 0, oh = 0;
+        if (ren) SDL_GetRendererOutputSize(ren, &ow, &oh);
+        camera.viewW = ow;
+        camera.viewH = oh;
+        camera.zoomOnText = set.Get("zoom_text") == "1";
+        const int dirs = pads.Dirs();
+        camera.walking = !paused && ((GameKeys() & 0xF0) != 0 || dirs);
+        float sx = pads.Axis(SDL_CONTROLLER_AXIS_RIGHTX) / 32767.0f, sy = pads.Axis(SDL_CONTROLLER_AXIS_RIGHTY) / 32767.0f;
+        if (key[SDL_SCANCODE_J]) sx = -1;
+        if (key[SDL_SCANCODE_L]) sx = 1;
+        if (key[SDL_SCANCODE_I]) sy = -1;
+        if (key[SDL_SCANCODE_K]) sy = 1;
+        camera.stickX = paused ? 0 : sx;
+        camera.stickY = paused ? 0 : sy;
+        const PkWideCamera::Window w = camera.Frame(pk_wide_scene(), (int64_t)SDL_GetPerformanceCounter() * 1000000000LL / (int64_t)SDL_GetPerformanceFrequency());
+        // (The plain 1x view on the player: the widescreen picture as it is, WIDE only noting the memory.)
+        const bool inside = w.valid && w.x >= -e && w.y >= 0 && w.x + w.w <= GbaW + e && w.y + w.h <= GbaH;
+        // (Tests: GBAW_ZOOM_LOG=file, the camera every 30 frames.)
+        static FILE* zlog = getenv("GBAW_ZOOM_LOG") ? fopen(getenv("GBAW_ZOOM_LOG"), "w") : nullptr;
+        static int zframes = 0;
+        if (zlog && ++zframes % 30 == 0)
+        {
+            fprintf(zlog, "frame %d scene %d score %d level %d view %dx%d win %d,%d %dx%d scale %.3f plain %d inside %d extra %d shown %d"
+                    " dispcnt %04x bgcnt %04x %04x %04x %04x take %d ms %.2f max %.2f draw %.2f\n",
+                    zframes, pk_wide_scene(), pk_wide_last_score(), camera.level, ow, oh, w.x, w.y, w.w, w.h, w.scale, (int)camera.Plain(), (int)inside, e, (int)shown,
+                    core->busRead16(core, 0x04000000), core->busRead16(core, 0x04000008), core->busRead16(core, 0x0400000A),
+                    core->busRead16(core, 0x0400000C), core->busRead16(core, 0x0400000E), pk_wide_take_fail, zoomCost, zoomCostMax, zoomDrawCost);
+            zoomCostMax = 0;
+            fflush(zlog);
+        }
+        // (WIDE's scene, which the camera goes by, comes only from a real view: at 1x with the stick still the skip will
+        // do, as nothing past the picture is wanted; otherwise a view every frame shown, of one pixel when the window
+        // is inside the picture.)
+        const bool idle = camera.level == 0 && std::fabs(camera.stickX) < 0.2f && std::fabs(camera.stickY) < 0.2f;
+        if (!shown || !w.valid || (idle && camera.Plain()))
+        {
+            pk_wide_skip(core, frame240.data());
+            return;
+        }
+        if (camera.Plain() || inside)
+        {
+            uint32_t px = 0;
+            struct PkWideView one = { 0, 0, 1, 1 };
+            pk_wide_view(core, frame240.data(), &px, one, nullptr);
+            return;
+        }
+        struct PkWideView v = { w.x, w.y, w.w, w.h };
+        const uint64_t zt0 = SDL_GetPerformanceCounter();
+        pk_wide_view(core, frame240.data(), zoomBuf.data(), v, nullptr);
+        zoomCost = (double)(SDL_GetPerformanceCounter() - zt0) * 1000.0 / (double)SDL_GetPerformanceFrequency();
+        zoomCostMax = std::max(zoomCostMax, zoomCost);
+        // The widescreen patch's own picture where the window covers it: the game's real pixels, its sides included,
+        // all but the outermost 8 columns each side (a hack's patch can leave a strip of repeated tiles there,
+        // Monomyth's left edge; WIDE's rebuild of the map is right there).
+        const int trim = e > 0 ? std::min(8, e) : 0;
+        const int x0 = std::max(w.x, -e + trim), x1 = std::min(w.x + w.w, GbaW + e - trim), y0 = std::max(w.y, 0), y1 = std::min(w.y + w.h, GbaH);
+        if (x1 > x0)
+            for (int y = y0; y < y1; y++)
+                memcpy(zoomBuf.data() + (size_t)(y - w.y) * w.w + (x0 - w.x), video.data() + (size_t)y * MaxW + x0 + e, (size_t)(x1 - x0) * 4);
+        zoomWin = w;
+        zoomShown = true;
+    }
+
+    // ZOOM AND LOOK AROUND on, for a game WIDE knows.
+    bool ZoomOn() const { return pkWide && set.Get("zoom") == "1"; }
+
+    // ZOOM: the next step out (back to 1x after the last), said in a toast.
+    void ZoomCycle()
+    {
+        if (!ZoomOn())
+        {
+            Toast(!pkWide ? "ZOOM ISN'T AVAILABLE FOR THIS GAME YET" : "ZOOM AND LOOK AROUND IS OFF (DISPLAY)");
+            return;
+        }
+        const int l = camera.Cycle();
+        char t[48];
+        snprintf(t, sizeof t, "ZOOM %.1fX", camera.Factor(l));
+        Toast(l == 0 ? "ZOOM 1X" : t, 1200);
+    }
+
+    void RunFrame(bool sound, bool ff = false, bool shown = true)
     {
         const int e = WantedExtra();
         if (e != wideExtra)
@@ -1222,6 +1377,7 @@ struct App
         if (raReady && ra->frame) ra->frame(ra->ud);
 #endif
         if (touchTapFrames > 0 && --touchTapFrames == 0) touchTap = 0;
+        ZoomFrame(shown);
         Sound(sound, ff);
         fpsFrames++;
         gameFrames++;
@@ -1255,6 +1411,55 @@ struct App
             pause.items.push_back({ "PASSWORD", std::to_string(raPass.size()) + " CHARACTERS" + (raField == 1 ? "_" : ""), true });
             pause.items.push_back({ busy ? "LOGGING IN..." : "LOG IN", "" });
             pause.items.push_back({ "CANCEL", "" });
+            return;
+        }
+        if (pausePage == P_DEX)
+        {
+            // (Every Pokemon the ROM has, in National Pokedex order.)
+            dexRows.clear();
+            const int last = dex.count;
+            std::vector<int> byDex(last + 2, 0);
+            for (int sp = 1; sp <= last; sp++) { const int n = dex.Dex(sp); if (n > 0 && n < (int)byDex.size() && !byDex[n]) byDex[n] = sp; }
+            for (int n = 1; n < (int)byDex.size(); n++)
+            {
+                if (!byDex[n]) continue;
+                char label[64];
+                snprintf(label, sizeof label, "%03d  %s", n, DexTitle(dex.Name(byDex[n])).c_str());
+                const bool caught = n < (int)comp.caught.size() && comp.caught[n], seen = n < (int)comp.seen.size() && comp.seen[n];
+                pause.items.push_back({ label, caught ? "CAUGHT" : seen ? "SEEN" : "", true });
+                dexRows.push_back(byDex[n]);
+            }
+            pause.items.push_back({ "BACK", "" });
+            return;
+        }
+        if (pausePage == P_COMP)
+        {
+            for (const char* l : { "PARTY", "BAG", "LOCATION", "BATTLE INFO", "GUIDE", "BACK" }) pause.items.push_back({ l, "" });
+            return;
+        }
+        if (pausePage == P_PARTY)
+        {
+            for (size_t i = 0; i < comp.party.size(); i++) pause.items.push_back({ "MON " + std::to_string(i), "", true });
+            pause.items.push_back({ "BACK", "" });
+            return;
+        }
+        if (pausePage == P_GUIDE)
+        {
+            const auto& g = GbaGuides::For(gameCode.c_str());
+            for (size_t i = 0; i < g.size(); i++) pause.items.push_back({ g[i].title, i < guideShown.size() && guideShown[i] ? "SHOWN" : "", false });
+            pause.items.push_back({ "BACK", "" });
+            return;
+        }
+        if (pausePage == P_BAG || pausePage == P_PLACE || pausePage == P_BATTLE)
+        {
+            for (const auto& r : pausePage == P_BAG ? BagRows() : pausePage == P_PLACE ? PlaceRows() : BattleRows()) pause.items.push_back({ r.first, r.second, true });
+            pause.items.push_back({ "BACK", "" });
+            return;
+        }
+        if (pausePage == P_DEXENTRY)
+        {
+            for (const auto& r : DexEntryRows()) pause.items.push_back({ r.first, r.second, true });
+            pause.items.push_back({ "BACK", "" });
             return;
         }
         if (pausePage == P_LIST)
@@ -1296,11 +1501,11 @@ struct App
 #endif
         if (pausePage == P_DISPLAY || pausePage == P_SOUND || pausePage == P_CONTROLS)
         {
-            static const char* const display[] = { "widescreen", "fullscreen", "scaling", "hd_filter", "lcd", "colour", "show_fps" };
+            static const char* const display[] = { "widescreen", "fullscreen", "scaling", "hd_filter", "lcd", "colour", "zoom", "zoom_text", "show_fps" };
             static const char* const sound[] = { "volume", "ff_mute" };
-            static const char* const controls[] = { "gba_start", "buttons", "ff_speed", "fast_button" };
+            static const char* const controls[] = { "gba_start", "buttons", "fast_lock", "ff_speed", "fast_button" };
             const char* const* keys = pausePage == P_DISPLAY ? display : pausePage == P_SOUND ? sound : controls;
-            const int count = pausePage == P_DISPLAY ? 7 : pausePage == P_SOUND ? 2 : 4;
+            const int count = pausePage == P_DISPLAY ? 9 : pausePage == P_SOUND ? 2 : 5;
             pageSettings.clear();
             for (int i = 0; i < count; i++)
                 for (const Setting& s : SettingsList())
@@ -1352,18 +1557,22 @@ struct App
             pause.items.push_back({ "CANCEL", "" });
             return;
         }
-        // (The first page as the DS games' pause menu has it: eight tiles. DISPLAY, SOUND, CONTROLS
+        // (The first page as the DS games' pause menu has it: two rows of tiles. DISPLAY, SOUND, CONTROLS
         // and RESET GAME are in SETTINGS.)
         {
             pause.items.push_back({ "RESUME", "" });
             pause.items.push_back({ "SAVE STATE", "" });
             pause.items.push_back({ "LOAD STATE", "" });
+            // (As the DS games' tiles: FAST FORWARD after LOAD, POKEDEX and COMPANION first in the
+            // second row. FAST FORWARD's on and off is in CONTROLS too.)
+            pause.items.push_back({ "FAST FORWARD", fastToggle ? "ON" : "OFF" });
 #ifdef GBAW_CHEATS
             pause.items.push_back({ "CHEATS", cheats.Active() && cheats.OnCount() ? std::to_string(cheats.OnCount()) + " ON" : "" });
 #else
             pause.items.push_back({ "CHEATS", "" });
 #endif
-            pause.items.push_back({ "FAST FORWARD", fastToggle ? "ON" : "OFF" });
+            pause.items.push_back({ "POKEDEX", "" });
+            pause.items.push_back({ "COMPANION", "" });
             pause.items.push_back({ "RETROACHIEVEMENTS", raReady && ra && ra->on && ra->on(ra->ud) ? "ON" : "" });
             pause.items.push_back({ "SETTINGS", "" });
             pause.items.push_back({ "QUIT", "" });
@@ -1597,11 +1806,333 @@ struct App
             if (want != full) SDL_SetWindowFullscreen(win, want ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
         }
         if (!strcmp(s.key, "volume")) SetVolume();
+        if (!strcmp(s.key, "fast_lock")) fastToggle = set.Get("fast_lock") == "1";
         pause.items[i].value = set.Shown(s);
     }
 #endif
 
 #ifdef GBAW_EMBEDDED
+    // POKEDEX's words: the games' capitals as the menu writes names ("BULBASAUR": "Bulbasaur").
+    static std::string DexTitle(const std::string& t)
+    {
+        std::string out = t;
+        bool start = true;
+        for (char& c : out)
+        {
+            if (c >= 'A' && c <= 'Z' && !start) c = (char)(c - 'A' + 'a');
+            start = c == ' ' || c == '-' || c == '.' || c == '/';
+        }
+        return out;
+    }
+    static std::string TypeName(int t) { return CompanionTypes::Valid(t) ? DexTitle(CompanionTypes::Name(t)) : std::string(); }
+    // The chosen Pokemon's card (gba_dex.h): its pictures decoded once while it stays chosen.
+    GbaGlass::DexCard DexCardFor(int species)
+    {
+        GbaGlass::DexCard c;
+        const GbaDex::Stats st = dex.Get(species);
+        c.id = dex.Dex(species);
+        if (!comp.seen.empty() && c.id > 0 && c.id < (int)comp.seen.size()) c.state = comp.caught[c.id] ? 2 : comp.seen[c.id] ? 1 : 0;
+        c.name = DexTitle(dex.Name(species));
+        c.type1 = st.type1; c.type2 = st.type2;
+        static const int order[6] = { 0, 1, 2, 5, 3, 4 }; // (the card's: HP, Atk, Def, Speed, SpA, SpD)
+        for (int i = 0; i < 6; i++) c.base[i] = st.base[order[i]];
+        for (int a : { st.ability1, st.ability2 }) if (a && dex.Readable(dex.Ability(a))) c.abilities.push_back(DexTitle(dex.Ability(a)));
+        if (st.hidden) c.abilities.push_back(DexTitle(dex.Ability(st.hidden)) + " (hidden)");
+        if (dexPicFor != species)
+        {
+            dexPicFor = species;
+            dexPic = dex.Front(species, false);
+            dexShiny = dex.Front(species, true);
+        }
+        if (dexPic.Ready()) { c.pic = dexPic.pixels; c.picW = dexPic.width; c.picH = dexPic.height; if (dexShiny.Ready()) c.shinyPic = dexShiny.pixels; }
+        return c;
+    }
+    // The entry page's rows, label and value; a label starting "#" heads a section (its value says
+    // which icon).
+    std::vector<std::pair<std::string, std::string>> DexEntryRows()
+    {
+        std::vector<std::pair<std::string, std::string>> rows;
+        const GbaDex::Stats st = dex.Get(dexSpecies);
+        if (!st.ok) return rows;
+        rows.push_back({ "#ENTRY", "entry" });
+        rows.push_back({ DexTitle(dex.Name(dexSpecies)), "" });
+        std::string types = TypeName(st.type1);
+        if (st.type2 != st.type1 && CompanionTypes::Valid(st.type2)) types += " / " + TypeName(st.type2);
+        if (!types.empty()) rows.push_back({ "Type", types });
+        rows.push_back({ "#BASE STATS", "stats" });
+        static const char* const shown[6] = { "HP", "Attack", "Defence", "Speed", "Sp. Atk", "Sp. Def" }; // (as the DS page)
+        static const int order[6] = { 0, 1, 2, 5, 3, 4 }; // (gba_dex.h's: HP, Atk, Def, SpA, SpD, Speed)
+        for (int i = 0; i < 6; i++) rows.push_back({ shown[i], std::to_string(st.base[order[i]]) });
+        rows.push_back({ "#ABILITIES", "abilities" });
+        for (int a : { st.ability1, st.ability2 }) if (a && dex.Readable(dex.Ability(a))) rows.push_back({ DexTitle(dex.Ability(a)), "" });
+        if (st.hidden) rows.push_back({ DexTitle(dex.Ability(st.hidden)), "Hidden" });
+        {
+            // (Where to find: one row a place, how and the levels; as the DS games' page.)
+            struct Place { std::string name; std::vector<std::string> ways; int low = 0, high = 0; };
+            std::vector<Place> places;
+            for (const auto& f : dex.WhereToFind(dexSpecies))
+            {
+                auto at = std::find_if(places.begin(), places.end(), [&](const Place& p) { return p.name == f.place; });
+                if (at == places.end()) { places.push_back({ f.place }); at = places.end() - 1; }
+                if (std::find(at->ways.begin(), at->ways.end(), f.method) == at->ways.end()) at->ways.push_back(f.method);
+                at->low = at->low ? std::min(at->low, f.low) : f.low; at->high = std::max(at->high, f.high);
+            }
+            if (dex.wildHeaders != std::string::npos)
+            {
+                rows.push_back({ "#WHERE TO FIND", "where" });
+                if (places.empty()) rows.push_back({ "Not in the wild", "" });
+                for (size_t i = 0; i < places.size() && i < 40; i++)
+                {
+                    std::string how;
+                    for (const auto& w : places[i].ways) how += (how.empty() ? "" : ", ") + DexTitle(w);
+                    rows.push_back({ DexTitle(places[i].name) + "  \xC2\xB7  " + how,
+                                     places[i].high != places[i].low ? "Lv " + std::to_string(places[i].low) + "-" + std::to_string(places[i].high) : "Lv " + std::to_string(places[i].low) });
+                }
+                if (places.size() > 40) rows.push_back({ "And " + std::to_string(places.size() - 40) + " more places", "" });
+            }
+        }
+        rows.push_back({ "#DETAILS", "details" });
+        rows.push_back({ "Catch rate", std::to_string(st.catchRate) });
+        char b[64];
+        if (st.gender == 255) rows.push_back({ "Gender", "Unknown" });
+        else if (st.gender == 0) rows.push_back({ "Gender", "Always male" });
+        else if (st.gender == 254) rows.push_back({ "Gender", "Always female" });
+        else { snprintf(b, sizeof b, "%.1f%% female", st.gender * 100.0 / 254); std::string g = b; if (g.find(".0%") != std::string::npos) g.erase(g.find(".0%"), 2); rows.push_back({ "Gender", g }); }
+        static const char* const eggNames[] = { "", "Monster", "Water 1", "Bug", "Flying", "Field", "Fairy", "Grass", "Human-Like", "Water 3", "Mineral", "Amorphous", "Water 2", "Ditto", "Dragon", "Undiscovered" };
+        auto egg = [&](int g) { return g >= 1 && g <= 15 ? std::string(eggNames[g]) : std::to_string(g); };
+        rows.push_back({ "Egg groups", egg(st.eggGroup1) + (st.eggGroup2 != st.eggGroup1 ? " / " + egg(st.eggGroup2) : std::string()) });
+        snprintf(b, sizeof b, "%d steps", (st.hatchCycles + 1) * 256);
+        rows.push_back({ "Hatches in", b });
+        static const char* const evNames[] = { "HP", "Attack", "Defence", "Sp. Atk", "Sp. Def", "Speed" };
+        std::string evs;
+        for (int i = 0; i < 6; i++) if (st.ev[i]) evs += (evs.empty() ? "" : ", ") + std::to_string(st.ev[i]) + " " + evNames[i];
+        if (!evs.empty()) rows.push_back({ "EV yield", evs });
+        static const char* const growth[] = { "Medium Fast", "Erratic", "Fluctuating", "Medium Slow", "Fast", "Slow" };
+        if (st.growth >= 0 && st.growth < 6) rows.push_back({ "Growth", growth[st.growth] });
+        rows.push_back({ "Base friendship", std::to_string(st.friendship) });
+        if (CompanionTypes::Valid(st.type1))
+        {
+            rows.push_back({ "#TAKES FROM ATTACKS", "attacks" });
+            for (int pct : { 400, 200, 50, 25, 0 })
+            {
+                std::string types;
+                for (int t = 0; t < 18; t++)
+                    if (CompanionTypes::Valid(t) && CompanionTypes::Multiplier(t, st.type1, CompanionTypes::Valid(st.type2) ? st.type2 : st.type1) == pct)
+                        types += (types.empty() ? "" : ", ") + TypeName(t);
+                if (!types.empty())
+                    rows.push_back({ pct == 400 ? "4x damage" : pct == 200 ? "2x damage" : pct == 50 ? "Half damage" : pct == 25 ? "Quarter damage" : "No damage", types });
+            }
+        }
+        const auto level = dex.LevelMoves(dexSpecies);
+        if (!level.empty())
+        {
+            rows.push_back({ "#LEARNS BY LEVEL", "level" });
+            for (const auto& l : level) rows.push_back({ DexTitle(dex.Move(l.move)), "Lv " + std::to_string(std::max(1, l.level)) });
+        }
+        const auto machines = dex.Machines(dexSpecies);
+        if (!machines.empty())
+        {
+            rows.push_back({ "#TMS AND HMS", "machines" });
+            for (const auto& m : machines) rows.push_back({ DexTitle(dex.Move(m.second)), m.first });
+        }
+        const auto eggs = dex.EggMoves(dexSpecies);
+        if (!eggs.empty())
+        {
+            rows.push_back({ "#EGG MOVES", "egg" });
+            for (int m : eggs) rows.push_back({ DexTitle(dex.Move(m)), "" });
+        }
+        return rows;
+    }
+    // COMPANION: the paused game read now (its memory through the core's bus), and the party's
+    // pictures from the ROM (gba_dex.h, which COMPANION loads too for names and places).
+    void ReadCompanion()
+    {
+        if (!dexTried) { dexTried = true; dex.Load(dexRom); }
+        comp = GbaCompanion::Snapshot();
+        compPics.clear();
+        if (!compConfig || !core) return;
+        comp = GbaCompanion::Take(*compConfig, [&](uint32_t at, uint32_t n, uint8_t* out) {
+            const bool ram = (at >= 0x02000000u && at + n <= 0x02040000u) || (at >= 0x03000000u && at + n <= 0x03008000u) ||
+                             (at >= 0x08000000u && at + n <= 0x08000000u + dexRom.size());
+            if (!ram) return false;
+            for (uint32_t i = 0; i < n; i++) out[i] = (uint8_t)core->busRead8(core, at + i);
+            return true;
+        });
+        for (const auto& m : comp.party) compPics.push_back(dex.Front(m.species, false));
+        foePic = comp.inBattle ? dex.Front(comp.foe.species, false) : GbaDex::Picture();
+        fprintf(stderr, "[gba] companion: %d in party, map %d.%d, %d pockets\n", (int)comp.party.size(), comp.mapGroup, comp.mapNum, (int)comp.pockets.size());
+    }
+    GbaGlass::MonCard MonCardFor(int i)
+    {
+        GbaGlass::MonCard c;
+        const GbaCompanion::Mon& m = comp.party[i];
+        const GbaDex::Stats st = dex.Get(m.species);
+        std::string nick = GbaDex::Text((const uint8_t*)m.nickname.data(), m.nickname.size());
+        while (!nick.empty() && nick.back() == ' ') nick.pop_back();
+        c.name = m.egg ? std::string("Egg") : DexTitle(nick.empty() ? dex.Name(m.species) : nick);
+        c.item = m.item ? DexTitle(dex.ItemName(m.item)) : std::string();
+        static const char* const natures[25] = { "Hardy", "Lonely", "Brave", "Adamant", "Naughty", "Bold", "Docile", "Relaxed", "Impish", "Lax", "Timid", "Hasty", "Serious", "Jolly",
+                                                 "Naive", "Modest", "Mild", "Quiet", "Bashful", "Rash", "Calm", "Gentle", "Sassy", "Careful", "Quirky" };
+        c.nature = natures[m.personality % 25];
+        const int ability = m.abilityBit && st.ability2 ? st.ability2 : st.ability1;
+        if (ability && dex.Readable(dex.Ability(ability))) c.ability = DexTitle(dex.Ability(ability));
+        c.level = m.level; c.hp = m.hp; c.maxHp = m.maxHp; c.egg = m.egg;
+        // (Status as the DS cards take it: sleep turns in the low bits, then poison, burn, freeze,
+        // paralysis, bad poison, as Generation 3 keeps it too.)
+        c.status = (int)m.status;
+        c.type1 = st.type1; c.type2 = st.type2;
+        for (int k = 0; k < 6; k++) { c.stats[k] = m.stats[k]; c.iv[k] = m.iv[k]; c.ev[k] = m.ev[k]; }
+        for (int k = 0; k < 4; k++)
+        {
+            if (!m.moves[k]) continue;
+            const int base = dex.MovePp(m.moves[k]), bonus = m.ppBonuses >> (k * 2) & 3;
+            c.moves.push_back({ DexTitle(dex.Move(m.moves[k])), dex.MoveType(m.moves[k]), m.pp[k], base + base * bonus / 5 });
+        }
+        if (i < (int)compPics.size() && compPics[i].Ready() && !m.egg) { c.icon = compPics[i].pixels; c.iconW = compPics[i].width; c.iconH = compPics[i].height; }
+        return c;
+    }
+    std::vector<std::pair<std::string, std::string>> BagRows()
+    {
+        std::vector<std::pair<std::string, std::string>> rows;
+        for (const auto& p : comp.pockets)
+        {
+            if (p.second.empty()) continue;
+            rows.push_back({ std::string("#") + p.first, "" });
+            for (const auto& it : p.second)
+            {
+                const std::string name = dex.ItemName(it.id);
+                rows.push_back({ name.empty() ? "ITEM " + std::to_string(it.id) : DexTitle(name), "x" + std::to_string(it.quantity) });
+            }
+        }
+        if (rows.empty()) rows.push_back({ "Your bag is empty", "" });
+        return rows;
+    }
+    std::vector<std::pair<std::string, std::string>> PlaceRows()
+    {
+        std::vector<std::pair<std::string, std::string>> rows;
+        const std::string place = dex.PlaceOf(comp.mapGroup, comp.mapNum);
+        rows.push_back({ "#WHERE YOU ARE", "" });
+        rows.push_back({ place.empty() ? std::string("Not known") : DexTitle(place), "" });
+        const auto wild = dex.WildAt(comp.mapGroup, comp.mapNum);
+        rows.push_back({ "#WILD POKEMON HERE", "" });
+        if (wild.empty()) rows.push_back({ "None", "" });
+        for (const auto& w : wild)
+        {
+            const int n = dex.Dex(w.species);
+            const bool caught = n > 0 && n < (int)comp.caught.size() && comp.caught[n], seen = n > 0 && n < (int)comp.seen.size() && comp.seen[n];
+            // (One not yet seen keeps its name to itself, as the DS games' list.)
+            const std::string name = seen || comp.seen.empty() ? DexTitle(dex.Name(w.species)) : std::string("???");
+            rows.push_back({ name + "  \xC2\xB7  " + DexTitle(w.method) + (caught ? "  \xC2\xB7  Caught" : ""),
+                             w.high != w.low ? "Lv " + std::to_string(w.low) + "-" + std::to_string(w.high) : "Lv " + std::to_string(w.low) });
+        }
+        return rows;
+    }
+    // BATTLE INFO: the foe's card, as a party card (its stats are its battle stats; no IVs or EVs).
+    GbaGlass::MonCard FoeCard()
+    {
+        GbaGlass::MonCard c;
+        const auto& f = comp.foe;
+        std::string nick = GbaDex::Text((const uint8_t*)f.nickname.data(), f.nickname.size());
+        while (!nick.empty() && nick.back() == ' ') nick.pop_back();
+        c.name = DexTitle(nick.empty() ? dex.Name(f.species) : nick);
+        c.level = f.level; c.hp = f.hp; c.maxHp = f.maxHp; c.status = (int)f.status;
+        c.type1 = f.type1; c.type2 = f.type2;
+        if (f.ability && dex.Readable(dex.Ability(f.ability))) c.ability = DexTitle(dex.Ability(f.ability));
+        if (f.item) c.item = DexTitle(dex.ItemName(f.item));
+        static const char* const natures[25] = { "Hardy", "Lonely", "Brave", "Adamant", "Naughty", "Bold", "Docile", "Relaxed", "Impish", "Lax", "Timid", "Hasty", "Serious", "Jolly",
+                                                 "Naive", "Modest", "Mild", "Quiet", "Bashful", "Rash", "Calm", "Gentle", "Sassy", "Careful", "Quirky" };
+        c.nature = natures[f.personality % 25];
+        c.stats[0] = f.maxHp;
+        for (int i = 0; i < 5; i++) c.stats[i + 1] = f.stats[i];
+        for (int i = 0; i < 6; i++) c.iv[i] = f.iv[i];
+        for (int k = 0; k < 4; k++)
+            if (f.moves[k]) c.moves.push_back({ DexTitle(dex.Move(f.moves[k])), dex.MoveType(f.moves[k]), f.pp[k], dex.MovePp(f.moves[k]) });
+        if (foePic.Ready()) { c.icon = foePic.pixels; c.iconW = foePic.width; c.iconH = foePic.height; }
+        return c;
+    }
+    std::vector<std::pair<std::string, std::string>> BattleRows()
+    {
+        std::vector<std::pair<std::string, std::string>> rows;
+        if (!comp.inBattle) { rows.push_back({ "Not in a battle", "" }); return rows; }
+        const auto& f = comp.foe;
+        rows.push_back({ "#THE FOE", "" });
+        rows.push_back({ DexTitle(dex.Name(f.species)), "Lv " + std::to_string(f.level) });
+        std::string types = TypeName(f.type1);
+        if (f.type2 != f.type1 && CompanionTypes::Valid(f.type2)) types += " / " + TypeName(f.type2);
+        rows.push_back({ "Type", types });
+        rows.push_back({ "HP", std::to_string(f.maxHp ? f.hp * 100 / f.maxHp : 0) + "%" });
+        if (f.ability && dex.Readable(dex.Ability(f.ability))) rows.push_back({ "Ability", DexTitle(dex.Ability(f.ability)) });
+        // (Your Pokemon out: each of its moves against the foe's types.)
+        const auto& m = comp.mine;
+        if (m.species)
+        {
+            rows.push_back({ "#YOUR " + dex.Name(m.species) + "'S MOVES", "" });
+            for (int k = 0; k < 4; k++)
+            {
+                if (!m.moves[k]) continue;
+                const int type = dex.MoveType(m.moves[k]);
+                const int pct = CompanionTypes::Valid(type) ? CompanionTypes::Multiplier(type, f.type1, CompanionTypes::Valid(f.type2) ? f.type2 : f.type1) : 100;
+                rows.push_back({ DexTitle(dex.Move(m.moves[k])) + "  \xC2\xB7  " + TypeName(type), DexTitle(CompanionTypes::Label(pct)) });
+            }
+        }
+        // (What hits the foe hard: its weaknesses, as the Pokedex page's.)
+        rows.push_back({ "#THE FOE TAKES", "" });
+        for (int pct : { 400, 200, 50, 25, 0 })
+        {
+            std::string list;
+            for (int t = 0; t < 18; t++)
+                if (CompanionTypes::Valid(t) && CompanionTypes::Multiplier(t, f.type1, CompanionTypes::Valid(f.type2) ? f.type2 : f.type1) == pct) list += (list.empty() ? "" : ", ") + TypeName(t);
+            if (!list.empty()) rows.push_back({ pct == 400 ? "4x damage" : pct == 200 ? "2x damage" : pct == 50 ? "Half damage" : pct == 25 ? "Quarter damage" : "No damage", list });
+        }
+        return rows;
+    }
+    // COMPANION's pages: A on a link opens it; B goes back a page.
+    void CompanionInput(const MenuIn& in)
+    {
+        if (in.menu) { Resume(); return; }
+        if (pausePage == P_GUIDE && in.accept && pause.selected >= 0 && pause.selected < (int)guideShown.size())
+        {
+            guideShown[pause.selected] = !guideShown[pause.selected];
+            const int sel = pause.selected;
+            BuildPause();
+            pause.selected = sel;
+            return;
+        }
+        if (pausePage != P_COMP)
+        {
+            if (in.back || (in.accept && pause.selected >= 0 && pause.selected < (int)pause.items.size() && pause.items[pause.selected].label == "BACK"))
+                GoPage(P_COMP, pausePage == P_PARTY ? "PARTY" : pausePage == P_BAG ? "BAG" : pausePage == P_PLACE ? "LOCATION" : pausePage == P_BATTLE ? "BATTLE INFO" : "GUIDE");
+            return;
+        }
+        if (in.back) { GoPage(P_ROOT, "COMPANION"); return; }
+        if (!in.accept || pause.selected < 0 || pause.selected >= (int)pause.items.size()) return;
+        const std::string item = pause.items[pause.selected].label;
+        if (item == "PARTY") GoPage(P_PARTY, "");
+        else if (item == "BAG") GoPage(P_BAG, "");
+        else if (item == "LOCATION") GoPage(P_PLACE, "");
+        else if (item == "BATTLE INFO") { if (comp.inBattle) GoPage(P_BATTLE, ""); }
+        else if (item == "GUIDE") { if (!guideShown.empty()) GoPage(P_GUIDE, ""); }
+        else if (item == "BACK") GoPage(P_ROOT, "COMPANION");
+    }
+    // POKEDEX's pages: A on a row opens its entry; B goes back (the entry to the list, on its row).
+    void DexInput(const MenuIn& in)
+    {
+        if (in.menu) { Resume(); return; }
+        if (pausePage == P_DEXENTRY)
+        {
+            if (in.back)
+            {
+                pausePage = P_DEX;
+                BuildPause();
+                for (size_t i = 0; i < dexRows.size(); i++) if (dexRows[i] == dexSpecies) pause.selected = (int)i;
+            }
+            return;
+        }
+        if (in.back) { GoPage(P_ROOT, "POKEDEX"); return; }
+        if (!in.accept || pause.selected < 0 || pause.selected >= (int)dexRows.size()) return;
+        dexSpecies = dexRows[pause.selected];
+        GoPage(P_DEXENTRY, "");
+    }
     // Another page of the pause menu, on the row named.
     void GoPage(PausePage page, const char* row)
     {
@@ -1614,6 +2145,8 @@ struct App
     void ResetGame()
     {
         core->reset(core);
+        pk_wide_reset();
+        camera.Reset();
 #ifdef GBAW_CHEATS
         cheats.Reset();
 #endif
@@ -1673,8 +2206,8 @@ struct App
         using namespace GbaGlass;
         static const struct { const char* key; int icon; } icons[] = {
             { "widescreen", IC_RATIO }, { "fullscreen", IC_FULLSCREEN }, { "scaling", IC_EXPAND }, { "hd_filter", IC_SPARKLE },
-            { "lcd", IC_GRID }, { "colour", IC_MONITOR }, { "show_fps", IC_GAUGE }, { "volume", IC_SPEAKER }, { "ff_mute", IC_FAST },
-            { "gba_start", IC_PAD }, { "buttons", IC_PAD }, { "ff_speed", IC_FAST }, { "fast_button", IC_FAST } };
+            { "lcd", IC_GRID }, { "colour", IC_MONITOR }, { "zoom", IC_EXPAND }, { "zoom_text", IC_EXPAND }, { "show_fps", IC_GAUGE }, { "volume", IC_SPEAKER }, { "ff_mute", IC_FAST },
+            { "gba_start", IC_PAD }, { "buttons", IC_PAD }, { "ff_speed", IC_FAST }, { "fast_button", IC_FAST }, { "fast_lock", IC_FAST } };
         icon = IC_GEAR;
         for (const auto& i : icons)
             if (!strcmp(i.key, key)) icon = i.icon;
@@ -1694,6 +2227,9 @@ struct App
         using namespace GbaGlass;
         Page& g = glass;
         g.items.clear();
+        g.dex.clear();
+        g.mons.clear();
+        g.place.clear(); g.map.clear(); g.mapW = g.mapH = 0; g.markerX = g.markerY = -1;
         glassRow.clear();
         g.style = PAGE;
         g.icon = -1;
@@ -1755,6 +2291,8 @@ struct App
                 }
                 else if (l == "FAST FORWARD") t.icon = IC_FAST;
                 else if (l == "RETROACHIEVEMENTS") t.label = "ACHIEVEMENTS", t.icon = IC_TROPHY, t.disabled = !raReady;
+                else if (l == "POKEDEX") t.icon = IC_POKEBALL;
+                else if (l == "COMPANION") t.icon = IC_PEOPLE, t.disabled = !compConfig;
                 else if (l == "SETTINGS") t.icon = IC_GEAR;
                 else if (l == "QUIT") t.label = "QUIT GAME", t.icon = IC_POWER;
                 put(t, i);
@@ -1855,6 +2393,136 @@ struct App
                     it.info = true;
                     it.desc = "Move and resize the buttons on the screen.";
                 }
+                put(it, i);
+            }
+        }
+        else if (pausePage == P_COMP)
+        {
+            // (A settings page of links, as the DS games' COMPANION: each with what the game holds now.)
+            page("COMPANION", IC_PEOPLE);
+            g.tall = true;
+            std::string place = dex.PlaceOf(comp.mapGroup, comp.mapNum);
+            int itemCount = 0;
+            for (const auto& p : comp.pockets) itemCount += (int)p.second.size();
+            for (int i = 0; i < n; i++)
+            {
+                const std::string& l = pause.items[i].label;
+                if (l == "PARTY") link(i, "PARTY", IC_PEOPLE, std::to_string(comp.party.size()), "Your team as it is now", "Your team as it is now. Choose one for its stats, nature, ability and moves.");
+                else if (l == "BAG") link(i, "BAG", IC_LOAD, std::to_string(itemCount) + " KINDS", "Every pocket of your bag", "Every pocket of your bag and how many of each item. View only: use items through the game.");
+                else if (l == "LOCATION") link(i, "LOCATION", IC_GLOBE, place.empty() ? std::string("-") : DexTitle(place), "Where you are and what lives there", "Where you are, and the wild Pok\xC3\xA9" "mon of this place: how you find each and its levels.");
+                else if (l == "BATTLE INFO")
+                {
+                    link(i, "BATTLE INFO", IC_FAST, comp.inBattle ? std::string("IN BATTLE") : std::string("-"), "The foe and your moves against it",
+                         "In a battle: the foe's types, ability and HP, and how hard each of your Pok\xC3\xA9" "mon's moves hits it.");
+                    g.items.back().disabled = !comp.inBattle;
+                    if (!comp.inBattle) g.items.back().tip = "Open it from the pause menu during a battle.";
+                }
+                else if (l == "GUIDE")
+                {
+                    const size_t pages = GbaGuides::For(gameCode.c_str()).size();
+                    link(i, "GUIDE", IC_INFO, std::to_string(pages) + " PAGES", "Where things are and how things work",
+                         "Answers to common questions: where the key items and HMs are, which badge unlocks which HM, and how the game works. Each answer stays hidden until you choose it.");
+                    g.items.back().disabled = !pages;
+                }
+            }
+        }
+        else if (pausePage == P_PARTY)
+        {
+            // (Each one a tall row with its picture; its card beside the list, as the DS games' PARTY.)
+            page("PARTY", IC_PEOPLE);
+            g.tall = true;
+            for (size_t i = 0; i < comp.party.size(); i++) g.mons.push_back(MonCardFor((int)i));
+            for (int i = 0; i < n; i++)
+            {
+                if (pause.items[i].label == "BACK" || i >= (int)g.mons.size()) continue;
+                Item it;
+                it.label = g.mons[i].name;
+                it.value = g.mons[i].egg ? "EGG" : "LV " + std::to_string(g.mons[i].level);
+                it.sub = g.mons[i].egg ? "" : std::to_string(g.mons[i].hp) + " / " + std::to_string(g.mons[i].maxHp) + " HP";
+                it.info = true;
+                it.monCard = i;
+                put(it, i);
+            }
+        }
+        else if (pausePage == P_GUIDE)
+        {
+            // (Each question a row; its hint in the preview until it is chosen, then its answer.)
+            page("GUIDE", IC_INFO);
+            const auto& gd = GbaGuides::For(gameCode.c_str());
+            for (int i = 0; i < n && i < (int)gd.size(); i++)
+            {
+                Item it;
+                it.label = gd[i].title;
+                const bool shown = i < (int)guideShown.size() && guideShown[i];
+                it.value = shown ? "SHOWN" : "";
+                it.kind = LINK;
+                it.icon = IC_INFO;
+                it.desc = shown ? gd[i].answer : (gd[i].hint[0] ? std::string("Hint: ") + gd[i].hint : std::string("A to show the answer."));
+                if (!shown) it.tip = "A to show the answer.";
+                put(it, i);
+            }
+        }
+        else if (pausePage == P_BAG || pausePage == P_PLACE || pausePage == P_BATTLE)
+        {
+            page(pausePage == P_BAG ? "BAG" : pausePage == P_PLACE ? "LOCATION" : "BATTLE INFO", pausePage == P_BAG ? IC_LOAD : pausePage == P_PLACE ? IC_GLOBE : IC_FAST);
+            if (pausePage == P_BATTLE && comp.inBattle) g.mons.push_back(FoeCard());
+            // (LOCATION: the place and the region's map with you on it beside every row.)
+            GbaDex::Data::RegionPicture region;
+            if (pausePage == P_PLACE)
+            {
+                region = dex.Region(comp.mapGroup, comp.mapNum);
+                g.place = DexTitle(dex.PlaceOf(comp.mapGroup, comp.mapNum));
+                if (region.ok) { g.map = std::move(region.px); g.mapW = region.w; g.mapH = region.h; g.markerX = region.markerX; g.markerY = region.markerY; }
+            }
+            if (pausePage == P_BAG && comp.money >= 0) g.headerNote = "MONEY " + std::to_string(comp.money);
+            for (int i = 0; i < n; i++)
+            {
+                const std::string& l = pause.items[i].label;
+                if (l == "BACK") continue;
+                Item it;
+                if (!l.empty() && l[0] == '#') { it.label = l.substr(1); it.kind = SECTION; it.icon = pausePage == P_BAG ? IC_LOAD : pausePage == P_PLACE ? IC_GLOBE : IC_FAST; put(it, -1); continue; }
+                it.label = l;
+                it.value = pause.items[i].value;
+                it.info = true;
+                if (!g.mons.empty()) it.monCard = 0; // (BATTLE INFO: the foe's card beside every row)
+                if (pausePage == P_PLACE) it.placeCard = true;
+                put(it, i);
+            }
+        }
+        else if (pausePage == P_DEX || pausePage == P_DEXENTRY)
+        {
+            // (A settings page: the rows, and the chosen Pokemon's card beside them, as the DS
+            // games' POKEDEX.)
+            const bool entry = pausePage == P_DEXENTRY;
+            page(entry ? "POKEDEX ENTRY" : "POKEDEX", IC_INFO);
+            const int chosen = entry ? dexSpecies : (pause.selected >= 0 && pause.selected < (int)dexRows.size() ? dexRows[pause.selected] : 0);
+            if (chosen > 0)
+            {
+                g.dex.push_back(DexCardFor(chosen));
+                if (entry) { char n[16]; snprintf(n, sizeof n, "#%03d", dex.Dex(chosen)); g.headerNote = n; }
+            }
+            std::string section;
+            for (int i = 0; i < n; i++)
+            {
+                const std::string& l = pause.items[i].label;
+                if (l == "BACK") continue;
+                Item it;
+                it.label = l;
+                it.value = pause.items[i].value;
+                it.info = entry;
+                it.kind = entry ? PLAIN : LINK;
+                // (The entry's sections: rows whose label starts with "#" head one.)
+                if (entry && !l.empty() && l[0] == '#')
+                {
+                    Item h;
+                    h.label = l.substr(1);
+                    h.kind = SECTION;
+                    h.icon = it.value == "stats" ? IC_GAUGE : it.value == "abilities" ? IC_SPARKLE : it.value == "details" ? IC_NOTE : it.value == "attacks" ? IC_FAST :
+                             it.value == "where" ? IC_GLOBE : it.value == "level" ? IC_PLAY : it.value == "machines" ? IC_CHIP : it.value == "egg" ? IC_POKEBALL : IC_INFO;
+                    put(h, -1);
+                    continue;
+                }
+                if (!g.dex.empty() && (entry || (i < (int)dexRows.size() && dexRows[i] == chosen))) it.dexCard = 0;
                 put(it, i);
             }
         }
@@ -2014,6 +2682,16 @@ struct App
             HubPageInput(in);
             return;
         }
+        if (pausePage == P_DEX || pausePage == P_DEXENTRY)
+        {
+            DexInput(in);
+            return;
+        }
+        if (pausePage == P_COMP || pausePage == P_PARTY || pausePage == P_BAG || pausePage == P_PLACE || pausePage == P_BATTLE || pausePage == P_GUIDE)
+        {
+            CompanionInput(in);
+            return;
+        }
         if (pausePage == P_LOGIN)
         {
             LoginInput(in);
@@ -2128,6 +2806,22 @@ struct App
             GoPage(P_QUIT, "CANCEL");
             return;
         }
+        if (item == "COMPANION")
+        {
+            if (!compConfig) { Toast("COMPANION ISN'T AVAILABLE FOR THIS GAME"); return; }
+            ReadCompanion();
+            GoPage(P_COMP, "PARTY");
+            return;
+        }
+        if (item == "POKEDEX")
+        {
+            // (Read from the ROM the first time; a game whose tables aren't found has none.)
+            if (!dexTried) { dexTried = true; dex.Load(dexRom); fprintf(stderr, "[gba] pokedex: %d species%s\n", dex.count, dex.Ready() ? "" : " (not found)"); }
+            if (!dex.Ready() || !dex.count) { Toast("THE POKEDEX ISN'T AVAILABLE FOR THIS GAME"); return; }
+            ReadCompanion(); // (seen and caught)
+            GoPage(P_DEX, "");
+            return;
+        }
         if (item == "RETROACHIEVEMENTS" && !raReady) return;
 #ifdef GBAW_CHEATS
         if (item == "CHEATS" && !cheats.Active()) return;
@@ -2182,6 +2876,8 @@ struct App
         else if (item == "RESET GAME")
         {
             core->reset(core);
+            pk_wide_reset();
+            camera.Reset();
 #ifdef GBAW_CHEATS
             cheats.Reset();
 #endif
@@ -2278,16 +2974,17 @@ struct App
 
     // LCD EFFECT: a grid along the edges of the GBA's pixels, at the size the picture is drawn
     // (so its lines fall exactly between them), laid over the picture to darken.
-    void DrawLcd(const SDL_Rect& dst, int w)
+    void DrawLcd(const SDL_Rect& dst, int w, int h = GbaH)
     {
-        const double sx = (double)dst.w / w, sy = (double)dst.h / GbaH;
+        const double sx = (double)dst.w / w, sy = (double)dst.h / h;
         if (std::min(sx, sy) < 2) return; // (too small for a grid)
-        if (!lcdTex || lcdW != dst.w || lcdH != dst.h || lcdCols != w)
+        if (!lcdTex || lcdW != dst.w || lcdH != dst.h || lcdCols != w || lcdRows != h)
         {
             if (lcdTex) SDL_DestroyTexture(lcdTex);
             lcdW = dst.w;
             lcdH = dst.h;
             lcdCols = w;
+            lcdRows = h;
             const int t = std::max(1, (int)std::lround(std::min(sx, sy) / 5));
             std::vector<uint8_t> colEdge(lcdW), rowEdge(lcdH);
             for (int x = 0; x < lcdW; x++) colEdge[x] = (int)((int)(x / sx + 1e-9) * sx + sx) - x <= t;
@@ -2315,8 +3012,83 @@ struct App
 #else
     static constexpr int HdFactor = 4;
 #endif
+    // ZOOM and the look-around: the window WIDE drew, over the whole screen at the camera's scale, with the same
+    // SCALING, COLOUR CORRECTION, HD FILTER and LCD EFFECT as at 1x. (The HD filter scales by no more than the screen
+    // needs - 2x when fully zoomed out - so zooming out costs it about what 1x does.)
+    void DrawZoom()
+    {
+        const PkWideCamera::Window& w = zoomWin;
+        const bool hd = set.Get("hd_filter") == "1", colour = set.Get("colour") == "1", lcd = set.Get("lcd") == "1";
+        const SDL_Rect src = { 0, 0, w.w, w.h };
+        const SDL_Rect dst = { (int)std::floor(w.offX), (int)std::floor(w.offY), (int)std::ceil(w.w * w.scale), (int)std::ceil(w.h * w.scale) };
+        if (hd || colour)
+        {
+            if (colour && colourLut.empty()) BuildColourLut();
+            fxSrc.resize((size_t)w.w * w.h);
+            for (size_t i = 0; i < fxSrc.size(); i++)
+            {
+                uint32_t p = zoomBuf[i]; // (ABGR: R in the low byte)
+                if (colour) p = colourLut[((p >> 3) & 31) | (((p >> 11) & 31) << 5) | (((p >> 19) & 31) << 10)];
+                if (hd) p = (p & 0xFF00FF00u) | (p & 0xFF) << 16 | ((p >> 16) & 0xFF);
+                fxSrc[i] = p;
+            }
+        }
+        if (hd)
+        {
+            const int f = std::max(2, std::min(HdFactor, (int)std::ceil(w.scale - 0.01)));
+            const int ow = w.w * f, oh = w.h * f;
+            if (!workersStarted)
+            {
+                workersStarted = true;
+#if defined(__SWITCH__)
+                workers.Start(2);
+#else
+                const unsigned cores = std::thread::hardware_concurrency();
+                workers.Start((int)std::min(3u, cores > 1 ? cores - 1 : 0u));
+#endif
+            }
+            fxOut.resize((size_t)ow * oh);
+            const int slices = 8;
+            workers.Run(slices, [&](int i) {
+                xbrz::scale(f, fxSrc.data(), fxOut.data(), w.w, w.h, xbrz::ColorFormat::RGB, xbrz::ScalerCfg(), w.h * i / slices, w.h * (i + 1) / slices);
+            });
+            if (!zoomHdTex || zoomHdW < ow || zoomHdH < oh)
+            {
+                if (zoomHdTex) SDL_DestroyTexture(zoomHdTex);
+                zoomHdW = std::max(zoomHdW, ow);
+                zoomHdH = std::max(zoomHdH, oh);
+                zoomHdTex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, zoomHdW, zoomHdH);
+                if (zoomHdTex) SDL_SetTextureScaleMode(zoomHdTex, SDL_ScaleModeLinear);
+            }
+            if (zoomHdTex)
+            {
+                const SDL_Rect r = { 0, 0, ow, oh };
+                SDL_UpdateTexture(zoomHdTex, &r, fxOut.data(), ow * 4);
+                SDL_RenderCopy(ren, zoomHdTex, &r, &dst);
+                if (lcd) DrawLcd(dst, w.w, w.h);
+                return;
+            }
+        }
+        if (!zoomTex)
+        {
+            zoomTex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING, PkWideCamera::Camera::MaxW, PkWideCamera::Camera::MaxH);
+            if (!zoomTex) return;
+        }
+        SDL_UpdateTexture(zoomTex, &src, colour ? fxSrc.data() : zoomBuf.data(), w.w * 4);
+        SDL_SetTextureScaleMode(zoomTex, set.Get("scaling") == "smooth" ? SDL_ScaleModeLinear : SDL_ScaleModeNearest);
+        SDL_RenderCopy(ren, zoomTex, &src, &dst);
+        if (lcd) DrawLcd(dst, w.w, w.h);
+    }
+
     void DrawGame()
     {
+        if (zoomShown && zoomWin.valid)
+        {
+            const uint64_t t0 = SDL_GetPerformanceCounter();
+            DrawZoom();
+            zoomDrawCost = (double)(SDL_GetPerformanceCounter() - t0) * 1000.0 / (double)SDL_GetPerformanceFrequency();
+            return;
+        }
         const int w = GbaW + 2 * wideExtra;
         int ow, oh;
         SDL_GetRendererOutputSize(ren, &ow, &oh);
@@ -2851,6 +3623,9 @@ struct App
                     if (screen == LIST) Rescan();
                     break;
                 case SDL_SCANCODE_F11: ToggleFullscreen(); break;
+                case SDL_SCANCODE_C:
+                    if (!e.key.repeat && screen == PLAY && !paused) ZoomCycle();
+                    break;
                 default: break;
                 }
                 break;
@@ -2911,7 +3686,9 @@ struct App
                 // The pause menu: START (+), as in the DS games, as it is let go (pressed with
                 // SELECT (-) it is the GBA's START instead); START BUTTON GBA START: the other way
                 // round. The Guide (Home, PS) button and a stick click open it too.
-                if (b == SDL_CONTROLLER_BUTTON_GUIDE || b == SDL_CONTROLLER_BUTTON_LEFTSTICK || b == SDL_CONTROLLER_BUTTON_RIGHTSTICK)
+                // (ZOOM AND LOOK AROUND: in a game it knows, a click of the right stick zooms instead.)
+                if (b == SDL_CONTROLLER_BUTTON_RIGHTSTICK && screen == PLAY && !paused && ZoomOn()) ZoomCycle();
+                else if (b == SDL_CONTROLLER_BUTTON_GUIDE || b == SDL_CONTROLLER_BUTTON_LEFTSTICK || b == SDL_CONTROLLER_BUTTON_RIGHTSTICK)
                     in.menu = true;
                 if (screen == PLAY)
                 {
@@ -3129,6 +3906,47 @@ struct App
                 l.done = 2;
             }
 #endif
+            // (Tests: what a game keeps in the RAM the widescreen patches use, 0x0203FF00-0x0203FFF0,
+            // played without one: a hack that uses it can't take a patch there.)
+            // (Test: EWRAM, IWRAM, I/O and VRAM, raw, into the file the line names: where the player is and what the
+            // map holds, read by a script.)
+            if (l.what == "memdump" && down && core && l.arg != "x")
+            {
+                if (FILE* f = fopen(l.arg.c_str(), "wb"))
+                {
+                    for (uint32_t a = 0x02000000; a < 0x02040000; a++) fputc((int)core->rawRead8(core, a, -1) & 0xFF, f);
+                    for (uint32_t a = 0x03000000; a < 0x03008000; a++) fputc((int)core->rawRead8(core, a, -1) & 0xFF, f);
+                    // (then the I/O registers and video memory: which layers use which tiles)
+                    for (uint32_t a = 0x04000000; a < 0x04000400; a++) fputc((int)core->rawRead8(core, a, -1) & 0xFF, f);
+                    for (uint32_t a = 0x06000000; a < 0x06018000; a++) fputc((int)core->rawRead8(core, a, -1) & 0xFF, f);
+                    fclose(f);
+                }
+                l.done = 2;
+            }
+            if (l.what == "ramcheck" && down && core)
+            {
+                int used = 0;
+                std::string first;
+                for (uint32_t a = 0x0203FF00; a < 0x0203FFF0; a++)
+                {
+                    const unsigned v = (unsigned)core->rawRead8(core, a, -1) & 0xFF;
+                    if (v && v != 0xFF && used++ < 8)
+                    {
+                        char b[24];
+                        snprintf(b, sizeof b, " %X=%02X", (unsigned)a, v);
+                        first += b;
+                    }
+                }
+                fprintf(stderr, "[gba] ramcheck %lld: %d bytes used%s\n", now, used, first.c_str());
+                // (and to the file the line names: a Windows build has no console)
+                if (l.arg != "x")
+                    if (FILE* f = fopen(l.arg.c_str(), "a"))
+                    {
+                        fprintf(f, "ramcheck %lld: %d bytes used%s\n", now, used, first.c_str());
+                        fclose(f);
+                    }
+                l.done = 2;
+            }
             if (l.what == "quit" && down)
             {
                 quit = true;
@@ -3243,9 +4061,12 @@ struct App
                     const uint32_t dirs = GameKeys() & dirMask;
                     if (dirs & ~tapDirs) tapSince = SDL_GetTicks();
                     tapDirs = dirs;
-                    if (speed > 1 && dirs && SDL_GetTicks() - tapSince < 250) speed = 1;
+                    // (Fast forward switched on, by the Toggle button or the menu, stays on whatever
+                    // is pressed, as in the DS games (#111, #156): the quarter second at normal speed is
+                    // for fast forward held on its button, where a quick tap in a menu moved twice.)
+                    if (speed > 1 && dirs && !fastToggle && SDL_GetTicks() - tapSince < 250) speed = 1;
                 }
-                for (int i = 0; i < run * speed; i++) RunFrame(true, speed > 1);
+                for (int i = 0; i < run * speed; i++) RunFrame(true, speed > 1, i == run * speed - 1);
             }
             else
                 due = 0;
@@ -3381,6 +4202,28 @@ bool InitSdl()
 namespace GbaWide
 {
 
+// A ROM's header (its title at 0xA0, its game code at 0xAC): a Pokemon game, or a hack that kept
+// the title or code of one. (Read from the file: the list's cache does not keep the header.)
+static bool LooksLikePokemon(const std::string& file)
+{
+    FILE* f = fopen(file.c_str(), "rb");
+    if (!f) return true;
+    unsigned char h[0xB0] = {};
+    const size_t n = fread(h, 1, sizeof h, f);
+    fclose(f);
+    if (n < sizeof h) return true;
+    std::string title, code;
+    for (int i = 0xA0; i < 0xAC && h[i]; i++) title += (char)toupper(h[i]);
+    for (int i = 0xAC; i < 0xB0; i++) code += (char)h[i];
+    if (title.find("POKEMON") != std::string::npos || title.find("POCKET") != std::string::npos) return true;
+    if (Games::PatchForCode(code)) return true;
+    // Other GBA Pokemon games and their hacks: Pinball (BPP), Mystery Dungeon (B24), Ultra Violet (PUV).
+    static const char* const kOther[] = {"BPP", "B24", "PUV"};
+    for (const char* o : kOther)
+        if (!code.compare(0, 3, o)) return true;
+    return false;
+}
+
 std::vector<ListGame> Find(const std::string& roms, const std::string& saves)
 {
     std::vector<ListGame> out;
@@ -3393,11 +4236,27 @@ std::vector<ListGame> Find(const std::string& roms, const std::string& saves)
     snprintf(cache, sizeof cache, "/gba-rom-list-%08lx.txt", h);
     for (const Games::Game& g : Games::Scan(roms, saves, saves + cache))
     {
+        // FullDex lists Pokemon games only (#152): a GBA ROM that is none of ours, takes no
+        // widescreen patch, has no Pokemon game code and no POKEMON in its title (Wario Land 4)
+        // is left out of the list.
+        if (!g.known && g.patch.empty() && g.ips.empty() && !LooksLikePokemon(g.rom)) continue;
         ListGame l;
         l.key = g.key;
         l.name = g.name;
         l.file = g.ips.empty() ? g.rom : g.ips;
-        l.art = g.patch.empty() ? std::string() : Games::ArtCode(g.sha1);
+        // A ROM hack with a widescreen patch of its own (Radical Red, Unbound, ...) has its own picture when
+        // one is built in under the patch's name (art/radicalred.jpg): only that hack's ROM takes that patch
+        // (its safety list), so its game as sold keeps the game's own picture.
+        const unsigned char* own = nullptr;
+        size_t ownSize = 0;
+        l.art = g.patch.empty() ? std::string() : Art(g.patch, own, ownSize) ? g.patch : Games::ArtCode(g.sha1);
+        // (and its name, rather than the file's: RadicalRed.gba reads RADICALRED.)
+        static const struct { const char* patch; const char* name; } kHackNames[] = {
+            { "radicalred", "Radical Red" }, { "unbound", "Unbound" }, { "emeraldlegacy", "Emerald Legacy" },
+            { "inclement", "Inclement Emerald" }, { "monomyth", "Monomyth" }, { "emeraldrogue", "Emerald Rogue" },
+        };
+        for (const auto& n : kHackNames)
+            if (g.patch == n.patch) l.name = n.name;
         l.hasSave = g.hasSave;
         l.widescreen = !g.patch.empty();
         l.hack = !g.known;

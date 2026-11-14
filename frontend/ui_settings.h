@@ -761,7 +761,7 @@ inline void Picture(Canvas& c, int kind, int art, int x, int y, int w, int h, fl
         }
         break;
     }
-    case Menu::P_BATTLE: // CORNER, STRIP, PANEL
+    case Menu::P_BATTLE: // CORNER, STRIP, PANEL, (CLASSIC: STRIP's), SUN AND MOON
     {
         Whole(c, Frame(c), x, y, w, h, r);
         static const uint32_t col[] = { 0xF0E2574C, 0xF04C8BE2, 0xF04CC27A, 0xF0E2BE4C };
@@ -778,6 +778,15 @@ inline void Picture(Canvas& c, int kind, int art, int x, int y, int w, int h, fl
             Glass::Round(c, x, by, w, bh, 0, 0xC0101820);
             for (int i = 0; i < 4; i++)
                 Glass::Round(c, x + w * (2 + 23 * i) / 96, by + bh / 5, w * 20 / 96, bh * 3 / 5, bh * 0.25f, col[i]);
+        }
+        else if (art == 3)
+        {
+            // SUN AND MOON: FIGHT across the top, POKEMON, BAG and RUN under it, in the lower right.
+            const int pw = (int)(w * 0.42f), px = x + w - pw - (int)(w * 0.03f), fh = (int)(h * 0.16f), rh = (int)(h * 0.13f);
+            const int gap = std::max(1, (int)(h * 0.02f)), py = y + h - fh - rh - gap - (int)(h * 0.05f), cw = (pw - 2 * gap) / 3;
+            Glass::Round(c, px, py, pw, fh, fh * 0.25f, 0xF0E95245);
+            static const uint32_t row[3] = { 0xF048C783, 0xF0E2B32F, 0xF0509AEA };
+            for (int i = 0; i < 3; i++) Glass::Round(c, px + i * (cw + gap), py + fh + gap, cw, rh, rh * 0.3f, row[i]);
         }
         else
         {
@@ -1237,18 +1246,21 @@ inline void DexSummary(Canvas& c, const Menu::CompanionView::DexEntry& e, int x0
     auto K = [&](float v) { return (int)std::lround(v * k); };
     const uint32_t GlassText = Menu::GlassText, GlassHint = Menu::GlassHint;
     int y = top;
-    const int is = K(64);
+    // (Its battle picture from the ROM when there is one (its own page), else its party icon.)
+    const bool pic = !e.hidden && !e.pic.empty() && e.picW > 0;
+    const int is = pic ? K(96) : K(64);
     Glass::Round(c, x0, y, is, is, 14 * k, 0x400A111C);
     Glass::Rim(c, x0, y, is, is, 14 * k, std::max(1.0f, k), 0x60, 0x14);
-    if (!e.icon.empty()) MonIcon(c, e.icon, 32, 32, x0, y, is, e.hidden ? 0xC0 : e.seen ? 255 : 0x50, e.hidden ? 0xFF05080Du : 0);
+    if (pic) MonIcon(c, e.pic, e.picW, e.picH, x0, y, is);
+    else if (!e.icon.empty()) MonIcon(c, e.icon, 32, 32, x0, y, is, e.hidden ? 0xC0 : e.seen ? 255 : 0x50, e.hidden ? 0xFF05080Du : 0);
     const int tx = x0 + is + K(16);
     char num[16];
     snprintf(num, sizeof num, "No. %03d", e.id);
     T(c, tx, y + K(22), num, K(17), GlassText, true, false);
     // (Caught: a white pill; seen: a glass one; neither: a hint.)
-    const std::string state = e.caught ? "Caught" : e.seen ? "Seen" : "Not seen yet";
+    const std::string state = !e.stateKnown ? "" : e.caught ? "Caught" : e.seen ? "Seen" : "Not seen yet";
     const int sw = W(state, K(14), true, false) + K(20), sh = K(24), sx = x0 + w0 - sw;
-    if (e.seen) { Glass::Round(c, sx, y + K(4), sw, sh, sh * 0.5f, e.caught ? Pill : Row); if (!e.caught) Glass::Rim(c, sx, y + K(4), sw, sh, sh * 0.5f, std::max(1.0f, k), 0x60, 0x14); }
+    if (e.seen && e.stateKnown) { Glass::Round(c, sx, y + K(4), sw, sh, sh * 0.5f, e.caught ? Pill : Row); if (!e.caught) Glass::Rim(c, sx, y + K(4), sw, sh, sh * 0.5f, std::max(1.0f, k), 0x60, 0x14); }
     T(c, sx + K(10), y + K(4) + sh / 2 + K(5), state, K(14), e.caught ? PillInk : e.seen ? GlassText : GlassHint, true, false);
     if (e.hidden)
     {
@@ -1259,7 +1271,15 @@ inline void DexSummary(Canvas& c, const Menu::CompanionView::DexEntry& e, int x0
     }
     int cx = tx;
     if (CompanionTypes::Valid(e.type1)) cx += TypeChip(c, e.type1, cx, y + K(36), k * 1.15f) + K(6);
-    if (CompanionTypes::Valid(e.type2) && e.type2 != e.type1) TypeChip(c, e.type2, cx, y + K(36), k * 1.15f);
+    if (CompanionTypes::Valid(e.type2) && e.type2 != e.type1) cx += TypeChip(c, e.type2, cx, y + K(36), k * 1.15f);
+    // (The shiny one, smaller, at the right under seen or caught, where the type chips leave room.)
+    const int shinyRoom = x0 + w0 - cx - K(10);
+    if (pic && !e.shinyPic.empty() && shinyRoom >= K(40))
+    {
+        const int ss = std::min(K(60), shinyRoom), sx = x0 + w0 - ss, sy = y + K(32);
+        MonIcon(c, e.shinyPic, e.picW, e.picH, sx, sy, ss);
+        T(c, sx + (ss - W("Shiny", K(12), false, false)) / 2, sy + ss + K(8), "Shiny", K(12), GlassHint, false, false);
+    }
     y += is + K(18);
     if (moves)
     {
@@ -1335,7 +1355,7 @@ inline void DexSummary(Canvas& c, const Menu::CompanionView::DexEntry& e, int x0
         T(c, x0, y + K(16), l, K(16), Desc, false, false);
         y += K(25);
     }
-    if (bottom - y > K(30))
+    if (bottom - y > K(30) && !e.learns.empty()) // (the GBA games' cards have no moves to switch to)
         T(c, x0, bottom - K(6), "A or tap: the moves it learns", K(15), GlassHint, false, false);
 }
 
@@ -1485,7 +1505,7 @@ inline void CoverageSummary(Canvas& c, const Menu::CompanionView::Mon& m, const 
 // COMPANION's pictures of what the game holds now (Menu::CompanionView), in the box x0..x0+w0,
 // top..bottom: a settings page's preview (DrawSettings), the Companion Window and the HUD.
 inline bool CompanionPicture(Canvas& c, const Menu::CompanionView& cv, int kind, int x0, int top, int w0, int bottom, float k,
-                             int chosen = -1, std::vector<std::array<int, 5>>* picks = nullptr)
+                             int chosen = -1, std::vector<std::array<int, 5>>* picks = nullptr, const std::string& title = std::string())
 {
     using namespace SettingsArt;
     const uint32_t GlassText = Menu::GlassText, GlassHint = Menu::GlassHint;
@@ -1608,7 +1628,8 @@ inline bool CompanionPicture(Canvas& c, const Menu::CompanionView& cv, int kind,
     {
         // (LOCATION: the place's name, then the region's map from the ROM with the player on it.)
         int y = top;
-        if (!cv.place.empty()) { T(c, x0, y + K(26), cv.place, K(24), GlassText, true, false); y += K(38); }
+        // (Not again when the preview's title already is the place's name.)
+        if (!cv.place.empty() && cv.place != title) { T(c, x0, y + K(26), cv.place, K(24), GlassText, true, false); y += K(38); }
         if (!cv.area.empty()) { T(c, x0, y + K(10), cv.area, K(14), GlassHint, false, false); y += K(22); }
         if (!cv.map.empty() && cv.mapW > 0 && cv.mapH > 0 && bottom - y > K(60))
         {
@@ -2083,7 +2104,9 @@ inline void Menu::DrawSettings(Canvas& c, const std::string& title, const std::s
         }
     }
     const int pad = K(20), innerW = pvW - 2 * pad;
-    const std::string name = it.kind == K_BACK ? std::string("BACK") : it.label;
+    // (A Pokedex entry's card: its name over it, whichever of its rows is chosen.)
+    const bool dexCard = it.preview == P_CDEXMON && it.choice >= 0 && it.choice < (int)companion.dex.size() && !companion.dex[it.choice].hidden;
+    const std::string name = it.kind == K_BACK ? std::string("BACK") : dexCard ? companion.dex[it.choice].name : it.label;
     const std::string desc = it.kind == K_BACK ? std::string("Back to the page before.") : Sentence(it.desc);
     // (A long name, as GUIDE's questions: on two lines, the rest moved down.)
     const float pf = touchRows > 0 ? 1.22f : 1.0f; // (a phone: the preview's writing bigger)
@@ -2181,7 +2204,7 @@ inline void Menu::DrawSettings(Canvas& c, const std::string& title, const std::s
         ItemSummary(c, companion, companion.bag[it.choice], pvX + pad, regionTop, innerW, regionBottom, k);
     else if ((it.preview == P_CPARTY || it.preview == P_CBAG || it.preview == P_CDEX || it.preview == P_CPLACE) &&
              CompanionPicture(c, companion, it.preview, pvX + pad, regionTop, innerW, regionBottom, k,
-                              it.kind == K_PICKER ? it.choice : -1, it.kind == K_PICKER ? &pickRects : nullptr))
+                              it.kind == K_PICKER ? it.choice : -1, it.kind == K_PICKER ? &pickRects : nullptr, it.label))
     {
     }
     else if (it.preview == P_TOUCH && regionBottom - regionTop > K(60))

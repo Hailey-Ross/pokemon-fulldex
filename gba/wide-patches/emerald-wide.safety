@@ -12,6 +12,7 @@ call 0003574 2 EE6EB441 RemoveWindow
 call 0003658 2 D5ED2C0A CopyWindowToVram
 call 000378C 2 B01047AD PutWindowTilemap
 call 0003C48 2 2594630F FillWindowPixelBuffer
+call 000414C 2 FAD255FC GetWindowAttribute
 call 0006E48 2 EE6EB441 CreateSpriteAtEnd
 call 00070E8 2 EE6EB441 DestroySprite
 call 0007188 2 FAD255FC LoadOam
@@ -76,6 +77,7 @@ same 01961F0 82 92FAC707 MatchCall_DrawWindow
 call 019645C 2 EE6EB441 DrawMatchCallTextBoxBorder_Internal
 same 0196694 7C D1334F6E Task_SpinPokenavIcon
 call 01971D0 2 FAD255FC InitStandardTextBoxWindows
+call 0197A08 2 20C5EA1C GetStartMenuWindowId
 call 0199A44 2 D5ED2C0A FreeTempTileDataBuffersIfPossible
 call 0199A90 2 EE6EB441 DecompressAndCopyTileDataToVram
 call 01A9E40 2 FAD255FC CurrentBattlePyramidLocation
@@ -104,4 +106,4 @@ same 060EA6C 100 DF75F8E7 sMatchCallWindow_Gfx
 same 060EB6C 20 FDAF6DD1 sPokenavIcon_Pal
 same 060EB8C 3E4 69A8BE36 sPokenavIcon_Gfx
 same 060EF98 8 FD23ADCD sMatchCallTextWindow
-free 0F00000 1E38
+free 0F00000 1ED0

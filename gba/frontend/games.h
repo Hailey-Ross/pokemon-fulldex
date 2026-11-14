@@ -92,8 +92,41 @@ inline std::string Sha1(const std::vector<uint8_t>& data)
 }
 
 // An IPS patch onto data (strictly: false if it is cut short or not an IPS patch).
+// IPS32: the same with 4-byte offsets ("IPS32" ... "EEOF"), for patches placed past 16 MB in a
+// 32 MB hack that has no free space below (Inclement Emerald, Monomyth).
+inline bool ApplyIps32(std::vector<uint8_t>& rom, const uint8_t* p, size_t n)
+{
+    size_t i = 5;
+    while (i + 4 <= n)
+    {
+        if (!memcmp(p + i, "EEOF", 4) && i + 4 == n) return true;
+        const size_t off = (size_t)p[i] << 24 | (size_t)p[i + 1] << 16 | (size_t)p[i + 2] << 8 | p[i + 3];
+        i += 4;
+        if (i + 2 > n) return false;
+        size_t len = (size_t)(p[i] << 8 | p[i + 1]);
+        i += 2;
+        if (len)
+        {
+            if (i + len > n || off + len > (64u << 20)) return false;
+            if (off + len > rom.size()) rom.resize(off + len, 0);
+            memcpy(rom.data() + off, p + i, len);
+            i += len;
+        }
+        else
+        {
+            if (i + 3 > n) return false;
+            len = (size_t)(p[i] << 8 | p[i + 1]);
+            if (off + len > (64u << 20)) return false;
+            if (off + len > rom.size()) rom.resize(off + len, 0);
+            memset(rom.data() + off, p[i + 2], len);
+            i += 3;
+        }
+    }
+    return false;
+}
 inline bool ApplyIps(std::vector<uint8_t>& rom, const uint8_t* p, size_t n)
 {
+    if (n >= 9 && !memcmp(p, "IPS32", 5)) return ApplyIps32(rom, p, n);
     if (n < 8 || memcmp(p, "PATCH", 5)) return false;
     size_t i = 5;
     while (i + 3 <= n)
@@ -152,7 +185,7 @@ inline bool ApplyPatch(std::vector<uint8_t>& rom, const std::vector<uint8_t>& p,
     }
     return true;
 }
-inline bool FormatIsIps(const std::vector<uint8_t>& p) { return p.size() >= 5 && !memcmp(p.data(), "PATCH", 5); }
+inline bool FormatIsIps(const std::vector<uint8_t>& p) { return p.size() >= 5 && (!memcmp(p.data(), "PATCH", 5) || !memcmp(p.data(), "IPS32", 5)); }
 inline bool IsPatchFile(const std::string& n)
 {
 #ifdef GBAW_ROMHACKS
@@ -202,6 +235,38 @@ inline bool PatchFits(const std::vector<uint8_t>& rom, const WidePatch& patch, s
     return true;
 }
 
+// Why a hack can't take its game's widescreen patch even when tried anyway, or "" if it can be
+// tried: the patch's code calls the game's own functions where they are in the original (its
+// .safety list's call lines), and is written into space left free (its free lines). A hack
+// that moved those functions (one rebuilt from the decompilation, as Emerald Legacy is) or put
+// something of its own in that space would have its code or data overwritten, or the patch
+// would call into the middle of something else: Emerald Legacy froze after the professor's
+// introduction, its sound stuck (#163). A hack that only changed functions the patch replaces
+// (its same lines) is still tried.
+inline std::string PatchCantTry(const std::vector<uint8_t>& rom, const WidePatch& patch)
+{
+    const char* s = patch.safety;
+    while (*s)
+    {
+        const char* end = strchr(s, '\n');
+        const std::string line(s, end ? end - s : strlen(s));
+        s = end ? end + 1 : s + line.size();
+        char kind[8] = {};
+        unsigned off = 0, size = 0, crc = 0;
+        const int got = sscanf(line.c_str(), "%7s %x %x %x", kind, &off, &size, &crc);
+        if (got < 3) continue;
+        if (!strcmp(kind, "free"))
+        {
+            for (unsigned i = 0; i < size && off + i < rom.size(); i++)
+                if (rom[off + i] != 0xFF) return "ITS FREE SPACE IS IN USE";
+        }
+        else if (!strcmp(kind, "call") && got >= 4 &&
+                 ((size_t)off + size > rom.size() || doCrc32(rom.data() + off, size) != crc))
+            return "ITS CODE IS ARRANGED DIFFERENTLY";
+    }
+    return "";
+}
+
 // The games this program knows by their exact ROM.
 struct Known
 {
@@ -241,6 +306,20 @@ inline const std::vector<Known>& KnownGames()
         { "0fe9ad1e602e2fafa090aee25e43d6980625173c", "sapphirees", "POKEMON ZAFIRO", "sapphirees", 0xFF2452B0, "sapphire" },
         { "73edf67b9b82ff12795622dca412733755d2c0fe", "sapphireit", "POKEMON ZAFFIRO", "sapphireit", 0xFF2452B0, "sapphire" },
         { "01f509671445965236ac4c6b5a354fe2f1e69f13", "sapphirejp", "POCKET MONSTERS SAPPHIRE", "sapphirejp", 0xFF2452B0, "sapphire" },
+        // (Emerald's, FireRed's and LeafGreen's other languages, #161: their own saves too)
+        { "ca666651374d89ca439007bed54d839eb7bd14d0", "emeraldfr", "POKEMON EMERAUDE", "emeraldfr", 0xFF1E8C55, "emerald" },
+        { "61c2eb2b380b1a75f0c94b767a2d4c26cd7ce4e3", "emeraldde", "POKEMON SMARAGD", "emeraldde", 0xFF1E8C55, "emerald" },
+        { "fe1558a3dcb0360ab558969e09b690888b846dd9", "emeraldes", "POKEMON ESMERALDA", "emeraldes", 0xFF1E8C55, "emerald" },
+        { "1692db322400c3141c5de2db38469913ceb1f4d4", "emeraldit", "POKEMON SMERALDO", "emeraldit", 0xFF1E8C55, "emerald" },
+        { "d7cf8f156ba9c455d164e1ea780a6bf1945465c2", "emeraldjp", "POCKET MONSTERS EMERALD", "emeraldjp", 0xFF1E8C55, "emerald" },
+        { "fc663907256f06a3a09e2d6b967bc9af4919f111", "fireredfr", "POKEMON ROUGE FEU", "fireredfr", 0xFFC8382A, "firered" },
+        { "18a3758ceeef2c77b315144be2c3910d6f1f69fe", "fireredde", "POKEMON FEUERROT", "fireredde", 0xFFC8382A, "firered" },
+        { "ab8f6bfe0ccdaf41188cd015c8c74c314d02296a", "fireredes", "POKEMON ROJO FUEGO", "fireredes", 0xFFC8382A, "firered" },
+        { "66a9d415205321376b4318534c0dce5f69d28362", "fireredit", "POKEMON ROSSO FUOCO", "fireredit", 0xFFC8382A, "firered" },
+        { "4b5758c14d0a07b70ef3ef0bd7fa5e7ce6978672", "leafgreenfr", "POKEMON VERT FEUILLE", "leafgreenfr", 0xFF4FA83A, "leafgreen" },
+        { "0802d1fb185ee3ed48d9a22afb25e66424076dac", "leafgreende", "POKEMON BLATTGRUN", "leafgreende", 0xFF4FA83A, "leafgreen" },
+        { "f9ebee5d228cb695f18ef2ced41630a09fa9eb05", "leafgreenes", "POKEMON VERDE HOJA", "leafgreenes", 0xFF4FA83A, "leafgreen" },
+        { "a1dfea1493d26d1f024be8ba1de3d193fcfc651e", "leafgreenit", "POKEMON VERDE FOGLIA", "leafgreenit", 0xFF4FA83A, "leafgreen" },
     };
     return k;
 }
@@ -276,6 +355,20 @@ inline const char* PatchForCode(const std::string& code)
     if (code == "AXPI") return "sapphireit";
     if (code == "AXPJ") return "sapphirejp";
     if (code == "BPGE") return "leafgreen";
+    // (Other languages, #161. Not Japanese FireRed and LeafGreen: their code is too different.)
+    if (code == "BPEF") return "emeraldfr";
+    if (code == "BPED") return "emeraldde";
+    if (code == "BPES") return "emeraldes";
+    if (code == "BPEI") return "emeraldit";
+    if (code == "BPEJ") return "emeraldjp";
+    if (code == "BPRF") return "fireredfr";
+    if (code == "BPRD") return "fireredde";
+    if (code == "BPRS") return "fireredes";
+    if (code == "BPRI") return "fireredit";
+    if (code == "BPGF") return "leafgreenfr";
+    if (code == "BPGD") return "leafgreende";
+    if (code == "BPGS") return "leafgreenes";
+    if (code == "BPGI") return "leafgreenit";
     return nullptr;
 }
 // The same for a ROM of that code and version (header 0xBC): the patch for its own version where
@@ -361,7 +454,7 @@ inline void Identify(Game& g, const std::vector<uint8_t>& rom)
         if (PatchFits(rom, p, why))
         {
             g.patch = p.name;
-            g.colour = !strcmp(p.name, "emerald") ? 0xFF2A6E50 : !strncmp(p.name, "leafgreen", 9) ? 0xFF3E7A34
+            g.colour = !strcmp(p.name, "emerald") || !strcmp(p.name, "emeraldlegacy") || !strcmp(p.name, "inclement") || !strcmp(p.name, "monomyth") ? 0xFF2A6E50 : !strncmp(p.name, "leafgreen", 9) ? 0xFF3E7A34
                      : !strncmp(p.name, "sapphire", 8) ? 0xFF2A4A8A : 0xFF8A3A30;
             return;
         }
@@ -374,8 +467,11 @@ inline void Identify(Game& g, const std::vector<uint8_t>& rom)
         PatchFits(rom, *p, why);
         g.why = why;
         // A hack of one of the games (its code kept): widescreen tried anyway, its patch put on
-        // over what the hack changed. (Not when the ROM is too small for it.)
-        if (why != "TOO SMALL")
+        // over what the hack changed. (Not when the ROM is too small for it, nor when the hack
+        // has moved what the patch needs: PatchCantTry. It plays as it is.)
+        const std::string cant = why == "TOO SMALL" ? std::string() : PatchCantTry(rom, *p);
+        if (!cant.empty()) g.why = cant;
+        else if (why != "TOO SMALL")
         {
             g.patch = p->name;
             g.forced = true;
@@ -422,7 +518,9 @@ struct ScanCache
                 if (t == std::string::npos) break;
                 a = t + 1;
             }
-            if (f.size() != 12) continue; // (an older list's lines: looked at again)
+            // (An older list's lines: looked at again. 13 fields since #163: a hack using the
+            // widescreen patch's space is no longer listed as one to try widescreen on.)
+            if (f.size() != 13 || f[12] != "3") continue;
             Game g;
             g.rom = f[1];
             g.ips = f[2];
@@ -476,7 +574,7 @@ struct ScanCache
             snprintf(colour, sizeof colour, "%08X", (unsigned)g.colour);
             out += clean(e.first) + "\t" + clean(g.rom) + "\t" + clean(g.ips) + "\t" + clean(g.fileName) + "\t" + clean(g.key) +
                    "\t" + clean(g.name) + "\t" + g.sha1 + "\t" + g.patch + "\t" + clean(g.why) + "\t" + colour + "\t" +
-                   (g.known ? "1" : "0") + "\t" + (g.forced ? "1" : "0") + "\n";
+                   (g.known ? "1" : "0") + "\t" + (g.forced ? "1" : "0") + "\t3\n";
         }
         WriteFile(path, std::vector<uint8_t>(out.begin(), out.end()));
         changed = false;

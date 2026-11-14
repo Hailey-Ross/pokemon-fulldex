@@ -237,8 +237,11 @@ inline std::string Title(const std::string& s)
         for (char ch : word) if (ch >= 'a' && ch <= 'z') hasLower = true;
         if (!word.empty() && !hasLower)
         {
+            // (A name kept in capitals stays so before a mark: "HM?", "TM,".)
+            size_t core = word.size();
+            while (core > 0 && (word[core - 1] == '?' || word[core - 1] == '!' || word[core - 1] == '.' || word[core - 1] == ',' || word[core - 1] == ';')) core--;
             bool kept = false;
-            for (const char* k : keep) if (word == k) kept = true;
+            for (const char* k : keep) if (word.compare(0, core, k) == 0 && std::char_traits<char>::length(k) == core) kept = true;
             bool digits = false;
             for (char ch : word) if (ch >= '0' && ch <= '9') digits = true;
             if (word == "POKEMON") word = "Pokémon";

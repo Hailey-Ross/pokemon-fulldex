@@ -82,6 +82,7 @@ public class GameActivity extends SDLActivity {
         try { startupTrace("Memory page size " + Os.sysconf(OsConstants._SC_PAGESIZE), true); }
         catch (Exception ignored) { }
         // SDL treats URI paths as local files. Resolve granted document URIs ourselves instead.
+        if (getIntent() != null && getIntent().hasExtra(EXTRA_GAME)) startupGame = getIntent().getStringExtra(EXTRA_GAME);
         if (isRomIntent(getIntent())) {
             startupRomIntent = new Intent(getIntent());
             Intent clean = new Intent(getIntent()); clean.setData(null); setIntent(clean);
@@ -125,8 +126,14 @@ public class GameActivity extends SDLActivity {
         }
     }
 
+    // A home-screen shortcut for one game (pinShortcut): its game code, started without the list.
+    static final String EXTRA_GAME = "io.github.mamesj.pokemonds.GAME";
+    private String startupGame;
+
     @Override protected String[] getArguments() {
         // SDL calls this on its main/native thread, not Android's UI thread.
+        String game = startupGame; startupGame = null;
+        if (game != null && !game.isEmpty()) return new String[] { "--game", game };
         Intent launch = startupRomIntent; startupRomIntent = null;
         if (launch != null) {
             openingRom.set(true);
@@ -138,6 +145,17 @@ public class GameActivity extends SDLActivity {
     }
 
     @Override protected void onNewIntent(Intent intent) {
+        // A game's home-screen shortcut while the app is already open: on the list, the app starts
+        // again straight into that game (as a fresh start would); in a game, it stays in that game.
+        if (intent != null && intent.hasExtra(EXTRA_GAME)) {
+            if (playingGame) { romMessage("Quit the current game before starting another."); return; }
+            Intent again = new Intent(this, Restart.class);
+            again.putExtra("pid", Process.myPid());
+            again.putExtra(EXTRA_GAME, intent.getStringExtra(EXTRA_GAME));
+            again.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(again);
+            return;
+        }
         Intent clean = new Intent(intent); clean.setData(null);
         super.onNewIntent(clean); setIntent(clean);
         if (!isRomIntent(intent)) return;
@@ -527,6 +545,38 @@ public class GameActivity extends SDLActivity {
             catch (Exception error) { Log.w(TAG, "No file picker for the game code", error); }
         });
     }
+    // ADD TO PHONE HOME SCREEN (a game's menu): a shortcut that starts that game, with its picture
+    // (iconPath: the list's picture as raw pixels, 4-byte width and height then ARGB, written by
+    // pc_launcher.cpp). Android asks the player to confirm where it goes. Android 8 and later.
+    public static boolean pinShortcut(String code, String label, String iconPath) {
+        if (self == null || Build.VERSION.SDK_INT < 26) return false;
+        try {
+            android.content.pm.ShortcutManager sm = self.getSystemService(android.content.pm.ShortcutManager.class);
+            if (sm == null || !sm.isRequestPinShortcutSupported()) return false;
+            Intent start = new Intent(self, GameActivity.class);
+            start.setAction(Intent.ACTION_MAIN);
+            start.putExtra(EXTRA_GAME, code);
+            start.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            android.content.pm.ShortcutInfo.Builder b = new android.content.pm.ShortcutInfo.Builder(self, "game-" + code + "-" + label.hashCode())
+                .setShortLabel(label.length() > 24 ? label.substring(0, 24) : label).setLongLabel(label).setIntent(start);
+            android.graphics.Bitmap icon = readIcon(iconPath);
+            if (icon != null) b.setIcon(android.graphics.drawable.Icon.createWithBitmap(icon));
+            return sm.requestPinShortcut(b.build(), null);
+        } catch (Exception error) {
+            Log.w(TAG, "Could not add the shortcut", error);
+            return false;
+        }
+    }
+    private static android.graphics.Bitmap readIcon(String path) {
+        try (java.io.DataInputStream in = new java.io.DataInputStream(new java.io.FileInputStream(path))) {
+            int w = Integer.reverseBytes(in.readInt()), h = Integer.reverseBytes(in.readInt());
+            if (w <= 0 || h <= 0 || w > 1024 || h > 1024) return null;
+            int[] px = new int[w * h];
+            for (int i = 0; i < px.length; i++) px[i] = Integer.reverseBytes(in.readInt());
+            return android.graphics.Bitmap.createBitmap(px, w, h, android.graphics.Bitmap.Config.ARGB_8888);
+        } catch (Exception error) { return null; }
+    }
+
     public static void threeDsPlay(String id) {
         if (self == null) return;
         playing3ds = id;

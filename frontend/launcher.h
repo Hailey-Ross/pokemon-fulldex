@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <climits>
 #include <filesystem>
+#include "regional_profiles.h"
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -307,19 +308,23 @@ struct GlassFocus { int side = -1; int banner = 0; int popup = -1; int popX = 0,
                     // (The settings drawn as a page: its title; where its list and preview go, for the menu.)
                     std::string pageTitle; int sX = 0, sY = 0, sW = 0, sH = 0, sListW = 0, sPvX = 0, sListH = 0, sPvY = 0, pdY = 0, dScroll = 0, dMax = 0; };
 inline GlassFocus& Focus() { static GlassFocus f; return f; }
+#ifdef __ANDROID__
+inline int PopupCount() { return 8; } // (Android: Add To Phone Home Screen as well)
+#else
 inline int PopupCount() { return 7; }
+#endif
 // The game's menu in the order shown: Play, Manage Saves, Add To Home, Rename, Change Picture, Add To
 // Tab, Remove Game (row -> what it is, PopupLabel's numbers).
-inline int PopupItem(int row) { static const int order[] = { 0, 4, 1, 2, 3, 5, 6 }; return row >= 0 && row < 7 ? order[row] : row; }
+inline int PopupItem(int row) { static const int order[] = { 0, 4, 1, 7, 2, 3, 5, 6 }; return row >= 0 && row < PopupCount() ? (PopupCount() == 8 ? order[row] : order[row < 3 ? row : row + 1]) : row; }
 inline std::string PopupLabel(const Game& g, int i)
 {
-    static const char* n[] = { "Play", "", "Rename", "Change Picture", "Manage Saves", "Add To Tab", "Remove Game" };
+    static const char* n[] = { "Play", "", "Rename", "Change Picture", "Manage Saves", "Add To Tab", "Remove Game", "Add To Phone Home Screen" };
 #ifdef __ANDROID__
     // (A 3DS game inside the app: its game code, from a PC's FullDex Builder or built on the phone.)
     if (g.platform == N3DS && i == 3) return "Use Game Code From PC";
     if (g.platform == N3DS && i == 4) return g.built ? "Game Code Built" : "Build For Best Speed (25 Min)";
 #endif
-    return i == 1 ? (g.favourite ? "Remove From Home" : "Add To Home") : i >= 0 && i < 7 ? n[i] : "";
+    return i == 1 ? (g.favourite ? "Remove From Home" : "Add To Home") : i >= 0 && i < 8 ? n[i] : "";
 }
 // The pause menu's keyboard page (Menu::keyGrid) for Rename: BACK, four rows of keys (capitals, small
 // letters or signs: layer), then the two layer keys, SPACE, DELETE and done. ids: each item's key.
@@ -1069,7 +1074,51 @@ inline void ConfirmHack(std::vector<Game>& games, size_t index, const std::strin
     if (!k) return;
     RomHacks::Cache cache;
     cache.Load(cacheFolder + "/rom-check.txt");
-    const bool hack = RomHacks::CheckDs(g.rom, g.code, cache, true) == RomHacks::Kind::Modified;
+    bool hack = RomHacks::CheckDs(g.rom, g.code, cache, true) == RomHacks::Kind::Modified;
+    // A regional release (Japanese, Korean, German, Italian ...) plays only as its validated dump:
+    // a hack of one that kept its quick fingerprint (HeartGold Origins, IPKJ, #134) was refused at
+    // the start with "has not been validated". Checked whole here, it plays as a hack instead.
+    const std::string regionalKey = RomHacks::Cache::Key(g.rom, "regional-v1");
+    std::string regionalVerdict;
+    if (!hack && cache.Get(regionalKey, regionalVerdict)) hack = regionalVerdict == "modified";
+    else if (!hack)
+        if (const RegionalProfiles::Profile* p = RegionalProfiles::Find(g.code.c_str()))
+        {
+            // (Read in pieces, not whole: Black 2 is 512 MB, more than a Switch can spare.)
+            if (FILE* f = fopen(g.rom.c_str(), "rb"))
+            {
+                fseek(f, 0, SEEK_END);
+                const long n = ftell(f);
+                fseek(f, 0, SEEK_SET);
+                if (n > 0 && (size_t)n != p->bytes) hack = true;
+                else if (n > 0)
+                {
+                    std::vector<uint8_t> buf(1 << 20);
+                    SHA1_CTX ctx;
+                    SHA1Init(&ctx);
+                    bool header = true, ok = true;
+                    size_t got;
+                    while ((got = fread(buf.data(), 1, buf.size(), f)) > 0)
+                    {
+                        if (header && (got < 0x20 || memcmp(buf.data() + 12, p->code, 4) != 0 || buf[30] != p->revision)) { ok = false; break; }
+                        header = false;
+                        SHA1Update(&ctx, buf.data(), (uint32_t)got);
+                    }
+                    if (ok)
+                    {
+                        unsigned char bytes[20];
+                        SHA1Final(bytes, &ctx);
+                        char digest[41] = {};
+                        static const char hex[] = "0123456789abcdef";
+                        for (int i = 0; i < 20; i++) { digest[2 * i] = hex[bytes[i] >> 4]; digest[2 * i + 1] = hex[bytes[i] & 15]; }
+                        hack = strcmp(digest, p->sha1) != 0;
+                    }
+                    else hack = true;
+                }
+                fclose(f);
+                cache.Put(regionalKey, hack ? "modified" : "clean");
+            }
+        }
     cache.Save(false);
     if (!hack) return;
     g.hack = true;
@@ -3301,6 +3350,7 @@ inline bool HubEnter(int row)
     if (row == 0) { HubMode() = 1; F.prow = 0; }
     else if (row == 2) { HubMode() = 2; F.prow = 2; }
     else if (row == 3) return false; // (Discord: a link, nothing to open here)
+    else if (row == 4) { HubMode() = 4; F.prow = 0; } // (COMBINED POKEDEX)
     else { MoverShow(true); F.prow = MOVER_FIRST; }
     F.pact = -1; F.rScroll = 0;
     Hub().version++;
@@ -4399,13 +4449,30 @@ inline int ThemePick(const std::string& pick)
 // (The Fulldex Discord: people to trade with, help, news. The Hub's last row.)
 static const char* const kDiscordUrl = "https://discord.gg/pnGeMYyJR";
 static const char* const kReleasesUrl = "https://github.com/mamesj/pokemon-fulldex/releases";
-inline int HubRows() { return Mover().open ? MoverRows() : HubMode() == 0 ? 4 : HubMode() == 2 ? TradeRows() : HubMode() == 3 ? SavesRows() : HUB_FIRST + (int)HubGames().size(); }
+#ifdef SSR_POKEMON_HUB
+inline int DexPageRows(); // (dex_page.h)
+#endif
+inline int HubTopRows()
+{
+#ifdef SSR_POKEMON_HUB
+    return 5; // (and COMBINED POKEDEX, #165)
+#else
+    return 4;
+#endif
+}
+inline int HubRows()
+{
+#ifdef SSR_POKEMON_HUB
+    if (!Mover().open && HubMode() == 4) return DexPageRows();
+#endif
+    return Mover().open ? MoverRows() : HubMode() == 0 ? HubTopRows() : HubMode() == 2 ? TradeRows() : HubMode() == 3 ? SavesRows() : HUB_FIRST + (int)HubGames().size();
+}
 inline std::vector<std::string> HubActions(int row)
 {
     if (Mover().open) return MoverActions(row);
     if (HubMode() == 2) return TradeActions(row);
     if (HubMode() == 3) return SavesDs() ? std::vector<std::string>(10, "Slot") : std::vector<std::string>(); // (Manage Saves: its slots)
-    if (HubMode() == 0) return {};
+    if (HubMode() == 0 || HubMode() == 4) return {};
     HubLoad();
     const std::vector<HubGame> games = HubGames();
     HubState& h = Hub();
@@ -4642,6 +4709,7 @@ inline void OpenSupportAsk()
     F.dPaths = { "#open:https://buymeacoffee.com/mamesj", "#open:https://paypal.me/mamesj", "#close" };
 }
 #include "saves_page.h"
+#include "dex_page.h" // (COMBINED POKEDEX: the Hub's fifth row)
 inline std::string SavesTitle() { return LauncherText::Tr("Manage Saves") + "   \xC2\xB7   " + Saves().name; }
 inline int PageRows(int page) { return page == SIDE_LAUNCHER ? LauncherRows() : page == SIDE_ABOUT ? 5 : page == SIDE_ROMS ? std::max(1, (int)RomList().size()) : page == SIDE_HUB ? HubRows() : 0; }
 // The cards of the About page that open a page when tapped, as drawn (cleared each frame it is drawn).
@@ -4773,7 +4841,7 @@ inline bool PageBack()
     if (F.page == SIDE_HUB && F.side < 0 && F.pact < 0 && Mover().open && Mover().swapping) { Mover().swapping = false; Mover().put = -1; Mover().msg.clear(); Hub().version++; return true; }
     if (F.page == SIDE_HUB && F.side < 0 && F.pact < 0 && Mover().open) { MoverShow(false); HubMode() = 0; F.prow = 1; F.rScroll = 0; return true; }
     if (F.page == SIDE_HUB && F.side < 0 && F.pact < 0 && HubMode() == 2) { HubLink::Leave(); HubMode() = 0; F.prow = 2; F.rScroll = 0; Hub().version++; return true; }
-    if (F.page == SIDE_HUB && F.side < 0 && F.pact < 0 && HubMode() != 0) { HubMode() = 0; F.prow = 0; F.rScroll = 0; Hub().version++; return true; }
+    if (F.page == SIDE_HUB && F.side < 0 && F.pact < 0 && HubMode() != 0) { F.prow = HubMode() == 4 ? 4 : 0; HubMode() = 0; F.rScroll = 0; Hub().version++; return true; }
     if ((F.page == SIDE_ROMS || F.page == SIDE_HUB) && F.side < 0 && F.pact >= 0) { F.pact = -1; return true; }
     if (TilesOn()) { const int pg = F.page; F.page = -1; F.side = pg; return true; } // (the window closed: back on the tile that opened it)
     if (F.side < 0) F.side = F.page;
@@ -5051,7 +5119,7 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
     const int barH = portP ? (int)(44 * u) : sp.tabsY * 2 + sp.tabsH;
     const int L = sp.bannerX, R = sp.bannerX + sp.bannerW, top = sp.pageTop > 0 ? sp.pageTop : barH + (int)((portP ? 10 : 18) * u), bottom = sp.pageBottom > 0 ? sp.pageBottom : PhoneLook() && c.h > c.w && sp.navY > 0 ? sp.navY - (int)(12 * u) : c.h - (int)((ShortNow() ? 14 : 64) * u); // (a phone sideways: the panels run to the foot of the screen, the back button is in the bar)
     const float titleY = sp.pageTitleY > 0 ? (float)sp.pageTitleY : barH * 0.5f;
-    GT(c, sp.tabsX + (int)(6 * u), titleY, F.page == SIDE_ROMS ? "ROMs" : F.page == SIDE_HUB ? (Mover().open ? "Move Pok\xC3\xA9mon" : HubMode() == 1 ? "Cloud Saves" : HubMode() == 2 ? "Trade" : HubMode() == 3 ? SavesTitle() : std::string("Hub")) : F.page == SIDE_SETTINGS ? (F.pageTitle.empty() ? std::string("Settings") : F.pageTitle) : F.page == SIDE_LAUNCHER ? (LauncherMode() == 1 ? "Theme Editor" : LauncherMode() == 2 ? "My Themes" : LauncherMode() == 3 ? "Theme Library" : LauncherMode() == 5 ? "Theme Gallery" : LauncherMode() == 4 ? "Font" : "Launcher") : "About", 26 * u, text, true);
+    GT(c, sp.tabsX + (int)(6 * u), titleY, F.page == SIDE_ROMS ? "ROMs" : F.page == SIDE_HUB ? (Mover().open ? "Move Pok\xC3\xA9mon" : HubMode() == 1 ? "Cloud Saves" : HubMode() == 2 ? "Trade" : HubMode() == 3 ? SavesTitle() : HubMode() == 4 ? std::string("Pok\xC3\xA9" "dex") : std::string("Hub")) : F.page == SIDE_SETTINGS ? (F.pageTitle.empty() ? std::string("Settings") : F.pageTitle) : F.page == SIDE_LAUNCHER ? (LauncherMode() == 1 ? "Theme Editor" : LauncherMode() == 2 ? "My Themes" : LauncherMode() == 3 ? "Theme Library" : LauncherMode() == 5 ? "Theme Gallery" : LauncherMode() == 4 ? "Font" : "Launcher") : "About", 26 * u, text, true);
     const std::string where = std::string("Fulldex   \xC2\xB7   ") + PlatformLabel();
     if (!ShortNow() && !portP) GT(c, R - GW(where, 16 * u, true), titleY, where, 16 * u, hint, true);
     if (F.page == SIDE_ROMS)
@@ -5148,8 +5216,15 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
         const int dTopC = dTopP - (stkP ? F.dScroll : 0);
         ClipGuard clipG(c, F, stkP ? dTopP : 0, stkP ? bottom : c.h, (int)(16 * u));
         F.aW = 0;
-        const int ix = dx + (int)(18 * u), iw = rw - (int)(36 * u), ps = (int)(110 * u);
+        const int ix = dx + (int)(18 * u), iw = rw - (int)(36 * u);
         int y = dTopC + (int)(18 * u);
+        // (A short panel, as on a 4:3 screen: the cover smaller and the details' second row left out,
+        // so nothing runs under the buttons at the foot, #144.)
+        const bool upright = PhoneLook() && c.h > c.w;
+        const int actTop = bottom - (int)(18 * u) - RomActions() * (int)(44 * u) - (RomActions() - 1) * (int)(6 * u) - (int)(8 * u);
+        const int room = upright ? 1 << 30 : actTop - y;
+        const int ps = std::clamp(room - (int)(22 * u) - 2 * (int)(48 * u) - (int)(10 * u), (int)(92 * u), (int)(110 * u)); // (92: the name, platform and status beside it)
+        const int cellRows = upright || ps + (int)(22 * u) + 2 * (int)(48 * u) <= room ? 2 : 1;
         if (n > 0)
         {
             const Game& g = roms[F.prow];
@@ -5168,13 +5243,15 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
             else snprintf(size, sizeof size, "-");
             const std::string cells[4][2] = { { "Size", size }, { "Save", g.hasSave ? "Found" : "None Yet" },
                                               { "Game Code", g.code.empty() ? "-" : g.code }, { "Save File", g.saveName.empty() ? "-" : g.saveName } };
-            for (int i = 0; i < 4; i++)
+            // (One row only: the four side by side when the panel is wide enough, else the first two.)
+            const int cols = cellRows == 1 && iw >= (int)(4 * 96 * u) ? 4 : 2;
+            for (int i = 0; i < std::min(4, cols * cellRows); i++)
             {
-                const int cx = ix + (i % 2) * (iw / 2), cy = y + (i / 2) * (int)(48 * u);
+                const int cx = ix + (i % cols) * (iw / cols), cy = y + (i / cols) * (int)(48 * u);
                 GT(c, cx, cy + 8 * u, cells[i][0], 12 * u, hint, true);
-                GT(c, cx, cy + 28 * u, fit(cells[i][1], 15 * u, true, iw / 2 - (int)(8 * u)), 15 * u, text, true);
+                GT(c, cx, cy + 28 * u, fit(cells[i][1], 15 * u, true, iw / cols - (int)(8 * u)), 15 * u, text, true);
             }
-            y += 2 * (int)(48 * u) + (int)(10 * u);
+            y += cellRows * (int)(48 * u) + (int)(10 * u);
             const int yLim = bottom - (int)(18 * u) - RomActions() * (int)(44 * u) - (RomActions() - 1) * (int)(6 * u) - (int)(8 * u);
             if (y + (int)(40 * u) < yLim)
             {
@@ -5238,7 +5315,7 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
             F.sX = L; F.sY = top; F.sW = R - L; F.sH = bottom - top; F.sListW = R - L; F.sPvX = L; F.sListH = lh; F.sPvY = top + lh + gap;
             return;
         }
-        const int rw = (int)(400 * u), lw2 = R - L - rw - gap;
+        const int rw = std::min((int)(400 * u), (R - L - gap) * 45 / 100), lw2 = R - L - rw - gap; // (a 4:3 screen: the rows keep room, #144)
         Menu::FrostBox(c, solid, L, top, lw2, bottom - top, 18 * u);
         F.sX = L; F.sY = top; F.sW = R - L; F.sH = bottom - top; F.sListW = lw2; F.sPvX = R - rw; F.sListH = 0; F.sPvY = 0;
         return;
@@ -5279,7 +5356,7 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
         const std::vector<int> mons;
 #endif
         const int n = TradeRows();
-        const bool stkP = PhoneLook() && c.h > c.w; const int rw = stkP ? R - L : (int)(380 * u), gap = (int)(18 * u), lw2 = stkP ? R - L : R - L - rw - gap, lhP = stkP ? (int)((bottom - top) * 0.55f) : bottom - top, dTopP = stkP ? top + lhP + gap : top, dHP = stkP ? bottom - dTopP : bottom - top, pad = (int)(12 * u);
+        const bool stkP = PhoneLook() && c.h > c.w; const int gap = (int)(18 * u), rw = stkP ? R - L : std::min((int)(380 * u), (R - L - gap) * 45 / 100), lw2 = stkP ? R - L : R - L - rw - gap, lhP = stkP ? (int)((bottom - top) * 0.55f) : bottom - top, dTopP = stkP ? top + lhP + gap : top, dHP = stkP ? bottom - dTopP : bottom - top, pad = (int)(12 * u);
         const int rowH = (int)(46 * u), rg = (int)(6 * u);
         Menu::FrostBox(c, solid, L, top, lw2, lhP, 18 * u);
         const int vis = std::max(1, ( lhP - 2 * pad + rg) / (rowH + rg));
@@ -5654,7 +5731,7 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
         {
             // Its menu, or My Themes: rows, and right of them what the chosen one is (a theme: its picture).
             ThemeState& ts = Themes();
-            const bool stkP = PhoneLook() && c.h > c.w; const int rw = stkP ? R - L : (int)(400 * u), gap = (int)(18 * u), lw2 = stkP ? R - L : R - L - rw - gap, lhP = stkP ? (int)((bottom - top) * 0.55f) : bottom - top, dTopP = stkP ? top + lhP + gap : top, dHP = stkP ? bottom - dTopP : bottom - top, pad = (int)(14 * u);
+            const bool stkP = PhoneLook() && c.h > c.w; const int gap = (int)(18 * u), rw = stkP ? R - L : std::min((int)(400 * u), (R - L - gap) * 45 / 100), /* (a 4:3 screen: the rows keep room, #144) */ lw2 = stkP ? R - L : R - L - rw - gap, lhP = stkP ? (int)((bottom - top) * 0.55f) : bottom - top, dTopP = stkP ? top + lhP + gap : top, dHP = stkP ? bottom - dTopP : bottom - top, pad = (int)(14 * u);
             int rowH = (int)(58 * u), rg = (int)(8 * u);
             const int n = LauncherRows();
             // (The menu's rows all in view when the screen is short, as on a phone held sideways.)
@@ -6043,6 +6120,9 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
         return;
     }
     if (F.page == SIDE_HUB && !Mover().open && HubMode() == 3) { DrawSavesPage(c, solid, u, L, R, top, bottom); return; } // (Manage Saves)
+#ifdef SSR_POKEMON_HUB
+    if (F.page == SIDE_HUB && !Mover().open && HubMode() == 4) { DrawDexPage(c, solid, u, L, R, top, bottom); return; } // (COMBINED POKEDEX)
+#endif
     if (F.page == SIDE_HUB && !Mover().open && HubMode() == 0)
     {
         // The Hub's first page: what it holds, each opened with A.
@@ -6062,8 +6142,8 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
         }
         lk.unlock();
         const int moverGames = (int)MoverGames().size();
-        const bool stkP = PhoneLook() && c.h > c.w; const int rw = stkP ? R - L : (int)(400 * u), gap = (int)(18 * u), lw2 = stkP ? R - L : R - L - rw - gap, lhP = stkP ? (int)((bottom - top) * 0.55f) : bottom - top, dTopP = stkP ? top + lhP + gap : top, dHP = stkP ? bottom - dTopP : bottom - top, pad = (int)(14 * u);
-        const int rowH = (int)(72 * u), rg = (int)(10 * u), n = 4;
+        const bool stkP = PhoneLook() && c.h > c.w; const int gap = (int)(18 * u), rw = stkP ? R - L : std::min((int)(400 * u), (R - L - gap) * 45 / 100), /* (a 4:3 screen: the rows keep room, #144) */ lw2 = stkP ? R - L : R - L - rw - gap, lhP = stkP ? (int)((bottom - top) * 0.55f) : bottom - top, dTopP = stkP ? top + lhP + gap : top, dHP = stkP ? bottom - dTopP : bottom - top, pad = (int)(14 * u);
+        const int n = HubTopRows(), rowH = (int)((n > 4 ? 64 : 72) * u), rg = (int)((n > 4 ? 8 : 10) * u);
         const HubLink::Status link = HubLink::Snapshot();
         Menu::FrostBox(c, solid, L, top, lw2, lhP, 18 * u);
         F.prow = std::max(0, std::min(F.prow, n - 1));
@@ -6106,13 +6186,25 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
                 st = "Join";
                 col = 0xFF8CC8FFu;
             }
+#ifdef SSR_POKEMON_HUB
+            else if (i == 4)
+            {
+                const CombinedDex& dex = DexNow();
+                int seen = 0, caught = 0;
+                DexCount(dex, DexRows()[0], seen, caught);
+                name = "Pok\xC3\xA9" "dex";
+                sub = "All your games' Pok\xC3\xA9" "dexes together";
+                st = std::to_string(caught) + " Caught";
+                col = 0xFF8FE3A2u;
+            }
+#endif
             else
             {
                 name = "Move Pok\xC3\xA9mon";
                 sub = "Between your own games, as a trade would";
                 st = std::to_string(moverGames) + (moverGames == 1 ? " Save" : " Saves");
             }
-            Glass::DrawIcon(c, i == 0 ? Glass::I_GLOBE : i == 2 ? Glass::I_PEOPLE : i == 3 ? Glass::I_CHAT : Glass::I_POKEBALL, rx + 30 * u, mid, 12 * u, text);
+            Glass::DrawIcon(c, i == 0 ? Glass::I_GLOBE : i == 2 ? Glass::I_PEOPLE : i == 3 ? Glass::I_CHAT : i == 4 ? Glass::I_GRID : Glass::I_POKEBALL, rx + 30 * u, mid, 12 * u, text);
             GT(c, rx + (int)(60 * u), mid - 11 * u, name, 18 * u, text, true);
             const int chipW = GW(st, 12 * u, true) + (int)(20 * u), chipX = rx + rww - (int)(46 * u) - chipW;
             GTFit(c, rx + (int)(60 * u), mid + 13 * u, sub, 13 * u, chipX - (rx + (int)(60 * u)) - (int)(12 * u), hint, false);
@@ -6137,7 +6229,7 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
             GT(c, cx, cy + 28 * u, v, 15 * u, text, true);
             (void)cw;
         };
-        GT(c, ix, y + 14 * u, F.prow == 0 ? "Cloud Saves" : F.prow == 2 ? "Trade" : F.prow == 3 ? "Fulldex Discord" : "Move Pok\xC3\xA9mon", 22 * u, text, true);
+        GT(c, ix, y + 14 * u, F.prow == 0 ? "Cloud Saves" : F.prow == 2 ? "Trade" : F.prow == 3 ? "Fulldex Discord" : F.prow == 4 ? "Pok\xC3\xA9" "dex" : "Move Pok\xC3\xA9mon", 22 * u, text, true);
         y += (int)(44 * u);
         if (F.prow == 0)
         {
@@ -6157,6 +6249,20 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
             }
             if (!msg.empty()) para(msg, busy ? 0xFF8CC8FFu : hint, 13 * u);
         }
+#ifdef SSR_POKEMON_HUB
+        else if (F.prow == 4)
+        {
+            const CombinedDex& dex = DexNow();
+            int seen = 0, caught = 0;
+            const DexRegion all = DexRows()[0];
+            DexCount(dex, all, seen, caught);
+            cell(ix, y, iw / 2, "Caught", std::to_string(caught) + " of " + std::to_string(all.last));
+            cell(ix + iw / 2, y, iw / 2, "Seen", std::to_string(seen));
+            y += (int)(60 * u);
+            para("Every Pok\xC3\xA9mon caught or seen in any of your games, in one Pok\xC3\xA9" "dex: the National one and each region's.", text, 14 * u);
+            para(std::to_string(dex.games.size()) + (dex.games.size() == 1 ? " game counted." : " games counted.") + " Open it to see each Pok\xC3\xA9mon.", hint, 13 * u);
+        }
+#endif
         else if (F.prow == 2)
         {
             para("Trade with a friend, online or on the same Wi-Fi, or send Pok\xC3\xA9mon to another of your own devices: a PC and a Switch, say.", text, 14 * u);
@@ -6226,7 +6332,7 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
         const std::vector<int> mons;
 #endif
         const int n = MoverRows();
-        const bool stkP = PhoneLook() && c.h > c.w; const int rw = stkP ? R - L : (int)(360 * u), gap = (int)(18 * u), lw2 = stkP ? R - L : R - L - rw - gap, lhP = stkP ? (int)((bottom - top) * 0.55f) : bottom - top, dTopP = stkP ? top + lhP + gap : top, dHP = stkP ? bottom - dTopP : bottom - top, pad = (int)(12 * u);
+        const bool stkP = PhoneLook() && c.h > c.w; const int gap = (int)(18 * u), rw = stkP ? R - L : std::min((int)(360 * u), (R - L - gap) * 45 / 100), lw2 = stkP ? R - L : R - L - rw - gap, lhP = stkP ? (int)((bottom - top) * 0.55f) : bottom - top, dTopP = stkP ? top + lhP + gap : top, dHP = stkP ? bottom - dTopP : bottom - top, pad = (int)(12 * u);
         const int rowH = (int)(46 * u), rg = (int)(6 * u);
         Menu::FrostBox(c, solid, L, top, lw2, lhP, 18 * u);
         const int vis = std::max(1, ( lhP - 2 * pad + rg) / (rowH + rg));
@@ -6441,7 +6547,7 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
         };
         auto fileOf = [](const std::string& p) { const size_t k = p.find_last_of("/\\"); return k == std::string::npos ? p : p.substr(k + 1); };
         const int n = HUB_FIRST + (int)games.size();
-        const bool stkP = PhoneLook() && c.h > c.w; const int rw = stkP ? R - L : (int)(360 * u), gap = (int)(18 * u), lw2 = stkP ? R - L : R - L - rw - gap, lhP = stkP ? (int)((bottom - top) * 0.55f) : bottom - top, dTopP = stkP ? top + lhP + gap : top, dHP = stkP ? bottom - dTopP : bottom - top, pad = (int)(12 * u);
+        const bool stkP = PhoneLook() && c.h > c.w; const int gap = (int)(18 * u), rw = stkP ? R - L : std::min((int)(360 * u), (R - L - gap) * 45 / 100), lw2 = stkP ? R - L : R - L - rw - gap, lhP = stkP ? (int)((bottom - top) * 0.55f) : bottom - top, dTopP = stkP ? top + lhP + gap : top, dHP = stkP ? bottom - dTopP : bottom - top, pad = (int)(12 * u);
         const int rowH = (int)(46 * u), rg = (int)(6 * u);
         // The list: the account, then each game's save.
         Menu::FrostBox(c, solid, L, top, lw2, lhP, 18 * u);
@@ -6706,7 +6812,9 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
 #ifdef __ANDROID__
         const int qs = 0; // (no QR codes on Android: the links are there to choose)
 #else
-        const int qs = std::max((int)(80 * u), std::min(cw - (int)(60 * u), bottom - ip - (y + (stkA ? F.dScroll : 0) + ch + (int)(14 * u)) - (int)(30 * u)));
+        // (No room for them under the cards, as on a 4:3 screen: the codes left out, the links stay. #144)
+        const int qroom = bottom - ip - (y + (stkA ? F.dScroll : 0) + ch + (int)(14 * u)) - (int)(30 * u);
+        const int qs = qroom < (int)(80 * u) && !stkA ? 0 : std::max((int)(80 * u), std::min(cw - (int)(60 * u), qroom));
 #endif
         const char* names2[2] = { "Buy Me A Coffee", "PayPal" };
         const char* where[2] = { "buymeacoffee.com/mamesj", "paypal.me/mamesj" };
@@ -6715,10 +6823,11 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
             const int cx = px + ip + i * (cw + gap);
             card(cx, y, cw, ch, names2[i], where[i]);
             link(cx, y, cw, ch, i == 0 ? "https://buymeacoffee.com/mamesj" : "https://paypal.me/mamesj");
+            if (qs <= 0) continue;
             if (i == 0) DrawQr(c, kBeerQr, kBeerQrSize, cx + (cw - qs) / 2, y + ch + (int)(14 * u), qs);
             else DrawQr(c, kPaypalQr, kPaypalQrSize, cx + (cw - qs) / 2, y + ch + (int)(14 * u), qs);
         }
-        y += ch + (int)(14 * u) + qs + (int)(14 * u);
+        y += ch + (int)(14 * u) + (qs > 0 ? qs + (int)(14 * u) : 0);
         TextLow() = std::max(TextLow(), y);
 #ifdef __SWITCH__
         GT(c, px + ip, y + 8 * u, "Scan a code with your phone's camera.", 13 * u, hint, true);
@@ -6727,9 +6836,9 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
 #ifdef __ANDROID__
             "Choose Support to open Buy Me A Coffee or PayPal."
 #else
-            "Choose Support to open Buy Me A Coffee, or scan a code with your phone."
+            (qs > 0 ? "Choose Support to open Buy Me A Coffee, or scan a code with your phone." : "Choose Support to open Buy Me A Coffee or PayPal.")
 #endif
-            , 13 * u, pw - 2 * ip)) { GT(c, px + ip, hy2, hl, 13 * u, hint, true); hy2 += (int)(18 * u); } }
+            , 13 * u, pw - 2 * ip)) { if (hy2 + (int)(8 * u) > bottom - ip) break; GT(c, px + ip, hy2, hl, 13 * u, hint, true); hy2 += (int)(18 * u); } } // (only the lines that fit, #144)
 #endif
     }
     else if (F.prow == 1)
@@ -6742,7 +6851,8 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
             { "ssrecomp by ClickingMaster", "The single-screen and widescreen view Fulldex grew from" },
             { "melonDS", "The DS emulation" },
             { "mGBA", "The GBA games, through Pok\xC3\xA9mon GBA Widescreen" },
-            { "Pok\xC3\xA9" "Daisy by Lidor Itzhari", "Companion readers and text decoders" },
+            // (Its licence's attribution, word for word, over the card's two lines: NOTICE.)
+            { "Based on PokeDaisy by Lidor Itzhari -", "https://github.com/lidor30/pokedaisy" },
             { "pokebw2, aletheia, pret/pokeplatinum", "Function names from their decompilations" },
             { "DeadSkullzJr's cheat database", "The built-in DS cheats, via libretro-database" },
             { "sphaira", "How the HOME Menu icons are made" },
@@ -7471,7 +7581,7 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
         const int k = v.SpotOf(selected);
         if (k >= 0)
         {
-            static const int icons[] = { Glass::I_PLAY, Glass::I_POKEBALL, Glass::I_SPARKLE, Glass::I_WINDOW, Glass::I_SAVE, Glass::I_LAYERS, Glass::I_BACK };
+            static const int icons[] = { Glass::I_PLAY, Glass::I_POKEBALL, Glass::I_SPARKLE, Glass::I_WINDOW, Glass::I_SAVE, Glass::I_LAYERS, Glass::I_BACK, Glass::I_EXPAND };
             const Game& g = games[selected];
             const int cx = grid.horiz ? v.spots[k].x - scroll : v.spots[k].x, cyy = grid.horiz ? grid.top + v.spots[k].y : grid.top + v.spots[k].y - scroll;
             const int n = PopupCount(), rowH = (int)(44 * u), rg = (int)(4 * u), pad = (int)(8 * u), pw = (int)(250 * u);
@@ -7894,9 +8004,11 @@ inline std::vector<Setting> SettingsList()
                   "GBA GAMES: A FAINT GRID BETWEEN THE PIXELS. AUTO KEEPS YOUR EXISTING GBA SETTING. CHANGES IN THE GAME'S DISPLAY MENU ARE REMEMBERED HERE." });
     l.push_back({ "wide", "WIDESCREEN WORLD", onOff, "1", "ON: THE 3D WORLD IS DRAWN OUT TO THE SIDES OF THE 16:9 SCREEN. OFF: ONLY AS WIDE AS A DS SCREEN." });
     l.push_back({ "wide_map", "WIDE MAP LOADING", onOff, "1", "BLACK / WHITE / BLACK 2 / WHITE 2: LOADS MORE OF THE MAP AROUND YOU SO THE WIDE VIEW HAS LAND AT ITS EDGES." });
-    l.push_back({ "battle_buttons", "BATTLE BUTTONS", { { "corner", "CORNER" }, { "panel", "PANEL" }, { "strip", "STRIP" } }, "strip",
+    l.push_back({ "battle_buttons", "BATTLE BUTTONS", { { "corner", "CORNER" }, { "panel", "PANEL" }, { "strip", "STRIP" }, { "classic", "CLASSIC" }, { "sunmoon", "SUN AND MOON" } }, "strip",
                   "WHERE THE BATTLE MENU GOES. CORNER: SMALL BUTTONS IN A CORNER. PANEL: THE FIGHT / BAG / POKEMON / RUN PANEL FROM THE GAME BESIDE THE BATTLE. "
-                  "STRIP: LARGE BUTTONS IN THE MESSAGE BOX IN BLACK AND WHITE (CORNER IN THE OTHERS). SOULSILVER / HEARTGOLD / PLATINUM HAVE THEIR OWN." });
+                  "STRIP: ROUNDED BUTTONS ON THE MESSAGE BOX IN BLACK, WHITE, BLACK 2 AND WHITE 2. "
+                  "CLASSIC: THE EARLIER STRIP, WITH THE GAME'S OWN BUTTONS. SOULSILVER / HEARTGOLD / PLATINUM HAVE THEIR OWN. "
+                  "SUN AND MOON: FIGHT ACROSS THE TOP, POKEMON / BAG / RUN BELOW IT, AS POKEMON SUN AND MOON HAVE THEM, IN EVERY DS GAME." });
 #ifdef __SWITCH__
     l.push_back({ "wide_lines", "WORLD DETAIL", { { "192", "192" }, { "288", "288" }, { "384", "384" }, { "540", "540" }, { "720", "720" } }, "",
                   "HOW MANY LINES THE WIDE 3D WORLD IS DRAWN WITH. 720 IS FULL SHARPNESS ON THE SWITCH. LOWER IS LIGHTER ON THE CONSOLE." });
@@ -8502,6 +8614,9 @@ inline void BuildSettingsMenu(Menu& m, std::vector<int>& map, const SettingsPage
             it.preview = kk == "view" ? Menu::P_LAYOUT : kk == "large_screen" ? Menu::P_LARGE : kk == "aspect" ? Menu::P_ASPECT : kk == "fullscreen" ? Menu::P_FULLSCREEN
                        : kk == "screen_filter" ? Menu::P_FILTER : kk == "smooth" ? Menu::P_SMOOTH : kk == "battle_buttons" ? Menu::P_BATTLE : kk == "show_fps" ? Menu::P_FPS : kk == "wide" ? Menu::P_WIDE
                        : kk == "fps60" ? Menu::P_MOTION : -1;
+            // (BATTLE BUTTONS' pictures in its choices' order: CORNER, PANEL, STRIP, CLASSIC (STRIP's),
+            // SUN AND MOON.)
+            if (kk == "battle_buttons") it.art = { 0, 2, 1, 1, 3 };
         }
         m.items.push_back(it);
         map.push_back((int)i);

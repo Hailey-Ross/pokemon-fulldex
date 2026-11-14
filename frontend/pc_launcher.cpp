@@ -61,6 +61,26 @@
 #ifdef SSR_IOS
 #include "ios_orient.h"
 #endif
+#ifdef SSR_IOS
+// The list is drawn inside the screen's safe area (#153): its tabs were under the Dynamic Island.
+// Insets in window points; taps are moved by them as they arrive, and the list's own window size
+// is the safe area's.
+static int g_safeL = 0, g_safeT = 0, g_safeR = 0, g_safeB = 0;
+static int SafeAreaFilter(void*, SDL_Event* e)
+{
+    if (e->type == SDL_MOUSEBUTTONDOWN || e->type == SDL_MOUSEBUTTONUP) { e->button.x -= g_safeL; e->button.y -= g_safeT; }
+    else if (e->type == SDL_MOUSEMOTION) { e->motion.x -= g_safeL; e->motion.y -= g_safeT; }
+    return 1;
+}
+static void ListWindowSize(SDL_Window* w, int* ww, int* wh)
+{
+    SDL_GetWindowSize(w, ww, wh);
+    *ww = std::max(1, *ww - g_safeL - g_safeR);
+    *wh = std::max(1, *wh - g_safeT - g_safeB);
+}
+#else
+static void ListWindowSize(SDL_Window* w, int* ww, int* wh) { SDL_GetWindowSize(w, ww, wh); }
+#endif
 #if !defined(SSR_PHONE) && !defined(__SWITCH__)
 #include "shortcuts.h"
 #endif
@@ -207,6 +227,9 @@ struct Folders
 {
     std::string dir, roms, saves, funcs, cfg;
     std::string art; // where the list's own pictures are (icons/IREO.jpg ...)
+    // Linux AppImage: the folder the AppImage itself is in. ROMs put there, or in a roms folder
+    // beside it (as the download's own folder is used on Windows), are found too (#150).
+    std::string besideApp;
 };
 
 #ifdef __ANDROID__
@@ -489,6 +512,19 @@ std::string HacksFolder(const Folders& fo)
     return (fo.dir.empty() ? std::string(".") : fo.dir) + "/hacks";
 }
 
+// AppImage only: the folder the AppImage is in and a roms folder there (the ones that exist).
+std::vector<std::string> BesideAppFolders(const Folders& fo)
+{
+    std::vector<std::string> out;
+    if (fo.besideApp.empty()) return out;
+    std::error_code ec;
+    for (const std::string& d : {fo.besideApp + "/roms", fo.besideApp + "/ROMs", fo.besideApp})
+        if (std::filesystem::is_directory(std::filesystem::u8path(d), ec) &&
+            std::find(out.begin(), out.end(), d) == out.end())
+            out.push_back(d);
+    return out;
+}
+
 // The ROMs in the roms folder (and any left beside the program), their saves in saves/.
 std::vector<Launcher::Game> FindGames(const Folders& fo, std::map<std::string, std::vector<uint32_t>>& artCache)
 {
@@ -515,6 +551,9 @@ std::vector<Launcher::Game> FindGames(const Folders& fo, std::map<std::string, s
     };
     std::vector<std::string> romDirs = RomLibrary::Folders(fo.roms, HacksFolder(fo));
     if (std::find(romDirs.begin(), romDirs.end(), fo.dir) == romDirs.end()) romDirs.push_back(fo.dir);
+    // (AppImage: the ROMs beside it and in a roms folder beside it, #150.)
+    for (const std::string& extra : BesideAppFolders(fo))
+        if (std::find(romDirs.begin(), romDirs.end(), extra) == romDirs.end()) romDirs.push_back(extra);
     for (const std::string& dir : romDirs)
     {
         if (dir.empty()) continue;
@@ -561,6 +600,8 @@ std::vector<Launcher::Game> FindGames(const Folders& fo, std::map<std::string, s
         GbaGames::Add(sub, fo.saves, games, artCache);
     }
     if (!fo.dir.empty() && fo.dir != fo.roms) GbaGames::AddWithGbaFolder(fo.dir, fo.saves, games, artCache);
+    for (const std::string& extra : BesideAppFolders(fo))
+        if (extra != fo.roms && extra != fo.dir) GbaGames::AddWithGbaFolder(extra, fo.saves, games, artCache);
     {
         std::set<std::string> seenRom;
         std::vector<Launcher::Game> gba;
@@ -1047,11 +1088,13 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
     {
         Launcher::HubLoad();
         Launcher::HubState& H = Launcher::Hub();
-        Launcher::HubMode() = !strncmp(hb, "trade", 5) ? 2 : !strncmp(hb, "move", 4) || !strcmp(hb, "top") ? 0 : 1;
+        Launcher::HubMode() = !strncmp(hb, "trade", 5) ? 2 : !strncmp(hb, "move", 4) || !strcmp(hb, "top") || !strcmp(hb, "dextop") ? 0 : 1;
+        // (dex[:row]: COMBINED POKEDEX open on a region; dextop: the Hub's first page on its row.)
+        if (!strncmp(hb, "dex", 3)) { Launcher::HubMode() = strcmp(hb, "dextop") ? 4 : 0; Launcher::Focus().prow = strcmp(hb, "dextop") ? (strchr(hb, ':') ? atoi(strchr(hb, ':') + 1) : 0) : 4; }
         if (!strcmp(hb, "tradehost")) Launcher::TradeDo(2, 0);
         if (!strcmp(hb, "tradejoin")) Launcher::TradeDo(2, 1);
         if (!strcmp(hb, "tradeguide")) Launcher::TradeDo(2, 4);
-        if (!strncmp(hb, "trade", 5) || !strcmp(hb, "top")) {}
+        if (!strncmp(hb, "trade", 5) || !strcmp(hb, "top") || !strncmp(hb, "dex", 3)) {}
         else if (!strncmp(hb, "move", 4))
         {
             // (move:from,to opens Move Pokemon; moved:from,to also moves the box's first Pokemon, for real, in the test folder's save copies.)
@@ -1633,6 +1676,30 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                     if (item == 3) JavaStringArg("threeDsImport", N3ds::IdOf(g));
                     else if (g.built || JavaBoolStringArg("threeDsBuilt", N3ds::IdOf(g))) {} // (Game Code Built: nothing to do)
                     else JavaStringArg("threeDsBuild", N3ds::IdOf(g));
+                    return;
+                }
+#endif
+#ifdef __ANDROID__
+                // ADD TO PHONE HOME SCREEN: a shortcut that starts this game (GameActivity.pinShortcut),
+                // with the list's picture of it as the icon.
+                if (item == 7 && valid)
+                {
+                    const Launcher::Game& g = games[selected];
+                    const std::string icon = fo.dir + "/shortcut-icon.argb";
+                    if (FILE* f = fopen(icon.c_str(), "wb"))
+                    {
+                        const int32_t side = g.art.size() == (size_t)Launcher::Art * Launcher::Art ? Launcher::Art : 0;
+                        fwrite(&side, 4, 1, f); fwrite(&side, 4, 1, f);
+                        if (side) fwrite(g.art.data(), 4, g.art.size(), f);
+                        fclose(f);
+                    }
+                    bool ok = false;
+                    CallActivity("pinShortcut", "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Z", [&](JNIEnv* env, jclass c, jmethodID m) {
+                        jstring a = env->NewStringUTF(g.code.c_str()), b = env->NewStringUTF(Launcher::ShortName(g).c_str()), p = env->NewStringUTF(icon.c_str());
+                        ok = env->CallStaticBooleanMethod(c, m, a, b, p);
+                        env->DeleteLocalRef(a); env->DeleteLocalRef(b); env->DeleteLocalRef(p);
+                    });
+                    note = ok ? "CONFIRM ON YOUR PHONE TO ADD THE SHORTCUT" : "THIS PHONE'S HOME SCREEN DOES NOT TAKE SHORTCUTS";
                     return;
                 }
 #endif
@@ -2253,7 +2320,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 else if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT)
                 {
                     int ww = 1, wh = 1;
-                    SDL_GetWindowSize(window, &ww, &wh);
+                    ListWindowSize(window, &ww, &wh);
                     const int row = raMenu.ItemAt(e.button.x * canvas.w / std::max(1, ww), e.button.y * canvas.h / std::max(1, wh));
                     if (row >= 0)
                     {
@@ -2325,7 +2392,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                     else if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT)
                     {
                         int ww = 1, wh = 1;
-                        SDL_GetWindowSize(window, &ww, &wh);
+                        ListWindowSize(window, &ww, &wh);
                         const int hit = kb.ItemAt(e.button.x * canvas.w / std::max(1, ww), e.button.y * canvas.h / std::max(1, wh));
                         if (hit >= 0) { kb.selected = hit; press(hit); }
                     }
@@ -2370,7 +2437,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 else if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT)
                 {
                     int ww = 1, wh = 1;
-                    SDL_GetWindowSize(window, &ww, &wh);
+                    ListWindowSize(window, &ww, &wh);
                     const int row = Launcher::DialogAt(e.button.x * canvas.w / std::max(1, ww), e.button.y * canvas.h / std::max(1, wh));
                     if (row >= 0) { F.drow = row; dialogAct(); }
                 }
@@ -2412,7 +2479,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 else if (e.type == SDL_MOUSEBUTTONUP && e.button.button == SDL_BUTTON_LEFT)
                 {
                     int ww = 1, wh = 1;
-                    SDL_GetWindowSize(window, &ww, &wh);
+                    ListWindowSize(window, &ww, &wh);
                     const int row = updateMenu.ItemAt(e.button.x * canvas.w / std::max(1, ww), e.button.y * canvas.h / std::max(1, wh));
                     if (row >= 0) { updateMenu.selected = row; pick(row); }
                     else if (row == -2) updateMenu.open = false;
@@ -2449,7 +2516,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 {
                     // (A click or tap on a row: chosen and used.)
                     int ww = 1, wh = 1;
-                    SDL_GetWindowSize(window, &ww, &wh);
+                    ListWindowSize(window, &ww, &wh);
                     const int row = keysMenu.ItemAt(e.button.x * canvas.w / std::max(1, ww), e.button.y * canvas.h / std::max(1, wh));
                     if (row >= 0) { keysMenu.selected = row; keysActivate(row); }
                     else if (row == -2) keysOpen = false;
@@ -2607,7 +2674,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             {
                 // (Window points to the canvas's pixels, which are more on a high-DPI screen.)
                 int ww = 1, wh = 1;
-                SDL_GetWindowSize(window, &ww, &wh);
+                ListWindowSize(window, &ww, &wh);
                 const int mx = (e.type == SDL_MOUSEMOTION ? e.motion.x : e.button.x) * canvas.w / std::max(1, ww);
                 const int my = (e.type == SDL_MOUSEMOTION ? e.motion.y : e.button.y) * canvas.h / std::max(1, wh);
                 const int s = std::max(1, std::min(canvas.w, canvas.h) / 240);
@@ -3102,6 +3169,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
         if (appBackgrounded) { gridMotion.Stop(); SDL_Delay(50); continue; }
         int ow = 1280, oh = 720;
 #ifdef SSR_IOS
+        SDL_Rect safeDst = { 0, 0, 0, 0 };
         if (SDL_GetRendererOutputSize(renderer, &ow, &oh) != 0 || ow <= 0 || oh <= 0)
         {
             if (!loggedDrawableError) fprintf(stderr, "[launcher] waiting for drawable: %dx%d %s\n", ow, oh, SDL_GetError());
@@ -3118,6 +3186,19 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 SDL_GetWindowID(window), pointsW, pointsH, ow, oh);
             loggedDrawableW = ow; loggedDrawableH = oh;
             loggedPresent = false;
+        }
+        {
+            // (The safe area, in the drawable's pixels.)
+            static bool filterOn = false;
+            if (!filterOn) { SDL_SetEventFilter(SafeAreaFilter, nullptr); IosIgnoreControllerPresses(); filterOn = true; }
+            IosSafeInsets(&g_safeT, &g_safeB, &g_safeL, &g_safeR);
+            int pointsW = 1, pointsH = 1;
+            SDL_GetWindowSize(window, &pointsW, &pointsH);
+            const double px = (double)ow / std::max(1, pointsW);
+            safeDst = { (int)(g_safeL * px), (int)(g_safeT * px), 0, 0 };
+            ow = std::max(1, ow - (int)((g_safeL + g_safeR) * px));
+            oh = std::max(1, oh - (int)((g_safeT + g_safeB) * px));
+            safeDst.w = ow; safeDst.h = oh;
         }
 #else
         SDL_GetRendererOutputSize(renderer, &ow, &oh);
@@ -3364,7 +3445,13 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
         }
         SDL_SetRenderDrawColor(renderer, 16, 16, 16, 255);
         if (!texture || SDL_UpdateTexture(texture, nullptr, canvas.px.data(), canvas.w * 4) != 0 ||
-            SDL_RenderClear(renderer) != 0 || SDL_RenderCopy(renderer, texture, nullptr, nullptr) != 0)
+            SDL_RenderClear(renderer) != 0 || SDL_RenderCopy(renderer, texture, nullptr,
+#ifdef SSR_IOS
+                                                    safeDst.w > 0 ? &safeDst : nullptr
+#else
+                                                    nullptr
+#endif
+                                                    ) != 0)
         {
             fprintf(stderr, "[launcher] drawing failed: %s\n", SDL_GetError());
             if (renderInfo.flags & SDL_RENDERER_SOFTWARE)
@@ -3605,6 +3692,9 @@ bool Start(int& argc, char**& argv)
         fo.dir = base + "/pokemon-ds-wide";
         for (size_t i = 1; i <= fo.dir.size(); i++) // (each folder on the way, as mkdir -p)
             if (i == fo.dir.size() || fo.dir[i] == '/') MakeDir(fo.dir.substr(0, i));
+        const std::string app = appImage;
+        const size_t slash = app.rfind('/');
+        if (slash != std::string::npos && slash > 0) fo.besideApp = app.substr(0, slash);
     }
 #endif
     fo.roms = fo.dir + "/roms";

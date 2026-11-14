@@ -50,6 +50,11 @@ public:
     std::string BoxName(int box) const;
     std::vector<Mon> Box(int box) const; // the Pokémon in it (empty slots left out)
     bool FirstEmpty(int& box, int& slot) const;
+    // The game's own Pokedex (the COMBINED POKEDEX page, #165): seen and caught for a National
+    // Pokedex number, and the highest number the game knows.
+    bool DexSeen(int species) const;
+    bool DexCaught(int species) const;
+    int MaxSpecies() const;
     bool Changed() const;
 
     struct Impl;

@@ -675,6 +675,29 @@ namespace pksm
         return ret;
     }
 
+    bool Sav6::dexSeenSpecies(Species species) const
+    {
+        const int i = u16(species);
+        if (i < 1)
+        {
+            return false;
+        }
+        for (int j = 0; j < 4; j++) // All seen flags: gender & shinies
+        {
+            if ((data[PokeDex + (0x68 + (j * 0x60)) + ((i - 1) >> 3)] >> ((i - 1) & 7) & 1) != 0)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool Sav6::dexCaughtSpecies(Species species) const
+    {
+        const int i = u16(species);
+        return i >= 1 && (data[PokeDex + 0x8 + ((i - 1) >> 3)] >> ((i - 1) & 7) & 1) != 0;
+    }
+
     void Sav6::mysteryGift(const WCX& wc, int& pos)
     {
         if (wc.generation() == Generation::SIX)

@@ -15,6 +15,9 @@ public class Restart extends Activity {
         int pid = getIntent().getIntExtra("pid", -1);
         if (pid > 0) Process.killProcess(pid);
         Intent main = new Intent(this, GameActivity.class);
+        // (A game's home-screen shortcut, tapped while the app was open: started into that game.)
+        String game = getIntent().getStringExtra(GameActivity.EXTRA_GAME);
+        if (game != null) main.putExtra(GameActivity.EXTRA_GAME, game);
         main.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         startActivity(main);
         finish();

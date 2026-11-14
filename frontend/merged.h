@@ -53,6 +53,12 @@ struct Element
     uint32_t keys[4] = { 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF };
     // If set, colours within this distance per channel of keys[0] are not drawn either.
     int keyTolerance = 0;
+    // If set, dark greys are not drawn either: greys (colours whose three channels lie within 28
+    // of one another, black too) no brighter than this. A label comes off the dark behind it, its
+    // colours and its light greys and whites kept, also once the screen is lightened or darkened
+    // with the brightness set to match (Gen 5's battle buttons, whose touch screen lightens while
+    // a button is pressed).
+    int keyGrey = 0;
     // If set, the keys only apply within this many source pixels of the piece's edge (to
     // trim the rim of a rounded button without touching the same colour inside it).
     int keyRing = 0;
@@ -126,6 +132,7 @@ struct Scene
     // Colour behind the pieces: black, or sampled from this pixel of a screen so the
     // parts of the view no piece covers continue that screen's background.
     int bgScreen = -1, bgX = 0, bgY = 0;
+    uint32_t bgColor = 0; // or this colour (0xRRGGBB, 0: none) when no screen pixel is given
     // The first piece is the top screen showing the 3D world: when a widescreen image of
     // that world is available it fills the view, and only the 2D parts of the piece (text
     // boxes and the like) are drawn over it.
@@ -739,6 +746,33 @@ inline void SaveScreenPieces(Scene& sc, bool wideView, float viewRight, const Sc
     }
 }
 
+// A screen played on the touch screen: the touch screen at the full height of the view on its
+// right, the top screen smaller in the room left of it (on a 4:3 view, the touch screen alone).
+inline Scene TouchLargeScene(float viewWidth, const char* name)
+{
+    const float left = 128 - viewWidth / 2, right = 128 + viewWidth / 2, gap = 4;
+    Scene sc;
+    sc.name = name;
+    Element touch = Crop(1, 0, 0, 256, 192);
+    touch.scale = 1;
+    touch.dx = right - 256;
+    touch.dy = 0;
+    touch.crisp = true;
+    const float topScale = std::min(1.0f, (right - 256 - left - 2 * gap) / 256);
+    if (topScale >= 0.25f)
+    {
+        Element topEl = Crop(0, 0, 0, 256, 192);
+        topEl.scale = topScale;
+        topEl.dx = left + gap + (right - 256 - left - 2 * gap - 256 * topScale) / 2;
+        topEl.dy = (192 - 192 * topScale) / 2;
+        sc.items.push_back(topEl);
+    }
+    else
+        touch.dx = 0; // (the touch screen alone, in the middle)
+    sc.items.push_back(touch);
+    return sc;
+}
+
 inline Scene Stack(const char* name, std::vector<Element> crops, bool horizontal, float viewWidth)
 {
     float w = 0, h = 0;
@@ -909,10 +943,39 @@ inline bool SmartOverlay(const ScreenImage screens[2], int screen, int cutX, int
 inline bool MergedKeyed(const Element& el, uint32_t rgb)
 {
     if (rgb == el.keys[0] || rgb == el.keys[1] || rgb == el.keys[2] || rgb == el.keys[3]) return true;
+    if (el.keyGrey)
+    {
+        const int r = (rgb >> 16) & 0xFF, g = (rgb >> 8) & 0xFF, b = rgb & 0xFF;
+        const int top = std::max({ r, g, b });
+        if (top <= el.keyGrey && top - std::min({ r, g, b }) <= 28) return true;
+    }
     if (!el.keyTolerance) return false;
     int t = el.keyTolerance, k = (int)el.keys[0];
     return std::abs((int)((rgb >> 16) & 0xFF) - ((k >> 16) & 0xFF)) <= t &&
         std::abs((int)((rgb >> 8) & 0xFF) - ((k >> 8) & 0xFF)) <= t && std::abs((int)(rgb & 0xFF) - (k & 0xFF)) <= t;
+}
+
+// Whether a piece is drawn with nearest-pixel sampling. With SMOOTH SCALING off, all are. With it
+// on, a piece marked crisp stays sharp only where each of its pixels becomes a whole number of
+// screen pixels: at an uneven scale (a 720-line phone shows each DS pixel 3.75 high) nearest
+// sampling makes some pixels a line bigger than others, and the picture shimmered as the camera
+// moved, smooth scaling on or not (GitHub #69).
+inline bool MergedNearest(const Element& el, float scale, bool smooth)
+{
+    if (!smooth) return true;
+    return el.crisp && std::fabs(scale - std::round(scale)) < 0.01f;
+}
+
+// SHARP PIXELS AT AN UNEVEN SCALE (GitHub #69): a piece drawn with nearest pixels at a scale
+// that is not a whole number (a 720-line phone shows each DS pixel 3.75 lines high) had its
+// pixels come out in two sizes, 3 and 4 lines, which shifted about as the camera moved: the
+// world shimmered. Such a piece is drawn as if blown up a whole number of times and then
+// filtered to its size: every pixel is the same size, and only the seams between pixels are
+// blended. At a whole-number scale it is drawn as before.
+inline bool MergedSharp(float scaleX, float scaleY)
+{
+    auto uneven = [](float s) { return s > 1.0f && std::fabs(s - std::round(s)) >= 0.01f; };
+    return uneven(scaleX) || uneven(scaleY);
 }
 
 // With `smooth` off every piece is drawn with nearest-pixel sampling (hard edges, and fast);
@@ -1042,6 +1105,7 @@ inline void MergedCompose(const Scene& scene, const ScreenImage screens[2], int 
 {
     uint32_t bg = 0xFF000000;
     if (scene.bgScreen >= 0) bg |= screens[scene.bgScreen].pixels[scene.bgY * 256 + scene.bgX] & 0xFFFFFF;
+    else if (scene.bgColor) bg |= scene.bgColor & 0xFFFFFF;
     const bool useWide = scene.wide && !scene.narrow && wide && wide->pixels && wide->w > 0 && wide->h > 0;
     out.resize((size_t)outW * outH);
     const MergedView v = MergedMakeView(outW, outH);
@@ -1068,7 +1132,7 @@ inline void MergedCompose(const Scene& scene, const ScreenImage screens[2], int 
         Element el;
         float s, sx; // scale down and across
         int x0, y0, w, h, xa, xb, border;
-        bool nearest;
+        bool nearest, sharp = false;
         std::vector<int> col;
     };
     std::vector<Piece> pieces;
@@ -1094,7 +1158,9 @@ inline void MergedCompose(const Scene& scene, const ScreenImage screens[2], int 
             p.border = (int)(v.unit * (p.el.borderWidth ? p.el.borderWidth : 6) / 8.0f + 0.5f);
             if (p.border < 1) p.border = 1;
         }
-        p.nearest = p.el.crisp || !smooth;
+        p.nearest = MergedNearest(p.el, p.s, smooth);
+        p.sharp = p.nearest && MergedSharp(p.sx, p.s);
+        if (p.sharp) p.nearest = false;
         p.xa = p.x0 < 0 ? -p.x0 : 0;
         p.xb = p.x0 + p.w > outW ? outW - p.x0 : p.w;
         if (p.nearest && p.xb > p.xa)
@@ -1318,7 +1384,7 @@ inline void MergedCompose(const Scene& scene, const ScreenImage screens[2], int 
                 const int xa = p.xa, xb = p.xb;
                 if (xb <= xa) continue;
                 const int* col = p.col.data();
-                const bool keyed = el.keys[0] != 0xFFFFFFFF;
+                const bool keyed = el.keys[0] != 0xFFFFFFFF || el.keyGrey;
                 const bool spriteKey = el.dropSpriteCorner > 0 && src.flags;
                 const bool plain = !(el.drop && src.flags) && !keyed && !spriteKey && el.alpha == 255 && el.cutX >= 256 && !el.holeCount;
                 for (int oy = oya; oy < oyb; oy++)
@@ -1373,6 +1439,7 @@ inline void MergedCompose(const Scene& scene, const ScreenImage screens[2], int 
                 if (fy < 0) fy = 0;
                 int iy = (int)fy;
                 float wy = fy - iy;
+                if (p.sharp) wy = std::clamp((wy - 0.5f) * s + 0.5f, 0.0f, 1.0f);
                 int iy1 = iy + 1 < el.sh ? iy + 1 : iy;
                 for (int x = 0; x < w; x++)
                 {
@@ -1382,6 +1449,7 @@ inline void MergedCompose(const Scene& scene, const ScreenImage screens[2], int 
                     if (fx < 0) fx = 0;
                     int ix = (int)fx;
                     float wx = fx - ix;
+                    if (p.sharp) wx = std::clamp((wx - 0.5f) * sX + 0.5f, 0.0f, 1.0f);
                     int ix1 = ix + 1 < el.sw ? ix + 1 : ix;
 
                     float acc[3] = { 0, 0, 0 }, cover = 0;

@@ -572,9 +572,12 @@ public:
                 moved[side]++;
                 const int x = p & 255, y = p >> 8;
                 // Neighbours across corners too: the slanted edges of the boxes are lines of
-                // single pixels.
-                for (int dy = -1; dy <= 1; dy++)
-                    for (int dx = -1; dx <= 1; dx++)
+                // single pixels. And across gaps of up to 3 pixels: a trainer battle's party
+                // Poke Balls stand a pixel or two apart, and apart from their bar's line, which
+                // alone touches the screen's edge; the balls were left in the background between
+                // the two sides and stretched with it (#159).
+                for (int dy = -3; dy <= 3; dy++)
+                    for (int dx = -3; dx <= 3; dx++)
                     {
                         if (x + dx < 0 || x + dx > 255 || y + dy < 0 || y + dy > 191) continue;
                         const int q = p + dy * 256 + dx;
