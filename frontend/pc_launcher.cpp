@@ -1085,6 +1085,19 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
     Launcher::PhoneUi() = true; // (a phone: bigger text and buttons, the Tiles layout)
 #endif
     if (getenv("SSR_LIST_PHONE")) Launcher::PhoneUi() = true; // (test)
+    // UI SIZE (ui.h): the factor, on every device. Above 100% (a handheld's small screen, by
+    // default) on one that is not a phone or the Switch: the phone's layouts, which fit a short
+    // screen with larger writing, at that size; those two have them already.
+    {
+        SDL_DisplayMode dm{};
+        const int screenH = SDL_GetDesktopDisplayMode(0, &dm) == 0 && dm.h > 0 ? dm.h : canvas.h;
+        UiScale() = UiScaleFor(Launcher::ConfigValue(fo.cfg, "ui_size"), screenH);
+#if !defined(SSR_PHONE) && !defined(__SWITCH__)
+        Launcher::LargeUi() = UiScale() > 1.0f;
+        if (Launcher::LargeUi()) Launcher::PhoneUi() = true;
+        else if (!getenv("SSR_LIST_PHONE")) Launcher::PhoneUi() = false; // (UI SIZE set back to 100%)
+#endif
+    }
 #ifdef __SWITCH__
     Launcher::PhoneUi() = true; // (the Switch: the same bigger text and buttons as a phone, so the menus read in handheld)
 #endif
@@ -3363,7 +3376,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             if (Launcher::Glassy(canvas))
             {
                 // (The pause menu's glass settings pages, ui_settings.h, over the chosen game's picture blurred.)
-                setMenu.touchRows = Launcher::PhoneUi() ? 1.5f : 1.0f; // (a phone: rows big enough for a finger, the page larger)
+                setMenu.touchRows = Launcher::PhoneUi() && !Launcher::LargeUi() ? 1.5f : 1.0f; // (a phone: rows big enough for a finger, the page larger)
                 setMenu.laneK = Launcher::PhoneUi() ? std::max(0.42f, Launcher::GU(canvas) * (480.0f / 720.0f) * 0.94f * 1.3f) : 0.0f; // (by the launcher's own unit: right upright too)
                 { static int lastSel = -99; if (page.selected != lastSel) { lastSel = page.selected; setMenu.freeScroll = false; } }
                 Launcher::BuildSettingsMenu(setMenu, setMap, page, onBack);

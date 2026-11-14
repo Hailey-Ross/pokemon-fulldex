@@ -6,11 +6,45 @@
 #include <chrono>
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
 
 #include "ui_text.h"
+
+// UI SIZE (settings: ui_size): how large the menus and overlays are, against what the screen alone
+// makes them. Everything is drawn in proportion to the screen's lines, which on a handheld's small
+// screen (640 x 480 at 3.5 inches) made the writing a millimetre high.
+//
+// For any piece of the interface, larger menus are:
+//   UiScale()   the factor; multiply a size that follows the screen by it (1 unless UI SIZE says so).
+//   UiLarge()   above 1: for a layout that has to change, not only grow (a panel filling the screen).
+//   UiMinPx(px) a size of writing, never under 13 pixels with larger menus (the least that reads).
+// At 1 (UiLarge() false) everything is drawn exactly as before.
+#include "ssr_os.h"
+inline float& UiScale() { static float s = 1.0f; return s; } // (set by UiScaleFor, from the settings)
+inline bool UiLarge() { return UiScale() > 1.0f; }
+inline int UiMinPx(int px) { return UiLarge() ? std::max(px, 13) : px; }
+// ui_size's value: "auto" or a percentage from 50 to 300. Auto: 1.5 on a handheld's small screen,
+// under 720 lines, else 1. Phones and the Switch: always 1, as they size their menus for their own
+// screens already (PhoneUi, touchRows); a percentage is the player's own choice there too.
+// screenLines: the display's own height, not the window's, so a small window on a large screen
+// stays as it was.
+inline float UiScaleFor(const std::string& v, int screenLines)
+{
+    if (v.empty() || v == "auto")
+    {
+#if defined(SSR_PHONE) || defined(__SWITCH__)
+        (void)screenLines;
+        return 1.0f;
+#else
+        return screenLines > 0 && screenLines < 720 ? 1.5f : 1.0f;
+#endif
+    }
+    const int p = atoi(v.c_str());
+    return p >= 50 && p <= 300 ? p / 100.0f : 1.0f;
+}
 
 struct Canvas
 {
@@ -625,10 +659,20 @@ struct Menu
         drawnLineH = 0; drawnFirstY = 0; scroll = 0;
         const int headY = gy - 9 * scale - gap;
         TXRaw(c, gx, headY, "Fulldex", scale, GlassText);
-        // (One size for every tile's name: the largest at which the longest still fits.)
+        // (One size for every tile's name: the largest at which the longest still fits. Larger
+        // menus: clean text a pixel at a time, as in whole steps of the pixel font's scale one long
+        // name, as ACHIEVEMENTS, halved them all.)
         int ls = scale;
         for (int i = 0; i < n; i++)
             while (ls > 1 && TW(items[i].label, ls, true) > s * 0.88f) ls--;
+        tilesLabelPx = 0;
+        if (UseClean() && UiLarge())
+        {
+            int lp = Px(scale, true);
+            for (int i = 0; i < n; i++)
+                while (lp > Px(1, true) && CleanFont::Width(CleanFont::Title(UiLang::Tr(items[i].label)), lp, true) > s * 0.88f) lp--;
+            tilesLabelPx = lp;
+        }
         TX(c, gx + gridW - TW("PAUSED", scale), headY, "PAUSED", scale, GlassHint);
         for (int i = 0; i < n; i++)
         {
@@ -641,7 +685,7 @@ struct Menu
             FrostBox(c, solid, x, y, s, s, s * 0.09f, sel, sel ? (float)std::max(2, scale) : 1.0f);
             const uint32_t ink = off ? GlassOff : GlassText;
             if (items[i].icon >= 0) Glass::DrawIcon(c, items[i].icon, x + s * 0.5f, y + s * 0.4f, s * 0.19f, ink);
-            TX(c, x + (s - TW(items[i].label, ls, true)) / 2, y + (int)(s * 0.72f), items[i].label, ls, ink, true);
+            TileLabel(c, x, y, s, items[i].label, ls, ink);
             if (!items[i].value.empty())
             {
                 const int vs = std::max(1, ls - 1);
@@ -665,7 +709,13 @@ struct Menu
         DrawChosenTile(c);
     }
     mutable bool tilesSolid = false;
-    mutable int tilesLabelScale = 1, tilesScale = 1;
+    mutable int tilesLabelScale = 1, tilesScale = 1, tilesLabelPx = 0;
+    void TileLabel(Canvas& c, int x, int y, int s, const std::string& label, int ls, uint32_t ink) const
+    {
+        if (tilesLabelPx <= 0) { TX(c, x + (s - TW(label, ls, true)) / 2, y + (int)(s * 0.72f), label, ls, ink, true); return; }
+        const std::string t = CleanFont::Title(UiLang::Tr(label));
+        CleanFont::Draw(c, x + (s - CleanFont::Width(t, tilesLabelPx, true)) / 2, y + (int)(s * 0.72f) + tilesLabelPx / 2, t, tilesLabelPx, ink, true);
+    }
     // The chosen tile, lit, over the page as DrawTiles left it.
     void DrawChosenTile(Canvas& c) const
     {
@@ -677,7 +727,7 @@ struct Menu
         FrostBox(c, tilesSolid, x, y, s, s, s * 0.09f, true, (float)std::max(2, scale), true);
         const uint32_t ink = off ? GlassOff : GlassText;
         if (items[i].icon >= 0) Glass::DrawIcon(c, items[i].icon, x + s * 0.5f, y + s * 0.4f, s * 0.19f, ink);
-        TX(c, x + (s - TW(items[i].label, ls, true)) / 2, y + (int)(s * 0.72f), items[i].label, ls, ink, true);
+        TileLabel(c, x, y, s, items[i].label, ls, ink);
         if (!items[i].value.empty())
         {
             const int vs = std::max(1, ls - 1);
