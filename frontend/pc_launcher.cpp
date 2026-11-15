@@ -1493,7 +1493,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
         {
             const std::string kind(key + 1, strlen(key) - 8), cfgKey = kind + "_folder";
             std::string& shown = page.items[page.selected].values[0].second;
-            if (!Launcher::ConfigValue(fo.cfg, cfgKey.c_str()).empty())
+            if (kind == "saves" ? OwnSavesFolder(fo) : !Launcher::ConfigValue(fo.cfg, cfgKey.c_str()).empty())
             {
                 SetConfigValues(fo.cfg, { { cfgKey, "" } });
                 ResolveFolders(fo, false);
@@ -3356,6 +3356,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 if (it.key && (!strcmp(it.key, "!states_folder") || !strcmp(it.key, "!cheats_folder") || !strcmp(it.key, "!settings_folder")) && !it.values.empty() && it.values[0].second == "FULLDEX'S") it.values[0].second = OwnFolderShown(fo, it.key);
 #ifdef __ANDROID__
                 if (it.key && !strcmp(it.key, "!saves_folder") && !it.values.empty() && it.values[0].second == "FULLDEX'S") it.values[0].second = OwnFolderShown(fo, it.key);
+                if (it.key && PendingPick().empty() && !it.values.empty() && it.values[0].second == "CHOOSE THE FOLDER...") it.values[0].second = OwnFolderShown(fo, it.key);
 #endif
                 if (it.key && !strcmp(it.key, "!saves_folder") && !it.values.empty() && it.values[0].second == "BESIDE THE ROMS") { const std::string sf = Launcher::ConfigValue(fo.cfg, "saves_folder"); if (!sf.empty()) it.values[0].second = sf; }
             }
@@ -3778,6 +3779,13 @@ void ResolveFolders(Folders& fo, bool atStart)
         }
         fo.states = root + "/states";
         fo.settings = root + "/settings";
+        // (A saves folder left empty where the classic one was, beside the ROMs: taken away.)
+        if (!fo.roms.empty())
+        {
+            std::error_code e;
+            const fs::path old = fs::u8path(fo.roms + "/saves");
+            if (old.lexically_normal() != fs::u8path(fo.saves).lexically_normal() && fs::is_directory(old, e) && fs::is_empty(old, e)) fs::remove(old, e);
+        }
     }
     else { fo.states.clear(); fo.settings = fo.saves; }
     fo.cheats.clear();
@@ -3853,7 +3861,7 @@ std::string& PendingPick() { static std::string k; return k; }
 std::string OwnFolderShown(const Folders& fo, const char* key)
 {
     const std::string kind(key + 1, strlen(key) - 8), v = Launcher::ConfigValue(fo.cfg, (kind + "_folder").c_str());
-    if (v.empty()) return kind == "saves" ? "FULLDEX'S" : "FULLDEX'S";
+    if (v.empty() || (kind == "saves" && !OwnSavesFolder(fo))) return "FULLDEX'S";
     const size_t s = v.find_last_of("/\\");
     return s == std::string::npos ? v : v.substr(s + 1);
 }
@@ -4004,7 +4012,7 @@ bool Start(int& argc, char**& argv)
     ExtractFuncs(fo);
     SetRomFolder(fo);
     if (const char* ar = getenv("SSR_ANDROID_ROMS")) { fo.roms = ar; fo.saves = fo.roms + "/saves"; fo.art = fo.roms; MakeDir(fo.roms); }
-    if (!fo.roms.empty()) MakeDir(fo.saves);
+    if (!fo.roms.empty() && Launcher::ConfigValue(fo.cfg, "folders_layout") != "tidy") MakeDir(fo.saves); // (FOLDERS: the tidy one made by ResolveFolders)
 #else
     fo.dir = ProgramDir();
     fo.funcs = fo.dir + "/data/funcs";
