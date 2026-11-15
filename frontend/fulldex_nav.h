@@ -66,10 +66,27 @@ struct State
 struct Geo { int x = 0, y = 0, w = 0, h = 0; float k = 1; int sx0 = 0, sy0 = 0, sx1 = 0, sy1 = 0; int tile[APPS][4] = {}; };
 
 // Where it goes: bottom right; centred (centre) when a phone's buttons are at the sides. style: NAV STYLE,
-// 0 MODERN, the watch (graphite case, glass face); 1 CLASSIC, the red watch; 2 SIMPLE, a glass card.
+// 0 MODERN, the watch (graphite case, glass face); 1 CLASSIC, the red watch; 2 SIMPLE, a glass card; 3 WHEEL,
+// the tiles alone in a ring.
 inline Geo Layout(int outW, int outH, bool centre, int style = 0)
 {
     Geo g;
+    if (style == 3)
+    {
+        // WHEEL: the apps' tiles in a ring round the middle of the picture, the first at the top.
+        g.k = std::max(0.5f, std::min(outW / 1280.0f, outH / 720.0f));
+        const float k = g.k, R = 200 * k, ts = 66 * k;
+        const int cx = outW / 2, cy = outH / 2;
+        g.w = g.h = (int)std::lround(2 * R + ts + 20 * k); g.x = cx - g.w / 2; g.y = cy - g.h / 2;
+        g.sx0 = cx; g.sy0 = cy; g.sx1 = g.sy1 = (int)std::lround(98 * k); // (the middle and its radius)
+        for (int i = 0; i < APPS; i++)
+        {
+            const float a = -1.5707963f + i * 6.2831853f / APPS;
+            g.tile[i][0] = (int)std::lround(cx + R * std::cos(a) - ts / 2); g.tile[i][1] = (int)std::lround(cy + R * std::sin(a) - ts / 2);
+            g.tile[i][2] = g.tile[i][3] = (int)std::lround(ts);
+        }
+        return g;
+    }
     if (style == 2)
     {
         g.k = std::max(0.5f, std::min(outW / 1280.0f, outH / 720.0f));
@@ -122,6 +139,15 @@ inline Geo Layout(int outW, int outH, bool centre, int style = 0)
         g.tile[i][2] = (int)std::lround(ts); g.tile[i][3] = (int)std::lround(ts);
     }
     return g;
+}
+
+// WHEEL: the app a direction points at (x right, y down), -1 when it points nowhere much.
+inline int WheelPick(float x, float y)
+{
+    if (x * x + y * y < 0.45f * 0.45f) return -1;
+    float a = std::atan2(y, x) + 1.5707963f; // (0 at the top, clockwise)
+    while (a < 0) a += 6.2831853f;
+    return (int)std::lround(a / (6.2831853f / APPS)) % APPS;
 }
 
 // The app under a point (a tap or a click), -1 none; -2 on the watch but not an app (keeps it open).
@@ -266,8 +292,64 @@ inline void DrawSimple(Canvas& c, const Geo& g, const State& s, const bool dim[A
     }
 }
 
+// NAV STYLE WHEEL: only the apps' tiles, in a ring; the chosen one's name in the middle.
+inline void DrawWheel(Canvas& c, const Geo& g, const State& s, const bool dim[APPS], const std::string label[APPS], const std::string& hint)
+{
+    using namespace SettingsArt;
+    const float k = g.k;
+    auto K = [&](float v) { return (int)std::lround(v * k); };
+    const int cx = g.sx0, cy = g.sy0, r = g.sx1;
+    Glass::Round(c, cx - r, cy - r, 2 * r, 2 * r, (float)r, 0xD8101826, 0x46FFFFFF, 2 * k);
+    for (int i = 0; i < APPS; i++)
+    {
+        const App& a = Get(i);
+        const int* t = g.tile[i];
+        const int x = t[0], y = t[1], sz = t[2];
+        const bool faded = dim && dim[i];
+        auto fade = [&](uint32_t col) {
+            if (!faded) return col;
+            auto mix = [](uint32_t a, uint32_t b, int sh) { return (((a >> sh) & 0xFF) * 38 + ((b >> sh) & 0xFF) * 62) / 100; };
+            const uint32_t bg = 0xFF121A24;
+            return 0xFF000000u | (mix(col, bg, 16) << 16) | (mix(col, bg, 8) << 8) | mix(col, bg, 0);
+        };
+        const int grow = i == s.sel ? K(8) : 0;
+        const int X = x - grow / 2, Y = y - grow / 2, S = sz + grow;
+        Glass::Round(c, X + K(2), Y + K(8), S, S, 18 * k, 0x60000000);
+        if (i == s.sel) Glass::Round(c, X - K(6), Y - K(6), S + K(12), S + K(12), 22 * k, 0, 0xF0FFFFFF, 3 * k);
+        Glass::Round(c, X, Y + K(3), S, S, 16 * k, fade(a.dark));
+        Glass::Round(c, X, Y, S, S, 16 * k, fade(a.col));
+        const int px = std::max(1, (S - K(12)) / 16), ox = X + (S - px * 16) / 2, oy = Y + (S - px * 16) / 2;
+        for (int rr = 0; rr < 16; rr++)
+            for (int q = 0; q < 16; q++)
+            {
+                const char ch = a.rows[rr][q];
+                if (ch == '.') continue;
+                const uint32_t lite = 0xFF000000u | ((((a.col >> 16) & 0xFF) * 45 / 100 + 140) << 16) | ((((a.col >> 8) & 0xFF) * 45 / 100 + 140) << 8) | ((a.col & 0xFF) * 45 / 100 + 140);
+                const uint32_t col = ch == 'W' ? 0xFFFFFFFF : ch == 'Y' ? 0xFFFFD640 : ch == 'R' ? 0xFFE23834 : ch == 'K' ? 0xFF1E1E24 : ch == 'G' ? 0xFFB0B0B8 : ch == 'L' ? lite : a.dark;
+                c.Fill(ox + q * px, oy + rr * px, px, px, fade(col));
+            }
+    }
+    // (The middle: the chosen app's name, and the clock.)
+    const int sel = std::clamp(s.sel, 0, APPS - 1);
+    const std::string name = label && !label[sel].empty() ? label[sel] : std::string(Get(sel).label);
+    const int fs = std::max(10, K(20)), cs = std::max(8, K(13));
+    T(c, cx - W(name, fs, true, false) / 2, cy + K(7), name, fs, (dim && dim[sel]) ? 0x90F2F5F9 : Menu::GlassText, true, false);
+    char clock[8] = "--:--";
+    const time_t now = time(nullptr);
+    if (const tm* tt = localtime(&now)) snprintf(clock, sizeof(clock), "%02d:%02d", tt->tm_hour, tt->tm_min);
+    T(c, cx - W(clock, cs, true, false) / 2, cy - K(30), clock, cs, Menu::GlassHint, true, false);
+    if (!hint.empty())
+    {
+        const int hs = std::max(9, K(14)), hw = W(hint, hs, true, true) + K(28);
+        const int hx = cx - hw / 2, hy = c.h - K(40);
+        Glass::Round(c, hx, hy, hw, K(26), 13 * k, 0xD8101418);
+        T(c, hx + K(14), hy + K(18), hint, hs, 0xFFEBF0F5, true, true);
+    }
+}
+
 inline void Draw(Canvas& c, const Geo& g, const State& s, const bool dim[APPS], const std::string label[APPS], const std::string& hint, int style = 0)
 {
+    if (style == 3) { DrawWheel(c, g, s, dim, label, hint); return; }
     if (style == 1) { DrawClassic(c, g, s, dim, label, hint); return; }
     if (style == 2) { DrawSimple(c, g, s, dim, label, hint); return; }
     using namespace SettingsArt;

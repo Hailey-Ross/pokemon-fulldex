@@ -1725,7 +1725,7 @@ struct Settings : OptionalFeatures
     // as the message box; 3 CLASSIC, the earlier STRIP: the touch screen's own buttons cut into
     // the message box's band in Black and White, the corner panel in Black 2 (Bw1Layouts::BUTTONS_*).
     int battleButtons = 1;
-    int navStyle = 0; // NAV STYLE (FULLDEX NAV): 0 MODERN, 1 CLASSIC, 2 SIMPLE
+    int navStyle = 0; // NAV STYLE (FULLDEX NAV): 0 MODERN, 1 CLASSIC, 2 SIMPLE, 3 WHEEL
     // The PC all-games program: the window's size when it last closed (0: 1280x720, a wide view).
     int windowW = 0, windowH = 0;
     Controls::Bindings controls; // CONTROLS (controls.h): map_key_* and map_pad_* lines
@@ -1821,7 +1821,7 @@ struct Settings : OptionalFeatures
             else if (k == "ra_user") ra.user = v;
             else if (k == "ra_token") ra.token = v;
             else if (k == "battle_buttons") battleButtons = v == "corner" ? 0 : v == "panel" ? 2 : v == "classic" ? 3 : v == "sunmoon" ? 4 : 1;
-            else if (k == "nav_style") navStyle = v == "classic" ? 1 : v == "simple" ? 2 : 0;
+            else if (k == "nav_style") navStyle = v == "classic" ? 1 : v == "simple" ? 2 : v == "wheel" ? 3 : 0;
             else if (k == "window")
             {
                 const size_t x = v.find('x');
@@ -1889,7 +1889,7 @@ struct Settings : OptionalFeatures
         if (!listLang.empty()) f << "list_lang=" << listLang << "\n";
         f << "start_button=" << (startMenu ? "menu" : "ds") << "\n";
         f << "battle_buttons=" << (battleButtons == 0 ? "corner" : battleButtons == 2 ? "panel" : battleButtons == 3 ? "classic" : battleButtons == 4 ? "sunmoon" : "strip") << "\n";
-        f << "nav_style=" << (navStyle == 1 ? "classic" : navStyle == 2 ? "simple" : "modern") << "\n";
+        f << "nav_style=" << (navStyle == 1 ? "classic" : navStyle == 2 ? "simple" : navStyle == 3 ? "wheel" : "modern") << "\n";
         controls.Save(f);
         f << "both_versions=" << (bothVersions ? 1 : 0) << "\n";
         f << "ra=" << (ra.on ? 1 : 0) << "\n";
@@ -6105,8 +6105,8 @@ int main(int argc, char** argv)
                        own ? "The battle menu's FIGHT, POKEMON, BAG and RUN: this game's own, or as Sun and Moon have them." : "Where the on-screen battle buttons go in Black, White, Black 2 and White 2.",
                        "Sun and Moon: FIGHT across the top, POKEMON, BAG and RUN below it.", art);
             }
-            picker(M_NAVSTYLE, "NAV STYLE", Glass::I_GRID, Menu::P_NONE, { "MODERN", "CLASSIC", "SIMPLE" }, std::clamp(cfg.navStyle, 0, 2),
-                   "FullDex Nav, opened with L3 or Tab: a watch with a graphite case and a glass face, the first one (a red watch), or a plain glass card.",
+            picker(M_NAVSTYLE, "NAV STYLE", Glass::I_GRID, Menu::P_NONE, { "MODERN", "CLASSIC", "SIMPLE", "WHEEL" }, std::clamp(cfg.navStyle, 0, 3),
+                   "FullDex Nav, opened with L3 or Tab: a watch with a graphite case and a glass face, the first one (a red watch), a plain glass card, or a wheel of its apps alone.",
                    "Its apps are the same in both.");
             toggle(M_ZOOM, "ZOOM AND LOOK AROUND", Glass::I_SPARKLE, Menu::P_NONE, cfg.zoom,
                    "A click of the right stick (C on a keyboard) zooms out in steps to show more of the world, and the right stick looks around.",
@@ -9379,10 +9379,24 @@ int main(int argc, char** argv)
         {
             auto down = [&](int key) { return ((fdNavDown >> key) & 1) != 0; };
             int& sel = fdNav.sel;
-            if (down(KEY_LEFT)) sel = sel % 3 == 0 ? sel + 2 : sel - 1;
-            if (down(KEY_RIGHT)) sel = sel % 3 == 2 ? sel - 2 : sel + 1;
-            if (down(KEY_UP)) sel = (sel + 6) % FdNav::APPS;
-            if (down(KEY_DOWN)) sel = (sel + 3) % FdNav::APPS;
+            if (cfg.navStyle == 3)
+            {
+                // (WHEEL: the left stick points at an app; the D-pad steps round, when the stick is not in use.)
+                const int pick = FdNav::WheelPick(ps.lx, ps.ly);
+                if (pick >= 0) sel = pick;
+                else
+                {
+                    if (down(KEY_LEFT) || down(KEY_UP)) sel = (sel + FdNav::APPS - 1) % FdNav::APPS;
+                    if (down(KEY_RIGHT) || down(KEY_DOWN)) sel = (sel + 1) % FdNav::APPS;
+                }
+            }
+            else
+            {
+                if (down(KEY_LEFT)) sel = sel % 3 == 0 ? sel + 2 : sel - 1;
+                if (down(KEY_RIGHT)) sel = sel % 3 == 2 ? sel - 2 : sel + 1;
+                if (down(KEY_UP)) sel = (sel + 6) % FdNav::APPS;
+                if (down(KEY_DOWN)) sel = (sel + 3) % FdNav::APPS;
+            }
             if (down(KEY_A)) fdNavUse = sel;
             if (down(KEY_X) && sel == FdNav::COUNT) { fdNav.count = 0; fdNav.SaveCount(); say("COUNTER SET TO 0"); }
             if (down(KEY_B)) { fdNav.open = false; swallowMenuButtons = true; }
@@ -9994,7 +10008,7 @@ int main(int argc, char** argv)
                 else cfg.battleButtons = (cfg.battleButtons + (dir < 0 ? 4 : 1)) % 5; // CORNER, STRIP, PANEL, CLASSIC, SUN AND MOON
                 bw1.battleButtons = cfg.battleButtons;
                 break;
-            case M_NAVSTYLE: cfg.navStyle = (std::clamp(cfg.navStyle, 0, 2) + (dir < 0 ? 2 : 1)) % 3; cfg.Save(opt.config); break;
+            case M_NAVSTYLE: cfg.navStyle = (std::clamp(cfg.navStyle, 0, 3) + (dir < 0 ? 3 : 1)) % 4; cfg.Save(opt.config); break;
             case M_FPS60:
                 cfg.fps60 = !cfg.fps60;
                 nds->GPU.GPU3D.InterpolationEnabled = cfg.fps60;
