@@ -6844,9 +6844,9 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
     else if (F.prow == 1)
     {
         heading("Credits And Acknowledgements");
-        static const char* const creditUrl[10] = { "https://github.com/ClickingMaster/ssrecomp", "https://github.com/melonDS-emu/melonDS", "https://mgba.io",
+        static const char* const creditUrl[14] = { "https://github.com/ClickingMaster/ssrecomp", "https://github.com/melonDS-emu/melonDS", "https://mgba.io",
             "https://github.com/lidor30/pokedaisy", "https://github.com/fuddlesworth/pokebw2", "https://gbatemp.net/threads/deadskullzjrs-nds-cheat-databases.488711/",
-            "https://github.com/ITotalJustice/sphaira", "", "", "" };
+            "https://github.com/ITotalJustice/sphaira", "", "", "", "", "", "", "" };
         static const char* credits[][2] = {
             { "ssrecomp by ClickingMaster", "The single-screen and widescreen view Fulldex grew from" },
             { "melonDS", "The DS emulation" },
@@ -6858,10 +6858,14 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
             { "sphaira", "How the HOME Menu icons are made" },
             { "WeeabooGod", "Cheats menu ideas (PR #16)" },
             { "Nils Menn", "Fucking legend" },
+            { "CharizardMT (GreninjaMaster89)", "Battle buttons, the Mega button, HeartGold fixes" },
+            { "meltingmagnetz", "Help with the Pok\xC3\xA9" "dex" },
+            { "Jeezer", "The tidy folders idea" },
+            { "a1ex", "Battle labels in other languages (PR #171)" },
             { "Everyone who reported bugs and helped test", "Thank you" } };
         const int gap = (int)(12 * u), cw = (pw - 2 * ip - gap) / 2, ch = (int)(62 * u);
         std::vector<Blk> bl;
-        for (int r = 0; r < 5; r++)
+        for (int r = 0; r < 7; r++)
             bl.push_back({ ch + (int)(10 * u), [&, r]() { for (int k = 0; k < 2; k++) { card(px + ip + k * (cw + gap), y, cw, ch, credits[r * 2 + k][0], credits[r * 2 + k][1]); if (*creditUrl[r * 2 + k]) link(px + ip + k * (cw + gap), y, cw, ch, creditUrl[r * 2 + k]); } y += ch + (int)(10 * u); } });
         runBlocks(bl, ch + (int)(10 * u));
     }
