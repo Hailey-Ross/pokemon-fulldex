@@ -81,6 +81,8 @@ extern "C" int pk_wide_take_fail;   // pk_wide.c, test log only
 #include "fly_gba.h"
 #include "flight_records.h"
 #include "sinnoh_names.h"
+#include "boxes_gba.h"
+#include "items_gba.h"
 #include <atomic>
 #include <filesystem>
 #include "touch.h"
@@ -204,7 +206,7 @@ const std::vector<Setting>& SettingsList()
           "AND THE GAME'S OWN BATTLES ARE NOT CHANGED." },
         { "fly_on", "FLY ON",
           { { "bird", "BIRD" }, { "pokemon", "YOUR FLY POKEMON" }, { "any", "ANY POKEMON" }, { "latias", "LATIAS" }, { "latios", "LATIOS" }, { "rayquaza", "RAYQUAZA" },
-            { "lugia", "LUGIA" }, { "hooh", "HO-OH" }, { "deoxys", "DEOXYS" }, { "balloon", "AIR BALLOON" }, { "helicopter", "HELICOPTER" }, { "zeppelin", "ZEPPELIN" }, { "plane", "PLANE" } }, "bird",
+            { "lugia", "LUGIA" }, { "hooh", "HO-OH" }, { "deoxys", "DEOXYS" }, { "articuno", "ARTICUNO" }, { "zapdos", "ZAPDOS" }, { "moltres", "MOLTRES" }, { "balloon", "AIR BALLOON" }, { "helicopter", "HELICOPTER" }, { "zeppelin", "ZEPPELIN" }, { "plane", "PLANE" } }, "bird",
           "WHAT FREE FLIGHT CARRIES YOU ON. BIRD: THE GAME'S OWN FLY BIRD. YOUR FLY POKEMON: THE POKEMON IN YOUR PARTY THAT KNOWS FLY, "
           "ITS SPRITE FROM YOUR OWN HEARTGOLD OR SOULSILVER IN THE ROMS FOLDER (THE BIRD WHEN THERE IS NONE). ANY POKEMON: THE ONE "
           "YOU PICK IN COMPANION, FLY, FLY ON. LATIAS, LATIOS, "
@@ -724,7 +726,7 @@ struct App
     // RetroAchievements, from the program this is built into (embed.h). None in the standalone game.
     const GbaWide::AchievementsHost* ra = nullptr;
     bool raReady = false;
-    enum PausePage { P_ROOT, P_RA, P_LIST, P_LOGIN, P_CHEATS, P_DISPLAY, P_SOUND, P_CONTROLS, P_SETTINGS, P_QUIT, P_RESET, P_SAVE, P_LOAD, P_DEX, P_DEXENTRY, P_COMP, P_PARTY, P_BAG, P_PLACE, P_BATTLE, P_GUIDE, P_GAMEPLAY, P_FLY, P_FLYMON } pausePage = P_ROOT;
+    enum PausePage { P_ROOT, P_RA, P_LIST, P_LOGIN, P_CHEATS, P_DISPLAY, P_SOUND, P_CONTROLS, P_SETTINGS, P_QUIT, P_RESET, P_SAVE, P_LOAD, P_DEX, P_DEXENTRY, P_COMP, P_PARTY, P_BAG, P_PLACE, P_BATTLE, P_GUIDE, P_GAMEPLAY, P_FLY, P_FLYMON, P_BOXES, P_BOXMON, P_PARTYMON, P_ITEM, P_ITEMMON, P_ITEMMOVE } pausePage = P_ROOT;
     // POKEDEX (gba_dex.h): the ROM as it was before the widescreen patch, read when first opened;
     // the species of each of its list's rows, the one whose page is open, and that one's pictures.
     std::vector<uint8_t> dexRom;
@@ -1098,6 +1100,10 @@ struct App
 #endif
         SetVolume();
         dexRom = sold.empty() ? rom : sold;
+        objGfxTable = 0;
+        objPalTable = 0;
+        objPalCount = 0;
+        iconTable = 0;
         compConfig = rom.size() > 0xBD ? GbaCompanion::ConfigFor((const char*)rom.data() + 0xAC, rom[0xBC]) : nullptr;
         gameCode = rom.size() > 0xB0 ? std::string((const char*)rom.data() + 0xAC, 4) : std::string();
         guideShown.assign(GbaGuides::For(gameCode.c_str()).size(), false);
@@ -1124,6 +1130,8 @@ struct App
             fly.Find(core);
             flyStage = 0;
             FlightFind(sold.empty() ? rom : sold);
+            boxes.Find(core, sold.empty() ? rom : sold, fly.Table());
+            items.Find(core, sold.empty() ? rom : sold, fly.Table());
             if (gpField) pk_field_wild(gpWild, WildKeep() == 0);
             ApplyGameplay();
             ffKey = 0;
@@ -1183,6 +1191,8 @@ struct App
         mAudioResamplerDeinit(&resampler);
         ffMusic.Stop();
         fly.Forget();
+        boxes.Forget();
+        items.Forget();
         ExploredSave();
         pk_flight_configure(nullptr, 0);
         pk_flight_reset();
@@ -1515,7 +1525,7 @@ struct App
         if (!paused) ShinyFrame();
         core->runFrame(core);
         fly.FrameEnded();
-        if (!paused) FlyFrame();
+        if (!paused) { FlyFrame(); TmFrame(); }
         FogUndo();
         FlightFrame();
         ExploredFrame();
@@ -1591,6 +1601,7 @@ struct App
         if (pausePage == P_COMP)
         {
             for (const char* l : { "PARTY", "BAG", "LOCATION", "BATTLE INFO", "GUIDE" }) pause.items.push_back({ l, "" });
+            if (boxes.Supported()) pause.items.push_back({ "BOXES", "" });
             if (fly.Supported()) pause.items.push_back({ "FLY", "" });
             pause.items.push_back({ "BACK", "" });
             return;
@@ -1599,6 +1610,54 @@ struct App
         {
             if (flightRec) { pause.items.push_back({ "FREE FLIGHT", "", false }); pause.items.push_back({ "FLY ON", "", false }); }
             for (int sec : flyT.towns) pause.items.push_back({ "TOWN " + std::to_string(sec), "", false });
+            pause.items.push_back({ "BACK", "" });
+            return;
+        }
+        if (pausePage == P_BOXES)
+        {
+            boxList = boxes.Read();
+            for (int b = 0; b < (int)boxList.size(); b++)
+            {
+                if (boxList[b].mons.empty()) continue;
+                pause.items.push_back({ "#BOX " + std::to_string(b), "", true });
+                for (const auto& sl : boxList[b].mons) pause.items.push_back({ "B " + std::to_string(b) + " " + std::to_string(sl.slot), "", false });
+            }
+            if (pause.items.empty()) pause.items.push_back({ "Your boxes are empty", "", true });
+            pause.items.push_back({ "BACK", "" });
+            return;
+        }
+        if (pausePage == P_BOXMON)
+        {
+            if ((int)comp.party.size() < 6) pause.items.push_back({ "WITHDRAW", "", false });
+            for (size_t i = 0; i < comp.party.size(); i++) pause.items.push_back({ "SWAP " + std::to_string(i), "", false });
+            pause.items.push_back({ "BACK", "" });
+            return;
+        }
+        if (pausePage == P_PARTYMON)
+        {
+            if (items.Supported() && partyPick >= 0 && partyPick < (int)comp.party.size() && comp.party[partyPick].item && !GbaItems::IsMail(comp.party[partyPick].item))
+                pause.items.push_back({ "TAKE ITEM", "", false });
+            if (boxes.Supported()) pause.items.push_back({ "DEPOSIT", "", false });
+            pause.items.push_back({ "BACK", "" });
+            return;
+        }
+        if (pausePage == P_ITEM)
+        {
+            if (items.CanTeach(itemPick)) pause.items.push_back({ "TEACH", "", false });
+            if (items.CanUse(itemPick)) pause.items.push_back({ "USE", "", false });
+            if (items.CanGive(itemPick)) pause.items.push_back({ "GIVE", "", false });
+            pause.items.push_back({ "BACK", "" });
+            return;
+        }
+        if (pausePage == P_ITEMMON)
+        {
+            for (size_t i = 0; i < itemTargets.size(); i++) pause.items.push_back({ "T " + std::to_string(i), "", false });
+            pause.items.push_back({ "BACK", "" });
+            return;
+        }
+        if (pausePage == P_ITEMMOVE)
+        {
+            for (int m = 0; m < 4; m++) pause.items.push_back({ "M " + std::to_string(m), "", false });
             pause.items.push_back({ "BACK", "" });
             return;
         }
@@ -2011,7 +2070,7 @@ struct App
         {
             // FREE FLIGHT: the checks again, then the take-off on the next frames.
             // (YOUR FLY POKEMON: HeartGold / SoulSilver looked for first, a second or so at most.)
-            if ((set.Get("fly_on") == "pokemon" || set.Get("fly_on") == "any") && followState <= 1 && ++flyHgssWait < 300) { if (followState == 0) FollowFind(); return; }
+            if ((set.Get("fly_on") == "pokemon" || set.Get("fly_on") == "any" || LegendNational(set.Get("fly_on"))) && followState <= 1 && ++flyHgssWait < 300) { if (followState == 0) FollowFind(); return; }
             const GbaFly::Targets t = fly.Now();
             if (t.result == GbaFly::OK)
             {
@@ -2042,6 +2101,17 @@ struct App
             if (FILE* l = fopen("fly-log.txt", "r")) { fclose(l); if (FILE* a = fopen("fly-log.txt", "a")) { fprintf(a, "finish frame %d step %d\n", (int)gameFrames, (int)step); fclose(a); } }
             if (step != GbaFly::Fly::LATER || flyWait > 120) flyStage = 0;
         }
+    }
+    // TEACH a TM or HM: the game's own TM party menu, opened once TmStart's fade is black (GbaItems::Items::TmFinish).
+    int tmItem = 0, tmWait = 0;
+    void TmFrame()
+    {
+        if (!tmItem || ++tmWait < 30) return;
+        const auto step = items.TmFinish(tmItem);
+        if (step == GbaItems::Items::TM_LATER && tmWait < 120) return;
+        if (step == GbaItems::Items::TM_BACK || step == GbaItems::Items::TM_LATER) Toast("THE TM SCREEN CAN'T OPEN HERE", 2500);
+        if (FILE* l = fopen("fly-log.txt", "r")) { fclose(l); if (FILE* a = fopen("fly-log.txt", "a")) { fprintf(a, "tm frame %d step %d\n", (int)gameFrames, (int)step); fclose(a); } }
+        tmItem = 0;
     }
     // FREE FLIGHT (PokeDaisy's pk_flight.c): the game's own Fly bird, steered over the field; set up when the game's
     // functions are where its record says (flight_records.h).
@@ -2244,7 +2314,8 @@ struct App
             fogDrawn = true;
         }
     }
-    // FLY ON a legendary: Emerald's own object sprites (the ones its story shows: Southern Island's Latias and Latios,
+    // FLY ON a legendary: Emerald's, FireRed's and LeafGreen's own object sprites (FireRed and LeafGreen: the three birds,
+    // Navel Rock's Lugia and Ho-Oh, Birth Island's Deoxys); Emerald's (the ones its story shows: Southern Island's Latias and Latios,
     // Sky Pillar's Rayquaza, Navel Rock's Lugia and Ho-Oh, Birth Island's Deoxys), two of each one's frames taking turns.
     // Read from the ROM (gObjectEventGraphicsInfoPointers, and the sprite palettes found by their tags); retail Emerald only.
     bool LegendMount(const std::string& which)
@@ -2257,9 +2328,11 @@ struct App
         return true;
     }
     // Two frames (palette indices, w x h each, one after the other) and the palette (ABGR) of an Emerald legendary.
+    uint32_t objGfxTable = 0, objPalTable = 0, objPalCount = 0;   // (the ROM's object graphics and palette tables; 1: not found)
     bool LegendFrames(const std::string& which, std::vector<uint8_t>& px, int& outW, int& outH, uint32_t pal[16])
     {
-        if (gameCode != "BPEE") return false;
+        const bool emerald = gameCode.rfind("BPE", 0) == 0, kanto = gameCode.rfind("BPR", 0) == 0 || gameCode.rfind("BPG", 0) == 0;
+        if (!emerald && !kanto) return false;
         const struct GBA* gba = (const struct GBA*)core->board;
         const uint8_t* rom = (const uint8_t*)gba->memory.rom;
         const size_t size = gba->memory.romSize;
@@ -2267,16 +2340,56 @@ struct App
         auto r16 = [&](uint32_t a) -> uint32_t { const size_t o = a - 0x08000000u; return o + 2 <= size ? (uint32_t)(rom[o] | rom[o + 1] << 8) : 0; };
         auto isRom = [&](uint32_t v) { return v >= 0x08000000u && v - 0x08000000u < size; };
         struct L { const char* name; int gfx, f0, f1; };
-        static const L list[] = { { "latias", 187, 0, 4 }, { "latios", 188, 0, 4 }, { "rayquaza", 207, 5, 6 }, { "lugia", 237, 0, 4 }, { "hooh", 238, 0, 4 }, { "deoxys", 232, 0, 4 } };
+        static const L hoenn[] = { { "latias", 187, 0, 4 }, { "latios", 188, 0, 4 }, { "rayquaza", 207, 5, 6 }, { "lugia", 237, 0, 4 }, { "hooh", 238, 0, 4 }, { "deoxys", 232, 0, 4 } };
+        // (FireRed and LeafGreen: the Sevii and Seafoam / Power Plant / Mt. Ember birds have one picture each.)
+        static const L kantoList[] = { { "zapdos", 136, 0, 0 }, { "moltres", 137, 0, 0 }, { "articuno", 138, 0, 0 }, { "lugia", 144, 0, 4 }, { "hooh", 145, 0, 4 }, { "deoxys", 148, 0, 4 } };
         const L* l = nullptr;
-        for (const L& c : list) if (which == c.name) l = &c;
+        for (const L& c : hoenn) if (emerald && which == c.name) l = &c;
+        for (const L& c : kantoList) if (kanto && which == c.name) l = &c;
         if (!l) return false;
-        const uint32_t info = r32(0x08505620u + 4u * (uint32_t)l->gfx);
+        // (gObjectEventGraphicsInfoPointers: the longest run of pointers to graphics infos, found once per ROM, so every
+        // language and revision has its own.)
+        auto infoOk = [&](uint32_t i) {
+            if (!isRom(i) || r16(i) != 0xFFFF) return false;
+            // (Any size in 8s, the ferry's 96 x 40 too; some hold two frames' worth of bytes.)
+            const uint32_t w = r16(i + 8), h = r16(i + 0xA), b = r16(i + 6), one = w * h / 2;
+            return w >= 8 && h >= 8 && w <= 128 && h <= 128 && !(w % 8) && !(h % 8) && b && !(b % one) && b / one <= 4;
+        };
+        if (!objGfxTable)
+        {
+            uint32_t bestN = 0;
+            for (size_t o = 0; o + 4 <= size;)
+            {
+                uint32_t n = 0;
+                while (o + 4 * (n + 1) <= size && infoOk(r32(0x08000000u + (uint32_t)(o + 4 * n)))) n++;
+                if (n > bestN) { bestN = n; objGfxTable = 0x08000000u + (uint32_t)o; }
+                o += 4 * (n ? n : 1);
+            }
+            if (bestN < 100) objGfxTable = 1;   // (none: don't look again)
+        }
+        if (objGfxTable < 0x08000000u) return false;
+        const uint32_t info = r32(objGfxTable + 4u * (uint32_t)l->gfx);
         if (!isRom(info)) return false;
         const uint32_t tag = r16(info + 2), bytes = r16(info + 6), w = r16(info + 8), h = r16(info + 0xA), images = r32(info + 0x1C);
         if (w > 64 || h > 64 || bytes != w * h / 2 || !isRom(images)) return false;
-        // (The palette: the table of {data, tag} pairs the object palettes are loaded from.)
+        // (The palette: the table of {data, tag} pairs the object palettes are loaded from, the longest run of them, found
+        // once; LeafGreen has other pairs with the same tags before it. Else the first pair with the tag.)
+        if (!objPalTable)
+        {
+            uint32_t bestN = 0;
+            auto pair = [&](size_t o) { const uint32_t a = 0x08000000u + (uint32_t)o; return o + 8 <= size && isRom(r32(a)) && r16(a + 4) >= 0x1100 && r16(a + 4) < 0x1200 && r16(a + 6) == 0; };
+            for (size_t o = 0; o + 8 <= size;)
+            {
+                uint32_t n = 0;
+                while (pair(o + 8 * n)) n++;
+                if (n > bestN) { bestN = n; objPalTable = 0x08000000u + (uint32_t)o; objPalCount = n; }
+                o += n ? 8 * n : 4;
+            }
+            if (bestN < 8) { objPalTable = 1; objPalCount = 0; }
+        }
         uint32_t palData = 0;
+        for (uint32_t k = 0; k < objPalCount && !palData; k++)
+            if (r16(objPalTable + 8 * k + 4) == tag) palData = r32(objPalTable + 8 * k);
         for (size_t o = 0; o + 16 <= size && !palData; o += 4)
         {
             const uint32_t a = 0x08000000u + (uint32_t)o;
@@ -2305,6 +2418,330 @@ struct App
         outW = (int)w;
         outH = (int)h;
         return true;
+    }
+    // BAG's USE, GIVE and TAKE (items_gba.h): the item picked, then the Pokemon (and move) it goes to.
+    GbaItems::Items items;
+    std::vector<int> bagRowIds;   // (each BAG row's item; 0: a heading)
+    int itemPick = 0, itemTarget = -1;
+    bool itemGive = false;
+    std::vector<GbaItems::Target> itemTargets;
+    std::string ItemName(int id) { const std::string n = dex.ItemName(id); return n.empty() ? "Item " + std::to_string(id) : DexTitle(n); }
+    void ItemDone(GbaItems::Result r, const std::string& done)
+    {
+        Toast(r == GbaItems::USED || r == GbaItems::GIVEN || r == GbaItems::TAKEN ? done : std::string(GbaItems::Why(r)), 2500);
+        ReadCompanion();
+    }
+    bool ItemsInput(const MenuIn& in)
+    {
+        const bool sel = pause.selected >= 0 && pause.selected < (int)pause.items.size();
+        const std::string l = sel ? pause.items[pause.selected].label : std::string();
+        if (pausePage == P_BAG)
+        {
+            const int id = sel && pause.selected < (int)bagRowIds.size() ? bagRowIds[pause.selected] : 0;
+            if (!id || !(items.CanUse(id) || items.CanGive(id) || items.CanTeach(id)) || comp.inBattle) return false;
+            itemPick = id;
+            GoPage(P_ITEM, items.CanTeach(id) ? "TEACH" : items.CanUse(id) ? "USE" : "GIVE");
+            return true;
+        }
+        if (pausePage == P_PARTYMON)   // TAKE ITEM
+        {
+            if (partyPick < 0 || partyPick >= (int)comp.party.size()) return true;
+            int item = 0;
+            const GbaItems::Result r = items.Take(items.Slot(partyPick, comp.party[partyPick].personality, comp.party[partyPick].item), item);
+            ItemDone(r, ItemName(item) + " PUT IN THE BAG");
+            GoPage(P_PARTY, "");
+            if (partyPick < (int)pause.items.size()) pause.selected = partyPick;
+            return true;
+        }
+        auto toBag = [&]() {
+            GoPage(P_BAG, "");
+            for (size_t i = 0; i < bagRowIds.size(); i++) if (bagRowIds[i] == itemPick) { pause.selected = (int)i; break; }
+        };
+        if (in.back || (in.accept && l == "BACK"))
+        {
+            if (pausePage == P_ITEMMOVE) GoPage(P_ITEMMON, "");
+            else if (pausePage == P_ITEMMON) GoPage(P_ITEM, itemGive ? "GIVE" : "USE");
+            else toBag();
+            return true;
+        }
+        if (!in.accept || !sel) return true;
+        if (pausePage == P_ITEM && l == "TEACH")
+        {
+            // (The game's own TM screen: the fade starts now, the party menu once it's black.)
+            const GbaItems::Result r = items.TmStart(itemPick);
+            if (r != GbaItems::USED) { Toast(GbaItems::Why(r), 2500); return true; }
+            tmItem = itemPick;
+            tmWait = 0;
+            Resume();
+            return true;
+        }
+        if (pausePage == P_ITEM)
+        {
+            itemGive = l == "GIVE";
+            if (!itemGive && GbaItems::IsRepel(itemPick))
+            {
+                int steps = 0;
+                const GbaItems::Result r = items.UseRepel(itemPick, steps);
+                ItemDone(r, ItemName(itemPick) + ": " + std::to_string(steps) + " STEPS WITHOUT WILD POKEMON");
+                toBag();
+                return true;
+            }
+            GbaItems::Result why = GbaItems::USED;
+            itemTargets = items.Targets(itemPick, itemGive, why);
+            if (itemTargets.empty()) { Toast(GbaItems::Why(why == GbaItems::USED ? GbaItems::FAILED : why), 2500); return true; }
+            GoPage(P_ITEMMON, "");
+            return true;
+        }
+        if (pausePage == P_ITEMMON && l.rfind("T ", 0) == 0)
+        {
+            itemTarget = std::atoi(l.c_str() + 2);
+            if (itemTarget < 0 || itemTarget >= (int)itemTargets.size()) return true;
+            const GbaItems::Target& t = itemTargets[itemTarget];
+            if (t.verdict != GbaItems::OK) { Toast(t.verdict == GbaItems::EGG ? "AN EGG CAN'T USE OR HOLD THAT" : t.verdict == GbaItems::HOLDS_MAIL ? "TAKE ITS MAIL FIRST" : t.verdict == GbaItems::HOLDS_IT ? "IT'S HOLDING ONE ALREADY" : "IT WON'T HAVE ANY EFFECT", 2500); return true; }
+            if (!itemGive && items.PicksMove(itemPick)) { GoPage(P_ITEMMOVE, ""); return true; }
+            if (itemGive)
+            {
+                int was = 0;
+                const GbaItems::Result r = items.Give(itemPick, t, was);
+                ItemDone(r, ItemName(itemPick) + " GIVEN" + (was ? ", " + ItemName(was) + " PUT IN THE BAG" : std::string()));
+            }
+            else ItemDone(items.UseOn(itemPick, t, 0), ItemName(itemPick) + " USED");
+            toBag();
+            return true;
+        }
+        if (pausePage == P_ITEMMOVE && l.rfind("M ", 0) == 0 && itemTarget >= 0 && itemTarget < (int)itemTargets.size())
+        {
+            const int m = std::atoi(l.c_str() + 2);
+            if (!itemTargets[itemTarget].moves[m]) { Toast("IT WON'T HAVE ANY EFFECT", 2500); return true; }
+            ItemDone(items.UseOn(itemPick, itemTargets[itemTarget], m), ItemName(itemPick) + " USED");
+            toBag();
+            return true;
+        }
+        return true;
+    }
+    template <class Page, class Put>
+    void ItemsGlass(GbaGlass::Page& g, int n, Page page, Put put)
+    {
+        using namespace GbaGlass;
+        const std::string name = ItemName(itemPick);
+        page(pausePage == P_ITEM ? name.c_str() : itemGive ? "GIVE TO" : "USE ON", IC_LOAD);
+        const int card = pausePage == P_ITEMMON ? (pause.selected >= 0 && pause.selected < (int)itemTargets.size() ? itemTargets[pause.selected].slot : -1)
+                                                : pausePage == P_ITEMMOVE && itemTarget >= 0 && itemTarget < (int)itemTargets.size() ? itemTargets[itemTarget].slot : -1;
+        if (card >= 0 && card < (int)comp.party.size()) g.mons.push_back(MonCardFor(card));
+        for (int i = 0; i < n; i++)
+        {
+            const std::string& l = pause.items[i].label;
+            if (l == "BACK") continue;
+            Item it;
+            it.kind = LINK;
+            it.icon = IC_LOAD;
+            if (l == "USE") { it.label = "Use"; it.desc = GbaItems::IsRepel(itemPick) ? "Wild Pok\xC3\xA9" "mon keep away for a while." : "Use it on a Pok\xC3\xA9" "mon in your party."; }
+            else if (l == "GIVE") { it.label = "Give"; it.desc = "Give it to a Pok\xC3\xA9" "mon to hold. What it held goes back in the bag."; }
+            else if (l.rfind("T ", 0) == 0)
+            {
+                const int k = std::atoi(l.c_str() + 2);
+                if (k < 0 || k >= (int)itemTargets.size()) continue;
+                const GbaItems::Target& t = itemTargets[k];
+                it.label = t.slot < (int)comp.party.size() ? MonCardFor(t.slot).name : "Pok\xC3\xA9" "mon";
+                it.value = t.verdict == GbaItems::OK ? (itemGive && t.held ? "HOLDS " + ItemName(t.held) : std::string()) :
+                           t.verdict == GbaItems::EGG ? "EGG" : t.verdict == GbaItems::HOLDS_MAIL ? "HOLDS MAIL" : t.verdict == GbaItems::HOLDS_IT ? "HOLDS IT" : "NO EFFECT";
+                it.disabled = t.verdict != GbaItems::OK;
+                if (!g.mons.empty()) it.monCard = 0;
+            }
+            else if (l.rfind("M ", 0) == 0)
+            {
+                const int m = std::atoi(l.c_str() + 2);
+                const GbaItems::Target* t = itemTarget >= 0 && itemTarget < (int)itemTargets.size() ? &itemTargets[itemTarget] : nullptr;
+                const int slot = t ? t->slot : -1;
+                const int mv = slot >= 0 && slot < (int)comp.party.size() ? comp.party[slot].moves[m] : 0;
+                if (!mv) continue;
+                it.label = DexTitle(dex.Move(mv));
+                it.value = std::to_string(comp.party[slot].pp[m]) + " PP";
+                it.disabled = !t->moves[m];
+                if (!g.mons.empty()) it.monCard = 0;
+            }
+            else continue;
+            put(it, i);
+        }
+    }
+    // BOXES (boxes_gba.h): the PC read live; a box Pokemon's card with its level and stats worked out from its experience,
+    // IVs, EVs and nature, as the game does when it comes out.
+    GbaBoxes::Boxes boxes;
+    std::vector<GbaBoxes::Box> boxList;
+    int boxPick = -1, boxPickSlot = -1, partyPick = -1;
+    std::map<int, GbaDex::Picture> boxPics;
+    static int ExpFor(int n, int growth)
+    {
+        const long long n3 = (long long)n * n * n;
+        switch (growth)
+        {
+        case 1: return (int)(n <= 50 ? n3 * (100 - n) / 50 : n <= 68 ? n3 * (150 - n) / 100 : n <= 98 ? n3 * ((1911 - 10 * n) / 3) / 500 : n3 * (160 - n) / 100);
+        case 2: return (int)(n <= 15 ? n3 * ((n + 1) / 3 + 24) / 50 : n <= 36 ? n3 * (n + 14) / 50 : n3 * (n / 2 + 32) / 50);
+        case 3: return (int)(6 * n3 / 5 - 15LL * n * n + 100 * n - 140);
+        case 4: return (int)(4 * n3 / 5);
+        case 5: return (int)(5 * n3 / 4);
+        default: return (int)n3;
+        }
+    }
+    GbaCompanion::Mon BoxFilled(GbaCompanion::Mon m)
+    {
+        const GbaDex::Stats st = dex.Get(m.species);
+        int level = 1;
+        while (level < 100 && ExpFor(level + 1, st.growth) <= (int)m.exp) level++;
+        m.level = level;
+        static const int baseOf[6] = { 0, 1, 2, 5, 3, 4 };   // (the card's order from gba_dex.h's)
+        for (int k = 0; k < 6; k++)
+        {
+            const int c0 = (2 * st.base[baseOf[k]] + m.iv[k] + m.ev[k] / 4) * level / 100;
+            if (k == 0) { m.stats[0] = dex.Dex(m.species) == 292 ? 1 : c0 + level + 10; continue; }   // (Shedinja: 1)
+            int v = c0 + 5;
+            const int nat = (int)(m.personality % 25), up = 1 + nat / 5, down = 1 + nat % 5;
+            if (up != down) { if (k == up) v = v * 110 / 100; if (k == down) v = v * 90 / 100; }
+            m.stats[k] = v;
+        }
+        m.maxHp = m.hp = m.stats[0];
+        return m;
+    }
+    GbaGlass::MonCard BoxCard(const GbaCompanion::Mon& raw)
+    {
+        const GbaCompanion::Mon m = BoxFilled(raw);
+        auto it = boxPics.find(m.species);
+        if (it == boxPics.end()) it = boxPics.emplace(m.species, dex.Front(m.species, false)).first;
+        return MonCardOf(m, it->second.Ready() ? &it->second : nullptr);
+    }
+    const GbaBoxes::Slot* BoxSlot(int b, int slot) const
+    {
+        if (b < 0 || b >= (int)boxList.size()) return nullptr;
+        for (const auto& sl : boxList[b].mons) if (sl.slot == slot) return &sl;
+        return nullptr;
+    }
+    std::string BoxName(int b) const
+    {
+        if (b < 0 || b >= (int)boxList.size()) return {};
+        std::string n = GbaDex::Text((const uint8_t*)boxList[b].name.data(), boxList[b].name.size());
+        while (!n.empty() && n.back() == ' ') n.pop_back();
+        return n.empty() ? "Box " + std::to_string(b + 1) : DexTitle(n);
+    }
+    void BoxDone(GbaBoxes::Result r, const char* done)
+    {
+        Toast(r == GbaBoxes::DONE ? done : GbaBoxes::Why(r), 2500);
+        ReadCompanion();
+        boxList = boxes.Read();
+    }
+    // BOXES' pages: A on a box Pokemon for what to do with it; A on a party one (PARTY) to put it away.
+    bool BoxesInput(const MenuIn& in)
+    {
+        const bool sel = pause.selected >= 0 && pause.selected < (int)pause.items.size();
+        const std::string l = sel ? pause.items[pause.selected].label : std::string();
+        if (pausePage == P_PARTY)
+        {
+            if (!sel || l == "BACK" || pause.selected >= (int)comp.party.size() || comp.inBattle) return false;
+            partyPick = pause.selected;
+            GoPage(P_PARTYMON, "TAKE ITEM");
+            if (pause.items.size() <= 1) { GoPage(P_PARTY, ""); pause.selected = partyPick; }
+            return true;
+        }
+        if (pausePage == P_BOXES)
+        {
+            if (in.accept && l.rfind("B ", 0) == 0)
+            {
+                std::sscanf(l.c_str(), "B %d %d", &boxPick, &boxPickSlot);
+                GoPage(P_BOXMON, "");
+                return true;
+            }
+            return false;   // (BACK and B: the companion's own)
+        }
+        if (in.back || (in.accept && l == "BACK"))
+        {
+            if (pausePage == P_BOXMON) GoPage(P_BOXES, ("B " + std::to_string(boxPick) + " " + std::to_string(boxPickSlot)).c_str());
+            else GoPage(P_PARTY, "");
+            if (pausePage == P_PARTY && partyPick >= 0 && partyPick < (int)pause.items.size()) pause.selected = partyPick;
+            return true;
+        }
+        if (!in.accept || !sel) return true;
+        if (pausePage == P_PARTYMON && l == "DEPOSIT" && partyPick >= 0 && partyPick < (int)comp.party.size())
+        {
+            if (boxList.empty()) boxList = boxes.Read();
+            const int box = boxes.CurrentBox();
+            BoxDone(boxes.Deposit(partyPick, comp.party[partyPick].personality, box), "PUT IN THE BOX");
+            GoPage(P_PARTY, "");
+            return true;
+        }
+        const GbaBoxes::Slot* bs = BoxSlot(boxPick, boxPickSlot);
+        if (pausePage == P_BOXMON && bs)
+        {
+            const uint32_t pers = bs->mon.personality;
+            if (l == "WITHDRAW") BoxDone(boxes.Withdraw(boxPick, boxPickSlot, pers), "TAKEN INTO YOUR PARTY");
+            else if (l.rfind("SWAP ", 0) == 0)
+            {
+                const int ps = std::atoi(l.c_str() + 5);
+                if (ps >= 0 && ps < (int)comp.party.size()) BoxDone(boxes.Swap(boxPick, boxPickSlot, pers, ps, comp.party[ps].personality), "SWAPPED");
+            }
+            GoPage(P_BOXES, "");
+        }
+        return true;
+    }
+    template <class Page, class Put>
+    void BoxesGlass(GbaGlass::Page& g, int n, Page page, Put put)
+    {
+        using namespace GbaGlass;
+        if (pausePage == P_BOXES)
+        {
+            page("BOXES", IC_LOAD);
+            // (The chosen row's Pokemon in the preview, its card worked out as it would come out of the box.)
+            for (int i = 0; i < n; i++)
+            {
+                const std::string& l = pause.items[i].label;
+                Item it;
+                if (l.rfind("#BOX ", 0) == 0)
+                {
+                    const int b = std::atoi(l.c_str() + 5);
+                    it.label = BoxName(b);
+                    it.kind = SECTION;
+                    it.icon = IC_LOAD;
+                    put(it, -1);
+                    continue;
+                }
+                if (l.rfind("B ", 0) != 0) { if (l != "BACK") { it.label = l; it.info = true; put(it, i); } continue; }
+                int b = 0, slot = 0;
+                std::sscanf(l.c_str(), "B %d %d", &b, &slot);
+                const GbaBoxes::Slot* bs = BoxSlot(b, slot);
+                if (!bs) continue;
+                const GbaCompanion::Mon m = BoxFilled(bs->mon);
+                std::string nick = GbaDex::Text((const uint8_t*)m.nickname.data(), m.nickname.size());
+                while (!nick.empty() && nick.back() == ' ') nick.pop_back();
+                it.label = m.egg ? std::string("Egg") : DexTitle(nick.empty() ? dex.Name(m.species) : nick);
+                it.value = m.egg ? "EGG" : "LV " + std::to_string(m.level);
+                it.kind = LINK;
+                if (i == pause.selected) { g.mons.push_back(BoxCard(bs->mon)); it.monCard = (int)g.mons.size() - 1; }
+                put(it, i);
+            }
+            return;
+        }
+        const bool boxMon = pausePage == P_BOXMON;
+        page(boxMon ? "BOX POKEMON" : "PARTY POKEMON", boxMon ? IC_LOAD : IC_PEOPLE);
+        const GbaBoxes::Slot* bs = BoxSlot(boxPick, boxPickSlot);
+        if (boxMon && bs) g.mons.push_back(BoxCard(bs->mon));
+        else if (!boxMon && partyPick >= 0 && partyPick < (int)comp.party.size()) g.mons.push_back(MonCardFor(partyPick));
+        for (int i = 0; i < n; i++)
+        {
+            const std::string& l = pause.items[i].label;
+            if (l == "BACK") continue;
+            Item it;
+            it.kind = LINK;
+            if (l == "WITHDRAW") { it.label = "Take into your party"; it.icon = IC_PEOPLE; }
+            else if (l == "TAKE ITEM") { it.label = "Take its " + (partyPick >= 0 && partyPick < (int)comp.party.size() ? DexTitle(dex.ItemName(comp.party[partyPick].item)) : std::string("item")); it.icon = IC_LOAD; }
+            else if (l == "DEPOSIT") { it.label = "Put in " + BoxName(boxes.CurrentBox()); it.icon = IC_LOAD; if (boxList.empty()) boxList = boxes.Read(); it.label = "Put in " + BoxName(boxes.CurrentBox()); }
+            else if (l.rfind("SWAP ", 0) == 0)
+            {
+                const int ps = std::atoi(l.c_str() + 5);
+                it.label = "Swap with " + (ps < (int)comp.party.size() ? MonCardFor(ps).name : std::string("?"));
+                it.icon = IC_FAST;
+            }
+            else continue;
+            if (!g.mons.empty()) it.monCard = 0;
+            put(it, i);
+        }
     }
     // FLY ON > ANY POKEMON: the National Pokedex number picked (Charizard to begin with).
     int FlyMonChosen() const { const int n = std::atoi(set.Get("fly_on_mon").c_str()); return n >= 1 && n <= 493 ? n : 6; }
@@ -2337,11 +2774,17 @@ struct App
                     if (i) m.px[y * 32 + x] = argb(pal[i * 2] | pal[i * 2 + 1] << 8);
                 }
         }
-        else if (const char* legend = LegendFor(national))
+        else
         {
+            // (As the mount: Emerald's own legendary, else the party icon, else FireRed and LeafGreen's legendary.)
+            const char* legend = LegendFor(national);
+            const bool kanto = gameCode.rfind("BPR", 0) == 0 || gameCode.rfind("BPG", 0) == 0;
             std::vector<uint8_t> px;
             uint32_t abgr[16];
-            if (LegendFrames(legend, px, m.w, m.h, abgr))
+            bool got = legend && !kanto && LegendFrames(legend, px, m.w, m.h, abgr);
+            if (!got && IconMount(national, &px, abgr)) { got = true; m.w = m.h = 32; px.resize(32 * 32); }
+            if (!got && legend) got = LegendFrames(legend, px, m.w, m.h, abgr);
+            if (got)
             {
                 m.emerald = true;
                 m.px.assign((size_t)m.w * m.h, 0);
@@ -2367,10 +2810,84 @@ struct App
                 for (const auto& o : st.values) if (o.first == on) return DexTitle(o.second);
         return "Bird";
     }
+    // A Pokemon's party icon from the game's own ROM as a mount: 32 x 32, two frames, facing west as most Gen 3 icons do.
+    // gMonIconTable, gMonIconPaletteIndices and gMonIconPaletteTable sit one after another in every GBA game: the palette
+    // table found by its tags (56000 on), the indices just before it, the icon pointers before those. Found once per ROM.
+    uint32_t iconTable = 0, iconIdx = 0, iconPals = 0;
+    int iconCount = 0, iconPalCount = 0;
+    bool IconMount(int national, std::vector<uint8_t>* outPx = nullptr, uint32_t* outPal = nullptr)
+    {
+        const struct GBA* gba = (const struct GBA*)core->board;
+        const uint8_t* rom = (const uint8_t*)gba->memory.rom;
+        const size_t size = gba->memory.romSize;
+        auto r32 = [&](uint32_t a) -> uint32_t { const size_t o = a - 0x08000000u; return o + 4 <= size ? rom[o] | rom[o + 1] << 8 | rom[o + 2] << 16 | (uint32_t)rom[o + 3] << 24 : 0; };
+        auto r16 = [&](uint32_t a) -> uint32_t { const size_t o = a - 0x08000000u; return o + 2 <= size ? (uint32_t)(rom[o] | rom[o + 1] << 8) : 0; };
+        auto isRom = [&](uint32_t v) { return v >= 0x08000000u && v - 0x08000000u + 0x400 <= size; };
+        if (!iconTable)
+        {
+            iconTable = 1;
+            for (size_t o = 0; o + 24 <= size; o += 4)
+            {
+                const uint32_t a = 0x08000000u + (uint32_t)o;
+                if (r16(a + 4) != 56000 || r16(a + 12) != 56001 || r16(a + 20) != 56002 || !isRom(r32(a)) || !isRom(r32(a + 8))) continue;
+                int np = 0;
+                while (np < 16 && r16(a + 8u * (uint32_t)np + 4) == 56000u + (uint32_t)np) np++;
+                size_t k = o;
+                while (k > 0 && rom[k - 1] < np) k--;
+                size_t j = k & ~(size_t)3;
+                int n = 0;
+                while (j >= 4 && isRom(r32(0x08000000u + (uint32_t)(j - 4)))) { j -= 4; n++; }
+                const int idx = (int)(o - k);
+                if (n < 300 || idx < 300) continue;
+                iconTable = 0x08000000u + (uint32_t)j; iconIdx = 0x08000000u + (uint32_t)k; iconPals = a;
+                iconCount = std::min(n, idx); iconPalCount = np;
+                break;
+            }
+        }
+        if (iconTable < 0x08000000u || national <= 0) return false;
+        // (The game's own species number for the National Pokedex one.)
+        if (!dexTried) { dexTried = true; dex.Load(dexRom); }
+        int sp = 0;
+        if (dex.Ready()) { for (int i = 1; i < std::min(dex.count + 1, iconCount) && !sp; i++) if (dex.Dex(i) == national) sp = i; }
+        else if (national <= 251) sp = national;
+        if (sp <= 0 || sp >= iconCount) return false;
+        const uint32_t gfx = r32(iconTable + 4u * (uint32_t)sp);
+        const int p = rom[iconIdx - 0x08000000u + (uint32_t)sp];
+        if (!isRom(gfx) || p >= iconPalCount) return false;
+        const uint32_t palData = r32(iconPals + 8u * (uint32_t)p);
+        if (!isRom(palData)) return false;
+        uint32_t pal[16];
+        for (int i = 0; i < 16; i++)
+        {
+            const unsigned c = r16(palData + 2u * (uint32_t)i), rr = c & 31, gg = (c >> 5) & 31, bb = (c >> 10) & 31;
+            pal[i] = 0xFF000000u | ((bb << 3 | bb >> 2) << 16) | ((gg << 3 | gg >> 2) << 8) | (rr << 3 | rr >> 2);
+        }
+        std::vector<uint8_t> px(2 * 32 * 32, 0);
+        bool any = false;
+        for (int f = 0; f < 2; f++)
+            for (int y = 0; y < 32; y++)
+                for (int x = 0; x < 32; x++)
+                {
+                    const uint8_t b = rom[gfx - 0x08000000u + (uint32_t)(f * 0x200 + ((y / 8) * 4 + x / 8) * 32 + (y % 8) * 4 + (x % 8) / 2)];
+                    px[(size_t)f * 1024 + y * 32 + x] = (x & 1) ? b >> 4 : b & 15;
+                    any = any || px[(size_t)f * 1024 + y * 32 + x];
+                }
+        if (!any) return false;
+        if (outPx) { *outPx = px; memcpy(outPal, pal, sizeof pal); return true; }   // (a preview: not the mount)
+        pk_flight_set_mount(px.data(), 32, 32, pal);
+        return true;
+    }
+    // FLY ON's named legendaries, by National Pokedex number (0: not one).
+    static int LegendNational(const std::string& on)
+    {
+        static const std::pair<const char*, int> l[] = { { "latias", 380 }, { "latios", 381 }, { "rayquaza", 384 }, { "lugia", 249 }, { "hooh", 250 }, { "deoxys", 386 }, { "articuno", 144 }, { "zapdos", 145 }, { "moltres", 146 } };
+        for (const auto& x : l) if (on == x.first) return x.second;
+        return 0;
+    }
     // Emerald's own sprite for the Pokemon HeartGold has none of (the very big ones), by National Pokedex number.
     static const char* LegendFor(int national)
     {
-        switch (national) { case 249: return "lugia"; case 250: return "hooh"; case 384: return "rayquaza"; case 380: return "latias"; case 381: return "latios"; case 386: return "deoxys"; default: return nullptr; }
+        switch (national) { case 249: return "lugia"; case 250: return "hooh"; case 384: return "rayquaza"; case 380: return "latias"; case 381: return "latios"; case 386: return "deoxys"; case 144: return "articuno"; case 145: return "zapdos"; case 146: return "moltres"; default: return nullptr; }
     }
     // The Pokemon the list offers: those with a sprite in HeartGold / SoulSilver (all of them while it's still being looked
     // for), and Emerald's legendaries.
@@ -2386,7 +2903,7 @@ struct App
             for (int nat = 1; nat <= 493; nat++) hgssHas[nat] = follow->Mon(nat, false, frames, pal) ? 1 : 0;
         }
         for (int nat = 1; nat <= 493; nat++)
-            if (hgssHas.empty() || hgssHas[nat] || (gameCode == "BPEE" && LegendFor(nat))) out.push_back(nat);
+            if ((hgssHas.empty() ? followState != 3 : hgssHas[nat] != 0) || nat <= 386) out.push_back(nat);   // (up to Deoxys: the game's own party icon at least)
         return out;
     }
     // A Pokemon to fly on, by National Pokedex number: HeartGold's sprite, else Emerald's own for its legendaries.
@@ -2414,7 +2931,12 @@ struct App
             pk_flight_set_mount(&px[0][0], 32, 32, abgr);
             return true;
         }
+        // (Without HeartGold / SoulSilver: Emerald's own legendaries, which face sideways; then the game's party icon,
+        // which faces west; FireRed and LeafGreen's legendaries face only the front, so they come last.)
         const char* legend = LegendFor(national);
+        const bool kanto = gameCode.rfind("BPR", 0) == 0 || gameCode.rfind("BPG", 0) == 0;
+        if (legend && !kanto && LegendMount(legend)) return true;
+        if (IconMount(national)) return true;
         return legend && LegendMount(legend);
     }
     // FLY ON: the vehicle word (PokeDaisy's vehicles from 1, PK_FLIGHT_MOUNT a Pokemon), the Pokemon in party slot [slot]
@@ -2449,10 +2971,13 @@ struct App
                 Toast(followState == 3 && !LegendFor(national) ? "NO HEARTGOLD OR SOULSILVER IN THE ROMS FOLDER: FLYING ON THE BIRD" : "NO SPRITE FOR THIS POKEMON: FLYING ON THE BIRD", 3000);
             }
         }
-        if (on == "latias" || on == "latios" || on == "rayquaza" || on == "lugia" || on == "hooh" || on == "deoxys")
+        if (const int nat = LegendNational(on))
         {
-            if (LegendMount(on)) v = PK_FLIGHT_MOUNT;
-            else Toast("THIS ONE IS EMERALD'S OWN: FLYING ON THE BIRD", 3000);
+            // (HeartGold / SoulSilver's sprite first, which faces the way it flies; else the game's own, which in FireRed
+            // and LeafGreen only faces the front.)
+            if (followState == 0) FollowFind();
+            if (MonMount(nat, false)) v = PK_FLIGHT_MOUNT;
+            else Toast("THIS ONE ISN'T IN THIS GAME: FLYING ON THE BIRD", 3000);
         }
         uint32_t w[PK_FLIGHT_WORDS];
         memcpy(w, flightRec->words, sizeof(w));
@@ -2480,7 +3005,8 @@ struct App
     void FlyTest()
     {
         static int state = -1;
-        static int goAt = -1, goIndex = 0, pageAt = -1, freeAt = -1, monPageAt = -1, traceFrom = -1, traceTo = -1;
+        static char itAct[8] = {};
+        static int goAt = -1, goIndex = 0, pageAt = -1, freeAt = -1, monPageAt = -1, boxPageAt = -1, boxSwapAt = -1, depositAt = -1, itemAt = -1, bagPageAt = -1, itId = 0, itSlot = 0, bxB = 0, bxS = 0, bxP = 0, traceFrom = -1, traceTo = -1, foeAt = -1, foeDone = -1, legendAt = -1;
         if (state < 0)
         {
             state = 0;
@@ -2494,13 +3020,131 @@ struct App
                     else if (!strcmp(w, "page")) pageAt = a;
                     else if (!strcmp(w, "free")) freeAt = a;
                     else if (!strcmp(w, "monpage")) monPageAt = a;
+                    else if (!strcmp(w, "boxpage")) boxPageAt = a;
+                    else if (!strcmp(w, "item") && fscanf(f, "%7s %d %d", itAct, &itId, &itSlot) == 3) itemAt = a;
+                    else if (!strcmp(w, "bagpage")) bagPageAt = a;
+                    else if (!strcmp(w, "boxswap") && fscanf(f, "%d %d %d", &bxB, &bxS, &bxP) == 3) boxSwapAt = a;
+                    else if (!strcmp(w, "deposit") && fscanf(f, "%d", &bxP) == 1) depositAt = a;
                     else if (!strcmp(w, "trace") && fscanf(f, "%d", &b) == 1) { traceFrom = a; traceTo = b; }
+                    else if (!strcmp(w, "foecopy")) foeAt = a;
+                    else if (!strcmp(w, "legends")) legendAt = a;
                 }
                 fclose(f);
             }
         }
         const long long gf = (long long)gameFrames;
         if (gf == freeAt) { flyStage = 10; flyWait = 0; flyHgssWait = 0; }
+        // (legends F: every legendary mount this game has, its two frames side by side, written to legend-NAME.bmp.)
+        if (gf == legendAt)
+            for (const char* n : { "latias", "latios", "rayquaza", "lugia", "hooh", "deoxys", "articuno", "zapdos", "moltres" })
+            {
+                std::vector<uint8_t> px;
+                int w = 0, h = 0;
+                uint32_t pal[16];
+                const bool ok = LegendFrames(n, px, w, h, pal);
+                if (FILE* l = fopen("fly-log.txt", "a")) { fprintf(l, "legend %s %d %dx%d table %08x\n", n, (int)ok, w, h, objGfxTable); fclose(l); }
+                if (!ok) continue;
+                const int W = w * 2, rowBytes = (W * 3 + 3) & ~3;
+                std::vector<uint8_t> bmp(54 + (size_t)rowBytes * h, 0);
+                auto put32 = [&](size_t o, uint32_t v) { for (int k = 0; k < 4; k++) bmp[o + k] = (uint8_t)(v >> (8 * k)); };
+                bmp[0] = 'B'; bmp[1] = 'M'; put32(2, (uint32_t)bmp.size()); put32(10, 54); put32(14, 40); put32(18, (uint32_t)W); put32(22, (uint32_t)h);
+                bmp[26] = 1; bmp[28] = 24;
+                for (int y = 0; y < h; y++)
+                    for (int x = 0; x < W; x++)
+                    {
+                        const int f = x / w, i = px[(size_t)f * w * h + (size_t)y * w + (x % w)];
+                        const uint32_t c = i ? pal[i] : 0xFF808080u;
+                        uint8_t* d = &bmp[54 + (size_t)(h - 1 - y) * rowBytes + (size_t)x * 3];
+                        d[0] = (uint8_t)(c >> 16); d[1] = (uint8_t)(c >> 8); d[2] = (uint8_t)c;
+                    }
+                if (FILE* b = fopen((std::string("legend-") + n + ".bmp").c_str(), "wb")) { fwrite(bmp.data(), 1, bmp.size(), b); fclose(b); }
+            }
+        // (foecopy F: from frame F, in the first wild battle, your first two Pokemon copied into the foe's party slots 2
+        // and 3, the second at 1 HP, so its team reads as a trainer's; BATTLE INFO opened a second later, its rows logged.)
+        if (foeAt >= 0 && foeDone < 0 && gf >= foeAt && gf % 30 == 0 && compConfig)
+        {
+            ReadCompanion();
+            if (comp.inBattle && comp.foeParty.size() == 1 && comp.party.size() >= 2)
+                for (int d : { 600, -600, 608 })
+                {
+                    const uint32_t at = compConfig->party + (uint32_t)d;
+                    if (core->busRead32(core, at) != comp.foe.personality) continue;
+                    for (int i = 0; i < 200; i++) core->busWrite8(core, at + 100 + (uint32_t)i, (uint8_t)core->busRead8(core, compConfig->party + (uint32_t)i));
+                    core->busWrite16(core, at + 200 + 86, 1);
+                    foeDone = (int)gf;
+                    if (FILE* l = fopen("fly-log.txt", "a")) { fprintf(l, "foecopy frame %d at %08x (party %+d)\n", (int)gf, at, d); fclose(l); }
+                    break;
+                }
+        }
+        if (foeDone >= 0 && gf == foeDone + 60)
+        {
+            OpenPause();
+            ReadCompanion();
+            GoPage(P_BATTLE, "");
+            pause.selected = std::max(0, (int)pause.items.size() - 2);   // (scrolled to the team, at the end)
+            if (FILE* l = fopen("fly-log.txt", "a"))
+            {
+                for (const auto& r : BattleRows()) fprintf(l, "row %s | %s\n", r.first.c_str(), r.second.c_str());
+                fclose(l);
+            }
+        }
+        if (gf == itemAt || gf == bagPageAt)
+        {
+            ReadCompanion();
+            if (FILE* l = fopen("fly-log.txt", "a"))
+            {
+                fprintf(l, "items frame %d supported %d party %d:", (int)gf, (int)items.Supported(), (int)comp.party.size());
+                for (const auto& m : comp.party) fprintf(l, " %d(item %d hp %d/%d)", m.species, m.item, m.hp, m.maxHp);
+                fprintf(l, "\n");
+                if (gf == itemAt)
+                {
+                    int r = -1, extra = 0;
+                    GbaItems::Result why = GbaItems::USED;
+                    if (!strcmp(itAct, "repel")) r = (int)items.UseRepel(itId, extra);
+                    else if (!strcmp(itAct, "teach")) { r = (int)items.TmStart(itId); if (r == (int)GbaItems::USED) { tmItem = itId; tmWait = 0; } }
+                    else if (!strcmp(itAct, "take") && itSlot < (int)comp.party.size()) r = (int)items.Take(items.Slot(itSlot, comp.party[itSlot].personality, comp.party[itSlot].item), extra);
+                    else
+                    {
+                        auto t = items.Targets(itId, !strcmp(itAct, "give"), why);
+                        fprintf(l, "targets %d why %d:", (int)t.size(), (int)why);
+                        for (const auto& x : t) fprintf(l, " [%d v%d held %d mv %d%d%d%d]", x.slot, (int)x.verdict, x.held, x.moves[0], x.moves[1], x.moves[2], x.moves[3]);
+                        fprintf(l, "\n");
+                        if (itSlot < (int)t.size()) r = !strcmp(itAct, "give") ? (int)items.Give(itId, t[itSlot], extra) : (int)items.UseOn(itId, t[itSlot], 0);
+                    }
+                    fprintf(l, "item %s %d slot %d: result %d extra %d\n", itAct, itId, itSlot, r, extra);
+                    ReadCompanion();
+                    fprintf(l, "after:");
+                    for (const auto& m : comp.party) fprintf(l, " %d(item %d)", m.species, m.item);
+                    fprintf(l, "\n");
+                }
+                fclose(l);
+            }
+            if (gf == bagPageAt) { OpenPause(); GoPage(P_BAG, ""); }
+        }
+        if (gf == boxPageAt || gf == boxSwapAt || gf == depositAt)
+        {
+            ReadCompanion();
+            boxList = boxes.Read();
+            if (FILE* l = fopen("fly-log.txt", "a"))
+            {
+                fprintf(l, "boxes frame %d supported %d current %d party %d:", (int)gf, (int)boxes.Supported(), boxes.CurrentBox(), (int)comp.party.size());
+                for (int b = 0; b < (int)boxList.size(); b++) if (!boxList[b].mons.empty()) fprintf(l, " box%d=%d", b, (int)boxList[b].mons.size());
+                fprintf(l, "\n");
+                if (gf == boxSwapAt)
+                {
+                    const GbaBoxes::Slot* bs = BoxSlot(bxB, bxS);
+                    const int r = bs && bxP < (int)comp.party.size() ? (int)boxes.Swap(bxB, bxS, bs->mon.personality, bxP, comp.party[bxP].personality) : -1;
+                    fprintf(l, "swap box %d slot %d party %d: %d\n", bxB, bxS, bxP, r);
+                }
+                if (gf == depositAt)
+                {
+                    const int r = bxP < (int)comp.party.size() ? (int)boxes.Deposit(bxP, comp.party[bxP].personality, boxes.CurrentBox()) : -1;
+                    fprintf(l, "deposit party %d: %d\n", bxP, r);
+                }
+                fclose(l);
+            }
+            if (gf == boxPageAt) { OpenPause(); GoPage(P_BOXES, ""); if (pause.items.size() > 2) pause.selected = 1; }
+        }
         if (gf == monPageAt) { OpenPause(); if (followState == 0) FollowFind(); flyT = fly.Now(); GoPage(P_FLYMON, ("MON " + std::to_string(FlyMonChosen())).c_str()); }
         if (FILE* l = gf >= traceFrom && gf <= traceTo ? fopen("fly-log.txt", "a") : nullptr)
         {
@@ -2893,12 +3537,27 @@ struct App
         });
         for (const auto& m : comp.party) compPics.push_back(dex.Front(m.species, false));
         foePic = comp.inBattle ? dex.Front(comp.foe.species, false) : GbaDex::Picture();
+        foeTeamPics.clear();
+        for (const auto& m : comp.foeParty) foeTeamPics.push_back(dex.Front(m.species, false));
+        // (The foe's team: which of it has been out. A new team is a new battle.)
+        if (!comp.inBattle || comp.foeParty.empty()) foeSeen.clear();
+        else
+        {
+            if (!foeSeen.empty() && std::none_of(comp.foeParty.begin(), comp.foeParty.end(), [&](const GbaCompanion::Mon& m) { return m.personality == foeSeen[0]; })) foeSeen.clear();
+            if (std::find(foeSeen.begin(), foeSeen.end(), comp.foe.personality) == foeSeen.end()) foeSeen.push_back(comp.foe.personality);
+        }
         fprintf(stderr, "[gba] companion: %d in party, map %d.%d, %d pockets\n", (int)comp.party.size(), comp.mapGroup, comp.mapNum, (int)comp.pockets.size());
     }
+    std::vector<uint32_t> foeSeen;
+    std::vector<int> battleRowTeam;              // (BATTLE INFO's rows: the foe's team slot of each, -2 unseen, -1 not a team row)
+    std::vector<GbaDex::Picture> foeTeamPics;   // (personalities of the foe's team seen out this battle; the first one out first)
     GbaGlass::MonCard MonCardFor(int i)
     {
+        return MonCardOf(comp.party[i], i < (int)compPics.size() && compPics[i].Ready() ? &compPics[i] : nullptr);
+    }
+    GbaGlass::MonCard MonCardOf(const GbaCompanion::Mon& m, const GbaDex::Picture* pic)
+    {
         GbaGlass::MonCard c;
-        const GbaCompanion::Mon& m = comp.party[i];
         const GbaDex::Stats st = dex.Get(m.species);
         std::string nick = GbaDex::Text((const uint8_t*)m.nickname.data(), m.nickname.size());
         while (!nick.empty() && nick.back() == ' ') nick.pop_back();
@@ -2921,23 +3580,26 @@ struct App
             const int base = dex.MovePp(m.moves[k]), bonus = m.ppBonuses >> (k * 2) & 3;
             c.moves.push_back({ DexTitle(dex.Move(m.moves[k])), dex.MoveType(m.moves[k]), m.pp[k], base + base * bonus / 5 });
         }
-        if (i < (int)compPics.size() && compPics[i].Ready() && !m.egg) { c.icon = compPics[i].pixels; c.iconW = compPics[i].width; c.iconH = compPics[i].height; }
+        if (pic && !m.egg) { c.icon = pic->pixels; c.iconW = pic->width; c.iconH = pic->height; }
         return c;
     }
     std::vector<std::pair<std::string, std::string>> BagRows()
     {
         std::vector<std::pair<std::string, std::string>> rows;
+        bagRowIds.clear();
         for (const auto& p : comp.pockets)
         {
             if (p.second.empty()) continue;
             rows.push_back({ std::string("#") + p.first, "" });
+            bagRowIds.push_back(0);
             for (const auto& it : p.second)
             {
                 const std::string name = dex.ItemName(it.id);
                 rows.push_back({ name.empty() ? "ITEM " + std::to_string(it.id) : DexTitle(name), "x" + std::to_string(it.quantity) });
+                bagRowIds.push_back(it.id);
             }
         }
-        if (rows.empty()) rows.push_back({ "Your bag is empty", "" });
+        if (rows.empty()) { rows.push_back({ "Your bag is empty", "" }); bagRowIds.push_back(0); }
         return rows;
     }
     std::vector<std::pair<std::string, std::string>> PlaceRows()
@@ -2986,6 +3648,7 @@ struct App
     std::vector<std::pair<std::string, std::string>> BattleRows()
     {
         std::vector<std::pair<std::string, std::string>> rows;
+        battleRowTeam.clear();
         if (!comp.inBattle) { rows.push_back({ "Not in a battle", "" }); return rows; }
         const auto& f = comp.foe;
         rows.push_back({ "#THE FOE", "" });
@@ -3017,6 +3680,26 @@ struct App
                 if (CompanionTypes::Valid(t) && CompanionTypes::Multiplier(t, f.type1, CompanionTypes::Valid(f.type2) ? f.type2 : f.type1) == pct) list += (list.empty() ? "" : ", ") + TypeName(t);
             if (!list.empty()) rows.push_back({ pct == 400 ? "4x damage" : pct == 200 ? "2x damage" : pct == 50 ? "Half damage" : pct == 25 ? "Quarter damage" : "No damage", list });
         }
+        // (A trainer's whole team, in order, as PokeDaisy's FOE TEAM: the ones seen out, fainted or hurt by name, the
+        // rest hidden until they come out.)
+        if (comp.foeParty.size() > 1)
+        {
+            int left = 0;
+            for (const auto& t : comp.foeParty) left += t.hp > 0;
+            rows.push_back({ "#THE FOE'S TEAM: " + std::to_string(left) + " OF " + std::to_string(comp.foeParty.size()) + " LEFT", "" });
+            for (size_t k = 0; k < comp.foeParty.size(); k++)
+            {
+                const auto& t = comp.foeParty[k];
+                const bool out = t.personality == f.personality;
+                const bool seen = out || t.hp < t.maxHp || std::find(foeSeen.begin(), foeSeen.end(), t.personality) != foeSeen.end();
+                battleRowTeam.resize(rows.size(), -1);
+                battleRowTeam.push_back(!seen ? -2 : out ? -1 : (int)k);   // (its own card beside it; none while unseen)
+                if (!seen) { rows.push_back({ "? ? ?", "Not seen yet" }); continue; }
+                const int hp = out ? f.hp : t.hp, maxHp = out ? f.maxHp : t.maxHp;
+                rows.push_back({ DexTitle(dex.Name(t.species)) + "  Lv " + std::to_string(out ? f.level : t.level),
+                                 hp <= 0 ? std::string("Fainted") : (out ? "Out now, " : "") + std::to_string(maxHp ? std::max(1, hp * 100 / maxHp) : 0) + "%" });
+            }
+        }
         return rows;
     }
     // COMPANION's pages: A on a link opens it; B goes back a page.
@@ -3038,6 +3721,15 @@ struct App
             flyHgssWait = 0;
             Resume();
             return;
+        }
+        if (pausePage == P_ITEM || pausePage == P_ITEMMON || pausePage == P_ITEMMOVE || (pausePage == P_BAG && in.accept && items.Supported()) ||
+            (pausePage == P_PARTYMON && in.accept && pause.selected >= 0 && pause.selected < (int)pause.items.size() && pause.items[pause.selected].label == "TAKE ITEM"))
+        {
+            if (ItemsInput(in)) return;
+        }
+        if (pausePage == P_BOXES || pausePage == P_BOXMON || pausePage == P_PARTYMON || (pausePage == P_PARTY && in.accept && (boxes.Supported() || items.Supported())))
+        {
+            if (BoxesInput(in)) return;
         }
         if (pausePage == P_FLY && in.accept && pause.selected >= 0 && pause.selected < (int)pause.items.size() && pause.items[pause.selected].label == "FLY ON")
         {
@@ -3073,13 +3765,14 @@ struct App
         if (pausePage != P_COMP)
         {
             if (in.back || (in.accept && pause.selected >= 0 && pause.selected < (int)pause.items.size() && pause.items[pause.selected].label == "BACK"))
-                GoPage(P_COMP, pausePage == P_PARTY ? "PARTY" : pausePage == P_BAG ? "BAG" : pausePage == P_PLACE ? "LOCATION" : pausePage == P_BATTLE ? "BATTLE INFO" : pausePage == P_FLY ? "FLY" : "GUIDE");
+                GoPage(P_COMP, pausePage == P_PARTY ? "PARTY" : pausePage == P_BAG ? "BAG" : pausePage == P_PLACE ? "LOCATION" : pausePage == P_BATTLE ? "BATTLE INFO" : pausePage == P_FLY ? "FLY" : pausePage == P_BOXES ? "BOXES" : "GUIDE");
             return;
         }
         if (in.back) { GoPage(P_ROOT, "COMPANION"); return; }
         if (!in.accept || pause.selected < 0 || pause.selected >= (int)pause.items.size()) return;
         const std::string item = pause.items[pause.selected].label;
         if (item == "PARTY") GoPage(P_PARTY, "");
+        else if (item == "BOXES") { ReadCompanion(); GoPage(P_BOXES, ""); }
         else if (item == "BAG") GoPage(P_BAG, "");
         else if (item == "LOCATION") GoPage(P_PLACE, "");
         else if (item == "BATTLE INFO") { if (comp.inBattle) GoPage(P_BATTLE, ""); }
@@ -3393,7 +4086,7 @@ struct App
             {
                 const std::string& l = pause.items[i].label;
                 if (l == "PARTY") link(i, "PARTY", IC_PEOPLE, std::to_string(comp.party.size()), "Your team as it is now", "Your team as it is now. Choose one for its stats, nature, ability and moves.");
-                else if (l == "BAG") link(i, "BAG", IC_LOAD, std::to_string(itemCount) + " KINDS", "Every pocket of your bag", "Every pocket of your bag and how many of each item. View only: use items through the game.");
+                else if (l == "BAG") link(i, "BAG", IC_LOAD, std::to_string(itemCount) + " KINDS", "Every pocket of your bag", "Every pocket of your bag and how many of each item. Choose one to use it, or to give it to a Pok\xC3\xA9" "mon to hold.");
                 else if (l == "LOCATION") link(i, "LOCATION", IC_GLOBE, place.empty() ? std::string("-") : DexTitle(place), "Where you are and what lives there", "Where you are, and the wild Pok\xC3\xA9" "mon of this place: how you find each and its levels.");
                 else if (l == "BATTLE INFO")
                 {
@@ -3402,6 +4095,8 @@ struct App
                     g.items.back().disabled = !comp.inBattle;
                     if (!comp.inBattle) g.items.back().tip = "Open it from the pause menu during a battle.";
                 }
+                else if (l == "BOXES")
+                    link(i, "BOXES", IC_LOAD, "", "Your PC's boxes, live", "Every box in your PC as it is now. Choose a Pok\xC3\xA9" "mon to take it into your party or swap it with one there; in PARTY, choose one to put it in a box. As the game's own PC does it, on the field.");
                 else if (l == "FLY")
                     link(i, "FLY", IC_GLOBE, "", "Fly to a town you have been to", "Fly to a town you have been to, as the move does: the game plays its own Fly. A Pok\xC3\xA9" "mon in your party must know Fly, and you need its badge.");
                 else if (l == "GUIDE")
@@ -3430,6 +4125,14 @@ struct App
                 it.monCard = i;
                 put(it, i);
             }
+        }
+        else if (pausePage == P_BOXES || pausePage == P_BOXMON || pausePage == P_PARTYMON)
+        {
+            BoxesGlass(g, n, page, put);
+        }
+        else if (pausePage == P_ITEM || pausePage == P_ITEMMON || pausePage == P_ITEMMOVE)
+        {
+            ItemsGlass(g, n, page, put);
         }
         else if (pausePage == P_FLY)
         {
@@ -3478,7 +4181,7 @@ struct App
                 d.id = nat;
                 d.name = MonName(nat);
                 d.desc = mp.px.empty() ? (followState == 1 ? "Looking for HeartGold or SoulSilver..." : "No sprite for this one: you would fly on the bird.")
-                                       : mp.emerald ? "Fly on this one. Its sprite is Emerald's own." : "Fly on this one. Its sprite is HeartGold's.";
+                                       : mp.emerald ? "Fly on this one. Its sprite is this game's own." : "Fly on this one. Its sprite is HeartGold's.";
                 d.pic = mp.px; d.picW = mp.w; d.picH = mp.h;
                 g.dex.push_back(std::move(d));
             }
@@ -3519,7 +4222,17 @@ struct App
         else if (pausePage == P_BAG || pausePage == P_PLACE || pausePage == P_BATTLE)
         {
             page(pausePage == P_BAG ? "BAG" : pausePage == P_PLACE ? "LOCATION" : "BATTLE INFO", pausePage == P_BAG ? IC_LOAD : pausePage == P_PLACE ? IC_GLOBE : IC_FAST);
-            if (pausePage == P_BATTLE && comp.inBattle) g.mons.push_back(FoeCard());
+            std::vector<int> teamCard(comp.foeParty.size(), -1);
+            if (pausePage == P_BATTLE && comp.inBattle)
+            {
+                g.mons.push_back(FoeCard());
+                for (int v : battleRowTeam)
+                    if (v >= 0 && v < (int)comp.foeParty.size())
+                    {
+                        g.mons.push_back(MonCardOf(comp.foeParty[v], v < (int)foeTeamPics.size() && foeTeamPics[v].Ready() ? &foeTeamPics[v] : nullptr));
+                        teamCard[v] = (int)g.mons.size() - 1;
+                    }
+            }
             // (LOCATION: the place and the region's map with you on it beside every row.)
             GbaDex::Data::RegionPicture region;
             if (pausePage == P_PLACE)
@@ -3538,7 +4251,16 @@ struct App
                 it.label = l;
                 it.value = pause.items[i].value;
                 it.info = true;
+                if (pausePage == P_BAG && i < (int)bagRowIds.size() && bagRowIds[i] && items.Supported() && (items.CanUse(bagRowIds[i]) || items.CanGive(bagRowIds[i]) || items.CanTeach(bagRowIds[i])))
+                {
+                    const int id = bagRowIds[i];
+                    it.kind = LINK;
+                    it.info = false;
+                    it.desc = items.CanTeach(id) ? "Teach it to a Pok\xC3\xA9" "mon, on the game's own TM screen." : items.CanUse(id) && items.CanGive(id) ? "Use it, or give it to a Pok\xC3\xA9" "mon to hold." : items.CanUse(id) ? "Use it." : "Give it to a Pok\xC3\xA9" "mon to hold.";
+                }
                 if (!g.mons.empty()) it.monCard = 0; // (BATTLE INFO: the foe's card beside every row)
+                if (pausePage == P_BATTLE && i < (int)battleRowTeam.size() && battleRowTeam[i] != -1)
+                    it.monCard = battleRowTeam[i] >= 0 ? teamCard[battleRowTeam[i]] : -1;   // (the foe's team: each its own; unseen none)
                 if (pausePage == P_PLACE) it.placeCard = true;
                 put(it, i);
             }
@@ -3741,7 +4463,7 @@ struct App
             DexInput(in);
             return;
         }
-        if (pausePage == P_COMP || pausePage == P_PARTY || pausePage == P_BAG || pausePage == P_PLACE || pausePage == P_BATTLE || pausePage == P_GUIDE || pausePage == P_FLY || pausePage == P_FLYMON)
+        if (pausePage == P_COMP || pausePage == P_PARTY || pausePage == P_BAG || pausePage == P_PLACE || pausePage == P_BATTLE || pausePage == P_GUIDE || pausePage == P_FLY || pausePage == P_FLYMON || pausePage == P_BOXES || pausePage == P_BOXMON || pausePage == P_PARTYMON || pausePage == P_ITEM || pausePage == P_ITEMMON || pausePage == P_ITEMMOVE)
         {
             CompanionInput(in);
             return;

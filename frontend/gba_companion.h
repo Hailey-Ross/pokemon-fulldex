@@ -114,6 +114,7 @@ struct Snapshot
     std::vector<uint8_t> seen, caught; // (by National Pokedex number)
     bool inBattle = false;
     Battler mine, foe; // (in a battle: your Pokemon out and the foe's, the left ones in a double)
+    std::vector<Mon> foeParty; // (in a battle: gEnemyParty in order, the trainer's whole team)
 };
 
 inline uint16_t U16(const uint8_t* p) { return (uint16_t)(p[0] | p[1] << 8); }
@@ -227,6 +228,25 @@ Snapshot Take(const Config& c, Read read)
                 t.nickname.assign((const char*)m + 0x30, 10);
             }
         s.inBattle = s.foe.species > 0;
+        // (gEnemyParty: beside gPlayerParty, after it in Ruby, Sapphire and Emerald and before it in FireRed and
+        // LeafGreen, 600 or 608 bytes away; the block holding the foe out is the one.)
+        if (s.inBattle)
+            for (int64_t d : { 600, -600, 608 })
+            {
+                const uint32_t at = (uint32_t)((int64_t)c.party + d);
+                uint8_t e[600];
+                if (!read(at, 600, e)) continue;
+                std::vector<Mon> team;
+                bool hasFoe = false;
+                for (int i = 0; i < 6; i++)
+                {
+                    Mon m;
+                    if (!Decode(e + i * 100, m) || !m.species) break;
+                    hasFoe = hasFoe || m.personality == s.foe.personality;
+                    team.push_back(m);
+                }
+                if (hasFoe) { s.foeParty = team; break; }
+            }
     }
     s.ok = !s.party.empty() || blocks;
     return s;

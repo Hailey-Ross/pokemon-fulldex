@@ -120,6 +120,7 @@ public:
     }
     void Forget() { fns = nullptr; core = nullptr; }
     bool Supported() const { return fns != nullptr; }
+    const Fns* Table() const { return fns; }
     const char* Name() const { return fns ? fns->name : ""; }
 
     Targets Now()

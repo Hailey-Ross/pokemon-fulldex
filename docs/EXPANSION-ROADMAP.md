@@ -94,7 +94,7 @@ Day and night tints: GBA, Display (pk_wide.c's tint), tested on Windows. Followi
 | Feature | PokeDaisy | FullDex today | Status |
 |---|---|---|---|
 | Save-to-save trades, trade evolutions | Gen 3 | Hub (`pokemon_hub.cpp`, `trade_evolutions.cpp`), friend rooms | Keep |
-| PC box, bag and move editing | Gen 3 | *to verify* | Not started |
+| PC box, bag and move editing | Gen 3 | GBA Companion BOXES: live boxes, withdraw / swap / deposit (`gba/frontend/boxes_gba.h`, PokeDaisy's BoxSwap) in Ruby, Sapphire, Emerald, FireRed, LeafGreen (Ruby: a swap tested on Windows) | Boxes and the bag's USE / GIVE / TAKE (`gba/frontend/items_gba.h`) tested on Windows (Emerald); TEACH (the game's TM screen, PokeDaisy's TmTeach) tested on Windows (Emerald: HM02 screen, a refusal, CANCEL back to the field); the foe's team in BATTLE INFO (gEnemyParty) tested on Windows (Emerald, a wild battle made a team of three) |
 | GBA link cable, 2 to 4 games | `pk_link.c`, co-op | No | Not started |
 
 ## Phase 9: GB/GBC and hacks
