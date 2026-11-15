@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <climits>
 #include <filesystem>
+#include "folders.h" // (FOLDERS; here, outside any namespace: saves_page.h, inside one, includes it too)
 #include "regional_profiles.h"
 #include <cstdint>
 #include <cstdio>
