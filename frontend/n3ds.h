@@ -105,8 +105,8 @@ inline void DropPlaceholders(std::vector<Launcher::Game>& games)
         {
             bool real = false;
             for (const Launcher::Game& o : games) real |= !o.comingSoon && o.platform == Launcher::N3DS && o.code == g.code;
-#ifdef __APPLE__
-            // (Mac, iPhone and iPad: still coming, so the tiles stay, saying Coming Soon with no countdown.)
+#if defined(__APPLE__) || (defined(__linux__) && !defined(__ANDROID__))
+            // (Mac, iPhone, iPad and Linux (Steam Deck): still coming, so the tiles stay, saying Coming Soon with no countdown.)
             if (real) continue;
             g.soonAt = 0;
 #else
