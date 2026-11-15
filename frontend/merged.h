@@ -426,9 +426,39 @@ inline bool MergedEdgeTiled(const ScreenImage& top, int y, int side)
 // Find whole opaque background bands with a non-repeating edge, once per scene.
 // Suppressing just their patterned rows leaves the window's flat horizontal strokes
 // sticking out into the world. A genuinely tiled banner and a solid fade still extend.
+// A window on the top screen whose frame runs down a column or three in from a side, with the
+// 3D world (or the backdrop) in the outermost column beside it: SoulSilver's and HeartGold's text
+// box across the foot of the screen in the overworld, in any of the frames the options offer, and
+// the YES/NO box at its right. The edge column steps in past that column of world to the frame
+// (MergedEdgeColumn, for a background scrolled by a pixel), and the frame's colour went on beside
+// the screen as a bar sticking out of the box on each side. Its rows show the world there instead.
+// (A background covering the whole height, as the Fly animation's sky, is not a window.)
+inline void MergedPrepareInsetWindows(Scene& scene, const ScreenImage& top)
+{
+    if (!scene.wide || !top.flags) return;
+    auto inset = [&](int y, int side) {
+        const int x = side ? 255 : 0, dir = side ? -1 : 1;
+        const uint8_t outer = LayerClass(top.flags[y * 256 + x]);
+        if (outer != LAYER_3D && outer != LAYER_BACKDROP) return false;
+        for (int k = 1; k <= 3; k++)
+            if (LayerClass(top.flags[y * 256 + x + dir * k]) & 0x0F) return true;
+        return false;
+    };
+    for (int side = 0; side < 2; ++side)
+        for (int y = 0; y < 192;)
+        {
+            if (!inset(y, side)) { ++y; continue; }
+            const int first = y;
+            while (y < 192 && inset(y, side)) ++y;
+            if (y - first >= 8 && y - first <= 100) std::fill(scene.edgeWindow[side] + first, scene.edgeWindow[side] + y, 1);
+        }
+}
+
 inline void MergedPrepareEdgeWindows(Scene& scene, const ScreenImage* screens)
 {
     for (auto& side : scene.edgeWindow) std::fill(std::begin(side), std::end(side), 0);
+    if (!scene.smartEdges && !scene.items.empty() && scene.items[0].screen >= 0 && screens[scene.items[0].screen].pixels)
+        MergedPrepareInsetWindows(scene, screens[scene.items[0].screen]);
     if (!scene.smartEdges || scene.items.empty() || scene.items[0].screen < 0) return;
     const ScreenImage& top = screens[scene.items[0].screen];
     if (!top.flags || !top.pixels || !top.edgeBlend || !top.edgeFlat) return;

@@ -3237,6 +3237,8 @@ int main(int argc, char** argv)
             // (Beside the Mega Evolution button a move can have less room than its button: it is
             // drawn narrower to fit, rather than over its neighbours.)
             bool narrowToFit = false;
+            // (FIGHT: its label is drawn in the middle of the button's width whatever the width; see below.)
+            bool centreLabel = false;
             auto button = [&](const Cut& c, float dx, float dy, float dw, uint8_t drop) {
                 const float scl = rowH / c.sh;
                 // (Sized exactly, not to whole base pixels, so that the edges of buttons
@@ -3249,7 +3251,7 @@ int main(int argc, char** argv)
                     put(sx, c.sy, sw, c.sh, x, dy, scl);
                     sc.items.back().drop = drop;
                 };
-                if (dw <= c.sw * scl + 0.5f)
+                if (!centreLabel && dw <= c.sw * scl + 0.5f)
                 {
                     piece(c.sx, c.sw, dx + (dw - c.sw * scl) / 2);
                     if (narrowToFit && dw < c.sw * scl)
@@ -3322,8 +3324,11 @@ int main(int argc, char** argv)
                     sc.items.push_back(body);
                     y0 = y1;
                 }
-                piece(c.sx, lx0 - c.sx, dx);
-                piece(lx1, c.sx + c.sw - lx1, dx + dw - (c.sx + c.sw - lx1) * scl);
+                if (!centreLabel)
+                {
+                    piece(c.sx, lx0 - c.sx, dx);
+                    piece(lx1, c.sx + c.sw - lx1, dx + dw - (c.sx + c.sw - lx1) * scl);
+                }
                 piece(lx0, lx1 - lx0, dx + (dw - (lx1 - lx0) * scl) / 2);
             };
             if (cmd && SmButtons::S().on)
@@ -3344,7 +3349,7 @@ int main(int argc, char** argv)
                 // POKeMON. Each button is the coloured inside of the touch screen's button
                 // with its label, cut to the same height (the buttons are one colour across,
                 // apart from the label).
-                static const Cut cuts[4] = { { 30, 67, 196, 34, 86, 146, 33, 4 }, { 6, 152, 66, 34, 30, 51, 9, 4 },
+                static const Cut cuts[4] = { { 30, 60, 196, 34, 80, 147, 33, 4 }, { 6, 152, 66, 34, 30, 51, 9, 4 },
                                              { 182, 151, 68, 34, 192, 241, 185, 4 }, { 94, 158, 68, 34, 118, 139, 97, 4 } };
                 // (Platinum's buttons are shaded towards their edges: their flat insides only. The
                 // label is all of it but the plain columns at each end, as "BOLSA" and "HUIR" in
@@ -3353,7 +3358,39 @@ int main(int argc, char** argv)
                                                { 188, 154, 56, 33, 192, 240, 188, 4 }, { 100, 162, 56, 30, 106, 150, 102, 4 } };
                 const Cut* cut = pt.on ? ptCuts : cuts;
                 const float cellW = (innerW - 2 * gap) / 3;
-                button(cut[0], innerX, rowY, 2 * cellW + gap, 0);                           // FIGHT
+                // FIGHT's label, the Pokemon's icon and the word, in the middle of the button. The
+                // game puts the word in the middle of its tall button and the icon left of it, so
+                // the two together are left of the middle and above it: cut to the strip's height
+                // the label stood left of centre and against the top edge, which the outline round
+                // the chosen button made plain. The cut's rows are centred on the label (wherever
+                // the icon reaches: everything on the button that is not its colour of that row)
+                // and the label is drawn in the middle of the button's width, over its colours.
+                Cut fight = cut[0];
+                if (!pt.on)
+                {
+                    int x0 = 256, x1 = -1, y0 = 192, y1 = -1;
+                    for (int y = 48; y < 121; y++)
+                    {
+                        const uint32_t face = b[y * 256 + 40] & 0xFFFFFF;
+                        for (int x = 41; x < 216; x++)
+                            if ((b[y * 256 + x] & 0xFFFFFF) != face)
+                            {
+                                x0 = std::min(x0, x);
+                                x1 = std::max(x1, x);
+                                y0 = std::min(y0, y);
+                                y1 = std::max(y1, y);
+                            }
+                    }
+                    if (x1 >= x0 && x1 - x0 < 140 && y1 - y0 < fight.sh - 2)
+                    {
+                        fight.lx0 = x0 - 2;
+                        fight.lx1 = x1 + 3;
+                        fight.sy = std::clamp((y0 + y1 + 1) / 2 - fight.sh / 2, 45, 124 - fight.sh);
+                    }
+                    centreLabel = true;
+                }
+                button(fight, innerX, rowY, 2 * cellW + gap, 0);                            // FIGHT
+                centreLabel = false;
                 if (!battleFightOnly)
                 {
                     button(cut[1], innerX, row2Y, cellW, 0);                                    // BAG
@@ -4384,10 +4421,49 @@ int main(int argc, char** argv)
             // the save: it was a black box over the world for a few frames.)
             if (screens && screens[1].pixels && AutoFocus::Blank(screens[1].pixels)) return;
             // On a wide view the panel stands at the right edge, mostly beside the overworld.
+            // On the touch screen the panel is x 3-164, y 0-187: a grey frame two pixels wide at
+            // its sides and foot, rounded at the foot's corners, round a dark green edge, with the
+            // screen's background beside and below it. It is cut inside the frame (x 5-162, y 0-185),
+            // the outline standing in for the frame all round, on a backing of the edge's colour
+            // that squares off the corners (the frame's grey in them left out): no background
+            // under the panel and the same edge on all four sides.
+            const uint32_t* tb = screens && screens[1].pixels ? screens[1].pixels : nullptr;
+            const uint32_t edge = tb ? (tb[100 * 256 + 5] & 0xFFFFFF) : 0x188241;
+            const uint32_t frame = tb ? (tb[100 * 256 + 3] & 0xFFFFFF) : 0x494949;
+            const int px0 = 5, pw = 158, ph = 186;
             const float menuScale = viewWidth >= 300 ? 0.8f : 0.75f;
-            const float menuX = viewWidth >= 300 ? 128 + viewWidth / 2 - 161 * menuScale - 2 : 131;
-            sc.items.push_back({ 1, 4, 0, 161, 192, menuX, (192 - 192 * menuScale) / 2, menuScale, 0, 255, false });
-            sc.items.back().border = !AutoFocus::Blank(screens[1].pixels);
+            const float menuX = viewWidth >= 300 ? 128 + viewWidth / 2 - pw * menuScale - 2 : 256 - pw * menuScale - 4;
+            const float menuY = (192 - ph * menuScale) / 2;
+            Element back{ -1, 0, 0, pw, ph, menuX, menuY, menuScale, 0, 255, false };
+            back.keys[0] = edge;
+            back.border = true;
+            sc.items.push_back(back);
+            Element panel{ 1, px0, 0, pw, ph, menuX, menuY, menuScale, 0, 255, false };
+            panel.keys[0] = frame;
+            panel.keyRing = 2;
+            sc.items.push_back(panel);
+            // Its heading (the X button's sign and MENU, on the bar along the top, rows 0-15) is
+            // left of the panel's middle: moved to the middle, the bar's colour where it was.
+            if (!tb) return;
+            bool bar = true;
+            for (int x = px0; x < px0 + pw && bar; x++) bar = (tb[x] & 0xFFFFFF) == edge && (tb[15 * 256 + x] & 0xFFFFFF) == edge;
+            int x0 = 256, x1 = -1, y0 = 192, y1 = -1;
+            for (int y = 1; y < 15 && bar; y++)
+                for (int x = px0; x < px0 + pw; x++)
+                    if ((tb[y * 256 + x] & 0xFFFFFF) != edge)
+                    {
+                        x0 = std::min(x0, x); x1 = std::max(x1, x);
+                        y0 = std::min(y0, y); y1 = std::max(y1, y);
+                    }
+            if (!bar || x1 < x0 || x1 - x0 > pw - 20) return;
+            x0--; x1++; y0--; y1++; // (a pixel of the bar round it)
+            const float shift = px0 + pw / 2.0f - (x0 + x1 + 1) / 2.0f;
+            if (std::fabs(shift) < 1) return;
+            Element cover{ -1, 0, 0, x1 - x0 + 1, y1 - y0 + 1, menuX + (x0 - px0) * menuScale, menuY + y0 * menuScale, menuScale, 0, 255, false };
+            cover.keys[0] = edge;
+            sc.items.push_back(cover);
+            sc.items.push_back({ 1, x0, y0, x1 - x0 + 1, y1 - y0 + 1, menuX + (x0 - px0 + shift) * menuScale, menuY + y0 * menuScale,
+                menuScale, 0, 255, false });
         };
 
         // The safety net below must not flash up for the few frames in which the field map is
@@ -10977,6 +11053,53 @@ int main(int argc, char** argv)
                 // the left side's outline, rim and corners mirrored over it, to close it.)
                 for (int y = 0; y < SHOES_H; y++)
                     for (int k = 0; k < 3; k++) shoesPix[y * SHOES_W + SHOES_W - 1 - k] = shoesPix[y * SHOES_W + 2 + k];
+                // (The game puts the shoes in the middle of that whole button, most of it off the
+                // screen, so on the part shown they sat to the right of the middle. They are moved
+                // to it: each row's colour of the face, as just inside the rim on the left, filled
+                // over where they were, and everything of another colour drawn again, moved over.
+                // The face runs from column 5 to 70 between the rims.)
+                {
+                    const std::vector<uint32_t> src = shoesPix;
+                    int x0 = SHOES_W, x1 = -1;
+                    for (int y = 2; y < SHOES_H - 2; y++)
+                        for (int x = 8; x < SHOES_W - 5; x++)
+                            if (src[y * SHOES_W + x] != src[y * SHOES_W + 8]) { x0 = std::min(x0, x); x1 = std::max(x1, x); }
+                    const int dx = x1 >= x0 ? (int)std::lround(37.5 - (x0 + x1) / 2.0) : 0;
+                    if (dx)
+                        for (int y = 2; y < SHOES_H - 2; y++)
+                        {
+                            const uint32_t face = src[y * SHOES_W + 8];
+                            for (int x = x0; x <= x1; x++) shoesPix[y * SHOES_W + x] = face;
+                            for (int x = x0; x <= x1; x++)
+                                if (src[y * SHOES_W + x] != face && x + dx >= 5 && x + dx <= 70) shoesPix[y * SHOES_W + x + dx] = src[y * SHOES_W + x];
+                        }
+                }
+                // (Outside the button's dark outline, down its left side and in its rounded
+                // corners, the picture held the touch screen's pale grey behind it: that is left
+                // out, everything reached from the picture's edge without crossing the outline.
+                // Should the outline not close round, nothing is left out.)
+                {
+                    const uint32_t outline = shoesPix[(SHOES_H / 2) * SHOES_W + 2];
+                    std::vector<int> open, cleared;
+                    auto reach = [&](int x, int y) {
+                        uint32_t& p = shoesPix[y * SHOES_W + x];
+                        if (p != outline && (p >> 24)) { p &= 0x00FFFFFFu; open.push_back(y * SHOES_W + x); cleared.push_back(y * SHOES_W + x); }
+                    };
+                    for (int x = 0; x < SHOES_W; x++) { reach(x, 0); reach(x, SHOES_H - 1); }
+                    for (int y = 0; y < SHOES_H; y++) { reach(0, y); reach(SHOES_W - 1, y); }
+                    while (!open.empty() && cleared.size() <= 300)
+                    {
+                        const int i = open.back();
+                        open.pop_back();
+                        const int x = i % SHOES_W, y = i / SHOES_W;
+                        if (x > 0) reach(x - 1, y);
+                        if (x + 1 < SHOES_W) reach(x + 1, y);
+                        if (y > 0) reach(x, y - 1);
+                        if (y + 1 < SHOES_H) reach(x, y + 1);
+                    }
+                    if (cleared.size() > 300)
+                        for (int i : cleared) shoesPix[i] |= 0xFF000000u;
+                }
                 if (!shoesSeen) fprintf(stderr, "[shoes] frame %u: the Running Shoes button seen\n", frame);
                 shoesSeen = true;
                 shoesOn = nearC(200, 120, 0xBA6910); // (off: the shoes grey on the orange)
@@ -12045,10 +12168,14 @@ int main(int argc, char** argv)
         shoesRect[2] = 0;
         if (merged && shoesSeen && !paused && !strcmp(scene.name, "start-menu") && scene.items.size() >= 2)
         {
-            const Element& panel = scene.items.back();
+            // (The panel: the largest piece of the touch screen; its heading is a piece of its own.)
+            const Element* pp = &scene.items.back();
+            for (const Element& e : scene.items)
+                if (e.screen == 1 && e.sw * e.sh > pp->sw * pp->sh) pp = &e;
+            const Element& panel = *pp;
             const float sc = panel.scale;
             const float w = SHOES_W * sc, h = SHOES_H * sc;
-            const float x = panel.dx - w - 6, y = panel.dy + 192 * sc - h - 14;
+            const float x = panel.dx - w - 6, y = panel.dy + panel.sh * sc - h - 14;
             shoesRect[0] = x; shoesRect[1] = y; shoesRect[2] = w; shoesRect[3] = h;
             const int ox = (int)(view.originX + x * view.unit), oy = (int)(view.originY + y * view.unit);
             const int ow = (int)(w * view.unit), oh = (int)(h * view.unit);
@@ -12058,7 +12185,8 @@ int main(int argc, char** argv)
                 for (int px = 0; px < ow; px++)
                 {
                     const int sx = std::min(SHOES_W - 1, px * SHOES_W / std::max(1, ow));
-                    canvas.Fill(ox + px, oy + py, 1, 1, shoesPix[sy * SHOES_W + sx]);
+                    const uint32_t c = shoesPix[sy * SHOES_W + sx];
+                    if (c >> 24) canvas.Fill(ox + px, oy + py, 1, 1, c);
                 }
             }
             const int tsc = std::max(1, outH / 360);
