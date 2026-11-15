@@ -1728,6 +1728,7 @@ struct Settings : OptionalFeatures
     // as the message box; 3 CLASSIC, the earlier STRIP: the touch screen's own buttons cut into
     // the message box's band in Black and White, the corner panel in Black 2 (Bw1Layouts::BUTTONS_*).
     int battleButtons = 1;
+    bool encountersShown = false; // ENCOUNTERS ON SCREEN (FULLDEX NAV's count on the picture)
     int navStyle = 0; // NAV STYLE (FULLDEX NAV): 0 MODERN, 1 CLASSIC, 2 SIMPLE, 3 WHEEL
     // The PC all-games program: the window's size when it last closed (0: 1280x720, a wide view).
     int windowW = 0, windowH = 0;
@@ -1824,6 +1825,7 @@ struct Settings : OptionalFeatures
             else if (k == "ra_user") ra.user = v;
             else if (k == "ra_token") ra.token = v;
             else if (k == "battle_buttons") battleButtons = v == "corner" ? 0 : v == "panel" ? 2 : v == "classic" ? 3 : v == "sunmoon" ? 4 : 1;
+            else if (k == "encounters_shown") encountersShown = v == "1";
             else if (k == "nav_style") navStyle = v == "classic" ? 1 : v == "simple" ? 2 : v == "wheel" ? 3 : 0;
             else if (k == "window")
             {
@@ -1892,6 +1894,7 @@ struct Settings : OptionalFeatures
         if (!listLang.empty()) f << "list_lang=" << listLang << "\n";
         f << "start_button=" << (startMenu ? "menu" : "ds") << "\n";
         f << "battle_buttons=" << (battleButtons == 0 ? "corner" : battleButtons == 2 ? "panel" : battleButtons == 3 ? "classic" : battleButtons == 4 ? "sunmoon" : "strip") << "\n";
+        f << "encounters_shown=" << (encountersShown ? 1 : 0) << "\n";
         f << "nav_style=" << (navStyle == 1 ? "classic" : navStyle == 2 ? "simple" : navStyle == 3 ? "wheel" : "modern") << "\n";
         controls.Save(f);
         f << "both_versions=" << (bothVersions ? 1 : 0) << "\n";
@@ -5589,7 +5592,7 @@ int main(int argc, char** argv)
     // (PAGE_KEYS, controls.h). Items a platform does not have are left out of its pages.
     enum
     {
-        M_RESUME, M_LAYOUT, M_LARGE, M_FPS60, M_FULLSCREEN, M_SMOOTH, M_WIDE, M_WIDEMAP, M_BATTLEBUTTONS, M_NAVSTYLE,
+        M_RESUME, M_LAYOUT, M_LARGE, M_FPS60, M_FULLSCREEN, M_SMOOTH, M_WIDE, M_WIDEMAP, M_BATTLEBUTTONS, M_NAVSTYLE, M_ENCSHOWN,
         M_WIDELINES, M_AUTODETAIL, M_WIDEGPU, M_GPU3D, M_SHOWFPS, M_BUTTONS, M_PADTOUCH, M_EMULATION,
         M_CONTROLS, M_TOUCHLAYOUT, M_STARTBTN, M_FAST, M_FFLOWRES, M_SAVESTATE, M_LOADSTATE, M_RESET, M_QUIT,
         M_DISPLAY, M_LANGUAGE, M_SOUND, M_GRAPHICS, M_CONTROLMENU, M_BACK, M_CHEATS, M_NOTHING,
@@ -6111,6 +6114,9 @@ int main(int argc, char** argv)
             picker(M_NAVSTYLE, "NAV STYLE", Glass::I_GRID, Menu::P_NONE, { "MODERN", "CLASSIC", "SIMPLE", "WHEEL" }, std::clamp(cfg.navStyle, 0, 3),
                    "FullDex Nav, opened with L3 or N: a watch with a graphite case and a glass face, the first one (a red watch), a plain glass card, or a wheel of its apps alone.",
                    "Its apps are the same in both.");
+            toggle(M_ENCSHOWN, "ENCOUNTERS ON SCREEN", Glass::I_INFO, Menu::P_NONE, cfg.encountersShown,
+                   "How many wild Pokemon you have met, in a corner of the picture as you play (FullDex Nav's Encounters).",
+                   "Its Encounters app switches this too, and sets the count back to 0.");
             toggle(M_ZOOM, "ZOOM AND LOOK AROUND", Glass::I_SPARKLE, Menu::P_NONE, cfg.zoom,
                    "A click of the right stick (C on a keyboard) zooms out in steps to show more of the world, and the right stick looks around.",
                    "Text, menus and battles come back close by themselves.");
@@ -9480,7 +9486,7 @@ int main(int argc, char** argv)
                 readCompanion(true);
                 break;
             }
-            case FdNav::COUNT: fdNav.counterShown = !fdNav.counterShown; fdNav.SaveCount(); break;
+            case FdNav::COUNT: cfg.encountersShown = !cfg.encountersShown; cfg.Save(opt.config); break; // (ENCOUNTERS ON SCREEN)
             case FdNav::RESET:
                 if (fdNav.resetAsk && frame - fdNav.resetAsk < 180) { fdNav.open = false; fdNav.resetAsk = 0; swallowMenuButtons = true; resetGame(); }
                 else fdNav.resetAsk = frame;
@@ -9845,6 +9851,7 @@ int main(int argc, char** argv)
                 cfg.fastSpeed=speeds[(i+(dir<0?3:1))%4];cfg.Save(opt.config);break;
             }
             case M_SMART_FAST:cfg.smartFast=!cfg.smartFast;cfg.Save(opt.config);break;
+            case M_ENCSHOWN: cfg.encountersShown = !cfg.encountersShown; cfg.Save(opt.config); break;
             case M_ZOOM:cfg.zoom=!cfg.zoom;cfg.Save(opt.config);break;
             case M_ZOOM_TEXT:cfg.zoomText=!cfg.zoomText;cfg.Save(opt.config);break;
             case M_SLOW_MOTION:cfg.slowDivisor=dir<0?(cfg.slowDivisor==1?4:cfg.slowDivisor==4?2:1):(cfg.slowDivisor==1?2:cfg.slowDivisor==2?4:1);cfg.Save(opt.config);break;
@@ -12113,7 +12120,7 @@ int main(int argc, char** argv)
             std::string label[FdNav::APPS];
             if (fdNav.resetAsk && frame - fdNav.resetAsk < 180) label[FdNav::RESET] = "A again";
             std::string hint = "A: USE   B: CLOSE";
-            if (fdNav.sel == FdNav::COUNT) hint = std::string("A: ") + (fdNav.counterShown ? "HIDE" : "SHOW") + " ON SCREEN   X: SET TO 0   B: CLOSE";
+            if (fdNav.sel == FdNav::COUNT) hint = std::string("A: ") + (cfg.encountersShown ? "HIDE" : "SHOW") + " ON SCREEN   X: SET TO 0   B: CLOSE";
             else if (fdNav.sel == FdNav::RESET) hint = "A TWICE: RESET THE GAME   B: CLOSE";
             static Canvas navCache;
             static std::string navKey;
@@ -12160,7 +12167,7 @@ int main(int argc, char** argv)
             }
             overlayUsed = true;
         }
-        else if (fdNav.counterShown && !menu.open)
+        else if (cfg.encountersShown && !menu.open)
         {
             FdNav::DrawCount(canvas, outW, outH, fdNav.count, touchPadUsed && touchPad.visible ? (int)(outH * 0.135f) : 0);
             overlayUsed = true;
