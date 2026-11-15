@@ -447,14 +447,14 @@ inline void Draw(Canvas& c, const Geo& g, const State& s, const bool dim[APPS], 
 }
 
 // The counter on the picture while you play (COUNTER, A: on): a small pill in the top right.
-inline void DrawCount(Canvas& c, int outW, int outH, int count)
+inline void DrawCount(Canvas& c, int outW, int outH, int count, int top = 0)
 {
     using namespace SettingsArt;
     const float k = std::max(0.5f, std::min(outW / 1280.0f, outH / 720.0f));
     auto K = [&](float v) { return (int)std::lround(v * k); };
     const std::string t = std::to_string(count) + (count == 1 ? " encounter" : " encounters");
     const int fs = std::max(9, K(16)), w = W(t, fs, true, false) + K(40);
-    const int x = outW - w - K(16), y = K(14);
+    const int x = outW - w - K(16), y = std::max(K(14), top);
     Glass::Round(c, x, y, w, K(30), 15 * k, 0xD8101418);
     Glass::Round(c, x + K(6), y + K(6), K(18), K(18), 5 * k, 0xFFEC8828);
     T(c, x + K(30), y + K(21), t, fs, 0xFFFFFFFF, true, false);

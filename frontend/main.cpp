@@ -9101,6 +9101,10 @@ int main(int argc, char** argv)
                 for (int i = 0; i < PAD_COUNT; i++) ps.btn[i] |= held[i];
                 if (touchMenuHeld && !prevTouchMenu) toggleMenu = true;
                 prevTouchMenu = touchMenuHeld;
+                // (FULLDEX NAV: the NAV button opens and closes the watch.)
+                static bool prevTouchNav = false;
+                if (touchPad.navHeld && !prevTouchNav && !menu.open) fdNavToggle = true;
+                prevTouchNav = touchPad.navHeld;
                 if (touchPad.visible && touchPad.FastHeld()) kbFast = true; // (the >> button)
             }
 
@@ -12158,7 +12162,7 @@ int main(int argc, char** argv)
         }
         else if (fdNav.counterShown && !menu.open)
         {
-            FdNav::DrawCount(canvas, outW, outH, fdNav.count);
+            FdNav::DrawCount(canvas, outW, outH, fdNav.count, touchPadUsed && touchPad.visible ? (int)(outH * 0.135f) : 0);
             overlayUsed = true;
         }
         if (frame < toastUntil)

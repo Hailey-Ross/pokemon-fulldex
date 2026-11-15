@@ -16,7 +16,7 @@ struct TouchPad
 {
     // What a finger is on. The values of the buttons are the PAD_* controller buttons
     // they act as (by label: the button marked A is A).
-    enum { NONE = -1, DPAD = -2, MENU = -3, SCREEN = -4, FAST = -5 };
+    enum { NONE = -1, DPAD = -2, MENU = -3, SCREEN = -4, FAST = -5, NAV = -6 };
 
     struct Button
     {
@@ -29,6 +29,7 @@ struct TouchPad
 
     TouchLayout::Profile profile;
     bool visible = true;
+    mutable bool navHeld = false; // (a finger on NAV: FULLDEX NAV; set by Apply)
     std::vector<Button> buttons;
     float dpadX = 0, dpadY = 0, dpadR = 0;
     bool dpadHidden = false;
@@ -66,6 +67,9 @@ struct TouchPad
             // Fast forward while held, beside R: the DS's R stays the game's own button, as on
             // a controller, where fast forward is the right trigger.
             { FAST, outW - 0.35f * u - 2.6f * u - 0.3f * u - 0.8f * u, 0.3f * u + 0.45f * u, 0, 1.6f * u, 0.9f * u, ">>" },
+            // FULLDEX NAV's watch, beside L as fast forward is beside R (last, so the layouts people saved
+            // keep their places).
+            { NAV, 0.35f * u + 2.6f * u + 0.3f * u + 0.8f * u, 0.3f * u + 0.45f * u, 0, 1.6f * u, 0.9f * u, "NAV" },
         };
         // SELECT and START either side of MENU, off the bottom edge where the games put their
         // touch screen's buttons (the Pokedex's, the bag's, a battle's), if they fit there
@@ -184,6 +188,7 @@ struct TouchPad
     void Apply(bool btn[], bool& menu) const
     {
         menu = false;
+        navHeld = false;
         for (auto& f : fingerOn)
         {
             const int on = f.second;
@@ -202,6 +207,7 @@ struct TouchPad
                 if (sector >= 5 && sector <= 7) btn[PAD_UP] = true;
             }
             else if (on == MENU) menu = true;
+            else if (on == NAV) navHeld = true;
             else if (on >= 0) btn[on] = true;
         }
     }
@@ -219,7 +225,7 @@ struct TouchPad
         if (labels && labelsLanguage == UiLang::lang) return;
         if (labels) SDL_DestroyTexture(labels);
         labels=nullptr;labelRect.clear();labelsLanguage=UiLang::lang;
-        const char* names[] = { "A", "B", "X", "Y", "L", "R", "SELECT", "START", "MENU", ">>" };
+        const char* names[] = { "A", "B", "X", "Y", "L", "R", "SELECT", "START", "MENU", ">>", "NAV" };
         const int scale = 3;
         Canvas c;
         int x = 0;
@@ -313,7 +319,7 @@ struct TouchPad
         for (const Button& b : buttons)
         {
             if (b.hidden) continue;
-            bool on = b.pad == MENU ? menuHeld : b.pad == FAST ? FastHeld() : held[b.pad];
+            bool on = b.pad == MENU ? menuHeld : b.pad == FAST ? FastHeld() : b.pad == NAV ? navHeld : held[b.pad];
             if (b.w > 0)
             {
                 Pill(v, b.x, b.y, b.w, b.h, dark);
