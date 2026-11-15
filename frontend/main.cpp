@@ -89,6 +89,7 @@
 #include "ff_music.h"
 #include "menu_drag.h"
 #include "companion_tabs.h"
+#include "fulldex_nav.h"
 #include "gpucompose.h"
 #include "emuthread.h"
 #include "pc_launcher.h"
@@ -7777,6 +7778,13 @@ int main(int argc, char** argv)
     bool prevComboMenu = false;
     bool ctrlStart = false, touchStart = false, prevCtrlStart = false; // see cfg.startMenu
     bool swallowMenuButtons = false; // keeps the buttons that closed the menu from reaching the game
+    // FULLDEX NAV (fulldex_nav.h): the quick menu, opened with L3 or Tab; its encounter counter is kept
+    // beside the save (<save>.counter).
+    FdNav::State fdNav;
+    fdNav.countFile = opt.noSave ? std::string() : opt.save + ".counter";
+    fdNav.LoadCount();
+    bool fdNavToggle = false, fdNavBattleWas = false, fdNavMouseWas = false;
+    uint32_t fdNavBattleAt = 0, fdNavKeysWas = 0;
     // FLY (M_FLY): the game's own check first (it needs the game running: the menu closes for those
     // few frames), then its towns on PAGE_FLY. False (and said why) when it cannot start.
     // ZOOM AND LOOK AROUND (ds_zoom.h): the camera, and what the controls asked of it since the last frame.
@@ -9093,7 +9101,7 @@ int main(int argc, char** argv)
             kbKeysHeld = KeyboardKeys(cfg.controls);
             if (!menu.open)
             {
-                if (!swallowMenuButtons) keys |= kbKeysHeld;
+                if (!swallowMenuButtons && !fdNav.open) keys |= kbKeysHeld;
                 // (The touch cursor's keys, unless CONTROLS gave one of them to something.)
                 auto keyFree = [&](int s) { return kb[s] && cfg.controls.ActionOfKey(s) < 0; };
                 // (ZOOM: C steps it; zoomed out on the overworld, I J K L look around instead of moving the cursor.)
@@ -9101,6 +9109,11 @@ int main(int argc, char** argv)
                 const bool zoomKey = keyFree(SDL_SCANCODE_C);
                 if (zoomKey && !zoomKeyWas) dsZoomCycle = true;
                 zoomKeyWas = zoomKey;
+                // (FULLDEX NAV: Tab opens and closes it.)
+                static bool navKeyWas = false;
+                const bool navKey = keyFree(SDL_SCANCODE_TAB);
+                if (navKey && !navKeyWas) fdNavToggle = true;
+                navKeyWas = navKey;
                 if (dsZoomLooking)
                 {
                     if (keyFree(SDL_SCANCODE_J)) dsZoomSX = -1;
@@ -9332,6 +9345,89 @@ int main(int argc, char** argv)
         if (pressed(PAD_GUIDE) || startPress || (!cfg.startMenu && comboMenu && !prevComboMenu)) toggleMenu = true;
         prevComboMenu = comboMenu;
         prevCtrlStart = ctrlStart;
+
+        // FULLDEX NAV: L3 (the left stick pressed) or Tab opens and closes it; the game keeps running
+        // behind it but gets none of the buttons. D-pad and A choose, B closes; on COUNTER X sets it to
+        // 0. A tap or a click on an app uses it, one outside the watch closes it.
+        // (Test runs: SSR_TEST_NAV=<frame>,<app>[,1] opens it at that frame on that app; ,1 also uses the
+        // app 10 frames later.)
+        static int testNavAt = -2, testNavSel = 0, testNavUse = 0;
+        if (testNavAt == -2) { testNavAt = -1; if (const char* t = getenv("SSR_TEST_NAV")) sscanf(t, "%d,%d,%d", &testNavAt, &testNavSel, &testNavUse); }
+        static uint32_t testNavFrames = 0; // (counted from the run's start, as SSR_TEST_PAGE)
+        ++testNavFrames;
+        if (testNavAt >= 0 && testNavFrames == (uint32_t)testNavAt) { fdNav.open = true; fdNav.sel = std::clamp(testNavSel, 0, FdNav::APPS - 1); }
+        if (!menu.open && pressed(PAD_LS)) fdNavToggle = true;
+        if (menu.open) { fdNav.open = false; fdNavToggle = false; }
+        const uint32_t fdNavKeys = PadKeys(ps, cfg.byLabel) | kbKeysHeld, fdNavDown = fdNavKeys & ~fdNavKeysWas;
+        fdNavKeysWas = fdNavKeys;
+        if (fdNavToggle)
+        {
+            fdNavToggle = false;
+            fdNav.open = !fdNav.open;
+            fdNav.resetAsk = 0;
+            if (!fdNav.open) swallowMenuButtons = true;
+        }
+        int fdNavUse = -1;
+        if (fdNav.open && testNavUse && testNavAt >= 0 && testNavFrames == (uint32_t)testNavAt + 10) fdNavUse = fdNav.sel;
+        if (fdNav.open)
+        {
+            auto down = [&](int key) { return ((fdNavDown >> key) & 1) != 0; };
+            int& sel = fdNav.sel;
+            if (down(KEY_LEFT)) sel = sel % 3 == 0 ? sel + 2 : sel - 1;
+            if (down(KEY_RIGHT)) sel = sel % 3 == 2 ? sel - 2 : sel + 1;
+            if (down(KEY_UP)) sel = (sel + 6) % FdNav::APPS;
+            if (down(KEY_DOWN)) sel = (sel + 3) % FdNav::APPS;
+            if (down(KEY_A)) fdNavUse = sel;
+            if (down(KEY_X) && sel == FdNav::COUNT) { fdNav.count = 0; fdNav.SaveCount(); say("COUNTER SET TO 0"); }
+            if (down(KEY_B)) { fdNav.open = false; swallowMenuButtons = true; }
+            if (mouseDown && !fdNavMouseWas)
+            {
+                const FdNav::Geo g = FdNav::Layout(outW, outH, touchPadUsed && touchPad.visible);
+                const int h = FdNav::Hit(g, mouseX, mouseY);
+                if (h >= 0) { sel = h; fdNavUse = h; }
+                else if (h == -1) { fdNav.open = false; swallowMenuButtons = true; }
+            }
+            fdNavMouseWas = mouseDown;
+            if (fdNav.open || fdNavUse >= 0) mouseDown = false; // (the watch's taps are not the game's)
+        }
+        else fdNavMouseWas = mouseDown;
+        if (fdNavUse >= 0)
+        {
+            const bool canAct = pokeActions.Supported() && !opt.lockstep;
+            switch (fdNavUse)
+            {
+            case FdNav::FLY:
+                if (!canAct || !flyGame.Supported()) say("FLY: NOT IN THIS GAME YET");
+                else if (startFly()) { fdNav.open = false; swallowMenuButtons = true; }
+                break;
+            case FdNav::FREE: say("FREE FLIGHT: IN THE GBA GAMES"); break;
+            case FdNav::PC:
+                if (!canAct) say("OPEN PC: NOT IN THIS GAME YET");
+                else
+                {
+                    pokeActionJob = pokeActions.OpenPc();
+                    if (pokeActionJob) { fdNav.open = false; swallowMenuButtons = true; }
+                    else say("OPEN PC: NOT HERE");
+                }
+                break;
+            case FdNav::REPEL: say("REPEL: IN THE GBA GAMES"); break;
+            case FdNav::COUNT: fdNav.counterShown = !fdNav.counterShown; fdNav.SaveCount(); break;
+            case FdNav::RESET:
+                if (fdNav.resetAsk && frame - fdNav.resetAsk < 180) { fdNav.open = false; fdNav.resetAsk = 0; swallowMenuButtons = true; resetGame(); }
+                else fdNav.resetAsk = frame;
+                break;
+            default: // MAP, POKEDEX, BAG: the companion's own pages
+                fdNav.open = false;
+                menu.open = true; menu.selected = 0; menu.npFocus = -1; menuPage = 0; capturing = -1;
+                buildMenu();
+                readCompanion(true);
+                companionReferenceReturn = false;
+                if (fdNavUse == FdNav::MAP) goPage(PAGE_CLOCATION, M_BACK);
+                else if (fdNavUse == FdNav::DEX) goPage(PAGE_CDEX, M_CDEX_FILTER);
+                else goPage(PAGE_CBAG, M_CPOCKET);
+                break;
+            }
+        }
 
         MenuInput heldNow;
         heldNow.up = ps.btn[PAD_UP] || ps.ly < -0.5f;
@@ -10145,6 +10241,7 @@ int main(int argc, char** argv)
             if (loadEdge) loadQuick();
             PadState toGame = ps;
             if (cfg.startMenu && ctrlStart) toGame.btn[PAD_START] = touchStart; // (START is the menu's)
+            if (fdNav.open) toGame = PadState(); // (FULLDEX NAV's buttons are its own)
             keys |= PadKeys(toGame, cfg.byLabel);
             // Only presses made while the command strip is up count; anything done in the bag or
             // party screens must not move it afterwards, and its next showing starts from the ROM.
@@ -10156,8 +10253,7 @@ int main(int argc, char** argv)
             const bool padTouchNow = cfg.padTouch || athlonNow || touchOnlyNow;
             const bool companionVisible = (cfg.companionOverlay && companionSnapshot.ready) ||
                 (DsDisplayState::Mode(secondScreenState) == 4 && (secondScreenState & DsDisplayState::Ready));
-            if (companionVisible && pressed(PAD_LS))
-                CompanionTabs::Next(liveTab, liveTabBeforeBattle);
+            (void)companionVisible; // (L3 is FULLDEX NAV's now; the companion's tabs are tapped, or opened from the Nav)
             // (SWAP SCREENS given a button of its own in CONTROLS works without the touch cursor.)
             if (!padTouchNow && cfg.controls.pad[Controls::SWAP] >= 0 && pressed(PAD_RS)) focus.manualFlip = !focus.manualFlip;
             // (ZOOM: a click of the right stick steps it, the right stick looks around; not while the stick is the
@@ -10174,7 +10270,7 @@ int main(int argc, char** argv)
                 if (pressed(PAD_RS)) focus.manualFlip = !focus.manualFlip;
 #ifndef __SWITCH__
                 // (Not on the Switch: a left stick pressed while walking would change the view.)
-                if (!companionVisible && pressed(PAD_LS)) layout = LayoutNext(layout);
+                // (L3: FULLDEX NAV, above.)
 #endif
                 if (fabsf(ps.rx) > 0.2f) curDX += ps.rx;
                 if (fabsf(ps.ry) > 0.2f) curDY += ps.ry;
@@ -11631,6 +11727,17 @@ int main(int argc, char** argv)
             audioWasFastForward = audioFastForward;
         }
         const bool inBattle = std::strncmp(scene.name, "battle", 6) == 0;
+        // (FULLDEX NAV's COUNTER: a battle starting counts, a moment in, unless the companion can tell
+        // it is a trainer's.)
+        if (inBattle && !fdNavBattleWas) fdNavBattleAt = frame + 90;
+        fdNavBattleWas = inBattle;
+        if (fdNavBattleAt && frame >= fdNavBattleAt)
+        {
+            fdNavBattleAt = 0;
+            bool trainer = false;
+            if (Companion::BattleMapped(companionProfile)) { readCompanion(true); trainer = companionSnapshot.trainerBattle; }
+            if (!trainer) { fdNav.count++; fdNav.SaveCount(); }
+        }
         if (speed > 1 && inBattle != ffInBattle && !ffAudio.Empty())
         {
             ffAudio.Clear();
@@ -11915,6 +12022,29 @@ int main(int argc, char** argv)
             const int ty = outH - 15 * sc;
             canvas.Fill((outW - tw) / 2, ty, tw, 13 * sc, 0xC0000000);
             canvas.Text((outW - tw) / 2 + 4 * sc, ty + 3 * sc, hint, sc, 0xFFFFFFFF);
+            overlayUsed = true;
+        }
+        // FULLDEX NAV, or its counter on the picture.
+        if (fdNav.open && !menu.open)
+        {
+            const FdNav::Geo g = FdNav::Layout(outW, outH, touchPadUsed && touchPad.visible);
+            const bool canAct = pokeActions.Supported() && !opt.lockstep;
+            bool dim[FdNav::APPS] = {};
+            dim[FdNav::FLY] = !canAct || !flyGame.Supported();
+            dim[FdNav::PC] = !canAct;
+            dim[FdNav::FREE] = dim[FdNav::REPEL] = true; // (the GBA games' for now)
+            std::string label[FdNav::APPS];
+            label[FdNav::COUNT] = std::to_string(fdNav.count) + " MET";
+            if (fdNav.resetAsk && frame - fdNav.resetAsk < 180) label[FdNav::RESET] = "A AGAIN";
+            std::string hint = "A: USE   B: CLOSE";
+            if (fdNav.sel == FdNav::COUNT) hint = std::string("A: ") + (fdNav.counterShown ? "HIDE" : "SHOW") + " ON SCREEN   X: SET TO 0   B: CLOSE";
+            else if (fdNav.sel == FdNav::RESET) hint = "A TWICE: RESET THE GAME   B: CLOSE";
+            FdNav::Draw(canvas, g, fdNav, dim, label, hint);
+            overlayUsed = true;
+        }
+        else if (fdNav.counterShown && !menu.open)
+        {
+            FdNav::DrawCount(canvas, outW, outH, fdNav.count);
             overlayUsed = true;
         }
         if (frame < toastUntil)
