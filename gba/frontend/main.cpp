@@ -75,6 +75,14 @@ extern "C" int pk_wide_take_fail;   // pk_wide.c, test log only
 
 #include "android.h"
 #include "games.h"
+#include "gameplay.h"
+#include "ff_music_gba.h"
+#include "follower_hgss.h"
+#include "fly_gba.h"
+#include "flight_records.h"
+#include "sinnoh_names.h"
+#include <atomic>
+#include <filesystem>
 #include "touch.h"
 #include "ui.h"
 
@@ -169,13 +177,54 @@ const std::vector<Setting>& SettingsList()
           "LEAFGREEN, ULTRA VIOLET AND MONOMYTH." },
         { "zoom_text", "AUTO ZOOM IN", onOff, "1",
           "ON: A TEXT BOX BRINGS A ZOOMED-OUT VIEW BACK CLOSE WHILE YOU READ IT. MENUS AND BATTLES ALWAYS DO." },
+        { "day_night", "DAY AND NIGHT", onOff, "0",
+          "ON: OUTDOORS FOLLOWS YOUR CLOCK: A WARM DAWN, PLAIN DAY, AN ORANGE DUSK AND A BLUE NIGHT. ONLY THE COLOURS AS THEY ARE "
+          "DRAWN CHANGE: NOTHING IN THE GAME OR ITS SAVE. TEXT BOXES, MENUS AND BATTLES KEEP THEIR OWN. NEEDS ZOOM AND LOOK AROUND'S GAMES." },
+        { "follower", "FOLLOWING POKEMON", onOff, "0",
+          "ON: THE FIRST POKEMON OF YOUR PARTY WALKS BEHIND YOU, AS IN HEARTGOLD AND SOULSILVER. ITS SPRITES COME FROM YOUR OWN "
+          "HEARTGOLD OR SOULSILVER IN THE ROMS FOLDER (THE VERY BIG ONES HAVE NONE). NEEDS ZOOM AND LOOK AROUND'S GAMES." },
         { "show_fps", "FPS COUNTER", onOff, "0", "SHOWS THE FRAMES A SECOND IN A CORNER." },
         { "volume", "VOLUME",
           { { "0", "OFF" }, { "10", "10%" }, { "20", "20%" }, { "30", "30%" }, { "40", "40%" }, { "50", "50%" },
             { "60", "60%" }, { "70", "70%" }, { "80", "80%" }, { "90", "90%" }, { "100", "100%" } },
           "100", "THE GAME'S SOUND." },
         { "ff_mute", "FAST FORWARD SOUND", { { "0", "ON" }, { "1", "OFF" } }, "0",
-          "ON: THE MUSIC CARRIES ON AT ITS NORMAL SPEED WHILE THE GAME FAST FORWARDS. OFF: FAST FORWARD IS SILENT." },
+          "ON: THE MUSIC CARRIES ON AT ITS NORMAL SPEED AND PITCH WHILE THE GAME FAST FORWARDS. IN THE POKEMON GAMES EACH SONG "
+          "PLAYS IN FULL: A HIDDEN COPY OF THE GAME RECORDS IT THE FIRST TIME YOU HEAR IT. OFF: FAST FORWARD IS SILENT." },
+        { "instant_text", "INSTANT TEXT", onOff, "0",
+          "ON: A TEXT BOX'S WORDS APPEAR AT ONCE, WHATEVER THE GAME'S OWN TEXT SPEED. NOTHING ELSE SPEEDS UP. "
+          "RUBY, SAPPHIRE, EMERALD, FIRERED AND LEAFGREEN IN EVERY LANGUAGE, AND HACKS THAT KEPT THEIR TEXT CODE." },
+        { "reusable_tms", "REUSABLE TMS", onOff, "0",
+          "ON: EVERY TM STAYS IN THE BAG AFTER TEACHING ITS MOVE, AS AN HM DOES. NOTHING ELSE CHANGES." },
+        { "run_indoors", "RUN INDOORS", onOff, "0",
+          "ON: THE RUNNING SHOES WORK ON EVERY MAP, INDOORS TOO. EMERALD, FIRERED AND LEAFGREEN (RUBY AND SAPPHIRE DECIDE IT ANOTHER WAY)." },
+        { "wild_encounters", "WILD ENCOUNTERS",
+          { { "100", "NORMAL" }, { "75", "75%" }, { "50", "50%" }, { "25", "25%" }, { "0", "OFF" } }, "100",
+          "HOW MANY OF THE WILD POKEMON YOU WOULD MEET IN GRASS, CAVES AND WATER STILL TURN UP. FISHING, SWEET SCENT "
+          "AND THE GAME'S OWN BATTLES ARE NOT CHANGED." },
+        { "fly_on", "FLY ON",
+          { { "bird", "BIRD" }, { "pokemon", "YOUR FLY POKEMON" }, { "any", "ANY POKEMON" }, { "latias", "LATIAS" }, { "latios", "LATIOS" }, { "rayquaza", "RAYQUAZA" },
+            { "lugia", "LUGIA" }, { "hooh", "HO-OH" }, { "deoxys", "DEOXYS" }, { "balloon", "AIR BALLOON" }, { "helicopter", "HELICOPTER" }, { "zeppelin", "ZEPPELIN" }, { "plane", "PLANE" } }, "bird",
+          "WHAT FREE FLIGHT CARRIES YOU ON. BIRD: THE GAME'S OWN FLY BIRD. YOUR FLY POKEMON: THE POKEMON IN YOUR PARTY THAT KNOWS FLY, "
+          "ITS SPRITE FROM YOUR OWN HEARTGOLD OR SOULSILVER IN THE ROMS FOLDER (THE BIRD WHEN THERE IS NONE). ANY POKEMON: THE ONE "
+          "YOU PICK IN COMPANION, FLY, FLY ON. LATIAS, LATIOS, "
+          "RAYQUAZA, LUGIA, HO-OH AND DEOXYS ARE EMERALD'S OWN SPRITES (EMERALD ONLY). THE BALLOON, HELICOPTER, "
+          "ZEPPELIN AND PLANE ARE POKEDAISY'S OWN PIXEL ART." },
+        { "flight_clouds", "CLOUDS OVER UNEXPLORED", onOff, "1",
+          "ON: WHILE YOU FLY, CLOUDS COVER THE PLACES YOU HAVEN'T BEEN YET, AND CLEAR AS YOU REACH THEM. FULLDEX NOTES EACH MAP "
+          "YOU STAND ON; FOR A SAVE FROM BEFORE, THE TOWNS YOU HAVE VISITED AND THE ROUTES BESIDE THEM COUNT AS SEEN." },
+        { "battle_speed", "BATTLE SPEED", { { "1", "NORMAL" }, { "2", "2X" }, { "3", "3X" }, { "4", "4X" } }, "1",
+          "HOW FAST BATTLES RUN, WITHOUT FAST FORWARD: THE WHOLE BATTLE, ITS MENUS TOO. FAST FORWARD STILL GOES AT ITS OWN SPEED." },
+        { "text_speed", "TEXT SPEED", { { "1", "NORMAL" }, { "2", "2X" }, { "3", "3X" }, { "4", "4X" } }, "1",
+          "HOW FAST THE GAME RUNS WHILE A TEXT BOX IS UP OUTSIDE BATTLES (PEOPLE TALKING, SIGNS, THE START MENU)." },
+        { "bike_speed", "BIKE SPEED", { { "1", "NORMAL" }, { "2", "2X" }, { "3", "3X" }, { "4", "4X" } }, "1",
+          "HOW FAST THE GAME RUNS WHILE YOU RIDE A BIKE." },
+        { "surf_speed", "SURF SPEED", { { "1", "NORMAL" }, { "2", "2X" }, { "3", "3X" }, { "4", "4X" } }, "1",
+          "HOW FAST THE GAME RUNS WHILE YOU SURF OR DIVE." },
+        { "shiny_odds", "SHINY ODDS",
+          { { "8192", "NORMAL" }, { "4096", "1 IN 4096" }, { "1024", "1 IN 1024" }, { "512", "1 IN 512" }, { "128", "1 IN 128" } }, "8192",
+          "HOW OFTEN A WILD POKEMON TURNS UP SHINY. NORMAL IS THE GAME'S OWN 1 IN 8192. POKEMON ALREADY CAUGHT DON'T CHANGE, "
+          "AND ONE CAUGHT SHINY STAYS SHINY WITH THIS BACK AT NORMAL. RUBY, SAPPHIRE, EMERALD, FIRERED AND LEAFGREEN." },
         { "gba_start", "START BUTTON", { { "start", "GBA START" }, { "menu", "PAUSE MENU" } }, "start",
 #if defined(__SWITCH__)
           "PAUSE MENU: + OPENS THIS MENU, AND + AND - TOGETHER ARE THE GBA'S START. GBA START: + IS THE GBA'S START, "
@@ -645,6 +694,15 @@ struct App
     // patch), the camera, the frame's middle 240 x 160 as WIDE wants it, and the window drawn after the last frame
     // (shown instead of the picture while zoomShown: past what the widescreen patch draws).
     bool pkWide = false;
+    // GAMEPLAY (gameplay.h): the ROM's writes for INSTANT TEXT and REUSABLE TMS, which of them are in, the game's wild
+    // encounter switch, and whether pk_wide.c knows this game's field (RUN INDOORS, WILD ENCOUNTERS).
+    std::vector<GbaGameplay::Write> gpText, gpTms;
+    bool gpTextOn = false, gpTmsOn = false, gpField = false;
+    uint32_t gpWild = 0;
+    GbaGameplay::ShinyRoller shiny;
+    int gpState = 0; // (the last frame's PK_FIELD_* bits)
+    float tintNow[3] = { 256, 256, 256 };
+    int tintSent[3] = { 256, 256, 256 }, tintFrames = 0, dnLog = 0;
     PkWideCamera::Camera camera;
     std::vector<uint32_t> frame240 = std::vector<uint32_t>((size_t)GbaW * GbaH);
     std::vector<uint32_t> zoomBuf = std::vector<uint32_t>((size_t)PkWideCamera::Camera::MaxW * PkWideCamera::Camera::MaxH);
@@ -666,7 +724,7 @@ struct App
     // RetroAchievements, from the program this is built into (embed.h). None in the standalone game.
     const GbaWide::AchievementsHost* ra = nullptr;
     bool raReady = false;
-    enum PausePage { P_ROOT, P_RA, P_LIST, P_LOGIN, P_CHEATS, P_DISPLAY, P_SOUND, P_CONTROLS, P_SETTINGS, P_QUIT, P_RESET, P_SAVE, P_LOAD, P_DEX, P_DEXENTRY, P_COMP, P_PARTY, P_BAG, P_PLACE, P_BATTLE, P_GUIDE } pausePage = P_ROOT;
+    enum PausePage { P_ROOT, P_RA, P_LIST, P_LOGIN, P_CHEATS, P_DISPLAY, P_SOUND, P_CONTROLS, P_SETTINGS, P_QUIT, P_RESET, P_SAVE, P_LOAD, P_DEX, P_DEXENTRY, P_COMP, P_PARTY, P_BAG, P_PLACE, P_BATTLE, P_GUIDE, P_GAMEPLAY, P_FLY, P_FLYMON } pausePage = P_ROOT;
     // POKEDEX (gba_dex.h): the ROM as it was before the widescreen patch, read when first opened;
     // the species of each of its list's rows, the one whose page is open, and that one's pictures.
     std::vector<uint8_t> dexRom;
@@ -894,6 +952,11 @@ struct App
 
     bool ffWas = false;
     FastForwardAudio ffAudio; // sound made while fast forwarding, played at its own speed
+    // FAST FORWARD MUSIC (ff_music_gba.h): each song recorded beforehand on a hidden copy of the game, played at its
+    // own speed while the game fast forwards; ffKey is the song playing now, from ffKeyAt (SDL ticks).
+    GbaFfMusic::Renderer ffMusic;
+    GbaFfMusic::Player ffPlayer;
+    uint32_t ffKey = 0, ffKeyAt = 0;
     void Sound(bool queue, bool ff = false)
     {
         if (!core) return;
@@ -908,6 +971,7 @@ struct App
         const double queued = SDL_GetQueuedAudioSize(audio);
         const double deviceBytes = have.samples * 4.0;
         const double target = std::max(frameBytes * 4, deviceBytes * 2);
+        if (!ff) ffPlayer.key = 0; // (the next fast forward picks the song up where it is then)
         if (ff != ffWas)
         {
             // (Letting go drops what waited to be heard; the short device queue plays on.)
@@ -922,7 +986,25 @@ struct App
         mAudioResamplerSetDestination(&resampler, &audioOut, have.freq * (1 + nudge));
         mAudioResamplerProcess(&resampler);
         size_t n = mAudioBufferRead(&audioOut, audioTmp.data(), audioTmp.size() / 2);
-        if (ff)
+        std::shared_ptr<const GbaFfMusic::Clip> clip;
+        bool waitClip = false;
+        if (ff && queue && ffMusic.Supported() && ffKey)
+        {
+            clip = ffMusic.Get(ffKey);
+            waitClip = !clip && ffMusic.WillHave(ffKey);
+        }
+        if (clip)
+        {
+            // The song's own recording, from where it would be had it played at 1x since it started.
+            const int want = (int)std::max(0.0, (target * 1.5 - queued) / 4);
+            if (ffPlayer.key != ffKey || ffPlayer.clip != clip)
+                ffPlayer.Begin(clip, ffKey, (size_t)((uint64_t)(SDL_GetTicks() - ffKeyAt) * (uint64_t)have.freq / 1000));
+            n = (size_t)std::min(want, (int)(audioTmp.size() / 2));
+            ffPlayer.Fill(audioTmp.data(), (int)n, std::max(0, std::min(256, set.Int("volume") * 256 / 100)));
+        }
+        else if (waitClip)
+            n = 0; // (still being recorded: silence rather than the music rushed)
+        else if (ff)
         {
             // Fast forward: the sound at its own speed and pitch, a stretch at a time, never more
             // than about two seconds behind the picture (FastForwardAudio). The device's queue is
@@ -932,7 +1014,13 @@ struct App
             n = queue ? (size_t)ffAudio.PullFrames(audioTmp.data(), std::min(want, (int)(audioTmp.size() / 2)), have.freq) : 0;
         }
         const double room = std::max(frameBytes * 10, target * 3);
-        if (queue && n && queued < room) SDL_QueueAudio(audio, audioTmp.data(), (Uint32)(n * 4));
+        if (queue && n && queued < room)
+        {
+            SDL_QueueAudio(audio, audioTmp.data(), (Uint32)(n * 4));
+            // (Tests: GBAW_AUDIO_DUMP=file, everything sent to the device, raw 16-bit stereo.)
+            static FILE* dump = getenv("GBAW_AUDIO_DUMP") ? fopen(getenv("GBAW_AUDIO_DUMP"), "wb") : nullptr;
+            if (dump) fwrite(audioTmp.data(), 4, n, dump);
+        }
     }
 
     // -----------------------------------------------------------------------------------------
@@ -989,6 +1077,7 @@ struct App
         }
         // The save: saves/<game>.sav, or one put beside the ROM, copied in the first time.
         const std::string save = saves + "/" + g.key + ".sav";
+        ExploredLoad(saves + "/" + g.key + ".explored");
         if (!Games::Exists(save) && Games::Exists(Games::SaveBeside(g)))
         {
             std::vector<uint8_t> s;
@@ -1017,6 +1106,38 @@ struct App
         dexTried = false;
         dexPicFor = -1;
         pkWide = pk_wide_configure(doCrc32(sold.data(), sold.size())) != 0;
+        {
+            // (GAMEPLAY: what this ROM's own code lets through; INSTANT TEXT and REUSABLE TMS written now.)
+            const std::vector<uint8_t>& id = sold.empty() ? rom : sold;
+            gpText = GbaGameplay::InstantText(rom);
+            gpTms = GbaGameplay::ReusableTms(rom);
+            gpWild = GbaGameplay::WildSwitch(rom);
+            gpTextOn = gpTmsOn = false;
+            shiny.Reset();
+            gpState = 0;
+            for (int c = 0; c < 3; c++) { tintNow[c] = 256; tintSent[c] = 256; }
+            followSpecies = -1;
+            followShown = false;
+            followTick = 0;
+            pk_follower_set(nullptr, nullptr);
+            gpField = pk_field_configure(doCrc32(id.data(), id.size())) != 0;
+            fly.Find(core);
+            flyStage = 0;
+            FlightFind(sold.empty() ? rom : sold);
+            if (gpField) pk_field_wild(gpWild, WildKeep() == 0);
+            ApplyGameplay();
+            ffKey = 0;
+            ffPlayer = GbaFfMusic::Player();
+            if (audio)
+            {
+                char sub[24];
+                snprintf(sub, sizeof sub, "/ffmusic/%08x", (unsigned)doCrc32(rom.data(), rom.size()));
+                Games::MakeDir(data + "/ffmusic");
+                Games::MakeDir(data + sub);
+                ffMusic.Start(rom, have.freq, data + sub);
+            }
+            fprintf(stderr, "[gba] gameplay: text %zu, tms %zu, wild %08x, field %d\n", gpText.size(), gpTms.size(), gpWild, (int)gpField);
+        }
         camera.Reset();
         camera.level = 0;
         zoomShown = false;
@@ -1060,6 +1181,15 @@ struct App
             SDL_ClearQueuedAudio(audio);
         }
         mAudioResamplerDeinit(&resampler);
+        ffMusic.Stop();
+        fly.Forget();
+        ExploredSave();
+        pk_flight_configure(nullptr, 0);
+        pk_flight_reset();
+        flightRec = nullptr;
+        flyStage = 0;
+        ffPlayer = GbaFfMusic::Player();
+        if (followFind.joinable()) followFind.join(); // (the look for HeartGold: a second or so at most)
         core->deinit(core); // (writes the save)
         core = nullptr;
         if (embedded)
@@ -1269,7 +1399,10 @@ struct App
     void ZoomFrame(bool shown)
     {
         zoomShown = false;
-        if (!ZoomOn()) return;
+        // (FREE FLIGHT: drawn through WIDE's view at any zoom, 1x too, as PokeDaisy's EXPAND does: its smooth camera moves
+        // the map evenly, where the game steps it a tile at a time.)
+        const bool flying = FlightView();
+        if (!ZoomOn() && !flying) return;
         const int e = std::max(0, wideExtra);
         for (int y = 0; y < GbaH; y++)
             memcpy(frame240.data() + (size_t)y * GbaW, video.data() + (size_t)y * MaxW + e, GbaW * 4);
@@ -1307,12 +1440,13 @@ struct App
         // do, as nothing past the picture is wanted; otherwise a view every frame shown, of one pixel when the window
         // is inside the picture.)
         const bool idle = camera.level == 0 && std::fabs(camera.stickX) < 0.2f && std::fabs(camera.stickY) < 0.2f;
-        if (!shown || !w.valid || (idle && camera.Plain()))
+        // (DAY AND NIGHT goes by the scene too: a one-pixel view then.)
+        if (!shown || !w.valid || (idle && camera.Plain() && !SceneWanted() && !flying))
         {
             pk_wide_skip(core, frame240.data());
             return;
         }
-        if (camera.Plain() || inside)
+        if ((camera.Plain() || inside) && !flying)
         {
             uint32_t px = 0;
             struct PkWideView one = { 0, 0, 1, 1 };
@@ -1324,6 +1458,13 @@ struct App
         pk_wide_view(core, frame240.data(), zoomBuf.data(), v, nullptr);
         zoomCost = (double)(SDL_GetPerformanceCounter() - zt0) * 1000.0 / (double)SDL_GetPerformanceFrequency();
         zoomCostMax = std::max(zoomCostMax, zoomCost);
+        if (flying)
+        {
+            pk_flight_draw_wide(zoomBuf.data(), v.w, v.h, v.x, v.y);   // (its clouds over the whole picture)
+            zoomWin = w;
+            zoomShown = true;
+            return;
+        }
         // The widescreen patch's own picture where the window covers it: the game's real pixels, its sides included,
         // all but the outermost 8 columns each side (a hack's patch can leave a strip of repeated tiles there,
         // Monomyth's left edge; WIDE's rebuild of the map is right there).
@@ -1336,6 +1477,7 @@ struct App
         zoomShown = true;
     }
 
+    bool FlightView() const { return flightRec && pkWide && pk_flight_state() != PK_FLIGHT_IDLE; }
     // ZOOM AND LOOK AROUND on, for a game WIDE knows.
     bool ZoomOn() const { return pkWide && set.Get("zoom") == "1"; }
 
@@ -1369,7 +1511,15 @@ struct App
             keys = 0;
         }
         core->setKeys(core, keys);
+        if (gpField && !paused) gpState = pk_field_state(core, set.Get("run_indoors") == "1", WildKeep());
+        if (!paused) ShinyFrame();
         core->runFrame(core);
+        fly.FrameEnded();
+        if (!paused) FlyFrame();
+        FogUndo();
+        FlightFrame();
+        ExploredFrame();
+        FlyTest();
 #ifdef GBAW_CHEATS
         cheats.Frame(cheatBus, keys);
 #endif
@@ -1378,6 +1528,12 @@ struct App
 #endif
         if (touchTapFrames > 0 && --touchTapFrames == 0) touchTap = 0;
         ZoomFrame(shown);
+        if (ffMusic.Supported())
+        {
+            const uint32_t k = GbaFfMusic::CurrentKey(core);
+            if (k != ffKey) { ffKey = k; ffKeyAt = SDL_GetTicks(); }
+            if (k && set.Get("ff_mute") == "0") ffMusic.Request(k);
+        }
         Sound(sound, ff);
         fpsFrames++;
         gameFrames++;
@@ -1434,7 +1590,22 @@ struct App
         }
         if (pausePage == P_COMP)
         {
-            for (const char* l : { "PARTY", "BAG", "LOCATION", "BATTLE INFO", "GUIDE", "BACK" }) pause.items.push_back({ l, "" });
+            for (const char* l : { "PARTY", "BAG", "LOCATION", "BATTLE INFO", "GUIDE" }) pause.items.push_back({ l, "" });
+            if (fly.Supported()) pause.items.push_back({ "FLY", "" });
+            pause.items.push_back({ "BACK", "" });
+            return;
+        }
+        if (pausePage == P_FLY)
+        {
+            if (flightRec) { pause.items.push_back({ "FREE FLIGHT", "", false }); pause.items.push_back({ "FLY ON", "", false }); }
+            for (int sec : flyT.towns) pause.items.push_back({ "TOWN " + std::to_string(sec), "", false });
+            pause.items.push_back({ "BACK", "" });
+            return;
+        }
+        if (pausePage == P_FLYMON)
+        {
+            for (int n : FlyMonList()) pause.items.push_back({ "MON " + std::to_string(n), "", false });
+            pause.items.push_back({ "BACK", "" });
             return;
         }
         if (pausePage == P_PARTY)
@@ -1499,17 +1670,18 @@ struct App
             return;
         }
 #endif
-        if (pausePage == P_DISPLAY || pausePage == P_SOUND || pausePage == P_CONTROLS)
+        if (IsSettingsPage())
         {
-            static const char* const display[] = { "widescreen", "fullscreen", "scaling", "hd_filter", "lcd", "colour", "zoom", "zoom_text", "show_fps" };
+            static const char* const display[] = { "widescreen", "fullscreen", "scaling", "hd_filter", "lcd", "colour", "zoom", "zoom_text", "day_night", "follower", "show_fps" };
             static const char* const sound[] = { "volume", "ff_mute" };
             static const char* const controls[] = { "gba_start", "buttons", "fast_lock", "ff_speed", "fast_button" };
-            const char* const* keys = pausePage == P_DISPLAY ? display : pausePage == P_SOUND ? sound : controls;
-            const int count = pausePage == P_DISPLAY ? 9 : pausePage == P_SOUND ? 2 : 5;
+            static const char* const gameplay[] = { "instant_text", "reusable_tms", "run_indoors", "wild_encounters", "shiny_odds", "battle_speed", "text_speed", "bike_speed", "surf_speed", "fly_on", "flight_clouds" };
+            const char* const* keys = pausePage == P_DISPLAY ? display : pausePage == P_SOUND ? sound : pausePage == P_GAMEPLAY ? gameplay : controls;
+            const int count = pausePage == P_DISPLAY ? 11 : pausePage == P_SOUND ? 2 : pausePage == P_GAMEPLAY ? 11 : 5;
             pageSettings.clear();
             for (int i = 0; i < count; i++)
                 for (const Setting& s : SettingsList())
-                    if (!strcmp(s.key, keys[i]))
+                    if (!strcmp(s.key, keys[i]) && GameplayOffered(s.key))
                     {
                         pause.items.push_back({ s.name, set.Shown(s) });
                         pageSettings.push_back(&s);
@@ -1517,6 +1689,7 @@ struct App
 #ifdef GBAW_PHONE
             if (pausePage == P_CONTROLS) pause.items.push_back({ "TOUCH CONTROLS", "EDIT LAYOUT" });
 #endif
+            if (pausePage == P_GAMEPLAY && pageSettings.empty()) pause.items.push_back({ "NOT FOR THIS GAME", "", true });
             pause.items.push_back({ "BACK", "" });
             return;
         }
@@ -1547,7 +1720,7 @@ struct App
         }
         if (pausePage == P_SETTINGS)
         {
-            for (const char* l : { "DISPLAY", "SOUND", "CONTROLS", "RESET GAME", "BACK" }) pause.items.push_back({ l, "" });
+            for (const char* l : { "DISPLAY", "SOUND", "CONTROLS", "GAMEPLAY", "RESET GAME", "BACK" }) pause.items.push_back({ l, "" });
             return;
         }
         if (pausePage == P_QUIT || pausePage == P_RESET)
@@ -1588,6 +1761,7 @@ struct App
         pause.items.push_back({ "DISPLAY", "" });
         pause.items.push_back({ "SOUND", "" });
         pause.items.push_back({ "CONTROLS", "" });
+        pause.items.push_back({ "GAMEPLAY", "" });
 #else
         pause.items.push_back({ "SETTINGS", "" });
 #endif
@@ -1750,6 +1924,764 @@ struct App
 #ifdef GBAW_EMBEDDED
     // DISPLAY, SOUND and CONTROLS: a row a setting (left and right, or A, change it: kept at once,
     // in Fulldex's settings too), then BACK to the pause menu, on the row that opened the page.
+    bool IsSettingsPage() const { return pausePage == P_DISPLAY || pausePage == P_SOUND || pausePage == P_CONTROLS || pausePage == P_GAMEPLAY; }
+    const char* SettingsPageName() const
+    {
+        return pausePage == P_DISPLAY ? "DISPLAY" : pausePage == P_SOUND ? "SOUND" : pausePage == P_GAMEPLAY ? "GAMEPLAY" : "CONTROLS";
+    }
+    // (A GAMEPLAY row only where this game's code has what it changes.)
+    bool GameplayOffered(const char* key) const
+    {
+        if (!strcmp(key, "instant_text")) return !gpText.empty();
+        if (!strcmp(key, "reusable_tms")) return !gpTms.empty();
+        if (!strcmp(key, "run_indoors")) return gpField && gameCode.size() == 4 && gameCode[0] == 'B'; // (Emerald and FireRed's engines)
+        if (!strcmp(key, "wild_encounters")) return gpField && gpWild;
+        if (!strcmp(key, "shiny_odds")) return EnemyParty() != 0;
+        if (!strcmp(key, "day_night")) return pkWide && gpField;
+        if (!strcmp(key, "fly_on") || !strcmp(key, "flight_clouds")) return flightRec != nullptr;
+        if (!strcmp(key, "follower")) return pkWide && gpField && compConfig;
+        if (!strcmp(key, "battle_speed") || !strcmp(key, "text_speed") || !strcmp(key, "bike_speed") || !strcmp(key, "surf_speed")) return gpField;
+        return true;
+    }
+    // gEnemyParty, from the companion's gPlayerParty (where each engine keeps it); 0 for a game it doesn't know.
+    uint32_t EnemyParty() const
+    {
+        if (!compConfig || gameCode.size() < 3) return 0;
+        const std::string f = gameCode.substr(0, 3);
+        return f == "AXV" || f == "AXP" ? compConfig->party + 0x260 : f == "BPE" ? compConfig->party + 0x258 : f == "BPR" || f == "BPG" ? compConfig->party - 0x258 : 0;
+    }
+    void ShinyFrame()
+    {
+        const int odds = atoi(set.Get("shiny_odds").c_str());
+        const uint32_t enemy = EnemyParty();
+        if (!enemy || odds <= 0 || odds >= 8192) return;
+        shiny.Tick(odds, enemy, compConfig->saveBlock2, compConfig->staticSaveBlocks, compConfig->gMain + compConfig->inBattleOff,
+                   [&](uint32_t a, uint8_t* b, int n) { for (int i = 0; i < n; i++) b[i] = (uint8_t)core->busRead8(core, a + i); return true; },
+                   [&](uint32_t a, const uint8_t* b, int n) { for (int i = 0; i < n; i++) core->busWrite8(core, a + i, b[i]); return true; });
+    }
+    // SCENE SPEEDS: the speed for what is on the screen (the field's state from pk_field_state), without fast forward.
+    int SceneSpeed() const
+    {
+        if (!gpField || !(gpState & PK_FIELD_KNOWN)) return 1;
+        const char* key = (gpState & PK_FIELD_BATTLE) ? "battle_speed" : (gpState & (PK_FIELD_TEXT | PK_FIELD_WINDOW)) ? "text_speed"
+            : (gpState & PK_FIELD_BIKE) ? "bike_speed" : (gpState & PK_FIELD_SURF) ? "surf_speed" : nullptr;
+        return key ? std::max(1, std::min(4, set.Int(key))) : 1;
+    }
+    // DAY AND NIGHT: the tint for the hour (red, green, blue of 256), between the day's keys.
+    static void DayNightAt(float hour, int out[3])
+    {
+        static const struct { float h; int c[3]; } keys[] = { { 0, { 135, 150, 225 } }, { 4.5f, { 135, 150, 225 } }, { 6, { 245, 220, 220 } },
+                                                              { 7.5f, { 256, 256, 256 } }, { 16.5f, { 256, 256, 256 } }, { 18, { 255, 200, 165 } },
+                                                              { 19.5f, { 135, 150, 225 } }, { 24, { 135, 150, 225 } } };
+        int i = 0;
+        while (i < 6 && keys[i + 1].h <= hour) i++;
+        const float t = (hour - keys[i].h) / (keys[i + 1].h - keys[i].h);
+        for (int c = 0; c < 3; c++) out[c] = (int)(keys[i].c[c] + (keys[i + 1].c[c] - keys[i].c[c]) * std::max(0.0f, std::min(1.0f, t)));
+    }
+    bool DayNightOn() const { return set.Get("day_night") == "1" && pkWide && gpField; }
+    bool FollowerOn() const { return set.Get("follower") == "1" && pkWide && gpField && compConfig; }
+    // (WIDE's scene, for DAY AND NIGHT and the FOLLOWER: zoom notes it; without zoom a one-pixel view each frame shown.)
+    bool SceneWanted() const { return DayNightOn() || FollowerOn() || FogWanted(); }
+    void SceneFrame()
+    {
+        if (ZoomOn() || !SceneWanted() || zoomShown) return;
+        const int e = std::max(0, wideExtra);
+        for (int y = 0; y < GbaH; y++) memcpy(frame240.data() + (size_t)y * GbaW, video.data() + (size_t)y * MaxW + e, GbaW * 4);
+        uint32_t px = 0;
+        struct PkWideView one = { 0, 0, 1, 1 };
+        pk_wide_view(core, frame240.data(), &px, one, nullptr);
+    }
+    // FOLLOWING POKEMON: HeartGold or SoulSilver looked for once (on a thread), the lead's sprite handed to WIDE when it
+    // changes, and shown on the field (not surfing, not in a battle).
+    // FLY from the companion: the game's own Fly, started once the menu has closed (fly_gba.h).
+    GbaFly::Fly fly;
+    GbaFly::Targets flyT;
+    int flySec = -1, flyStage = 0, flyWait = 0, flyHgssWait = 0;
+    bool flyTesting = false;
+    void FlyFrame()
+    {
+        if (flyStage == 1)
+        {
+            // (The first frame the game is at rest: the checks again, controls locked, the fade to black.)
+            const GbaFly::Result r = fly.Start(flySec, flyT);
+            if (r == GbaFly::OK) { flyStage = 2; flyWait = 0; }
+            else if (r != GbaFly::NOT_NOW || ++flyWait > 120) { Toast(GbaFly::Why(r), 3000); flyStage = 0; }
+        }
+        else if (flyStage == 10)
+        {
+            // FREE FLIGHT: the checks again, then the take-off on the next frames.
+            // (YOUR FLY POKEMON: HeartGold / SoulSilver looked for first, a second or so at most.)
+            if ((set.Get("fly_on") == "pokemon" || set.Get("fly_on") == "any") && followState <= 1 && ++flyHgssWait < 300) { if (followState == 0) FollowFind(); return; }
+            const GbaFly::Targets t = fly.Now();
+            if (t.result == GbaFly::OK)
+            {
+                FlightMount(t.slot);
+                ExploredSeed();
+                const int r = pk_flight_take_off(core);
+                if (r == PK_FLIGHT_OK || r != PK_FLIGHT_NOT_NOW || ++flyWait > 120)
+                {
+                    if (r != PK_FLIGHT_OK && flyTesting)
+                        if (FILE* l = fopen("fly-log.txt", "a"))
+                        {
+                            char info[256] = {};
+                            pk_flight_info(core, info, sizeof info);
+                            fprintf(l, "take-off %d rec %s cb2 %08x want %08x lock %d | %s\n", r, flightRec ? flightRec->name : "-",
+                                    flightRec ? core->busRead32(core, flightRec->words[PK_FLIGHT_MAIN] + 4) : 0, flightRec ? flightRec->words[PK_FLIGHT_CB2_OVERWORLD] : 0,
+                                    flightRec ? core->busRead8(core, flightRec->words[PK_FLIGHT_LOCK_BYTE]) : -1, info);
+                            fclose(l);
+                        }
+                    if (r != PK_FLIGHT_OK) Toast(r == PK_FLIGHT_NOT_ON_FOOT ? "GET OFF THE WATER FIRST" : "FREE FLIGHT CAN'T START HERE", 3000);
+                    flyStage = 0;
+                }
+            }
+            else if (t.result != GbaFly::NOT_NOW || ++flyWait > 120) { Toast(GbaFly::Why(t.result), 3000); flyStage = 0; }
+        }
+        else if (flyStage == 2 && ++flyWait >= 30)
+        {
+            const auto step = fly.Finish(flySec, flyT);
+            if (FILE* l = fopen("fly-log.txt", "r")) { fclose(l); if (FILE* a = fopen("fly-log.txt", "a")) { fprintf(a, "finish frame %d step %d\n", (int)gameFrames, (int)step); fclose(a); } }
+            if (step != GbaFly::Fly::LATER || flyWait > 120) flyStage = 0;
+        }
+    }
+    // FREE FLIGHT (PokeDaisy's pk_flight.c): the game's own Fly bird, steered over the field; set up when the game's
+    // functions are where its record says (flight_records.h).
+    const GbaFlight::Record* flightRec = nullptr;
+    // (The record's functions checked in the ROM as it came: the widescreen patch rewrites some (Ruby's
+    // CurrentMapDrawMetatileAt draws the wider view), and those are still the game's own to call.)
+    void FlightFind(const std::vector<uint8_t>& clean)
+    {
+        flightRec = nullptr;
+        pk_flight_configure(nullptr, 0);
+        pk_flight_reset();
+        if (!fly.Supported()) return;
+        for (const auto& r : GbaFlight::kRecords)
+        {
+            bool ok = true;
+            for (int i = 0; i < r.nfns && ok; i++)
+            {
+                uint8_t b[32];
+                const size_t o = (r.fns[i] & ~1u) - 0x08000000u;
+                if (o + 32 > clean.size()) { ok = false; break; }
+                for (int k = 0; k < 32; k++) b[k] = clean[o + k];
+                ok = (uint32_t)doCrc32(b, 32) == r.crcs[i];
+            }
+            if (!ok) continue;
+            flightRec = &r;
+            pk_flight_set_call(pk_game_call);
+            pk_flight_configure(r.words, PK_FLIGHT_WORDS);
+            return;
+        }
+    }
+    // CLOUDS OVER UNEXPLORED: a bit per map (group << 8 | num) the player has stood on, kept beside the save
+    // (saves/<game>.explored); while flying, clouds over every map not in it.
+    std::vector<uint8_t> explored = std::vector<uint8_t>(8192);
+    std::string exploredPath;
+    bool exploredFile = false, exploredDirty = false;
+    uint32_t exploredSavedAt = 0;
+    void ExploredLoad(const std::string& path)
+    {
+        exploredPath = path;
+        std::fill(explored.begin(), explored.end(), 0);
+        std::vector<uint8_t> b;
+        exploredFile = Games::ReadFile(path, b, 8192) && b.size() == 8192;
+        if (exploredFile) explored = b;
+        exploredDirty = false;
+    }
+    void ExploredSave()
+    {
+        if (!exploredDirty || exploredPath.empty()) return;
+        Games::WriteFile(exploredPath, explored);
+        exploredFile = true;
+        exploredDirty = false;
+        exploredSavedAt = SDL_GetTicks();
+    }
+    bool Explored(int group, int num) const { const int id = (group & 0xFF) << 8 | (num & 0xFF); return (explored[id >> 3] >> (id & 7)) & 1; }
+    void Explore(int group, int num)
+    {
+        const int id = (group & 0xFF) << 8 | (num & 0xFF);
+        if ((explored[id >> 3] >> (id & 7)) & 1) return;
+        explored[id >> 3] |= (uint8_t)(1 << (id & 7));
+        exploredDirty = true;
+    }
+    // Each frame on the field: the map the player is on (SaveBlock1's location); written out every ten seconds or so.
+    void ExploredFrame()
+    {
+        if (!compConfig || !gpField || paused) return;
+        const int sc = pk_wide_scene();
+        if (sc != PK_WIDE_SCENE_FIELD && sc != PK_WIDE_SCENE_TEXT) return;
+        const uint32_t sb1 = compConfig->staticSaveBlocks ? compConfig->saveBlock1 : core->busRead32(core, compConfig->saveBlock1);
+        if (sb1 < 0x02000000 || sb1 >= 0x02040000) return;
+        Explore(core->busRead8(core, sb1 + 4), core->busRead8(core, sb1 + 5));
+        if (exploredDirty && SDL_GetTicks() - exploredSavedAt > 10000) ExploredSave();
+    }
+    // A save from before the record: the towns the Fly map lists as visited, and the maps beside each, count as seen.
+    void ExploredSeed()
+    {
+        if (exploredFile || !flightRec) return;
+        const uint32_t groups = flightRec->words[PK_FLIGHT_MAP_GROUPS];
+        auto header = [&](int g, int n) -> uint32_t {
+            const uint32_t list = core->busRead32(core, groups + 4u * (uint32_t)g);
+            if ((list >> 24) != 0x08) return 0;
+            const uint32_t h = core->busRead32(core, list + 4u * (uint32_t)n);
+            return (h >> 24) == 0x08 ? h : 0;
+        };
+        for (const auto& tm : fly.VisitedTownMaps())
+        {
+            Explore(tm.first, tm.second);
+            const uint32_t h = header(tm.first, tm.second);
+            const uint32_t conns = h ? core->busRead32(core, h + 0xC) : 0;
+            if ((conns >> 24) != 0x08) continue;
+            const int count = std::min(8, (int)core->busRead32(core, conns));
+            const uint32_t arr = core->busRead32(core, conns + 4);
+            for (int i = 0; i < count; i++)
+            {
+                const uint32_t c = arr + 12u * (uint32_t)i;
+                const int dir = core->busRead8(core, c);
+                if (dir >= 1 && dir <= 4) Explore(core->busRead8(core, c + 8), core->busRead8(core, c + 9));
+            }
+        }
+        exploredDirty = true;
+        ExploredSave();
+    }
+    // The clouds: drawn into the picture after each frame while flying (and taken out again before the next, where
+    // the renderer left a line as it was), over every 8 px cell whose map isn't explored, soft at the edges.
+    std::vector<uint32_t> fogBefore, fogAfter;
+    bool fogDrawn = false;
+    bool FogWanted() const { return flightRec && set.Get("flight_clouds") == "1" && pk_flight_state() != PK_FLIGHT_IDLE; }
+    void FogUndo()
+    {
+        if (!fogDrawn) return;
+        fogDrawn = false;
+        for (size_t i = 0; i < fogAfter.size(); i++)
+            if (video[i] == fogAfter[i]) video[i] = fogBefore[i];
+    }
+    static float FogNoise(int x, int y)
+    {
+        auto h = [](int a, int b) { uint32_t v = (uint32_t)a * 374761393u + (uint32_t)b * 668265263u; v = (v ^ (v >> 13)) * 1274126177u; return (float)((v ^ (v >> 16)) & 1023) / 1023.0f; };
+        auto vn = [&](int px, int py, int sc) {
+            const int gx = (px >= 0 ? px : px - sc + 1) / sc, gy = (py >= 0 ? py : py - sc + 1) / sc;
+            const float fx = (float)(px - gx * sc) / sc, fy = (float)(py - gy * sc) / sc;
+            const float sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+            const float a = h(gx, gy), b = h(gx + 1, gy), c = h(gx, gy + 1), d = h(gx + 1, gy + 1);
+            return (a + (b - a) * sx) + ((c + (d - c) * sx) - (a + (b - a) * sx)) * sy;
+        };
+        return 0.55f * vn(x, y, 40) + 0.3f * vn(x + 1000, y + 500, 17) + 0.15f * vn(x - 300, y + 900, 7);
+    }
+    void FogFrame()
+    {
+        if (!FogWanted()) return;
+        int camX = 0, camY = 0;
+        if (!pk_wide_map_cam(&camX, &camY)) return;
+        const int e = std::max(0, wideExtra);
+        if (zoomShown && zoomWin.valid)
+        {
+            // (Through WIDE's view: its window, moved by the flight's smooth camera as the view was.)
+            int fdx = 0, fdy = 0;
+            pk_wide_flight_offset(&fdx, &fdy);
+            FogInto(zoomBuf.data(), zoomWin.w, zoomWin.h, zoomWin.w, zoomWin.x + fdx, zoomWin.y + fdy, camX, camY, false);
+        }
+        else FogInto(video.data(), GbaW + 2 * e, GbaH, MaxW, -e, 0, camX, camY, true);
+    }
+    // The clouds into [buf] (w x h, [stride] a row), its (0, 0) at the frame's (ox, oy); [undo]: kept to be taken out again.
+    void FogInto(uint32_t* buf, int W, int Hh, int stride, int ox, int oy, int camX, int camY, bool undo)
+    {
+        // The cells' marks: 1 = a map not yet explored, every 8 px from 40 px left of and above the picture (so the
+        // blur below reaches in from past its edges).
+        const int M = 40, cw = (W + 2 * M) / 8 + 1, ch = (Hh + 2 * M) / 8 + 1;
+        std::vector<float> m((size_t)cw * ch, 0.0f), t((size_t)cw * ch);
+        bool any = false;
+        for (int j = 0; j < ch; j++)
+            for (int i = 0; i < cw; i++)
+            {
+                int g, n;
+                const int sx = ox - M + 4 + i * 8, sy = oy - M + 4 + j * 8;
+                if (pk_wide_map_at(sx, sy, &g, &n) && !Explored(g, n)) { m[(size_t)j * cw + i] = 1.0f; any = true; }
+            }
+        if (!any) return;
+        // (Blurred four times over 3 x 3 cells: the edge a soft slope about 32 px wide.)
+        for (int pass = 0; pass < 4; pass++)
+        {
+            for (int j = 0; j < ch; j++)
+                for (int i = 0; i < cw; i++)
+                {
+                    float sum = 0; int cnt = 0;
+                    for (int dj = -1; dj <= 1; dj++)
+                        for (int di = -1; di <= 1; di++)
+                        {
+                            const int jj = std::min(ch - 1, std::max(0, j + dj)), ii = std::min(cw - 1, std::max(0, i + di));
+                            sum += m[(size_t)jj * cw + ii]; cnt++;
+                        }
+                    t[(size_t)j * cw + i] = sum / cnt;
+                }
+            m.swap(t);
+        }
+        if (undo) fogBefore.assign(video.begin(), video.end());
+        auto smooth = [](float a, float b, float v) { v = std::min(1.0f, std::max(0.0f, (v - a) / (b - a))); return v * v * (3 - 2 * v); };
+        for (int y = 0; y < Hh; y++)
+            for (int x = 0; x < W; x++)
+            {
+                const float fx = (x + M - 4) / 8.0f, fy = (y + M - 4) / 8.0f;
+                const int ix = std::min(cw - 2, (int)fx), iy = std::min(ch - 2, (int)fy);
+                const float tx = fx - ix, ty = fy - iy;
+                const float a = m[(size_t)iy * cw + ix], b = m[(size_t)iy * cw + ix + 1], c = m[(size_t)(iy + 1) * cw + ix], d = m[(size_t)(iy + 1) * cw + ix + 1];
+                const float k = (a + (b - a) * tx) + ((c + (d - c) * tx) - (a + (b - a) * tx)) * ty;
+                if (k <= 0.02f) continue;
+                // (Billows: the slope pushed in and out by the noise, so the edge is a row of puffs; anchored to the map.)
+                const int wx = camX + ox + x, wy = camY + oy + y;
+                const float nz = FogNoise(wx, wy);
+                const float alpha = 0.97f * smooth(0.28f, 0.52f, k + (nz - 0.5f) * 1.05f);
+                if (alpha <= 0.01f) continue;
+                // (Light from the top left: brighter where the noise rises that way, a cool grey in the hollows.)
+                const float lit = std::min(1.04f, std::max(0.88f, 0.97f + (nz - FogNoise(wx + 3, wy + 4)) * 1.2f));
+                const float cr = std::min(255.0f, 236 * lit), cg = std::min(255.0f, 241 * lit), cb = std::min(255.0f, 250 * lit);
+                uint32_t& p = buf[(size_t)y * stride + x];
+                const float r = (p & 0xFF) * (1 - alpha) + cr * alpha, gg = ((p >> 8) & 0xFF) * (1 - alpha) + cg * alpha, bb = ((p >> 16) & 0xFF) * (1 - alpha) + cb * alpha;
+                p = (p & 0xFF000000u) | (uint32_t)bb << 16 | (uint32_t)gg << 8 | (uint32_t)r;
+            }
+        if (undo)
+        {
+            fogAfter.assign(video.begin(), video.end());
+            fogDrawn = true;
+        }
+    }
+    // FLY ON a legendary: Emerald's own object sprites (the ones its story shows: Southern Island's Latias and Latios,
+    // Sky Pillar's Rayquaza, Navel Rock's Lugia and Ho-Oh, Birth Island's Deoxys), two of each one's frames taking turns.
+    // Read from the ROM (gObjectEventGraphicsInfoPointers, and the sprite palettes found by their tags); retail Emerald only.
+    bool LegendMount(const std::string& which)
+    {
+        std::vector<uint8_t> px;
+        int w = 0, h = 0;
+        uint32_t pal[16];
+        if (!LegendFrames(which, px, w, h, pal)) return false;
+        pk_flight_set_mount(px.data(), w, h, pal);
+        return true;
+    }
+    // Two frames (palette indices, w x h each, one after the other) and the palette (ABGR) of an Emerald legendary.
+    bool LegendFrames(const std::string& which, std::vector<uint8_t>& px, int& outW, int& outH, uint32_t pal[16])
+    {
+        if (gameCode != "BPEE") return false;
+        const struct GBA* gba = (const struct GBA*)core->board;
+        const uint8_t* rom = (const uint8_t*)gba->memory.rom;
+        const size_t size = gba->memory.romSize;
+        auto r32 = [&](uint32_t a) -> uint32_t { const size_t o = a - 0x08000000u; return o + 4 <= size ? rom[o] | rom[o + 1] << 8 | rom[o + 2] << 16 | (uint32_t)rom[o + 3] << 24 : 0; };
+        auto r16 = [&](uint32_t a) -> uint32_t { const size_t o = a - 0x08000000u; return o + 2 <= size ? (uint32_t)(rom[o] | rom[o + 1] << 8) : 0; };
+        auto isRom = [&](uint32_t v) { return v >= 0x08000000u && v - 0x08000000u < size; };
+        struct L { const char* name; int gfx, f0, f1; };
+        static const L list[] = { { "latias", 187, 0, 4 }, { "latios", 188, 0, 4 }, { "rayquaza", 207, 5, 6 }, { "lugia", 237, 0, 4 }, { "hooh", 238, 0, 4 }, { "deoxys", 232, 0, 4 } };
+        const L* l = nullptr;
+        for (const L& c : list) if (which == c.name) l = &c;
+        if (!l) return false;
+        const uint32_t info = r32(0x08505620u + 4u * (uint32_t)l->gfx);
+        if (!isRom(info)) return false;
+        const uint32_t tag = r16(info + 2), bytes = r16(info + 6), w = r16(info + 8), h = r16(info + 0xA), images = r32(info + 0x1C);
+        if (w > 64 || h > 64 || bytes != w * h / 2 || !isRom(images)) return false;
+        // (The palette: the table of {data, tag} pairs the object palettes are loaded from.)
+        uint32_t palData = 0;
+        for (size_t o = 0; o + 16 <= size && !palData; o += 4)
+        {
+            const uint32_t a = 0x08000000u + (uint32_t)o;
+            if (r16(a + 4) == tag && isRom(r32(a)) && isRom(r32(a + 8)) && r16(a + 12) >= 0x1100 && r16(a + 12) < 0x1200) palData = r32(a);
+        }
+        if (!palData) return false;
+        for (int i = 0; i < 16; i++)
+        {
+            const unsigned c = r16(palData + 2u * (uint32_t)i), rr = c & 31, gg = (c >> 5) & 31, bb = (c >> 10) & 31;
+            pal[i] = 0xFF000000u | ((bb << 3 | bb >> 2) << 16) | ((gg << 3 | gg >> 2) << 8) | (rr << 3 | rr >> 2);
+        }
+        px.assign(2u * w * h, 0);
+        const int frames[2] = { l->f0, l->f1 };
+        for (int f = 0; f < 2; f++)
+        {
+            const uint32_t d = r32(images + 8u * (uint32_t)frames[f]);
+            if (!isRom(d) || r16(images + 8u * (uint32_t)frames[f] + 4) != bytes) return false;
+            for (uint32_t y = 0; y < h; y++)
+                for (uint32_t x = 0; x < w; x++)
+                {
+                    const uint32_t t = (y / 8) * (w / 8) + x / 8;
+                    const uint8_t b = rom[d - 0x08000000u + t * 32 + (y % 8) * 4 + (x % 8) / 2];
+                    px[(size_t)f * w * h + y * w + x] = (x & 1) ? b >> 4 : b & 15;
+                }
+        }
+        outW = (int)w;
+        outH = (int)h;
+        return true;
+    }
+    // FLY ON > ANY POKEMON: the National Pokedex number picked (Charizard to begin with).
+    int FlyMonChosen() const { const int n = std::atoi(set.Get("fly_on_mon").c_str()); return n >= 1 && n <= 493 ? n : 6; }
+    // A Pokemon's name by National Pokedex number: the game's own up to #386, then the Sinnoh ones'.
+    std::string MonName(int national)
+    {
+        if (national > 386) return SinnohNames::Name(national);
+        if (!dexTried) { dexTried = true; dex.Load(dexRom); }
+        const std::string n = dex.Ready() ? dex.Name(dex.Species(national)) : std::string();
+        return n.empty() ? std::string() : DexTitle(n);
+    }
+    // FLY ON's preview: the Pokemon as it will carry you (HeartGold's sprite facing you, or Emerald's own), ARGB; kept.
+    struct MountPic { std::vector<uint32_t> px; int w = 0, h = 0; bool emerald = false; };
+    std::map<int, MountPic> mountPics;
+    const MountPic& MountPicture(int national)
+    {
+        auto it = mountPics.find(national);
+        if (it != mountPics.end()) return it->second;
+        MountPic m;
+        uint8_t frames[6 * 512], pal[32];
+        auto argb = [](unsigned c) { const unsigned r = c & 31, g = (c >> 5) & 31, b = (c >> 10) & 31; return 0xFF000000u | (r << 3 | r >> 2) << 16 | (g << 3 | g >> 2) << 8 | (b << 3 | b >> 2); };
+        if (followState == 2 && follow && follow->Mon(national, false, frames, pal))
+        {
+            m.w = m.h = 32;
+            m.px.assign(32 * 32, 0);
+            for (int y = 0; y < 32; y++)
+                for (int x = 0; x < 32; x++)
+                {
+                    const uint8_t b = frames[((y / 8) * 4 + x / 8) * 32 + (y % 8) * 4 + (x % 8) / 2], i = (x & 1) ? b >> 4 : b & 15;
+                    if (i) m.px[y * 32 + x] = argb(pal[i * 2] | pal[i * 2 + 1] << 8);
+                }
+        }
+        else if (const char* legend = LegendFor(national))
+        {
+            std::vector<uint8_t> px;
+            uint32_t abgr[16];
+            if (LegendFrames(legend, px, m.w, m.h, abgr))
+            {
+                m.emerald = true;
+                m.px.assign((size_t)m.w * m.h, 0);
+                for (size_t i = 0; i < m.px.size(); i++)
+                    if (px[i] & 15) { const uint32_t c = abgr[px[i] & 15]; m.px[i] = 0xFF000000u | (c & 0xFF) << 16 | (c & 0xFF00) | (c >> 16 & 0xFF); }
+            }
+        }
+        if (followState != 1) return mountPics[national] = m;   // (not kept while HeartGold is still being looked for)
+        static MountPic none;
+        none = m;
+        return none;
+    }
+    std::string FlyOnLabel()
+    {
+        const std::string on = set.Get("fly_on");
+        if (on == "any")
+        {
+            const std::string name = MonName(FlyMonChosen());
+            return name.empty() ? std::string("#") + std::to_string(FlyMonChosen()) : name;
+        }
+        for (const Setting& st : SettingsList())
+            if (!strcmp(st.key, "fly_on"))
+                for (const auto& o : st.values) if (o.first == on) return DexTitle(o.second);
+        return "Bird";
+    }
+    // Emerald's own sprite for the Pokemon HeartGold has none of (the very big ones), by National Pokedex number.
+    static const char* LegendFor(int national)
+    {
+        switch (national) { case 249: return "lugia"; case 250: return "hooh"; case 384: return "rayquaza"; case 380: return "latias"; case 381: return "latios"; case 386: return "deoxys"; default: return nullptr; }
+    }
+    // The Pokemon the list offers: those with a sprite in HeartGold / SoulSilver (all of them while it's still being looked
+    // for), and Emerald's legendaries.
+    std::vector<char> hgssHas;
+    std::vector<int> FlyMonList()
+    {
+        if (!dexTried) { dexTried = true; dex.Load(dexRom); }
+        std::vector<int> out;
+        if (followState == 2 && follow && hgssHas.empty())
+        {
+            hgssHas.assign(494, 0);
+            uint8_t frames[6 * 512], pal[32];
+            for (int nat = 1; nat <= 493; nat++) hgssHas[nat] = follow->Mon(nat, false, frames, pal) ? 1 : 0;
+        }
+        for (int nat = 1; nat <= 493; nat++)
+            if (hgssHas.empty() || hgssHas[nat] || (gameCode == "BPEE" && LegendFor(nat))) out.push_back(nat);
+        return out;
+    }
+    // A Pokemon to fly on, by National Pokedex number: HeartGold's sprite, else Emerald's own for its legendaries.
+    bool MonMount(int national, bool shiny)
+    {
+        uint8_t frames[6 * 512], pal[32];
+        if (followState == 2 && follow && national > 0 && follow->Mon(national, shiny, frames, pal))
+        {
+            // (The west-facing frames, 4 and 5, from 4bpp tiles in 1D order to a palette index a pixel.)
+            uint8_t px[2][32 * 32];
+            for (int f = 0; f < 2; f++)
+                for (int y = 0; y < 32; y++)
+                    for (int x = 0; x < 32; x++)
+                    {
+                        const uint8_t b = frames[(4 + f) * 512 + ((y / 8) * 4 + x / 8) * 32 + (y % 8) * 4 + (x % 8) / 2];
+                        px[f][y * 32 + x] = (x & 1) ? b >> 4 : b & 15;
+                    }
+            uint32_t abgr[16];
+            for (int i = 0; i < 16; i++)
+            {
+                const unsigned c = pal[i * 2] | pal[i * 2 + 1] << 8;
+                const unsigned r = c & 31, g = (c >> 5) & 31, b = (c >> 10) & 31;
+                abgr[i] = 0xFF000000u | ((b << 3 | b >> 2) << 16) | ((g << 3 | g >> 2) << 8) | (r << 3 | r >> 2);
+            }
+            pk_flight_set_mount(&px[0][0], 32, 32, abgr);
+            return true;
+        }
+        const char* legend = LegendFor(national);
+        return legend && LegendMount(legend);
+    }
+    // FLY ON: the vehicle word (PokeDaisy's vehicles from 1, PK_FLIGHT_MOUNT a Pokemon), the Pokemon in party slot [slot]
+    // from HeartGold / SoulSilver's sprites. Before each take-off.
+    void FlightMount(int slot)
+    {
+        if (!flightRec) return;
+        const std::string on = set.Get("fly_on");
+        uint32_t v = on == "balloon" ? 1 : on == "helicopter" ? 2 : on == "zeppelin" ? 3 : on == "plane" ? 4 : 0;
+        if (on == "pokemon" || on == "any")
+        {
+            if (followState == 0) FollowFind();
+            int national = 0;
+            bool shiny = false;
+            if (on == "any") national = FlyMonChosen();
+            else if (compConfig && slot >= 0)
+            {
+                uint8_t m[100];
+                for (int i = 0; i < 100; i++) m[i] = (uint8_t)core->busRead8(core, compConfig->party + (uint32_t)slot * 100 + (uint32_t)i);
+                GbaCompanion::Mon mon;
+                if (GbaCompanion::Decode(m, mon) && !mon.egg && mon.species)
+                {
+                    if (!dexTried) { dexTried = true; dex.Load(dexRom); }
+                    national = dex.Ready() ? dex.Dex(mon.species) : (mon.species <= 251 ? mon.species : 0);
+                    shiny = ((mon.otId >> 16) ^ (mon.otId & 0xFFFF) ^ (mon.personality >> 16) ^ (mon.personality & 0xFFFF)) < 8;
+                }
+            }
+            if (national > 0 && MonMount(national, shiny)) v = PK_FLIGHT_MOUNT;
+            else
+            {
+                pk_flight_set_mount(nullptr, 0, 0, nullptr);
+                Toast(followState == 3 && !LegendFor(national) ? "NO HEARTGOLD OR SOULSILVER IN THE ROMS FOLDER: FLYING ON THE BIRD" : "NO SPRITE FOR THIS POKEMON: FLYING ON THE BIRD", 3000);
+            }
+        }
+        if (on == "latias" || on == "latios" || on == "rayquaza" || on == "lugia" || on == "hooh" || on == "deoxys")
+        {
+            if (LegendMount(on)) v = PK_FLIGHT_MOUNT;
+            else Toast("THIS ONE IS EMERALD'S OWN: FLYING ON THE BIRD", 3000);
+        }
+        uint32_t w[PK_FLIGHT_WORDS];
+        memcpy(w, flightRec->words, sizeof(w));
+        w[PK_FLIGHT_VEHICLE] = v;
+        pk_flight_configure(w, PK_FLIGHT_WORDS);
+    }
+    // After every frame: the flight's next step (the game's keys: the D-pad, A, B), then its shadow, clouds and bird
+    // into the picture (the widescreen sides' clouds too).
+    void FlightFrame()
+    {
+        if (!flightRec) return;
+        pk_flight_tick(core);
+        const int e = std::max(0, wideExtra);
+        const bool view = FlightView();   // (ZoomFrame draws the picture through WIDE, its clouds over all of it)
+        pk_flight_draw(video.data() + e, GbaW, GbaH, MaxW, view ? 0 : 1);
+        if (e > 0 && !view)
+        {
+            PkFlightClouds c;
+            pk_flight_clouds_plan(&c, -e, 0, GbaW, GbaH);
+            pk_flight_clouds_margins(&c, video.data(), GbaW + 2 * e, GbaH);
+        }
+    }
+    // (Tests: fly-test.txt beside the program, lines "go GAMEFRAME TOWN-INDEX" and "page GAMEFRAME"; what FLY offered
+    // and did goes to fly-log.txt.)
+    void FlyTest()
+    {
+        static int state = -1;
+        static int goAt = -1, goIndex = 0, pageAt = -1, freeAt = -1, monPageAt = -1, traceFrom = -1, traceTo = -1;
+        if (state < 0)
+        {
+            state = 0;
+            if (FILE* f = fopen("fly-test.txt", "r"))
+            {
+                flyTesting = true;
+                char w[16]; int a = 0, b = 0;
+                while (fscanf(f, "%15s %d", w, &a) == 2)
+                {
+                    if (!strcmp(w, "go") && fscanf(f, "%d", &b) == 1) { goAt = a; goIndex = b; }
+                    else if (!strcmp(w, "page")) pageAt = a;
+                    else if (!strcmp(w, "free")) freeAt = a;
+                    else if (!strcmp(w, "monpage")) monPageAt = a;
+                    else if (!strcmp(w, "trace") && fscanf(f, "%d", &b) == 1) { traceFrom = a; traceTo = b; }
+                }
+                fclose(f);
+            }
+        }
+        const long long gf = (long long)gameFrames;
+        if (gf == freeAt) { flyStage = 10; flyWait = 0; flyHgssWait = 0; }
+        if (gf == monPageAt) { OpenPause(); if (followState == 0) FollowFind(); flyT = fly.Now(); GoPage(P_FLYMON, ("MON " + std::to_string(FlyMonChosen())).c_str()); }
+        if (FILE* l = gf >= traceFrom && gf <= traceTo ? fopen("fly-log.txt", "a") : nullptr)
+        {
+            char g[256] = {}, info[256] = {};
+            pk_wide_flight_debug(g, sizeof g);
+            pk_flight_info(core, info, sizeof info);
+            const char* at = strstr(info, " at ");
+            fprintf(l, "trace %d | %s |%.12s\n", (int)gf, g, at ? at : "");
+            fclose(l);
+        }
+        if (FILE* l = flightRec && pk_flight_state() != PK_FLIGHT_IDLE && gf % 30 == 0 ? fopen("fly-log.txt", "a") : nullptr)
+        {
+            char info[256] = {};
+            pk_flight_info(core, info, sizeof info);
+            fprintf(l, "flight frame %d state %d | %s\n", (int)gf, pk_flight_state(), info);
+            fclose(l);
+        }
+        if (gf != goAt && gf != pageAt) return;
+        if (!dexTried) { dexTried = true; dex.Load(dexRom); }
+        flyT = fly.Now();
+        if (FILE* l = fopen("fly-log.txt", "a"))
+        {
+            fprintf(l, "frame %d table %s flight %s result %d slot %d towns", (int)gf, fly.Name(), flightRec ? flightRec->name : "-", (int)flyT.result, flyT.slot);
+            for (int t : flyT.towns) fprintf(l, " %d:%s", t, dex.MapsecName(t).c_str());
+            fprintf(l, "\n");
+            fclose(l);
+        }
+        if (gf == goAt && flyT.result == GbaFly::OK && goIndex < (int)flyT.towns.size())
+        {
+            flySec = flyT.towns[goIndex];
+            flyStage = 1;
+            flyWait = 0;
+        }
+        if (gf == pageAt && flyT.result == GbaFly::OK) { OpenPause(); GoPage(P_FLY, ""); }
+    }
+    std::unique_ptr<HgssFollow::Source> follow;
+    std::thread followFind;
+    std::atomic<int> followState{ 0 }; // 0 not looked for, 1 looking, 2 found, 3 none
+    int followSpecies = -1, followTick = 0;
+    bool followShiny = false, followShown = false, followToldNone = false;
+    void FollowFind()
+    {
+        followState = 1;
+        const std::string dir = roms;
+        followFind = std::thread([this, dir] {
+            namespace fs = std::filesystem;
+            std::error_code ec;
+            auto src = std::make_unique<HgssFollow::Source>();
+            bool ok = false;
+            // (The GBA games' folder, and the one it is in: the launcher keeps the DS games there.)
+            for (const fs::path& top : { fs::path(dir), fs::path(dir).parent_path() })
+            {
+                ec.clear();
+                for (auto it = fs::recursive_directory_iterator(top, fs::directory_options::skip_permission_denied, ec);
+                     !ok && !ec && it != fs::recursive_directory_iterator(); it.increment(ec))
+                {
+                    if (it.depth() > 2) { it.disable_recursion_pending(); continue; }
+                    std::string ext = it->path().extension().string();
+                    for (char& c : ext) c = (char)tolower((unsigned char)c);
+                    if (ext == ".nds" && it->is_regular_file(ec))
+                    {
+                        ok = src->Open(it->path().string());
+                        if (getenv("GBAW_FOLLOW_LOG"))
+                            if (FILE* flog = fopen(getenv("GBAW_FOLLOW_LOG"), "a")) { fprintf(flog, "  %s: %s\n", it->path().string().c_str(), ok ? "HeartGold or SoulSilver" : "no"); fclose(flog); }
+                    }
+                }
+                if (getenv("GBAW_FOLLOW_LOG"))
+                    if (FILE* flog = fopen(getenv("GBAW_FOLLOW_LOG"), "a")) { fprintf(flog, "  folder %s (%s)\n", top.string().c_str(), ec ? ec.message().c_str() : "ok"); fclose(flog); }
+                if (ok) break;
+            }
+            if (ok) follow = std::move(src);
+            followState = ok ? 2 : 3;
+            if (getenv("GBAW_FOLLOW_LOG"))
+                if (FILE* flog = fopen(getenv("GBAW_FOLLOW_LOG"), "a")) { fprintf(flog, "looked in %s: %s\n", dir.c_str(), ok ? "found" : "none"); fclose(flog); }
+        });
+    }
+    void FollowerFrame()
+    {
+        const bool want = FollowerOn();
+        if (want && followState == 0) FollowFind();
+        if (want && followState == 3 && !followToldNone)
+        {
+            followToldNone = true;
+            Toast("FOLLOWING POKEMON NEEDS HEARTGOLD OR SOULSILVER IN THE ROMS FOLDER", 4000);
+        }
+        bool show = false;
+        if (want && followState == 2 && follow)
+        {
+            if (followTick++ % 30 == 0)
+            {
+                uint8_t m[100];
+                for (int i = 0; i < 100; i++) m[i] = (uint8_t)core->busRead8(core, compConfig->party + i);
+                GbaCompanion::Mon lead;
+                int national = 0;
+                if (GbaCompanion::Decode(m, lead) && !lead.egg && lead.species)
+                {
+                    if (!dexTried) { dexTried = true; dex.Load(dexRom); }
+                    national = dex.Ready() ? dex.Dex(lead.species) : (lead.species <= 251 ? lead.species : 0);
+                }
+                const bool shiny = ((lead.otId >> 16) ^ (lead.otId & 0xFFFF) ^ (lead.personality >> 16) ^ (lead.personality & 0xFFFF)) < 8;
+                if (national != followSpecies || shiny != followShiny)
+                {
+                    uint8_t frames[6 * 512], pal[32];
+                    if (national > 0 && follow->Mon(national, shiny, frames, pal)) pk_follower_set(frames, pal);
+                    else pk_follower_set(nullptr, nullptr);
+                    followSpecies = national;
+                    followShiny = shiny;
+                }
+            }
+            const int scene = pk_wide_scene();
+            show = followSpecies > 0 && (scene == PK_WIDE_SCENE_FIELD || scene == PK_WIDE_SCENE_TEXT) && !(gpState & (PK_FIELD_BATTLE | PK_FIELD_SURF));
+        }
+        // (Tests: GBAW_FOLLOW_LOG=file, the follower's state every second.)
+        static int flogN = 0;
+        if (getenv("GBAW_FOLLOW_LOG") && ++flogN % 60 == 1)
+            if (FILE* flog = fopen(getenv("GBAW_FOLLOW_LOG"), "a"))
+            {
+                char info[256] = {};
+                pk_follower_info(info, sizeof info);
+                fprintf(flog, "want %d state %d species %d scene %d bits %x show %d | %s\n", (int)want, followState.load(), followSpecies, pk_wide_scene(), gpState, (int)show, info);
+                fclose(flog);
+            }
+        if (show != followShown || (show && followTick % 60 == 0))
+        {
+            pk_follower_show(core, show);
+            followShown = show;
+        }
+    }
+    // Once a frame shown: eased toward the hour's tint on the field outdoors, toward none anywhere else.
+    void DayNightFrame()
+    {
+        int want[3] = { 256, 256, 256 };
+        if (DayNightOn())
+        {
+            const int scene = pk_wide_scene(), mt = pk_field_map_type(core);
+            const bool field = (scene == PK_WIDE_SCENE_FIELD || scene == PK_WIDE_SCENE_TEXT) && !(gpState & PK_FIELD_BATTLE);
+            const bool outdoors = mt < 0 || mt == 1 || mt == 2 || mt == 3 || mt == 6;
+
+            if (field && outdoors)
+            {
+                const time_t now = time(nullptr);
+                const struct tm* lt = localtime(&now);
+                const char* fh = getenv("FULLDEX_HOUR"); // (tests: a fixed hour)
+                if (fh) DayNightAt((float)atof(fh), want);
+                else if (lt) DayNightAt(lt->tm_hour + lt->tm_min / 60.0f, want);
+            }
+        }
+        bool changed = false;
+        for (int c = 0; c < 3; c++)
+        {
+            const float d = want[c] - tintNow[c];
+            tintNow[c] = std::fabs(d) < 8 ? (float)want[c] : tintNow[c] + (d > 0 ? 8 : -8);
+            if ((int)tintNow[c] != tintSent[c]) { tintSent[c] = (int)tintNow[c]; changed = true; }
+        }
+        const bool tinted = tintSent[0] != 256 || tintSent[1] != 256 || tintSent[2] != 256;
+        if (getenv("FULLDEX_HOUR") && ++dnLog % 120 == 1)
+            if (FILE* f = fopen("daynight-log.txt", "a"))
+            {
+                fprintf(f, "on %d wide %d field %d scene %d maptype %d bits %x tint %d %d %d\n", set.Get("day_night") == "1", (int)pkWide, (int)gpField,
+                        pkWide ? pk_wide_scene() : -1, gpField ? pk_field_map_type(core) : -2, gpState, tintSent[0], tintSent[1], tintSent[2]);
+                fclose(f);
+            }
+        if (changed || (tinted && ++tintFrames % 60 == 0)) pk_tint_set(core, tintSent[0], tintSent[1], tintSent[2]);
+    }
+    int WildKeep() const { return gpWild ? std::max(0, std::min(100, atoi(set.Get("wild_encounters").c_str()))) : 100; }
+    // INSTANT TEXT and REUSABLE TMS into the running game, or the ROM's own bytes back.
+    void ApplyGameplay()
+    {
+        if (!core) return;
+        auto put = [&](const std::vector<GbaGameplay::Write>& w, bool on, bool& was) {
+            if (on == was) return;
+            for (const auto& x : w)
+            {
+                const auto& b = on ? x.value : x.orig;
+                for (size_t k = 0; k < b.size(); k++) core->rawWrite8(core, x.addr + (uint32_t)k, -1, b[k]);
+            }
+            was = on;
+        };
+        put(gpText, set.Get("instant_text") == "1", gpTextOn);
+        put(gpTms, set.Get("reusable_tms") == "1", gpTmsOn);
+    }
     void SettingsPageInput(const MenuIn& in)
     {
         const int n = (int)pause.items.size();
@@ -1764,7 +2696,7 @@ struct App
         const int i = pause.selected;
         if (in.back || (in.accept && pause.items[i].label == "BACK"))
         {
-            const char* from = pausePage == P_DISPLAY ? "DISPLAY" : pausePage == P_SOUND ? "SOUND" : "CONTROLS";
+            const char* from = SettingsPageName();
             pausePage = P_SETTINGS;
             BuildPause();
             pause.selected = 0;
@@ -1807,6 +2739,7 @@ struct App
         }
         if (!strcmp(s.key, "volume")) SetVolume();
         if (!strcmp(s.key, "fast_lock")) fastToggle = set.Get("fast_lock") == "1";
+        if (!strcmp(s.key, "instant_text") || !strcmp(s.key, "reusable_tms")) ApplyGameplay();
         pause.items[i].value = set.Shown(s);
     }
 #endif
@@ -2098,10 +3031,49 @@ struct App
             pause.selected = sel;
             return;
         }
+        if (pausePage == P_FLY && in.accept && pause.selected >= 0 && pause.selected < (int)pause.items.size() && pause.items[pause.selected].label == "FREE FLIGHT")
+        {
+            flyStage = 10;
+            flyWait = 0;
+            flyHgssWait = 0;
+            Resume();
+            return;
+        }
+        if (pausePage == P_FLY && in.accept && pause.selected >= 0 && pause.selected < (int)pause.items.size() && pause.items[pause.selected].label == "FLY ON")
+        {
+            if (followState == 0) FollowFind();
+            GoPage(P_FLYMON, ("MON " + std::to_string(FlyMonChosen())).c_str());
+            return;
+        }
+        if (pausePage == P_FLYMON)
+        {
+            if (in.back) { GoPage(P_FLY, "FLY ON"); return; }
+            if (in.accept && pause.selected >= 0 && pause.selected < (int)pause.items.size())
+            {
+                const std::string& l = pause.items[pause.selected].label;
+                if (l == "BACK") { GoPage(P_FLY, "FLY ON"); return; }
+                if (l.rfind("MON ", 0) == 0)
+                {
+                    set.values["fly_on"] = "any";
+                    set.values["fly_on_mon"] = l.substr(4);
+                    set.Save();
+                    GoPage(P_FLY, "FLY ON");
+                }
+            }
+            return;
+        }
+        if (pausePage == P_FLY && in.accept && pause.selected >= 0 && pause.selected - (flightRec ? 2 : 0) < (int)flyT.towns.size() && pause.selected - (flightRec ? 2 : 0) >= 0)
+        {
+            flySec = flyT.towns[pause.selected - (flightRec ? 2 : 0)];
+            flyStage = 1;
+            flyWait = 0;
+            Resume();
+            return;
+        }
         if (pausePage != P_COMP)
         {
             if (in.back || (in.accept && pause.selected >= 0 && pause.selected < (int)pause.items.size() && pause.items[pause.selected].label == "BACK"))
-                GoPage(P_COMP, pausePage == P_PARTY ? "PARTY" : pausePage == P_BAG ? "BAG" : pausePage == P_PLACE ? "LOCATION" : pausePage == P_BATTLE ? "BATTLE INFO" : "GUIDE");
+                GoPage(P_COMP, pausePage == P_PARTY ? "PARTY" : pausePage == P_BAG ? "BAG" : pausePage == P_PLACE ? "LOCATION" : pausePage == P_BATTLE ? "BATTLE INFO" : pausePage == P_FLY ? "FLY" : "GUIDE");
             return;
         }
         if (in.back) { GoPage(P_ROOT, "COMPANION"); return; }
@@ -2112,6 +3084,15 @@ struct App
         else if (item == "LOCATION") GoPage(P_PLACE, "");
         else if (item == "BATTLE INFO") { if (comp.inBattle) GoPage(P_BATTLE, ""); }
         else if (item == "GUIDE") { if (!guideShown.empty()) GoPage(P_GUIDE, ""); }
+        else if (item == "FLY")
+        {
+            if (!dexTried) { dexTried = true; dex.Load(dexRom); }
+            flyT = fly.Now();
+            if (set.Get("fly_on") == "pokemon" && followState == 0) FollowFind();
+            if (flyT.result != GbaFly::OK) Toast(GbaFly::Why(flyT.result), 3000);
+            else if (flyT.towns.empty()) Toast("NO TOWNS TO FLY TO YET", 3000);
+            else GoPage(P_FLY, "");
+        }
         else if (item == "BACK") GoPage(P_ROOT, "COMPANION");
     }
     // POKEDEX's pages: A on a row opens its entry; B goes back (the entry to the list, on its row).
@@ -2180,9 +3161,9 @@ struct App
         {
             if (in.back || (in.accept && item == "BACK")) GoPage(P_ROOT, "SETTINGS");
             else if (!in.accept) return;
-            else if (item == "DISPLAY" || item == "SOUND" || item == "CONTROLS")
+            else if (item == "DISPLAY" || item == "SOUND" || item == "CONTROLS" || item == "GAMEPLAY")
             {
-                pausePage = item == "DISPLAY" ? P_DISPLAY : item == "SOUND" ? P_SOUND : P_CONTROLS;
+                pausePage = item == "DISPLAY" ? P_DISPLAY : item == "SOUND" ? P_SOUND : item == "GAMEPLAY" ? P_GAMEPLAY : P_CONTROLS;
                 BuildPause();
                 pause.selected = 0;
             }
@@ -2207,7 +3188,8 @@ struct App
         static const struct { const char* key; int icon; } icons[] = {
             { "widescreen", IC_RATIO }, { "fullscreen", IC_FULLSCREEN }, { "scaling", IC_EXPAND }, { "hd_filter", IC_SPARKLE },
             { "lcd", IC_GRID }, { "colour", IC_MONITOR }, { "zoom", IC_EXPAND }, { "zoom_text", IC_EXPAND }, { "show_fps", IC_GAUGE }, { "volume", IC_SPEAKER }, { "ff_mute", IC_FAST },
-            { "gba_start", IC_PAD }, { "buttons", IC_PAD }, { "ff_speed", IC_FAST }, { "fast_button", IC_FAST }, { "fast_lock", IC_FAST } };
+            { "gba_start", IC_PAD }, { "buttons", IC_PAD }, { "ff_speed", IC_FAST }, { "fast_button", IC_FAST }, { "fast_lock", IC_FAST },
+            { "instant_text", IC_INFO }, { "reusable_tms", IC_CHIP }, { "run_indoors", IC_FAST }, { "wild_encounters", IC_GLOBE }, { "shiny_odds", IC_SPARKLE }, { "battle_speed", IC_FAST }, { "text_speed", IC_FAST }, { "bike_speed", IC_FAST }, { "surf_speed", IC_FAST }, { "day_night", IC_SPARKLE }, { "follower", IC_POKEBALL } };
         icon = IC_GEAR;
         for (const auto& i : icons)
             if (!strcmp(i.key, key)) icon = i.icon;
@@ -2313,6 +3295,9 @@ struct App
                 else if (l == "CONTROLS")
                     link(i, "CONTROLS", IC_PAD, ShownOf("ff_speed"), "START button, fast forward",
                          "What a controller's START does, how the buttons are named, and fast forward's speed and button.");
+                else if (l == "GAMEPLAY")
+                    link(i, "GAMEPLAY", IC_SPARKLE, "", "Instant text, reusable TMs, wild encounters",
+                         "Changes to how the game plays, made in the running game only: instant text, TMs kept after use, running indoors and how many wild Pok\xC3\xA9" "mon turn up.");
                 else if (l == "RESET GAME")
                     link(i, "RESET GAME", IC_REWIND, "", "Start again from the title screen", "Restarts the game. Progress since your last save in the game will be lost.");
             }
@@ -2350,10 +3335,10 @@ struct App
                 put(it, i);
             }
         }
-        else if (pausePage == P_DISPLAY || pausePage == P_SOUND || pausePage == P_CONTROLS)
+        else if (IsSettingsPage())
         {
-            page(pausePage == P_DISPLAY ? "DISPLAY" : pausePage == P_SOUND ? "SOUND" : "CONTROLS",
-                 pausePage == P_DISPLAY ? IC_MONITOR : pausePage == P_SOUND ? IC_SPEAKER : IC_PAD);
+            page(SettingsPageName(),
+                 pausePage == P_DISPLAY ? IC_MONITOR : pausePage == P_SOUND ? IC_SPEAKER : pausePage == P_GAMEPLAY ? IC_SPARKLE : IC_PAD);
             for (int i = 0; i < n; i++)
             {
                 if (pause.items[i].label == "BACK") continue;
@@ -2417,6 +3402,8 @@ struct App
                     g.items.back().disabled = !comp.inBattle;
                     if (!comp.inBattle) g.items.back().tip = "Open it from the pause menu during a battle.";
                 }
+                else if (l == "FLY")
+                    link(i, "FLY", IC_GLOBE, "", "Fly to a town you have been to", "Fly to a town you have been to, as the move does: the game plays its own Fly. A Pok\xC3\xA9" "mon in your party must know Fly, and you need its badge.");
                 else if (l == "GUIDE")
                 {
                     const size_t pages = GbaGuides::For(gameCode.c_str()).size();
@@ -2441,6 +3428,73 @@ struct App
                 it.sub = g.mons[i].egg ? "" : std::to_string(g.mons[i].hp) + " / " + std::to_string(g.mons[i].maxHp) + " HP";
                 it.info = true;
                 it.monCard = i;
+                put(it, i);
+            }
+        }
+        else if (pausePage == P_FLY)
+        {
+            // (The towns the game's own Fly map would list now.)
+            page("FLY", IC_GLOBE);
+            const int first = flightRec ? 2 : 0;
+            if (flightRec && n > 1)
+            {
+                Item it;
+                it.label = "Free Flight";
+                it.kind = LINK;
+                it.icon = IC_SPARKLE;
+                it.desc = "Fly over the map yourself: the D-pad steers, A held goes faster, B lands on the nearest place you can stand.";
+                put(it, 0);
+                Item on;
+                on.label = "Fly On";
+                on.value = FlyOnLabel();
+                on.kind = LINK;
+                on.icon = IC_POKEBALL;
+                on.desc = "Choose any Pok\xC3\xA9" "mon to carry you in Free Flight. Its sprite comes from your HeartGold or SoulSilver; Emerald's own for Lugia, Ho-Oh, Rayquaza and the rest of its legendaries.";
+                put(on, 1);
+            }
+            for (int i = first; i < n && i - first < (int)flyT.towns.size(); i++)
+            {
+                Item it;
+                const int sec = flyT.towns[i - first];
+                const std::string name = dex.Ready() ? dex.MapsecName(sec) : std::string();
+                it.label = name.empty() ? "TOWN " + std::to_string(sec) : DexTitle(name);
+                it.kind = LINK;
+                it.icon = IC_GLOBE;
+                it.desc = "Fly here.";
+                put(it, i);
+            }
+        }
+        else if (pausePage == P_FLYMON)
+        {
+            page("FLY ON", IC_POKEBALL);
+            const int chosen = FlyMonChosen();
+            const bool any = set.Get("fly_on") == "any";
+            // (The row's Pokemon in the preview, as it will carry you.)
+            if (pause.selected >= 0 && pause.selected < n && pause.items[pause.selected].label.rfind("MON ", 0) == 0)
+            {
+                const int nat = std::atoi(pause.items[pause.selected].label.c_str() + 4);
+                const MountPic& mp = MountPicture(nat);
+                GbaGlass::DexCard d;
+                d.id = nat;
+                d.name = MonName(nat);
+                d.desc = mp.px.empty() ? (followState == 1 ? "Looking for HeartGold or SoulSilver..." : "No sprite for this one: you would fly on the bird.")
+                                       : mp.emerald ? "Fly on this one. Its sprite is Emerald's own." : "Fly on this one. Its sprite is HeartGold's.";
+                d.pic = mp.px; d.picW = mp.w; d.picH = mp.h;
+                g.dex.push_back(std::move(d));
+            }
+            for (int i = 0; i < n; i++)
+            {
+                const std::string& l = pause.items[i].label;
+                if (l.rfind("MON ", 0) != 0) continue;
+                const int nat = std::atoi(l.c_str() + 4);
+                Item it;
+                const std::string name = MonName(nat);
+                it.label = std::to_string(nat) + "  " + (name.empty() ? std::string("?") : name);
+                it.value = any && nat == chosen ? "CHOSEN" : "";
+                it.kind = LINK;
+                it.icon = IC_POKEBALL;
+                it.desc = "Fly on this one.";
+                if (i == pause.selected && !g.dex.empty()) { it.dexCard = 0; it.desc.clear(); }
                 put(it, i);
             }
         }
@@ -2687,7 +3741,7 @@ struct App
             DexInput(in);
             return;
         }
-        if (pausePage == P_COMP || pausePage == P_PARTY || pausePage == P_BAG || pausePage == P_PLACE || pausePage == P_BATTLE || pausePage == P_GUIDE)
+        if (pausePage == P_COMP || pausePage == P_PARTY || pausePage == P_BAG || pausePage == P_PLACE || pausePage == P_BATTLE || pausePage == P_GUIDE || pausePage == P_FLY || pausePage == P_FLYMON)
         {
             CompanionInput(in);
             return;
@@ -2704,7 +3758,7 @@ struct App
             return;
         }
 #endif
-        if (pausePage == P_DISPLAY || pausePage == P_SOUND || pausePage == P_CONTROLS)
+        if (IsSettingsPage())
         {
             SettingsPageInput(in);
             return;
@@ -2852,9 +3906,9 @@ struct App
             settingsSel = 0;
         }
 #ifdef GBAW_EMBEDDED
-        else if (item == "DISPLAY" || item == "SOUND" || item == "CONTROLS")
+        else if (item == "DISPLAY" || item == "SOUND" || item == "CONTROLS" || item == "GAMEPLAY")
         {
-            pausePage = item == "DISPLAY" ? P_DISPLAY : item == "SOUND" ? P_SOUND : P_CONTROLS;
+            pausePage = item == "DISPLAY" ? P_DISPLAY : item == "SOUND" ? P_SOUND : item == "GAMEPLAY" ? P_GAMEPLAY : P_CONTROLS;
             BuildPause();
             pause.selected = 0;
         }
@@ -3429,9 +4483,9 @@ struct App
                     hint = cheats.Has(i) ? GbaCheats::About(i).note : "NOT FOR THIS VERSION OF THE GAME";
             }
 #endif
-            else if (pausePage == P_DISPLAY || pausePage == P_SOUND || pausePage == P_CONTROLS)
+            else if (IsSettingsPage())
             {
-                title = pausePage == P_DISPLAY ? "DISPLAY" : pausePage == P_SOUND ? "SOUND" : "CONTROLS";
+                title = SettingsPageName();
                 hint = Hint("ARROWS: CHANGE   ESC: BACK", "D-PAD: CHOOSE AND CHANGE   B: BACK", "TAP TO CHANGE");
             }
             else if (pausePage == P_LOGIN)
@@ -3444,7 +4498,7 @@ struct App
 #ifdef GBAW_EMBEDDED
             // The chosen setting's explanation, under the menu (as the settings screen has it).
             const int sel = pause.selected;
-            if ((pausePage == P_DISPLAY || pausePage == P_SOUND || pausePage == P_CONTROLS) && sel >= 0 && sel < (int)pageSettings.size())
+            if ((IsSettingsPage()) && sel >= 0 && sel < (int)pageSettings.size())
             {
                 const UiRect& b = pause.box;
                 const std::vector<std::string> lines = Wrap(pageSettings[sel]->text, std::max(10, (b.w - 12) / 6));
@@ -4055,7 +5109,7 @@ struct App
                         due = 0;
                     }
                 }
-                int speed = FastForward() ? std::max(2, set.Int("ff_speed")) : 1;
+                int speed = FastForward() ? std::max(2, set.Int("ff_speed")) : SceneSpeed();
                 {
                     const uint32_t dirMask = (1u << K_UP) | (1u << K_DOWN) | (1u << K_LEFT) | (1u << K_RIGHT);
                     const uint32_t dirs = GameKeys() & dirMask;
@@ -4067,6 +5121,7 @@ struct App
                     if (speed > 1 && dirs && !fastToggle && SDL_GetTicks() - tapSince < 250) speed = 1;
                 }
                 for (int i = 0; i < run * speed; i++) RunFrame(true, speed > 1, i == run * speed - 1);
+                if (run > 0) { SceneFrame(); FogFrame(); DayNightFrame(); FollowerFrame(); }
             }
             else
                 due = 0;

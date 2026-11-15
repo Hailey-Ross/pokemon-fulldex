@@ -485,6 +485,10 @@ static void readConnections(struct Snap* s, uint32_t hdr, int w, int h, int mx, 
     }
 }
 
+// FullDex: the camera of the last frame pk_wide_view placed (pk_wide_map_at: which map is under a point of the screen).
+static bool mapCamOk;
+static int mapCamSnap = -1, mapCamX, mapCamY;
+
 int pk_wide_take_fail = -1;   // FullDex test log: where the last snapshot stopped
 static void take(struct Snap* s) {
     badRead = false;
@@ -2851,7 +2855,9 @@ static void playerBox(const uint16_t* oam, int base, struct PlayerBox* b) {
 static bool flyGlide(const uint16_t* io) {
     flyDx = flyDy = 0;
     if (flyViewAge < 99) flyViewAge++;
-    if ((!flyOn && !flyTrack) || !io || flyViewAge > 2) {
+    // (FullDex: a map crossing holds the view back a couple of frames while the new map loads; two frames without a view
+    // dropped the glide there - the window jumped back by its offset, then crept up to speed again. Ten now.)
+    if ((!flyOn && !flyTrack) || !io || flyViewAge > 10) {
         flyTrack = false;
         return false;
     }
@@ -2862,7 +2868,8 @@ static bool flyGlide(const uint16_t* io) {
         flyTrack = true;
         flyCx = flyCy = 0;
         flySx = flySy = 0;
-        flyVxS = flyVyS = 0;
+        flyVxS = flyVx;   // (FullDex: at the flight's own speed at once, not eased up from standing)
+        flyVyS = flyVy;
         dh = dv = 0;
     }
     flyPrevH = h;
@@ -3609,6 +3616,14 @@ static void wildRoll(int s, int keep) {
     wildRng ^= wildRng << 5;
     *p = (int) (wildRng % 100) >= keep;
     wildOwned = true;
+}
+
+/** (FullDex) gMapHeader.mapType of the map the player is on (the same place in every Gen 3 engine), or -1. */
+int pk_field_map_type(struct mCore* core) {
+    if (!F.mapHeader || !core) return -1;
+    G = (struct GBA*) core->board;
+    const uint8_t* p = (const uint8_t*) mem(F.mapHeader + 0x17, 1);
+    return p ? *p : -1;
 }
 
 int pk_field_state(struct mCore* core, int runIndoors, int wildKeep) {
@@ -4488,6 +4503,8 @@ static int viewInner(struct mCore* core, const uint32_t* frame, uint32_t* out, s
         valid = true;
     }
     if (!valid) needFrame();
+    mapCamOk = valid && bestSnap >= 0;   // (FullDex: pk_wide_map_at's camera)
+    if (mapCamOk) { mapCamSnap = bestSnap; mapCamX = bestCx; mapCamY = bestCy; }
     bool battle = !valid && inBattleScreen();
     // FREE FLIGHT: no menu can open (the controls are locked), so a frame that doesn't match is a map crossing settling
     // (pk_flight.c's flMend draws the view again; the screen catches up two or three frames later): the camera holds and
@@ -4581,4 +4598,36 @@ static int viewInner(struct mCore* core, const uint32_t* frame, uint32_t* out, s
     if (linesWanted && lineIoFrames < 2) lineIoFrames++;
     prev = cur;
     return mix;
+}
+
+/* FullDex: the map under the frame's pixel (sx, sy) (the frame's own coordinates; outside it too, the widescreen sides),
+ * from the camera pk_wide_view placed last: the current map, or the connected one there. 1 = found. */
+int pk_wide_map_at(int sx, int sy, int* group, int* num) {
+    if (!mapCamOk || mapCamSnap < 0 || !snaps[mapCamSnap].ok) return 0;
+    const struct Snap* s = &snaps[mapCamSnap];
+    int wx = mapCamX + sx, wy = mapCamY + sy;
+    int x = wx >= 0 ? wx / 16 : -((15 - wx) / 16), y = wy >= 0 ? wy / 16 : -((15 - wy) / 16);
+    int lx = x - MAP_OFFSET, ly = y - MAP_OFFSET;
+    if (lx >= 0 && ly >= 0 && lx < s->width && ly < s->height) { *group = s->group; *num = s->num; return 1; }
+    for (int i = 0; i < s->nconn; i++) {
+        const struct Conn* k = &s->conn[i];
+        bool side = k->degree > 1 || (k->dir == 1 ? ly >= s->height : k->dir == 2 ? ly < 0 : k->dir == 3 ? lx < 0 : lx >= s->width);
+        int cx = x - k->ox, cy = y - k->oy;
+        if (side && cx >= 0 && cx < k->w && cy >= 0 && cy < k->h) { *group = k->group; *num = k->num; return 1; }
+    }
+    return 0;
+}
+
+/* FullDex: that camera, the world pixel at the frame's (0, 0) (pk_wide_map_at's); 0 = none yet. */
+int pk_wide_map_cam(int* x, int* y) {
+    if (!mapCamOk) return 0;
+    *x = mapCamX;
+    *y = mapCamY;
+    return 1;
+}
+
+/* FullDex test log: FREE FLIGHT's smooth camera this frame. */
+void pk_wide_flight_debug(char* out, int n) {
+    snprintf(out, (size_t) n, "glide on %d track %d age %d cam %d,%d view %.1f,%.1f d %d,%d v %.2f,%.2f prev %d,%d camok %d score %d",
+             flyOn, flyTrack, flyViewAge, flyCx, flyCy, flySx, flySy, flyDx, flyDy, flyVxS, flyVyS, flyPrevH, flyPrevV, mapCamOk, lastScore);
 }

@@ -116,7 +116,7 @@ add_custom_command(
 # for ZOOM and the look-around. Its last-resort fault guard (POSIX signals) is left out: its reads are bounds-checked.
 set(GBAW_PK_WIDE frontend/pokedaisy/pk_wide.c frontend/pokedaisy/pk_wide_gb_none.c)
 set_source_files_properties(${GBAW_PK_WIDE} PROPERTIES COMPILE_DEFINITIONS PK_WIDE_NO_GUARD)
-set(GBAW_SOURCES frontend/main.cpp frontend/third_party/xbrz/xbrz.cpp ${GBAW_PK_WIDE} "${CMAKE_CURRENT_BINARY_DIR}/gen/patches.h" "${CMAKE_CURRENT_BINARY_DIR}/gen/art.h")
+set(GBAW_SOURCES frontend/main.cpp frontend/third_party/xbrz/xbrz.cpp ${GBAW_PK_WIDE} frontend/pokedaisy/pk_call_lite.c frontend/pokedaisy/pk_flight.c "${CMAKE_CURRENT_BINARY_DIR}/gen/patches.h" "${CMAKE_CURRENT_BINARY_DIR}/gen/art.h")
 get_target_property(GBAW_MGBA_DEFS mgba COMPILE_DEFINITIONS)
 if(GBAW_EMBEDDED)
     # The library for the launcher: the player without its own list (embed.h), on the

@@ -247,6 +247,7 @@ inline std::string Title(const std::string& s)
             if (word == "POKEMON") word = "Pokémon";
             else if (word == "POKEDEX") word = "Pokédex";
             else if (word == "POKEDAISY") word = "PokéDaisy";
+            else if (word == "TMS" || word == "HMS" || word == "IVS" || word == "EVS") word = word.substr(0, 2) + "s";
             else if (word == "RETROACHIEVEMENTS") word = "RetroAchievements";
             else if (!kept && !digits)
             {

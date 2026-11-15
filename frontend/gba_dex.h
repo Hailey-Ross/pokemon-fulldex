@@ -436,6 +436,16 @@ struct Data
         mapsecPointers = frlg;
         mapsecFirst = frlg ? 0x58 : 0;
     }
+    // A map section's name (FLY's towns), or "".
+    std::string MapsecName(int sec) const
+    {
+        const Bytes& r = *rom;
+        if (mapsecNames == std::string::npos || sec - mapsecFirst < 0) return {};
+        const int i = sec - mapsecFirst;
+        const size_t name = mapsecPointers ? Pointer(r, mapsecNames + i * 4) : Pointer(r, mapsecNames + i * 8 + 4);
+        if (name == std::string::npos) return {};
+        return Text(r.data() + name, 32);
+    }
     std::string PlaceOf(int group, int num) const
     {
         const Bytes& r = *rom;

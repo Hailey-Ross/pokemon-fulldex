@@ -52,6 +52,11 @@ inline std::string Sentence(const std::string& s)
         std::string w = s.substr(i, j - i);
         bool kept = false;
         for (const char* k : keep) if (w == k) kept = true;
+        // (The games' and hacks' names, and plurals of the names kept in capitals, as they are written.)
+        static const char* const names[][2] = { { "RUBY", "Ruby" }, { "SAPPHIRE", "Sapphire" }, { "EMERALD", "Emerald" }, { "FIRERED", "FireRed" },
+                                                 { "LEAFGREEN", "LeafGreen" }, { "ULTRA", "Ultra" }, { "VIOLET", "Violet" }, { "MONOMYTH", "Monomyth" },
+                                                 { "TMS", "TMs" }, { "HMS", "HMs" }, { "IVS", "IVs" }, { "EVS", "EVs" } };
+        for (const auto& nm : names) if (w == nm[0]) w = nm[1], kept = true;
         if (w == "POKEMON") w = "Pok\xC3\xA9" "mon", kept = true;
         else if (w == "POKEDEX") w = "Pok\xC3\xA9" "dex", kept = true;
         if (!kept)

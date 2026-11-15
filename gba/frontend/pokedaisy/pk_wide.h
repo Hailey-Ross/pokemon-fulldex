@@ -141,6 +141,9 @@ void pk_field_wild(uint32_t addr, bool wasOff);
  * [wildKeep] < 100, leaves about that share of wild encounters (0 = none). */
 int pk_field_state(struct mCore* core, int runIndoors, int wildKeep);
 
+/** (FullDex) gMapHeader.mapType of the current map (town 1, city 2, route 3, ocean route 6 are under the sky), or -1. */
+int pk_field_map_type(struct mCore* core);
+
 /** Forgets what earlier frames left (a state load, a new core, a rewind). */
 void pk_wide_reset(void);
 /** pk_wide_reset for a jump to another moment (a state load, a rewind step), called right after it: the RAM now is what
@@ -226,6 +229,11 @@ int pk_wide_wants_close(void);
 enum { PK_WIDE_SCENE_FIELD, PK_WIDE_SCENE_TEXT, PK_WIDE_SCENE_OVERLAY, PK_WIDE_SCENE_BATTLE_START, PK_WIDE_SCENE_OFF,
        PK_WIDE_SCENE_FADE, PK_WIDE_SCENE_MENU };
 int pk_wide_scene(void);
+/** FullDex: the map under the frame's pixel (sx, sy) as the last pk_wide_view placed its camera (outside the frame too):
+ * 1 and its group / number, or 0 (no map there, or no camera yet). */
+int pk_wide_map_at(int sx, int sy, int* group, int* num);
+int pk_wide_map_cam(int* x, int* y);
+void pk_wide_flight_debug(char* out, int n);
 
 /** DAY AND NIGHT: tints the map's BG palettes (0-12) and the sprites' by r / g / b (256 = as is) from the next frame
  * drawn on, in the renderer only (palette RAM untouched). GBA only; emu thread. */
