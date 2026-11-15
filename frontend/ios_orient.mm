@@ -1,4 +1,5 @@
-// Turns an iPhone or iPad upright for the game list and sideways for a game.
+// Lets the game list turn with an iPhone or iPad (upright or sideways, as it is held), and
+// turns the screen sideways for a game.
 // Info.plist allows both (tools/ios/build_all.sh); this asks iOS to use one of them.
 // SDL's hint alone does not turn a screen that is already up, which is how the list
 // and a game share one app.
@@ -9,15 +10,20 @@
 #include "ios_orient.h"
 
 static bool g_landscape = false;
+static bool g_free = true; // (the list: any way the device is held)
 
 static UIInterfaceOrientationMask Wanted()
 {
+    if (g_free)
+        return UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad ? UIInterfaceOrientationMaskAll
+                                                                                     : UIInterfaceOrientationMaskAllButUpsideDown;
     return g_landscape ? (UIInterfaceOrientationMaskLandscapeLeft | UIInterfaceOrientationMaskLandscapeRight)
                        : UIInterfaceOrientationMaskPortrait;
 }
 
 static bool AlreadyThere(UIInterfaceOrientation o)
 {
+    if (g_free) return true; // (the list: whichever way it is held already will do)
     if (g_landscape) return UIInterfaceOrientationIsLandscape(o);
     return o == UIInterfaceOrientationPortrait;
 }
@@ -78,10 +84,12 @@ static int OnWindow(void*, SDL_Event* e)
     return 1;
 }
 
-static void Set(bool landscape)
+static void Set(bool landscape, bool free)
 {
     g_landscape = landscape;
-    SDL_SetHint(SDL_HINT_ORIENTATIONS, landscape ? "LandscapeLeft LandscapeRight" : "Portrait");
+    g_free = free;
+    SDL_SetHint(SDL_HINT_ORIENTATIONS, free ? "LandscapeLeft LandscapeRight Portrait PortraitUpsideDown"
+                                            : landscape ? "LandscapeLeft LandscapeRight" : "Portrait");
     if (SDL_WasInit(SDL_INIT_VIDEO))
     {
         SDL_DelEventWatch(OnWindow, nullptr);
@@ -90,8 +98,8 @@ static void Set(bool landscape)
     }
 }
 
-void IosOrientLauncher() { Set(false); }
-void IosOrientGame() { Set(true); }
+void IosOrientLauncher() { Set(false, true); }
+void IosOrientGame() { Set(true, false); }
 
 void IosSafeInsets(int* top, int* bottom, int* left, int* right)
 {
