@@ -15,46 +15,28 @@ enum { FLY, FREE, PC, REPEL, COUNT, RESET, MAP, DEX, BAG, APPS };
 
 struct App { const char* label; uint32_t col, dark; const char* rows[16]; };
 
-// 16 x 16 pictures: W white, D the tile's darker shade, Y yellow, R red, K near-black.
+// 16 x 16 pictures: W white, L the tile's light tint, D its darker shade, Y yellow, R red, K near-black, G grey.
 inline const App& Get(int i)
 {
     static const App apps[APPS] = {
         { "FLY", 0xFF428CE2, 0xFF285CA0, {
-            "................", "................", "..WW............", ".WWWW...........", "..WWWW......WW..", "...WWWW....WWWW.",
-            "....WWWWW.WWWW..", ".....WWWWWWWW...", "....WWWWWWWWYY..", "...WWWWWWWWW....", "..WWW..WWWW.....", "........WW......",
-            "........W.......", "................", "................", "................" } },
+            "................", "................", "WD...........DW.", "WWD.........DWW.", ".WWD.......DWW..", ".WWWD.....DWWW..", "..WWWD.KK.DWWW..", "..WWWWDWWDWWW...", "...WWWWWWWWWW...", "....WWWWWWWW....", ".....WWWWWW.....", "......WYYW......", "......WWWW......", ".....WW..WW.....", "................", "................" } },
         { "FREE FLIGHT", 0xFF28B6C4, 0xFF187884, {
-            "................", "................", "......WWWW......", "....WWWWWWWW....", "...WWWWWWWWWW...", ".WWWWWWWWWWWWW..",
-            "WWWWWWWWWWWWWWW.", "WWWWWWWWWWWWWWW.", ".WWWWWWWWWWWWW..", "................", "..WWWWWWW.......", "....WWWWWWWWW...",
-            ".WWWWWW.........", "................", "................", "................" } },
+            "............K.K.", ".............K..", "......LWWL......", ".....WWWWWW.....", "..LWWWWWWWWWLL..", ".LWWWWWWWWWWWWL.", ".WWWWWWWWWWWWWWL", "LWWWWWWWWWWWWWWW", "LWWWWWWWWWWWWWWW", ".DWWWWWWWWWWWWD.", "..DDDDDDDDDDDD..", "................", "WWWWWW..........", "..WWWWWWWWWWW...", "WWWWW......WWWW.", "................" } },
         { "OPEN PC", 0xFF5C6C84, 0xFF2C3646, {
-            "................", ".WWWWWWWWWWWWWW.", ".WDDDDDDDDDDDDW.", ".WDDDDRRRRDDDDW.", ".WDDDRRRRRRDDDW.", ".WDDDKKWWKKDDDW.",
-            ".WDDDWWWWWWDDDW.", ".WDDDDWWWWDDDDW.", ".WDDDDDDDDDDDDW.", ".WWWWWWWWWWWWWW.", "......WWWW......", "....WWWWWWWW....",
-            "................", "................", "................", "................" } },
+            "................", ".KKKKKKKKKKKKKK.", ".KWWWWWWWWWWWWK.", ".KWDDDDDDDDDDWK.", ".KWDDDRRRRDDDWK.", ".KWDDRRRRRRDDWK.", ".KWDDKKWWKKDDWK.", ".KWDDWWWWWWDDWK.", ".KWDDDWWWWDDDWK.", ".KWDDDDDDDDDDWK.", ".KWWWWWWWWWWWWK.", ".KKKKKKKKKKKKKK.", "......KWWK......", "....KKWWWWKK....", "....KKKKKKKK....", "................" } },
         { "REPEL", 0xFF9656D2, 0xFF60348C, {
-            "................", ".......WWW......", "......WWWWW..W..", ".......WWW..W.W.", "......WWWWW..W..", ".....WWWWWWW....",
-            ".....WDDDDDW....", ".....WDYYYDW....", ".....WDYYYDW....", ".....WDDDDDW....", ".....WWWWWWW....", ".....WWWWWWW....",
-            "......WWWWW.....", "................", "................", "................" } },
+            "................", "........W..W....", ".......KKK..W.W.", "......KWWK.W....", "......KKKK...W..", ".....KKKKKK.....", "....KWWWWWWK....", "....KWWWWWWK....", "....KDDDDDDK....", "....KDYYYYDK....", "....KDYDDYDK....", "....KDYYYYDK....", "....KDDDDDDK....", "....KWWWWWWK....", ".....KKKKKK.....", "................" } },
         { "COUNTER", 0xFFEC8828, 0xFFAA5A14, {
-            "................", "..WWWWWWWWWWWW..", "..W..........W..", "..W.W.W.W.W..W..", "..W.W.W.W.W..W..", "..W.W.W.W.W..W..",
-            "..W.WWWWWWWW.W..", "..W.W.W.W.W..W..", "..W..........W..", "..WWWWWWWWWWWW..", "................", "................",
-            "................", "................", "................", "................" } },
+            "................", "......KKKK......", "......KWWK......", "..KKKKKKKKKKKK..", ".KWWWWWWWWWWWWK.", ".KWKKKKKKKKKKWK.", ".KWKWWWKKWWWKWK.", ".KWKKKWKKKKWKWK.", ".KWKKWWKKKWKKWK.", ".KWKKKWKKKWKKWK.", ".KWKWWWKKKWKKWK.", ".KWKKKKKKKKKKWK.", ".KWWWWWWWWWWWWK.", "..KKKKKKKKKKKK..", "................", "................" } },
         { "RESET", 0xFFDE3A3A, 0xFF961E1E, {
-            "................", ".....WWWWWW.....", "...WWW....WWW...", "..WW........WW..", ".WW..........W..", ".W...........WW.",
-            ".W.........WWWWW", ".W..........WWW.", ".WW..........W..", "..WW............", "...WWW....WW....", ".....WWWWWW.....",
-            "................", "................", "................", "................" } },
+            "................", "......WWWW..W...", "....WWWWWWWWWW..", "...WWW....WWWW..", "..WWW......WWW..", "..WW......WWWW..", ".WWW............", ".WW.............", ".WW.........WW..", ".WWW.......WWW..", "..WW.......WW...", "..WWW.....WWW...", "...WWWW.WWWW....", "....WWWWWWW.....", "......WWW.......", "................" } },
         { "MAP", 0xFF4CA854, 0xFF286E32, {
-            "................", ".WWWW.WWWW.WWWW.", ".WDDW.WDDW.WDDW.", ".WDDWWWDRRWWDDW.", ".WDDDDDRRRRDDDW.", ".WDDDDDRRRRDDDW.",
-            ".WDDDDDDRRDDDDW.", ".WDDDDDDRDDDDDW.", ".WDDWWWDDDWWDDW.", ".WDDW.WDDW.WDDW.", ".WWWW.WWWW.WWWW.", "................",
-            "................", "................", "................", "................" } },
+            "................", "...........RR...", "..........RRRR..", ".KKKK.KKKRRWWRR.", ".KLLKKKLLRRWWRR.", ".KLLLKLLLKRRRRK.", ".KLDLKLLLKLRRLK.", ".KLDDKLDLKLLRLK.", ".KLLDKLDDKDLLLK.", ".KLLLKLLDKDDLLK.", ".KLLLKLLLKLDLLK.", ".KLLLKKKLKKLLLK.", ".KKKK..KKK.KKKK.", "................", "................", "................" } },
         { "POK\xC3\x89" "DEX", 0xFFF4F4F4, 0xFFC8C8C8, {
-            "................", ".....RRRRRR.....", "...RRRRRRRRRR...", "..RRRRRRRRRRRR..", "..RRRRRRRRRRRR..", ".RRRRRKKKKRRRRR.",
-            ".KKKKKKWWKKKKKK.", ".WWWWWKKKKWWWWW.", "..WWWWWWWWWWWW..", "..WWWWWWWWWWWW..", "...WWWWWWWWWW...", ".....WWWWWW.....",
-            "................", "................", "................", "................" } },
+            "................", ".....KKKKKK.....", "...KKRRRRRRKK...", "..KRRRRRRRRWRK..", "..KRRRRRRRRRWK..", ".KRRRRRRRRRRRRK.", ".KRRRRKKKKRRRRK.", ".KKKKKKWWKKKKKK.", ".KWWWWKKKKWWWWK.", ".KWWWWWWWWWWWWK.", "..KWWWWWWWWWWK..", "..KGWWWWWWWWGK..", "...KKGGGGGGKK...", ".....KKKKKK.....", "................", "................" } },
         { "BAG", 0xFFC48C4C, 0xFF825628, {
-            "................", "......WWWW......", ".....W....W.....", "...WWWWWWWWWW...", "..WWWWWWWWWWWW..", "..WWDDDDDDDDWW..",
-            "..WWDYYYYYYDWW..", "..WWDDDDDDDDWW..", "..WWWWWWWWWWWW..", "..WWWWWWWWWWWW..", "...WWWWWWWWWW...", "................",
-            "................", "................", "................", "................" } },
+            "................", "......KKKK......", ".....KK..KK.....", "....KK....KK....", "..KKKKKKKKKKKK..", ".KWWWWWWWWWWWWK.", ".KWLLLLLLLLLLWK.", ".KKKKKKYYKKKKKK.", ".KDDDDKYYKDDDDK.", ".KDDDDDKKDDDDDK.", ".KDDDDDDDDDDDDK.", ".KDDDDDDDDDDDDK.", ".KDDDDDDDDDDDDK.", "..KKKKKKKKKKKK..", "................", "................" } },
     };
     return apps[std::clamp(i, 0, APPS - 1)];
 }
@@ -163,9 +145,8 @@ inline void Draw(Canvas& c, const Geo& g, const State& s, const bool dim[APPS], 
             {
                 const char ch = a.rows[r][q];
                 if (ch == '.') continue;
-                uint32_t col = ch == 'W' ? 0xFFFFFFFF : ch == 'Y' ? 0xFFFFD640 : ch == 'R' ? 0xFFE23834 : ch == 'K' ? 0xFF1E1E24 : a.dark;
-                if (i == DEX && ch == 'W') col = 0xFFFAFAFA;
-                if (i == DEX && ch == 'D') col = 0xFFC8C8C8;
+                const uint32_t lite = 0xFF000000u | ((((a.col >> 16) & 0xFF) * 45 / 100 + 140) << 16) | ((((a.col >> 8) & 0xFF) * 45 / 100 + 140) << 8) | ((a.col & 0xFF) * 45 / 100 + 140);
+                uint32_t col = ch == 'W' ? 0xFFFFFFFF : ch == 'Y' ? 0xFFFFD640 : ch == 'R' ? 0xFFE23834 : ch == 'K' ? 0xFF1E1E24 : ch == 'G' ? 0xFFB0B0B8 : ch == 'L' ? lite : a.dark;
                 c.Fill(ox + q * px, oy + r * px, px, px, fade(col));
             }
         const std::string name = label && !label[i].empty() ? label[i] : std::string(a.label);
