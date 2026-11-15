@@ -27,7 +27,7 @@ inline const App& Get(int i)
             "................", ".KKKKKKKKKKKKKK.", ".KWWWWWWWWWWWWK.", ".KWDDDDDDDDDDWK.", ".KWDDDRRRRDDDWK.", ".KWDDRRRRRRDDWK.", ".KWDDKKWWKKDDWK.", ".KWDDWWWWWWDDWK.", ".KWDDDWWWWDDDWK.", ".KWDDDDDDDDDDWK.", ".KWWWWWWWWWWWWK.", ".KKKKKKKKKKKKKK.", "......KWWK......", "....KKWWWWKK....", "....KKKKKKKK....", "................" } },
         { "Repel", 0xFF9656D2, 0xFF60348C, {
             "................", "........W..W....", ".......KKK..W.W.", "......KWWK.W....", "......KKKK...W..", ".....KKKKKK.....", "....KWWWWWWK....", "....KWWWWWWK....", "....KDDDDDDK....", "....KDYYYYDK....", "....KDYDDYDK....", "....KDYYYYDK....", "....KDDDDDDK....", "....KWWWWWWK....", ".....KKKKKK.....", "................" } },
-        { "Counter", 0xFFEC8828, 0xFFAA5A14, {
+        { "Encounters", 0xFFEC8828, 0xFFAA5A14, {
             "................", "......KKKK......", "......KWWK......", "..KKKKKKKKKKKK..", ".KWWWWWWWWWWWWK.", ".KWKKKKKKKKKKWK.", ".KWKWWWKKWWWKWK.", ".KWKKKWKKKKWKWK.", ".KWKKWWKKKWKKWK.", ".KWKKKWKKKWKKWK.", ".KWKWWWKKKWKKWK.", ".KWKKKKKKKKKKWK.", ".KWWWWWWWWWWWWK.", "..KKKKKKKKKKKK..", "................", "................" } },
         { "Reset", 0xFFDE3A3A, 0xFF961E1E, {
             "................", "......WWWW..W...", "....WWWWWWWWWW..", "...WWW....WWWW..", "..WWW......WWW..", "..WW......WWWW..", ".WWW............", ".WW.............", ".WW.........WW..", ".WWW.......WWW..", "..WW.......WW...", "..WWW.....WWW...", "...WWWW.WWWW....", "....WWWWWWW.....", "......WWW.......", "................" } },
@@ -150,6 +150,19 @@ inline int WheelPick(float x, float y)
     return (int)std::lround(a / (6.2831853f / APPS)) % APPS;
 }
 
+// ENCOUNTERS: the count itself on the counter's little screen (its picture's rows 5 to 11), so the icon shows
+// how many, not a made-up number.
+inline void CountOnIcon(Canvas& c, int ox, int oy, int px, int count)
+{
+    using namespace SettingsArt;
+    const int x = ox + 3 * px, y = oy + 5 * px, w = 10 * px, h = 7 * px;
+    c.Fill(x, y, w, h, 0xFF1E1E24);
+    const std::string t = count > 9999 ? std::string("9999+") : std::to_string(std::max(0, count));
+    int fs = std::max(6, (int)std::lround(px * 6.2f));
+    while (fs > 6 && W(t, fs, true, false) > w - px) fs--;
+    T(c, x + (w - W(t, fs, true, false)) / 2, y + h / 2 + (int)std::lround(fs * 0.36f), t, fs, 0xFFFFFFFF, true, false);
+}
+
 // The app under a point (a tap or a click), -1 none; -2 on the watch but not an app (keeps it open).
 inline int Hit(const Geo& g, int x, int y)
 {
@@ -220,6 +233,7 @@ inline void DrawClassic(Canvas& c, const Geo& g, const State& s, const bool dim[
                 uint32_t col = ch == 'W' ? 0xFFFFFFFF : ch == 'Y' ? 0xFFFFD640 : ch == 'R' ? 0xFFE23834 : ch == 'K' ? 0xFF1E1E24 : ch == 'G' ? 0xFFB0B0B8 : ch == 'L' ? lite : a.dark;
                 c.Fill(ox + q * px, oy + r * px, px, px, fade(col));
             }
+        if (i == COUNT && !faded) CountOnIcon(c, ox, oy, px, s.count);
         const std::string name = Upper(label && !label[i].empty() ? label[i] : std::string(a.label));
         const int tw = W(name, ls, true, false);
         T(c, x + sz / 2 - tw / 2, y + sz + K(20), name, ls, faded ? 0x80344038 : ink, true, false);
@@ -279,6 +293,7 @@ inline void DrawSimple(Canvas& c, const Geo& g, const State& s, const bool dim[A
                 uint32_t col = ch == 'W' ? 0xFFFFFFFF : ch == 'Y' ? 0xFFFFD640 : ch == 'R' ? 0xFFE23834 : ch == 'K' ? 0xFF1E1E24 : ch == 'G' ? 0xFFB0B0B8 : ch == 'L' ? lite : a.dark;
                 c.Fill(ox + q * px, oy + r * px, px, px, fade(col));
             }
+        if (i == COUNT && !faded) CountOnIcon(c, ox, oy, px, s.count);
         const std::string name = label && !label[i].empty() ? label[i] : std::string(a.label);
         const int tw = W(name, ls, true, false);
         T(c, x + sz / 2 - tw / 2, y + sz + K(22), name, ls, faded ? 0x70F2F5F9 : ink, true, false);
@@ -328,6 +343,7 @@ inline void DrawWheel(Canvas& c, const Geo& g, const State& s, const bool dim[AP
                 const uint32_t col = ch == 'W' ? 0xFFFFFFFF : ch == 'Y' ? 0xFFFFD640 : ch == 'R' ? 0xFFE23834 : ch == 'K' ? 0xFF1E1E24 : ch == 'G' ? 0xFFB0B0B8 : ch == 'L' ? lite : a.dark;
                 c.Fill(ox + q * px, oy + rr * px, px, px, fade(col));
             }
+        if (i == COUNT && !faded) CountOnIcon(c, ox, oy, px, s.count);
     }
     // (The middle: the chosen app's name, and the clock.)
     const int sel = std::clamp(s.sel, 0, APPS - 1);
@@ -417,6 +433,7 @@ inline void Draw(Canvas& c, const Geo& g, const State& s, const bool dim[APPS], 
                 uint32_t col = ch == 'W' ? 0xFFFFFFFF : ch == 'Y' ? 0xFFFFD640 : ch == 'R' ? 0xFFE23834 : ch == 'K' ? 0xFF1E1E24 : ch == 'G' ? 0xFFB0B0B8 : ch == 'L' ? lite : a.dark;
                 c.Fill(ox + q * px, oy + r * px, px, px, fade(col));
             }
+        if (i == COUNT && !faded) CountOnIcon(c, ox, oy, px, s.count);
         const std::string name = label && !label[i].empty() ? label[i] : std::string(a.label);
         const int tw = W(name, ls, true, false);
         T(c, x + sz / 2 - tw / 2, y + sz + K(22), name, ls, faded ? 0x70F2F5F9 : ink, true, false);
@@ -436,7 +453,7 @@ inline void DrawCount(Canvas& c, int outW, int outH, int count)
     using namespace SettingsArt;
     const float k = std::max(0.5f, std::min(outW / 1280.0f, outH / 720.0f));
     auto K = [&](float v) { return (int)std::lround(v * k); };
-    const std::string t = std::to_string(count) + " Met";
+    const std::string t = std::to_string(count) + (count == 1 ? " encounter" : " encounters");
     const int fs = std::max(9, K(16)), w = W(t, fs, true, false) + K(40);
     const int x = outW - w - K(16), y = K(14);
     Glass::Round(c, x, y, w, K(30), 15 * k, 0xD8101418);

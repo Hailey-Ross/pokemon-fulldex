@@ -9398,7 +9398,7 @@ int main(int argc, char** argv)
                 if (down(KEY_DOWN)) sel = (sel + 3) % FdNav::APPS;
             }
             if (down(KEY_A)) fdNavUse = sel;
-            if (down(KEY_X) && sel == FdNav::COUNT) { fdNav.count = 0; fdNav.SaveCount(); say("COUNTER SET TO 0"); }
+            if (down(KEY_X) && sel == FdNav::COUNT) { fdNav.count = 0; fdNav.SaveCount(); say("ENCOUNTERS SET TO 0"); }
             if (down(KEY_B)) { fdNav.open = false; swallowMenuButtons = true; }
             if (mouseDown && !fdNavMouseWas)
             {
@@ -12055,7 +12055,6 @@ int main(int argc, char** argv)
             dim[FdNav::PC] = !canAct;
             dim[FdNav::REPEL] = true; // (the GBA games' for now)
             std::string label[FdNav::APPS];
-            label[FdNav::COUNT] = std::to_string(fdNav.count) + " Met";
             if (fdNav.resetAsk && frame - fdNav.resetAsk < 180) label[FdNav::RESET] = "A again";
             std::string hint = "A: USE   B: CLOSE";
             if (fdNav.sel == FdNav::COUNT) hint = std::string("A: ") + (fdNav.counterShown ? "HIDE" : "SHOW") + " ON SCREEN   X: SET TO 0   B: CLOSE";
