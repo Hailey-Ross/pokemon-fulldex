@@ -5478,6 +5478,7 @@ int main(int argc, char** argv)
     // live companion (the window beside the game, the HUD, the status bar).
     auto fillCompanionView = [&](Menu::CompanionView& cv) {
         cv = Menu::CompanionView();
+        cv.battleMapped = Companion::BattleMapped(companionProfile);
         const auto& snap = companionSnapshot;
         if (!snap.ready) return;
         auto title = [](const std::string& t) { return CleanFont::Title(t); };
@@ -6908,7 +6909,12 @@ int main(int argc, char** argv)
                 const auto& snap = companionSnapshot;
                 auto title = [](const std::string& t) { return CleanFont::Title(t); };
                 const char* staticTip = "Matchups from types and abilities alone: weather, stat changes and damage are not worked out.";
-                if (snap.battlers.size() < 2 || !snap.battlers[1].species)
+                if (!cv.battleMapped)
+                {
+                    section("NOT IN THIS GAME YET", Glass::I_GAUGE);
+                    info("BATTLE INFO CANNOT READ THIS GAME'S BATTLES YET. THE OTHER PAGES WORK AS ALWAYS.", "NOT AVAILABLE YET");
+                }
+                else if (snap.battlers.size() < 2 || !snap.battlers[1].species)
                 {
                     section("NO BATTLE", Glass::I_GAUGE);
                     info("A BATTLE SHOWS HERE AS IT HAPPENS: THE FOE, YOUR MOVES AGAINST IT AND YOUR PARTY.", "SHOWS WHEN A BATTLE STARTS");
@@ -12084,9 +12090,10 @@ int main(int argc, char** argv)
                     for (const auto& g : v.guide) { str(g.text); num(g.shown); }
                     viewHash = h;
                 }
+                const bool sceneBattle = std::strncmp(scene.name, "battle", 6) == 0; // (any game's: a shorter window)
                 char k[64];
-                snprintf(k, sizeof(k), "%llx %d", (unsigned long long)viewHash, liveTab);
-                drawPart(0, k, [&] { CompanionWindow(liveCanvas, liveView, liveTab, liveTabRects, livePanel); });
+                snprintf(k, sizeof(k), "%llx %d %d", (unsigned long long)viewHash, liveTab, (int)sceneBattle);
+                drawPart(0, k, [&] { CompanionWindow(liveCanvas, liveView, liveTab, liveTabRects, livePanel, false, sceneBattle); });
                 hudMark(1);
             }
             else if (cfg.partyHud)

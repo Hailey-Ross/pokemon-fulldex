@@ -2657,7 +2657,8 @@ inline void LiveBand(int x0, int x1, int h, int gap, int& top, int& bottom)
 // glass panel down the right of the screen, its tabs as icons along its top, the chosen tab's
 // picture under them. Tinted glass with a lit rim, no frost (it is drawn every frame over a moving
 // game). tabRects: where each tab was drawn, for taps.
-inline void CompanionWindow(Canvas& c, const Menu::CompanionView& cv, int tab, int (*tabRects)[4] = nullptr, int* panelRect = nullptr, bool full = false)
+inline void CompanionWindow(Canvas& c, const Menu::CompanionView& cv, int tab, int (*tabRects)[4] = nullptr, int* panelRect = nullptr, bool full = false,
+    bool inBattle = false)
 {
     using namespace SettingsArt;
     // (A card in the top right corner, about a quarter of the screen across and two thirds down:
@@ -2676,7 +2677,11 @@ inline void CompanionWindow(Canvas& c, const Menu::CompanionView& cv, int tab, i
         py = top;
         ph = std::max(std::min(ph, bottom - top), (int)(c.h * 0.3f));
     }
-    const float k = full ? std::max(0.5f, std::min(c.w, c.h) / 560.0f) : std::max(0.42f, ph / 640.0f);
+    // (Its size as always; in a battle (inBattle) it then ends half way down, above your Pokemon's HP
+    // box, which sits from about there in the widened battle.)
+    const int sizePh = ph;
+    if (!full && inBattle) ph = std::max((int)(c.h * 0.3f), std::min(ph, (int)(c.h * 0.48f) - py));
+    const float k = full ? std::max(0.5f, std::min(c.w, c.h) / 560.0f) : std::max(0.42f, sizePh / 640.0f);
     auto K = [&](float v) { return (int)std::lround(v * k); };
     if (panelRect) { panelRect[0] = px; panelRect[1] = py; panelRect[2] = pw; panelRect[3] = ph; }
     // (No shadow round it: over the bright game it reads as a dark border.)
@@ -2706,7 +2711,8 @@ inline void CompanionWindow(Canvas& c, const Menu::CompanionView& cv, int tab, i
     else if (tab == 4 && !cv.battle.empty()) CompanionPicture(c, cv, Menu::P_CBATTLE, x0, top, w0, bottom, k);
     else
     {
-        const char* text = tab == 4 ? "Opens by itself when a battle starts: the Pokemon you face, its weaknesses and how your moves do."
+        const char* text = tab == 4 ? (cv.battleMapped ? "Opens by itself when a battle starts: the Pokemon you face, its weaknesses and how your moves do."
+                                                       : "Not in this game yet: its battles cannot be read.")
                                     : "Hints for where you are in the game, the answer hidden until you ask.";
         int y = top + K(20);
         for (const std::string& l : Wrap(text, K(16), w0, 6)) { T(c, x0, y, l, K(16), Desc, false, false); y += K(24); }

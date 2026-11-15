@@ -245,6 +245,9 @@ inline Profile ProfileFor(const std::string& code, int revision)
     else if(code=="IRDO" && revision==0){p.system=0x02141134;p.gen5Battle=true;p.battleProc=0xA7;}
     return p;
 }
+// Whether this game's battles are read (Read below: US Platinum's layout, and Black, White, Black 2 and
+// White 2's): BATTLE INFO says so when they are not, instead of waiting for a battle it will never see.
+inline bool BattleMapped(const Profile& p) { return (!p.gen5 && p.pointer==0x021C0794) || (p.gen5 && p.system && p.gen5Battle); }
 struct Item {int id=0,quantity=0,pocket=0;};
 inline const char* PocketName(const Profile& profile,int pocket)
 {

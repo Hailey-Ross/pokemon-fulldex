@@ -7997,6 +7997,8 @@ inline std::vector<Setting> SettingsList()
 #endif
     l.push_back({ "fast_button", "FAST FORWARD BUTTON", { { "hold", "HOLD" }, { "toggle", "TOGGLE" } }, "hold",
                   "HOLD: RELEASE TO STOP. TOGGLE: PRESS ONCE TO START AND AGAIN TO STOP. APPLIES TO KEYBOARD, CONTROLLER AND ON-SCREEN FAST FORWARD." });
+    l.push_back({ "aspect", "ASPECT RATIO", { { "auto", "AUTO" }, { "16:9", "16:9" }, { "16:10", "16:10" }, { "3:2", "3:2" }, { "4:3", "4:3" } }, "auto",
+                  "DS GAMES: THE SHAPE OF THE PICTURE. AUTO FILLS YOUR SCREEN; A NARROWER SHAPE LEAVES BARS AT THE SIDES. THE SAME CHOICE IS IN THE GAME'S DISPLAY MENU." });
     l.push_back({ "smooth", "SMOOTH SCALING", onOff, "0", "ON: THE PICTURE IS SOFTENED AS IT IS SCALED UP TO YOUR SCREEN. OFF: SHARP PIXELS." });
     l.push_back({ "screen_filter", "DS SCREEN FILTER", { { "0", "OFF" }, { "1", "SCANLINES" }, { "2", "LCD GRID" } }, "0",
                   "DS GAMES: A RETRO LOOK OVER THE PICTURE. LCD GRID ADDS A FAINT PIXEL GRID. THE SAME CHOICE IS AVAILABLE IN THE GAME'S DISPLAY MENU." });
@@ -8147,7 +8149,7 @@ inline int GroupOf(const Setting& s)
     if (!strcmp(s.key, "list_lang")) return 0;
     if (!strncmp(s.key, "list_", 5)) return 6;
     if (!strcmp(s.key, "ra") || !strcmp(s.key, "!ra_login")) return 7;
-    static const char* display[] = { "view", "large_screen", "fullscreen", "smooth", "screen_filter", "gba_lcd", "battle_buttons", "show_fps" };
+    static const char* display[] = { "view", "large_screen", "fullscreen", "aspect", "smooth", "screen_filter", "gba_lcd", "battle_buttons", "show_fps" };
     static const char* controls[] = { "start_button", "buttons", "pad_touch", "fast_button" };
     for (const char* k : display)
         if (!strcmp(s.key, k)) return 1;
@@ -8475,7 +8477,7 @@ inline int SettingIcon(const Setting& s, int group)
     if (s.key && !strncmp(s.key, "!group", 6)) { const int g = atoi(s.key + 6); return g >= 0 && g < 10 ? groupIcon[g] : Glass::I_GEAR; }
     if (!s.key) return Glass::I_INFO;
     static const std::pair<const char*, int> own[] = {
-        { "view", Glass::I_LAYOUT }, { "large_screen", Glass::I_EXPAND }, { "fullscreen", Glass::I_FULLSCREEN }, { "smooth", Glass::I_SCREENS },
+        { "view", Glass::I_LAYOUT }, { "large_screen", Glass::I_EXPAND }, { "fullscreen", Glass::I_FULLSCREEN }, { "aspect", Glass::I_RATIO }, { "smooth", Glass::I_SCREENS },
         { "screen_filter", Glass::I_SPARKLE }, { "gba_lcd", Glass::I_SPARKLE }, { "battle_buttons", Glass::I_PAD }, { "show_fps", Glass::I_GAUGE }, { "fps60", Glass::I_FAST }, { "wide", Glass::I_RATIO },
         { "wide_map", Glass::I_GLOBE }, { "wide_lines", Glass::I_LAYERS }, { "busy_detail", Glass::I_GAUGE }, { "ff_low_res", Glass::I_FAST },
         { "wide_gpu", Glass::I_CHIP }, { "volume", Glass::I_SPEAKER }, { "start_button", Glass::I_PAD }, { "buttons", Glass::I_PAD },

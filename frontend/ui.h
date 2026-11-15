@@ -248,6 +248,7 @@ struct Menu
     // the companion (companion_data.h); icons and the map from the player's own ROM, ARGB.
     struct CompanionView
     {
+        bool battleMapped = true; // (false: this game's battles are not read, Companion::BattleMapped)
         struct Mon
         {
             std::string name, item; int level = 0, hp = 0, maxHp = 0, status = 0; bool egg = false; std::vector<uint32_t> icon; int iconW = 0, iconH = 0;
