@@ -9369,7 +9369,7 @@ int main(int argc, char** argv)
         }
         static uint32_t testNavFrames = 0; // (counted from the run's start, as SSR_TEST_PAGE)
         ++testNavFrames;
-        if (testNavAt >= 0 && testNavFrames == (uint32_t)testNavAt) { fdNav.open = true; fdNav.sel = std::clamp(testNavSel, 0, FdNav::APPS - 1); }
+        if (testNavAt >= 0 && testNavFrames == (uint32_t)testNavAt) { fdNav.open = true; readCompanion(true); fdNav.sel = std::clamp(testNavSel, 0, FdNav::APPS - 1); }
         if (!menu.open && pressed(PAD_LS)) fdNavToggle = true;
         if (menu.open) { fdNav.open = false; fdNavToggle = false; }
         const uint32_t fdNavKeys = PadKeys(ps, cfg.byLabel) | kbKeysHeld, fdNavDown = fdNavKeys & ~fdNavKeysWas;
@@ -9379,6 +9379,7 @@ int main(int argc, char** argv)
             fdNavToggle = false;
             fdNav.open = !fdNav.open;
             fdNav.resetAsk = 0;
+            if (fdNav.open) readCompanion(true);
             if (!fdNav.open) swallowMenuButtons = true;
         }
         int fdNavUse = -1;
@@ -9437,7 +9438,44 @@ int main(int argc, char** argv)
                     else say("OPEN PC: NOT HERE");
                 }
                 break;
-            case FdNav::REPEL: say("REPEL: IN THE GBA GAMES"); break;
+            case FdNav::REPEL:
+            {
+                // (One from the Bag's first pocket, ITEMS, where the Repels are in every DS game: the
+                // strongest there; its count down by one, the slot taken out at none as the game does;
+                // the steps as the item gives them, 250, 200 or 100.)
+                if (!companionProfile.supported || !companionProfile.repel || companionProfile.pockets.empty() || opt.lockstep) { say("REPEL: NOT IN THIS GAME YET"); break; }
+                readCompanion(true);
+                auto ram = [&](uint32_t at, size_t n) -> uint8_t* {
+                    if (!nds->MainRAM || at < 0x02000000) return nullptr;
+                    const size_t o = at - 0x02000000;
+                    return o + n <= (size_t)nds->MainRAMMask + 1 ? nds->MainRAM + o : nullptr;
+                };
+                const uint32_t base = companionSnapshot.saveBase;
+                const int slots = companionProfile.pockets[0];
+                uint8_t* steps = base ? ram(base + companionProfile.repel, 1) : nullptr;
+                uint8_t* bag = base ? ram(base + companionProfile.bag, (size_t)slots * 4) : nullptr;
+                if (!steps || !bag) { say("REPEL: START OR LOAD A GAME"); break; }
+                if (*steps) { say("A REPEL IS STILL WORKING: " + std::to_string(*steps) + " STEPS LEFT"); break; }
+                static const int ids[3] = { 77, 76, 79 }, gives[3] = { 250, 200, 100 };
+                static const char* names[3] = { "MAX REPEL", "SUPER REPEL", "REPEL" };
+                int kind = -1, slot = -1;
+                for (int k = 0; k < 3 && kind < 0; k++)
+                    for (int i = 0; i < slots; i++)
+                        if ((bag[i * 4] | bag[i * 4 + 1] << 8) == ids[k] && (bag[i * 4 + 2] | bag[i * 4 + 3] << 8) > 0) { kind = k; slot = i; break; }
+                if (kind < 0) { say("NO REPEL IN YOUR BAG"); break; }
+                int left = (bag[slot * 4 + 2] | bag[slot * 4 + 3] << 8) - 1;
+                if (left > 0) { bag[slot * 4 + 2] = left & 0xFF; bag[slot * 4 + 3] = left >> 8; }
+                else
+                {
+                    memmove(bag + slot * 4, bag + (slot + 1) * 4, (size_t)(slots - slot - 1) * 4);
+                    memset(bag + (slots - 1) * 4, 0, 4);
+                }
+                *steps = (uint8_t)gives[kind];
+                say(std::string("USED A ") + names[kind] + ": " + std::to_string(gives[kind]) + " STEPS (" + std::to_string(left) + " LEFT)");
+                fdNav.open = false; swallowMenuButtons = true;
+                readCompanion(true);
+                break;
+            }
             case FdNav::COUNT: fdNav.counterShown = !fdNav.counterShown; fdNav.SaveCount(); break;
             case FdNav::RESET:
                 if (fdNav.resetAsk && frame - fdNav.resetAsk < 180) { fdNav.open = false; fdNav.resetAsk = 0; swallowMenuButtons = true; resetGame(); }
@@ -12061,7 +12099,13 @@ int main(int argc, char** argv)
             bool dim[FdNav::APPS] = {};
             dim[FdNav::FLY] = !canAct || !flyGame.Supported();
             dim[FdNav::PC] = !canAct;
-            dim[FdNav::REPEL] = true; // (the GBA games' for now)
+            {
+                // (REPEL lit when the Bag has one; as read when the watch opened.)
+                bool repelInBag = false;
+                if (companionProfile.repel && !opt.lockstep)
+                    for (const auto& it : companionSnapshot.items) if (it.pocket == 0 && it.quantity > 0 && (it.id == 76 || it.id == 77 || it.id == 79)) repelInBag = true;
+                dim[FdNav::REPEL] = !repelInBag;
+            }
             std::string label[FdNav::APPS];
             if (fdNav.resetAsk && frame - fdNav.resetAsk < 180) label[FdNav::RESET] = "A again";
             std::string hint = "A: USE   B: CLOSE";
