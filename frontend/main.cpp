@@ -1,5 +1,8 @@
 // ssrecomp frontend: boots the game on the melonDS core with an SDL2 window,
 // or headless with scripted input, screenshots and state hashes for testing.
+#ifdef __ANDROID__
+#include <sys/system_properties.h>
+#endif
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -6106,7 +6109,7 @@ int main(int argc, char** argv)
                        "Sun and Moon: FIGHT across the top, POKEMON, BAG and RUN below it.", art);
             }
             picker(M_NAVSTYLE, "NAV STYLE", Glass::I_GRID, Menu::P_NONE, { "MODERN", "CLASSIC", "SIMPLE", "WHEEL" }, std::clamp(cfg.navStyle, 0, 3),
-                   "FullDex Nav, opened with L3 or Tab: a watch with a graphite case and a glass face, the first one (a red watch), a plain glass card, or a wheel of its apps alone.",
+                   "FullDex Nav, opened with L3 or N: a watch with a graphite case and a glass face, the first one (a red watch), a plain glass card, or a wheel of its apps alone.",
                    "Its apps are the same in both.");
             toggle(M_ZOOM, "ZOOM AND LOOK AROUND", Glass::I_SPARKLE, Menu::P_NONE, cfg.zoom,
                    "A click of the right stick (C on a keyboard) zooms out in steps to show more of the world, and the right stick looks around.",
@@ -7784,7 +7787,7 @@ int main(int argc, char** argv)
     bool prevComboMenu = false;
     bool ctrlStart = false, touchStart = false, prevCtrlStart = false; // see cfg.startMenu
     bool swallowMenuButtons = false; // keeps the buttons that closed the menu from reaching the game
-    // FULLDEX NAV (fulldex_nav.h): the quick menu, opened with L3 or Tab; its encounter counter is kept
+    // FULLDEX NAV (fulldex_nav.h): the quick menu, opened with L3 or N; its encounter counter is kept
     // beside the save (<save>.counter).
     FdNav::State fdNav;
     fdNav.countFile = opt.noSave ? std::string() : opt.save + ".counter";
@@ -9115,9 +9118,9 @@ int main(int argc, char** argv)
                 const bool zoomKey = keyFree(SDL_SCANCODE_C);
                 if (zoomKey && !zoomKeyWas) dsZoomCycle = true;
                 zoomKeyWas = zoomKey;
-                // (FULLDEX NAV: Tab opens and closes it.)
+                // (FULLDEX NAV: N opens and closes it. Not Tab: that changes the screen layout.)
                 static bool navKeyWas = false;
-                const bool navKey = keyFree(SDL_SCANCODE_TAB);
+                const bool navKey = keyFree(SDL_SCANCODE_N);
                 if (navKey && !navKeyWas) fdNavToggle = true;
                 navKeyWas = navKey;
                 if (dsZoomLooking)
@@ -9352,13 +9355,18 @@ int main(int argc, char** argv)
         prevComboMenu = comboMenu;
         prevCtrlStart = ctrlStart;
 
-        // FULLDEX NAV: L3 (the left stick pressed) or Tab opens and closes it; the game keeps running
+        // FULLDEX NAV: L3 (the left stick pressed) or N opens and closes it; the game keeps running
         // behind it but gets none of the buttons. D-pad and A choose, B closes; on COUNTER X sets it to
         // 0. A tap or a click on an app uses it, one outside the watch closes it.
         // (Test runs: SSR_TEST_NAV=<frame>,<app>[,1] opens it at that frame on that app; ,1 also uses the
         // app 10 frames later.)
         static int testNavAt = -2, testNavSel = 0, testNavUse = 0;
-        if (testNavAt == -2) { testNavAt = -1; if (const char* t = getenv("SSR_TEST_NAV")) sscanf(t, "%d,%d,%d", &testNavAt, &testNavSel, &testNavUse); }
+        if (testNavAt == -2) { testNavAt = -1; if (const char* t = getenv("SSR_TEST_NAV")) sscanf(t, "%d,%d,%d", &testNavAt, &testNavSel, &testNavUse);
+#ifdef __ANDROID__
+            else { char v[92] = {}; if (__system_property_get("debug.fulldex.navtest", v) > 0 && v[0] != '-') sscanf(v, "%d,%d,%d", &testNavAt, &testNavSel, &testNavUse);
+                   if (__system_property_get("debug.fulldex.navstyle", v) > 0 && v[0] >= '0' && v[0] <= '3') cfg.navStyle = v[0] - '0'; }
+#endif
+        }
         static uint32_t testNavFrames = 0; // (counted from the run's start, as SSR_TEST_PAGE)
         ++testNavFrames;
         if (testNavAt >= 0 && testNavFrames == (uint32_t)testNavAt) { fdNav.open = true; fdNav.sel = std::clamp(testNavSel, 0, FdNav::APPS - 1); }
@@ -12059,7 +12067,49 @@ int main(int argc, char** argv)
             std::string hint = "A: USE   B: CLOSE";
             if (fdNav.sel == FdNav::COUNT) hint = std::string("A: ") + (fdNav.counterShown ? "HIDE" : "SHOW") + " ON SCREEN   X: SET TO 0   B: CLOSE";
             else if (fdNav.sel == FdNav::RESET) hint = "A TWICE: RESET THE GAME   B: CLOSE";
-            FdNav::Draw(canvas, g, fdNav, dim, label, hint, cfg.navStyle);
+            static Canvas navCache;
+            static std::string navKey;
+            static int navBox[4] = {}, navDraws = 0, navFrames = 0;
+            static double navMs = 0;
+            static const bool navNoCache = getenv("SSR_NAV_NOCACHE") != nullptr
+#ifdef __ANDROID__
+                || [] { char v[92] = {}; return __system_property_get("debug.fulldex.navnocache", v) > 0 && v[0] == '1'; }()
+#endif
+                ;
+            const double navT0 = perfNow();
+            char navClock[8] = "--:--";
+            const time_t navNow = time(nullptr);
+            if (const tm* t = localtime(&navNow)) snprintf(navClock, sizeof(navClock), "%02d:%02d", t->tm_hour, t->tm_min);
+            std::string key = std::to_string(outW) + "x" + std::to_string(outH) + "|" + std::to_string(cfg.navStyle) + "|" +
+                              std::to_string(g.x) + "," + std::to_string(g.y) + "," + std::to_string(g.w) + "|" + std::to_string(fdNav.sel) + "|" +
+                              std::to_string(fdNav.count) + "|" + navClock + "|" + hint;
+            for (int i = 0; i < FdNav::APPS; i++) { key += dim[i] ? "|1" : "|0"; key += label[i]; }
+            if (navNoCache || key != navKey || navCache.w != outW || navCache.h != outH)
+            {
+                navCache.Resize(outW, outH);
+                navCache.Clear();
+                FdNav::Draw(navCache, g, fdNav, dim, label, hint, cfg.navStyle);
+                navBox[0] = navCache.x0d; navBox[1] = navCache.y0d; navBox[2] = navCache.x1d; navBox[3] = navCache.y1d;
+                navKey = key;
+                navDraws++;
+            }
+            // (Copied onto the picture: as drawn where the picture is see-through, laid over anything already there.)
+            for (int y = navBox[1]; y < navBox[3]; y++)
+            {
+                const uint32_t* src = &navCache.px[(size_t)y * outW];
+                uint32_t* dst = &canvas.px[(size_t)y * canvas.w];
+                for (int x = navBox[0]; x < navBox[2]; x++)
+                    if (const uint32_t v = src[x]) dst[x] = (dst[x] >> 24) == 0 ? v : Glass::Over(dst[x], v);
+            }
+            if (navBox[2] > navBox[0]) Glass::Mark(canvas, navBox[0], navBox[1], navBox[2], navBox[3]);
+            navMs += perfNow() - navT0;
+            if (++navFrames == 300)
+            {
+                fprintf(stderr, "[nav] style %d, %dx%d: %.2f ms per frame, drawn %d times in 300 frames%s\n", cfg.navStyle, outW, outH,
+                        navMs / 300, navDraws, navNoCache ? " (no cache)" : "");
+                navFrames = navDraws = 0;
+                navMs = 0;
+            }
             overlayUsed = true;
         }
         else if (fdNav.counterShown && !menu.open)

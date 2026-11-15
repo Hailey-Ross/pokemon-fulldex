@@ -190,9 +190,9 @@ inline void DrawClassic(Canvas& c, const Geo& g, const State& s, const bool dim[
     const float k = g.k;
     auto K = [&](float v) { return (int)std::lround(v * k); };
     // (Its shadow, the watch's body and sheen, the button on its side.)
-    Glass::Round(c, g.x + K(6), g.y + K(10), g.w, g.h, 50 * k, 0x60000000);
     Glass::Round(c, g.x, g.y, g.w, g.h, 50 * k, 0xFFC82C2E, 0xFF701218, 4 * k);
-    Glass::Round(c, g.x + K(14), g.y + K(8), g.w - K(28), K(22), 12 * k, 0xFFE45C54);
+    Glass::Round(c, g.x + K(5), g.y + K(4), g.w - K(10), g.h - K(14), 46 * k, 0xFFE45C54);
+    Glass::Round(c, g.x + K(5), g.y + K(9), g.w - K(10), g.h - K(14), 46 * k, 0xFFC82C2E);
     Glass::Round(c, g.x + g.w - K(4), g.y + K(150), K(18), K(70), 6 * k, 0xFF961C1E, 0xFF701218, 3 * k);
     // (The screen.)
     Glass::Round(c, g.sx0 - K(8), g.sy0 - K(8), g.sx1 - g.sx0 + K(16), g.sy1 - g.sy0 + K(16), 20 * k, 0xFF221C20);
@@ -254,7 +254,6 @@ inline void DrawSimple(Canvas& c, const Geo& g, const State& s, const bool dim[A
     const float k = g.k;
     auto K = [&](float v) { return (int)std::lround(v * k); };
     // (The watch: dark glass as the companion window's, its light rim, the crown on its side.)
-    Glass::Round(c, g.x + K(4), g.y + K(10), g.w, g.h, 44 * k, 0x50000000);
     Glass::Round(c, g.x, g.y, g.w, g.h, 44 * k, 0xE0101826);
     Glass::Rim(c, g.x, g.y, g.w, g.h, 44 * k, std::max(1.2f, 1.8f * k));
     Glass::Round(c, g.x + g.w - K(3), g.y + K(150), K(12), K(64), 6 * k, 0x60FFFFFF);
@@ -264,7 +263,7 @@ inline void DrawSimple(Canvas& c, const Geo& g, const State& s, const bool dim[A
     const int fs = std::max(9, K(16));
     T(c, g.x + K(26), g.y + K(36), "FullDex Nav", fs, Menu::GlassText, true, false);
     T(c, g.x + g.w - K(26) - W(clock, fs, true, false), g.y + K(36), clock, fs, Menu::GlassHint, true, false);
-    c.Fill(g.x + K(22), g.y + K(48), g.w - K(44), 1, 0x32FFFFFF);
+    Glass::Round(c, g.x + K(22), g.y + K(48), g.w - K(44), std::max(1, K(1)), 0, 0x40FFFFFF);
     const uint32_t ink = Menu::GlassText;
     const int ls = std::max(8, K(13));
     for (int i = 0; i < APPS; i++)
@@ -378,22 +377,22 @@ inline void Draw(Canvas& c, const Geo& g, const State& s, const bool dim[APPS], 
     Glass::Round(c, sx, g.y + g.h - K(40), sw, K(130), 24 * k, 0xFF22262E);
     for (int yy = g.y - K(58); yy < g.y; yy += std::max(4, K(14))) c.Fill(sx + K(18), yy, sw - K(36), groove, 0xFF30363F);
     for (int yy = g.y + g.h + K(4); yy < std::min(c.h, g.y + g.h + K(86)); yy += std::max(4, K(14))) c.Fill(sx + K(18), yy, sw - K(36), groove, 0xFF30363F);
-    Glass::Round(c, g.x + K(4), g.y + K(10), g.w, g.h, 70 * k, 0x50000000);
     Glass::Round(c, g.x, g.y, g.w, g.h, 70 * k, 0xFF40444E, 0xFF969CA8, 2 * k);
     {
         // (The case's shading, light at the top to dark at the bottom, inside its rounded edge.)
         const float r = 70 * k - 3;
-        for (int y = g.y + K(3); y < g.y + g.h - K(3); y++)
+        Glass::Round(c, g.x + K(3), g.y + K(3), g.w - K(6), g.h - K(6), 67 * k, 0xFF8A909C);
+        const int top = g.y + K(6);
+        for (int y = top; y < g.y + g.h - K(3); y++)
         {
-            const float t = (y - g.y) / (float)std::max(1, g.h), dy = (float)std::min(y - g.y, g.y + g.h - 1 - y);
+            const float t = (y - g.y) / (float)std::max(1, g.h), dy = (float)std::min(y - top + K(3), g.y + g.h - 1 - y);
             const int inset = dy < r ? (int)std::ceil(r - std::sqrt(std::max(0.0f, r * r - (r - dy) * (r - dy)))) : 0;
             const uint32_t col = 0xFF000000u | ((uint32_t)(92 - 56 * t) << 16) | ((uint32_t)(98 - 58 * t) << 8) | (uint32_t)(110 - 62 * t);
             c.Fill(g.x + inset + K(3), y, g.w - 2 * inset - K(6), 1, col);
         }
     }
-    Glass::Round(c, g.x + K(18), g.y + K(4), g.w - K(36), K(6), 3 * k, 0x78B4BAC4);
     Glass::Round(c, g.x + g.w - K(4), g.y + K(110), K(20), K(60), 8 * k, 0xFFCE2E30, 0xFF141418, 2 * k);
-    for (int yy = g.y + K(116); yy < g.y + K(166); yy += std::max(3, K(6))) c.Fill(g.x + g.w + K(3), yy, K(11), 1, 0x60000000);
+    for (int yy = g.y + K(116); yy < g.y + K(166); yy += std::max(3, K(6))) Glass::Round(c, g.x + g.w + K(3), yy, K(11), 1, 0, 0x60000000);
     Glass::Round(c, g.x + g.w - K(3), g.y + K(210), K(12), K(60), 5 * k, 0xFF464C56, 0xFF141418, 2 * k);
     Glass::Round(c, g.sx0 - K(3), g.sy0 - K(3), g.sx1 - g.sx0 + K(6), g.sy1 - g.sy0 + K(6), 56 * k, 0xFF080A0E);
     Glass::Round(c, g.sx0, g.sy0, g.sx1 - g.sx0, g.sy1 - g.sy0, 54 * k, 0xF2121A24);
@@ -404,7 +403,7 @@ inline void Draw(Canvas& c, const Geo& g, const State& s, const bool dim[APPS], 
     const int fs = std::max(9, K(16));
     T(c, g.sx0 + K(24), g.sy0 + K(32), "FullDex Nav", fs, Menu::GlassText, true, false);
     T(c, g.sx1 - K(24) - W(clock, fs, true, false), g.sy0 + K(32), clock, fs, Menu::GlassHint, true, false);
-    c.Fill(g.sx0 + K(20), g.sy0 + K(44), g.sx1 - g.sx0 - K(40), 1, 0x32FFFFFF);
+    Glass::Round(c, g.sx0 + K(20), g.sy0 + K(44), g.sx1 - g.sx0 - K(40), std::max(1, K(1)), 0, 0x40FFFFFF);
     const uint32_t ink = Menu::GlassText;
     const int ls = std::max(8, K(13));
     for (int i = 0; i < APPS; i++)
