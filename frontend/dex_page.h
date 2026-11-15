@@ -7,6 +7,7 @@
 // may not be the original's. Included in launcher.h after the Hub's other pages.
 
 #ifdef SSR_POKEMON_HUB
+#include <chrono>
 #include <filesystem>
 #include <map>
 
@@ -35,7 +36,9 @@ inline CombinedDex& DexNow()
 {
     static CombinedDex d;
     // (Looked at again at most every two seconds: each save's time, then read only if one changed.)
-    const uint32_t now = SDL_GetTicks();
+    // (The standard clock, not SDL's: the Switch launcher has no SDL.)
+    const uint32_t now = (uint32_t)std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
     if (d.checkedAt && now - d.checkedAt < 2000) return d;
     d.checkedAt = now ? now : 1;
     const std::vector<MoverGame> gs = MoverGames();
