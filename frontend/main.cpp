@@ -4,6 +4,7 @@
 #include <sys/system_properties.h>
 #endif
 #include <algorithm>
+#include "folders.h"
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -800,6 +801,8 @@ static bool ParseArgs(int argc, char** argv, Options& o)
         std::string a = argv[i];
         auto next = [&]() -> std::string { return (i + 1 < argc) ? argv[++i] : ""; };
         if (a == "--save") o.save = next();
+        else if (a == "--states") FolderSet::States() = next(); // (FOLDERS: the save states' folder)
+        else if (a == "--cheats") FolderSet::CheatsDir() = next(); // (FOLDERS: the cheats' folder)
         else if (a == "--no-save") o.noSave = true;
         else if (a == "--layout") { o.layout = next(); o.layoutGiven = true; }
         else if (a == "--config") o.config = next();
@@ -2292,7 +2295,8 @@ int main(int argc, char** argv)
     const size_t slash = opt.save.find_last_of("/\\");
     std::string dir = slash == std::string::npos ? "." : opt.save.substr(0, slash);
     if (opt.config.empty()) opt.config = dir + "/ssrecomp.cfg";
-    const std::string quickState = opt.save + ".state";
+    if (!FolderSet::States().empty()) FolderSet::MakeDirs(FolderSet::States());
+    const std::string quickState = FolderSet::StateOf(opt.save); // (FOLDERS: in the states folder, or beside the save)
     std::string pendingState = quickState;
     const std::string undoLoadState = quickState + ".undo-load";
     RewindHistory rewindHistory;
@@ -10315,7 +10319,10 @@ int main(int argc, char** argv)
         ffRefreshes = 1;
         if (!paused && !swallowMenuButtons)
         {
-            if (saveEdge) saveQuick();
+            // (Tests: SSR_TEST_QUICKSAVE=<frame> saves the quick state at that frame.)
+            static const long testQuickSave = getenv("SSR_TEST_QUICKSAVE") ? atol(getenv("SSR_TEST_QUICKSAVE")) : -1;
+            static long testQuickFrames = 0;
+            if (saveEdge || (testQuickSave >= 0 && ++testQuickFrames == testQuickSave)) saveQuick();
             if (loadEdge) loadQuick();
             PadState toGame = ps;
             if (cfg.startMenu && ctrlStart) toGame.btn[PAD_START] = touchStart; // (START is the menu's)

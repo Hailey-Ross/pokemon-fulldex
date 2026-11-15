@@ -69,6 +69,9 @@ public class GameActivity extends SDLActivity {
     private SecondScreen secondScreen;
     // True from chooseFolder() until the picker (and the access question before it) is done.
     private static volatile boolean picking;
+    // FOLDERS (Settings): the kind a folder is being chosen for ("saves", "states", "cheats",
+    // "settings"), null when the picker is for the ROM folder.
+    private static volatile String pickPurpose;
     private boolean waitingForAccess;
     private Intent startupRomIntent;
     private static final java.util.concurrent.atomic.AtomicBoolean openingRom = new java.util.concurrent.atomic.AtomicBoolean();
@@ -327,6 +330,21 @@ public class GameActivity extends SDLActivity {
     }
 
     // Asks for access to files if the app does not have it yet, then shows the folder picker.
+    // FOLDERS: the folder picker for one kind; takePicked gives its path back ("!" one that cannot be
+    // used, "-" none chosen) once picking() is false.
+    public static void chooseFolderFor(String purpose) {
+        if (self == null || picking) return;
+        pickPurpose = purpose;
+        picking = true;
+        self.runOnUiThread(() -> self.nextStep());
+    }
+    public static String takePicked(String purpose) {
+        if (self == null) return "";
+        String v = prefs().getString("picked_" + purpose, "");
+        if (!v.isEmpty()) prefs().edit().remove("picked_" + purpose).apply();
+        return v;
+    }
+
     public static void chooseFolder() {
         if (self == null || picking) return;
         picking = true;
@@ -447,6 +465,14 @@ public class GameActivity extends SDLActivity {
             // (Restart game: the game asks to be started again.)
             Object restart = call3ds("restartCode", new Class<?>[0]);
             if (restart != null && result == (Integer) restart) threeDsPlay(playing3ds);
+            return;
+        }
+        if (request == PICK_FOLDER && pickPurpose != null) {
+            String purpose = pickPurpose;
+            pickPurpose = null;
+            String path = result == RESULT_OK && data != null && data.getData() != null ? pathOf(data.getData()) : null;
+            prefs().edit().putString("picked_" + purpose, path != null && broadFileAccess() ? path : result == RESULT_OK ? "!" : "-").apply();
+            picking = false;
             return;
         }
         if (request == PICK_FOLDER) {

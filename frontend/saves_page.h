@@ -1,3 +1,4 @@
+#include "folders.h"
 // MANAGE SAVES (a game's menu): one game's saves on a page of their own, the Hub's page 3 (HubMode
 // 3), its list on the left and its save states on the right (below, on an upright phone).
 //  - Game Save: when it was saved, its size, whether it looks right (Health) and how it stands with
@@ -45,7 +46,7 @@ inline bool SvExists(const std::string& p) { std::error_code ec; return std::fil
 inline long long SvSize(const std::string& p) { std::error_code ec; const auto n = std::filesystem::file_size(std::filesystem::u8path(p), ec); return ec ? -1 : (long long)n; }
 inline std::string SvDir(const std::string& save) { return std::filesystem::u8path(save).parent_path().u8string(); }
 inline std::string SvKB(long long n) { return n >= 1024 ? std::to_string(n / 1024) + " KB" : std::to_string(n) + " bytes"; }
-inline std::string SavesStatePath() { return Saves().save + ".state"; }
+inline std::string SavesStatePath() { return FolderSet::StateOf(Saves().save); } // (FOLDERS)
 inline std::string SavesSlot(int i) { return StateSlots::Path(SavesStatePath(), i); }
 // "4 Nov 2026, 12:44" from a backup's "2026-11-04 12:44:55".
 inline std::string SvBackupWhen(const std::string& l)

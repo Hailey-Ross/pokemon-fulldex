@@ -7972,6 +7972,29 @@ inline std::vector<Setting> SettingsList()
                   "WHERE YOUR SAVES ARE KEPT. CHOOSE A FOLDER OF YOUR OWN: YOUR SAVES AND FULLDEX FILES ARE COPIED THERE (NOTHING THERE IS REPLACED / THE OLD FOLDER STAYS AS IT IS) "
                   "AND FULLDEX USES IT FROM ITS NEXT START. A FOLDER DROPBOX OR ONEDRIVE OR SYNCTHING KEEPS IN SYNC WORKS TOO. CHOOSE AGAIN TO GO BACK TO THE FOLDER BESIDE THE ROMS." });
 #endif
+#if !defined(__SWITCH__)
+    l.push_back({ "!folders", "FOLDERS", { { "", "TIDY" } }, "",
+                  "TIDY: YOUR SAVES, SAVE STATES, CHEATS AND FULLDEX'S OWN SETTINGS FILES EACH IN A FOLDER OF THEIR OWN (SAVES, STATES, CHEATS, SETTINGS), "
+                  "SO THE ROMS FOLDER KEEPS ONLY THE ROMS. AS BEFORE: ALL OF THEM TOGETHER IN THE SAVES FOLDER. CHOOSE TO SWITCH: EVERY FILE IS COPIED AND "
+                  "CHECKED BEFORE THE OLD ONE IS REMOVED. A SAVES FOLDER OF YOUR OWN IS LEFT AS IT IS." });
+#endif
+#ifdef __ANDROID__
+    l.push_back({ "!saves_folder", "SAVES FOLDER", { { "", "FULLDEX'S" } }, "",
+                  "WHERE YOUR SAVES ARE KEPT. CHOOSE A FOLDER OF YOUR OWN (ONE SYNCTHING KEEPS IN SYNC, SAY): YOUR SAVES ARE COPIED THERE "
+                  "(NOTHING THERE IS REPLACED / THE OLD ONES STAY) AND IT IS USED FROM THEN ON. CHOOSE AGAIN TO GO BACK TO FULLDEX'S OWN." });
+#endif
+#if !defined(__SWITCH__)
+    l.push_back({ "!states_folder", "SAVE STATES FOLDER", { { "", "FULLDEX'S" } }, "",
+                  "WHERE YOUR SAVE STATES ARE KEPT. CHOOSE A FOLDER OF YOUR OWN (A SYNCTHING OR RETROARCH ONE, SAY): THE ONES YOU HAVE ARE "
+                  "COPIED THERE (NOTHING THERE IS REPLACED / THE OLD ONES STAY) AND IT IS USED AT ONCE. CHOOSE AGAIN TO GO BACK TO FULLDEX'S OWN." });
+    l.push_back({ "!cheats_folder", "CHEATS FOLDER", { { "", "FULLDEX'S" } }, "",
+                  "WHERE YOUR CHEATS AND WHICH ARE ON ARE KEPT. CHOOSE A FOLDER OF YOUR OWN: THEY ARE COPIED THERE (NOTHING THERE IS REPLACED) "
+                  "AND IT IS USED AT ONCE. CHOOSE AGAIN TO GO BACK TO FULLDEX'S OWN." });
+    l.push_back({ "!settings_folder", "SETTINGS FOLDER", { { "", "FULLDEX'S" } }, "",
+                  "WHERE FULLDEX'S OWN FILES ARE KEPT: YOUR TABS, GAME NAMES, HIDDEN GAMES, PICTURES, LOOK AND PLAY TIME. CHOOSE A FOLDER OF YOUR OWN "
+                  "TO BACK THEM UP OR SHARE THEM BETWEEN DEVICES: THEY ARE COPIED THERE (NOTHING THERE IS REPLACED) AND IT IS USED AT ONCE. "
+                  "CHOOSE AGAIN TO GO BACK TO FULLDEX'S OWN." });
+#endif
     l.push_back({ "!releases", "RELEASE PAGE", { { "", "OPEN" } }, "",
                   "OPENS THE LIST OF RELEASES ON GITHUB: THE CHANGES IN EACH VERSION, AND THE DOWNLOADS." });
     l.push_back({ nullptr, "RELEASE NOTES", {}, "",
@@ -8144,6 +8167,7 @@ inline int GroupOf(const Setting& s)
     if (s.key && (!strcmp(s.key, "!updates") || !strcmp(s.key, "!releases"))) return 8;
     if (s.key && !strcmp(s.key,"!favourite")) return 6;
     if (s.key && !strcmp(s.key, "!saves_folder")) return 6; // (GAME LIST)
+    if (s.key && (!strcmp(s.key, "!folders") || !strcmp(s.key, "!states_folder") || !strcmp(s.key, "!cheats_folder") || !strcmp(s.key, "!settings_folder"))) return 6;
     if (!s.key) return !strcmp(s.name, "KEYS AND BUTTONS") ? 3 : !strcmp(s.name, "RELEASE NOTES") ? 8 : 7;
     if (!strncmp(s.key,"extra_",6)) return 9;
     if (!strcmp(s.key, "list_lang")) return 0;
