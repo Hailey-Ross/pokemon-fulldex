@@ -5414,6 +5414,7 @@ int main(int argc, char** argv)
     unsigned secondDrawnVersion = ~0u;
     int secondDrawnTab = -1;
     uint32_t secondSince = 0;
+    bool secondDrawnGlass = false;
     int liveTab = 0, liveTabBeforeBattle = -1, liveTabRects[6][4] = {}, livePanel[4] = {};
     bool liveWasInBattle = false;
     // A tap or click at (x, y) on the screen: on a tab, that tab; anywhere on the window, kept from the game.
@@ -5432,12 +5433,18 @@ int main(int argc, char** argv)
             companionSnapshot.message="OPEN COMPANION TO READ DATA, OR ENABLE LIVE COMPANION IN OPTIONAL FEATURES.";
             return;
         }
+        // (What was read, as one number: a read that found the same as the last one is not counted as
+        // new, so the live companion's pictures, on the second display too, are not drawn again for nothing.)
+        uint64_t readHash = 1469598103934665603ULL;
         companionSnapshot = Companion::Read(companionProfile, [&](uint32_t at, void* out, size_t count) {
             if (!Companion::MainRange(at,count) || !nds->MainRAM) return false;
             // Called between emulated frames, before the worker is kicked. Do not sample on the UI thread.
             const size_t offset = at - 0x02000000;
             if (offset + count > (size_t)nds->MainRAMMask + 1) return false;
             memcpy(out, nds->MainRAM + offset, count);
+            readHash = (readHash ^ at) * 1099511628211ULL;
+            const uint8_t* bytes = (const uint8_t*)out;
+            for (size_t i = 0; i < count; i++) readHash = (readHash ^ bytes[i]) * 1099511628211ULL;
             return true;
         });
         // (A Pokemon the game is changing as it was read, its friendship as you walk, its HP in a
@@ -5450,7 +5457,13 @@ int main(int argc, char** argv)
             { snap.party = lastParty; snap.invalidSlots = 0; }
             else if (snap.ready && snap.invalidSlots == 0) lastParty = snap.party;
         }
-        companionVersion++;
+        {
+            static uint64_t lastReadHash = 0;
+            const uint64_t key = readHash ^ ((uint64_t)companionSnapshot.ready << 1) ^ ((uint64_t)companionSnapshot.party.size() << 8)
+                ^ ((uint64_t)companionSnapshot.invalidSlots << 16) ^ ((uint64_t)requested << 24);
+            if (requested || key != lastReadHash) companionVersion++;
+            lastReadHash = key;
+        }
         if(!opt.noSave && !nuzlocke.Observe(companionSnapshot))nuzlockeWriteFailed=true;
         static int companionDiagnosticLive=-1;
         if(getenv("SSR_COMPANION_DIAGNOSTICS") && (companionDiagnosticReady!=(int)companionSnapshot.ready || companionDiagnosticCount!=(int)companionSnapshot.party.size() || companionDiagnosticLive!=(int)companionSnapshot.locationLive))
@@ -8067,21 +8080,40 @@ int main(int argc, char** argv)
             if (companionSnapshot.ready && liveViewVersion != companionVersion) { fillCompanionView(liveView); liveViewVersion = companionVersion; }
             const bool inBattle = !liveView.battle.empty();
             CompanionTabs::Battle(inBattle, liveWasInBattle, liveTab, liveTabBeforeBattle);
-            if (++secondSince >= 30 || secondDrawnVersion != liveViewVersion || secondDrawnTab != liveTab)
+            // (FROSTED GLASS on: the game's top screen under the glass, blurred again every half second.
+            // Off, as by default: dark glass, drawn again only when what it shows changes. The blur cost
+            // the game a frame or two each time.)
+            if ((cfg.liveGlass && ++secondSince >= 30) || secondDrawnVersion != liveViewVersion || secondDrawnTab != liveTab
+                || secondDrawnGlass != cfg.liveGlass)
             {
-                // (The game's top screen, stretched to the canvas and blurred, under the glass.)
+                static const bool secondPerf = true; // (logged as [perf] is: once every 20 draws)
+                const double s0 = secondPerf ? perfNow() : 0;
                 const uint32_t* game = j.top;
-                if (game)
+                if (cfg.liveGlass && game)
                 {
-                    std::vector<uint32_t> big((size_t)sw * sh);
+                    static std::vector<uint32_t> big;
+                    big.resize((size_t)sw * sh);
                     for (int y = 0; y < sh; y++)
                         for (int x = 0; x < sw; x++) big[(size_t)y * sw + x] = game[(y * 192 / sh) * 256 + x * 256 / sw] | 0xFF000000u;
                     Glass::MakeBackdrop(secondCanvas.backdrop, big.data(), sw, sh);
                 }
+                else if (!cfg.liveGlass) secondCanvas.backdrop.clear();
                 Glass::Backdrop(secondCanvas);
+                const double s1 = secondPerf ? perfNow() : 0;
                 CompanionWindow(secondCanvas, liveView, liveTab, secondTabRects, nullptr, true);
+                const double s2 = secondPerf ? perfNow() : 0;
                 secondDisplay.Submit(secondCanvas.px.data(), sw, sh);
-                secondSince = 0; secondDrawnVersion = liveViewVersion; secondDrawnTab = liveTab;
+                if (secondPerf)
+                {
+                    static double backMs = 0, drawMs = 0, sendMs = 0; static int draws = 0;
+                    backMs += s1 - s0; drawMs += s2 - s1; sendMs += perfNow() - s2;
+                    if (++draws == 20)
+                    {
+                        fprintf(stderr, "[second] companion per draw: backdrop %.2f ms, window %.2f ms, sent %.2f ms\n", backMs / 20, drawMs / 20, sendMs / 20);
+                        backMs = drawMs = sendMs = 0; draws = 0;
+                    }
+                }
+                secondSince = 0; secondDrawnVersion = liveViewVersion; secondDrawnTab = liveTab; secondDrawnGlass = cfg.liveGlass;
             }
         }
         else secondDisplay.Submit(DsDisplayState::Swapped(secondDisplay.State()) ? j.top : j.bot);

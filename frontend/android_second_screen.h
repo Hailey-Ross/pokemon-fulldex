@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <cstdint>
 
 namespace DsDisplayState
@@ -23,22 +24,163 @@ inline bool Touch(uint64_t state, int& x, int& y)
 
 #if defined(__ANDROID__) && (defined(SSR_PC_LAUNCHER) || defined(GBAW_EMBEDDED))
 #include <jni.h>
+#include <android/native_window.h>
+#include <android/native_window_jni.h>
+#include <atomic>
+#include <condition_variable>
+#include <mutex>
+#include <thread>
+#include <vector>
 
-// All JNI calls stay on SDL's main thread. Java owns the second window and a bounded
-// latest-frame mailbox; it never accesses the emulator or its mutable framebuffer.
+// Draws the second display's pictures into its surface, on a thread of its own: the game's thread
+// only copies the newest picture into a mailbox (a picture not drawn yet is replaced by the next).
+// Scaled as the Java fallback and DsScreenGeometry.touch do (fit, centred, nearest pixel), so touches
+// land where they did.
+class SecondScreenPainter
+{
+    std::mutex m;
+    std::condition_variable cv;
+    std::thread worker;
+    bool quit = false, pending = false;
+    std::vector<uint32_t> next, cur;
+    int nextW = 0, nextH = 0;
+    ANativeWindow* window = nullptr; // (one reference held here)
+    int windowSerial = 0;
+    std::vector<int> mapX;
+    void Run()
+    {
+        for (;;)
+        {
+            ANativeWindow* win = nullptr;
+            int w = 0, h = 0, serial = 0;
+            {
+                std::unique_lock<std::mutex> hold(m);
+                cv.wait(hold, [&] { return quit || (pending && window); });
+                if (quit) return;
+                cur.swap(next);
+                w = nextW; h = nextH; pending = false;
+                win = window; serial = windowSerial;
+                ANativeWindow_acquire(win);
+            }
+            if (Draw(win, w, h)) { postedW = w; postedH = h; postedSerial = serial; }
+            ANativeWindow_release(win);
+        }
+    }
+    bool Draw(ANativeWindow* win, int w, int h)
+    {
+        if (w <= 0 || h <= 0 || cur.size() < (size_t)w * h) return false;
+        if (ANativeWindow_setBuffersGeometry(win, 0, 0, WINDOW_FORMAT_RGBX_8888) != 0) return false;
+        ANativeWindow_Buffer buf;
+        if (ANativeWindow_lock(win, &buf, nullptr) != 0) return false;
+        const int W = buf.width, H = buf.height;
+        uint32_t* out = (uint32_t*)buf.bits;
+        if (W > 0 && H > 0 && out)
+        {
+            const float scale = std::min(W / (float)w, H / (float)h);
+            const int dw = std::max(1, std::min(W, (int)(w * scale))), dh = std::max(1, std::min(H, (int)(h * scale)));
+            const int left = (W - dw) / 2, top = (H - dh) / 2;
+            mapX.resize(dw);
+            for (int x = 0; x < dw; x++) mapX[x] = std::min(w - 1, (int)(x / scale));
+            for (int y = 0; y < H; y++)
+            {
+                uint32_t* row = out + (size_t)y * buf.stride;
+                if (y < top || y >= top + dh) { std::fill(row, row + W, 0xFF000000u); continue; }
+                std::fill(row, row + left, 0xFF000000u);
+                std::fill(row + left + dw, row + W, 0xFF000000u);
+                const uint32_t* src = cur.data() + (size_t)std::min(h - 1, (int)((y - top) / scale)) * w;
+                uint32_t* dst = row + left;
+                for (int x = 0; x < dw; x++)
+                {
+                    const uint32_t p = src[mapX[x]]; // (0xAARRGGBB to the surface's R, G, B, X in memory)
+                    dst[x] = 0xFF000000u | (p & 0x0000FF00u) | ((p >> 16) & 0xFFu) | ((p & 0xFFu) << 16);
+                }
+            }
+        }
+        return ANativeWindow_unlockAndPost(win) == 0;
+    }
+public:
+    std::atomic<int> postedSerial { 0 }, postedW { 0 }, postedH { 0 };
+    ~SecondScreenPainter() { Stop(); }
+    // A new surface (its reference passes to this), or none.
+    void SetWindow(ANativeWindow* win, int serial)
+    {
+        {
+            std::lock_guard<std::mutex> hold(m);
+            if (window) ANativeWindow_release(window);
+            window = win; windowSerial = win ? serial : 0;
+            pending = false;
+        }
+        if (win && !worker.joinable()) { quit = false; worker = std::thread([this] { Run(); }); }
+    }
+    bool HasWindow() { std::lock_guard<std::mutex> hold(m); return window != nullptr; }
+    void Put(const uint32_t* px, int w, int h)
+    {
+        {
+            std::lock_guard<std::mutex> hold(m);
+            if (!window) return;
+            next.assign(px, px + (size_t)w * h);
+            nextW = w; nextH = h; pending = true;
+        }
+        cv.notify_one();
+    }
+    void Stop()
+    {
+        { std::lock_guard<std::mutex> hold(m); quit = true; }
+        cv.notify_one();
+        if (worker.joinable()) worker.join();
+        std::lock_guard<std::mutex> hold(m);
+        if (window) ANativeWindow_release(window);
+        window = nullptr; windowSerial = 0; pending = false;
+    }
+};
+
+// All JNI calls stay on SDL's main thread. Java owns the second window; the pictures go into its
+// surface through SecondScreenPainter, or (a Java side without the surface) through a bounded
+// latest-frame mailbox Java draws. Java never accesses the emulator or its mutable framebuffer.
 class AndroidSecondScreen
 {
     JNIEnv* env = nullptr;
     jclass activity = nullptr;
     jintArray frame = nullptr;
     jmethodID stateMethod = nullptr, modeMethod = nullptr, runningMethod = nullptr, frameMethod = nullptr;
+    jmethodID surfaceMethod = nullptr, serialMethod = nullptr, shownMethod = nullptr;
     bool running = false;
     int framePixels=256*192;
+    SecondScreenPainter painter;
+    int surfaceSerial = 0, reportedSerial = 0, reportedW = 0, reportedH = 0;
     bool Failed()
     {
         if (!env || !env->ExceptionCheck()) return false;
         env->ExceptionDescribe();
         env->ExceptionClear();
+        return true;
+    }
+    // The surface, if Java has one up: true when this picture went to it.
+    bool ToSurface(const uint32_t* pixels, int width, int height)
+    {
+        if (!surfaceMethod) return false;
+        const jint serial = env->CallStaticIntMethod(activity, serialMethod);
+        if (Failed()) { surfaceMethod = nullptr; painter.Stop(); return false; }
+        if (serial != surfaceSerial)
+        {
+            painter.SetWindow(nullptr, 0);
+            surfaceSerial = serial; reportedSerial = 0;
+            jobject surface = env->CallStaticObjectMethod(activity, surfaceMethod);
+            if (Failed()) surface = nullptr;
+            if (surface)
+            {
+                if (ANativeWindow* win = ANativeWindow_fromSurface(env, surface)) painter.SetWindow(win, serial);
+                env->DeleteLocalRef(surface);
+            }
+        }
+        if (!painter.HasWindow()) return false;
+        painter.Put(pixels, width, height);
+        const int posted = painter.postedSerial, pw = painter.postedW, ph = painter.postedH;
+        if (posted == surfaceSerial && (reportedSerial != posted || reportedW != pw || reportedH != ph))
+        {
+            env->CallStaticVoidMethod(activity, shownMethod, (jint)posted, (jint)pw, (jint)ph);
+            if (!Failed()) { reportedSerial = posted; reportedW = pw; reportedH = ph; }
+        }
         return true;
     }
 public:
@@ -62,6 +204,11 @@ public:
         if (Failed()) return;
         frameMethod = env->GetStaticMethodID(activity, "submitDsFrame", "([III)V");
         if (Failed()) return;
+        // (The surface: optional; without it the pictures go through Java as before.)
+        surfaceMethod = env->GetStaticMethodID(activity, "secondScreenSurface", "()Ljava/lang/Object;");
+        if (!Failed()) serialMethod = env->GetStaticMethodID(activity, "secondScreenSurfaceSerial", "()I");
+        if (serialMethod && !Failed()) shownMethod = env->GetStaticMethodID(activity, "secondScreenShown", "(III)V");
+        if (!shownMethod || Failed()) surfaceMethod = serialMethod = shownMethod = nullptr;
         jintArray localFrame = env->NewIntArray(256 * 192);
         if (Failed() || !localFrame) return;
         frame = (jintArray)env->NewGlobalRef(localFrame);
@@ -78,6 +225,8 @@ public:
     }
     void Stop()
     {
+        painter.Stop();
+        surfaceSerial = reportedSerial = 0;
         if (running) { env->CallStaticVoidMethod(activity, runningMethod, JNI_FALSE); Failed(); }
         running = false;
     }
@@ -96,6 +245,7 @@ public:
     void Submit(const uint32_t* pixels,int width=256,int height=192)
     {
         if (!running || !pixels || width<=0 || height<=0 || width>1024 || height>768 || !(State() & DsDisplayState::AcceptingFrames)) return;
+        if (ToSurface(pixels, width, height)) return;
         const int count=width*height;
         if(count!=framePixels)
         {

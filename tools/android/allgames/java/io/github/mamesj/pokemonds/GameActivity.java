@@ -402,6 +402,20 @@ public class GameActivity extends SDLActivity {
         GameActivity activity = self;
         if (activity != null && activity.secondScreen != null) activity.secondScreen.submit(pixels,width,height);
     }
+    // The second display's own surface: the game draws into it from its own thread (no copy through
+    // Java, no wait for this thread). Null until the display's window is up; the serial changes with it.
+    public static Object secondScreenSurface() {
+        GameActivity activity = self;
+        return activity == null || activity.secondScreen == null ? null : activity.secondScreen.surface();
+    }
+    public static int secondScreenSurfaceSerial() {
+        GameActivity activity = self;
+        return activity == null || activity.secondScreen == null ? 0 : activity.secondScreen.surfaceSerial();
+    }
+    public static void secondScreenShown(int serial,int width,int height) {
+        GameActivity activity = self;
+        if (activity != null && activity.secondScreen != null) activity.secondScreen.shown(serial,width,height);
+    }
 
     @Override
     protected void onDestroy() {
