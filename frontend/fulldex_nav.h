@@ -1,5 +1,5 @@
 #pragma once
-// FULLDEX NAV: the quick menu, a watch with nine apps (Fly, Free Flight, Open PC, Repel, the encounter
+// FULLDEX NAV: the quick menu, a watch (a graphite case, a dark glass face) with nine apps (Fly, Party, Open PC, Repel, the encounter
 // counter, Reset, Map, Pokedex, Bag), opened with L3 (Tab on a keyboard). The game keeps running behind
 // it. Drawn here; what each app does is the game frontend's (main.cpp for the DS games).
 #include <cstdint>
@@ -11,7 +11,7 @@
 
 namespace FdNav
 {
-enum { FLY, FREE, PC, REPEL, COUNT, RESET, MAP, DEX, BAG, APPS };
+enum { FLY, PARTY, PC, REPEL, COUNT, RESET, MAP, DEX, BAG, APPS };
 
 struct App { const char* label; uint32_t col, dark; const char* rows[16]; };
 
@@ -19,23 +19,23 @@ struct App { const char* label; uint32_t col, dark; const char* rows[16]; };
 inline const App& Get(int i)
 {
     static const App apps[APPS] = {
-        { "FLY", 0xFF428CE2, 0xFF285CA0, {
+        { "Fly", 0xFF428CE2, 0xFF285CA0, {
             "................", "................", "WD...........DW.", "WWD.........DWW.", ".WWD.......DWW..", ".WWWD.....DWWW..", "..WWWD.KK.DWWW..", "..WWWWDWWDWWW...", "...WWWWWWWWWW...", "....WWWWWWWW....", ".....WWWWWW.....", "......WYYW......", "......WWWW......", ".....WW..WW.....", "................", "................" } },
-        { "FREE FLIGHT", 0xFF28B6C4, 0xFF187884, {
-            "............K.K.", ".............K..", "......LWWL......", ".....WWWWWW.....", "..LWWWWWWWWWLL..", ".LWWWWWWWWWWWWL.", ".WWWWWWWWWWWWWWL", "LWWWWWWWWWWWWWWW", "LWWWWWWWWWWWWWWW", ".DWWWWWWWWWWWWD.", "..DDDDDDDDDDDD..", "................", "WWWWWW..........", "..WWWWWWWWWWW...", "WWWWW......WWWW.", "................" } },
-        { "OPEN PC", 0xFF5C6C84, 0xFF2C3646, {
+        { "Party", 0xFFE0559A, 0xFF9C2E68, {
+            "................", "......KKKK......", ".....KRRRRK.....", ".....KKWWKK.....", ".....KWWWWK.....", ".....KWWWWK.....", "......KKKK......", "................", "..KKKK....KKKK..", ".KRRRRK..KRRRRK.", ".KKWWKK..KKWWKK.", ".KWWWWK..KWWWWK.", ".KWWWWK..KWWWWK.", "..KKKK....KKKK..", "................", "................" } },
+        { "Open PC", 0xFF5C6C84, 0xFF2C3646, {
             "................", ".KKKKKKKKKKKKKK.", ".KWWWWWWWWWWWWK.", ".KWDDDDDDDDDDWK.", ".KWDDDRRRRDDDWK.", ".KWDDRRRRRRDDWK.", ".KWDDKKWWKKDDWK.", ".KWDDWWWWWWDDWK.", ".KWDDDWWWWDDDWK.", ".KWDDDDDDDDDDWK.", ".KWWWWWWWWWWWWK.", ".KKKKKKKKKKKKKK.", "......KWWK......", "....KKWWWWKK....", "....KKKKKKKK....", "................" } },
-        { "REPEL", 0xFF9656D2, 0xFF60348C, {
+        { "Repel", 0xFF9656D2, 0xFF60348C, {
             "................", "........W..W....", ".......KKK..W.W.", "......KWWK.W....", "......KKKK...W..", ".....KKKKKK.....", "....KWWWWWWK....", "....KWWWWWWK....", "....KDDDDDDK....", "....KDYYYYDK....", "....KDYDDYDK....", "....KDYYYYDK....", "....KDDDDDDK....", "....KWWWWWWK....", ".....KKKKKK.....", "................" } },
-        { "COUNTER", 0xFFEC8828, 0xFFAA5A14, {
+        { "Counter", 0xFFEC8828, 0xFFAA5A14, {
             "................", "......KKKK......", "......KWWK......", "..KKKKKKKKKKKK..", ".KWWWWWWWWWWWWK.", ".KWKKKKKKKKKKWK.", ".KWKWWWKKWWWKWK.", ".KWKKKWKKKKWKWK.", ".KWKKWWKKKWKKWK.", ".KWKKKWKKKWKKWK.", ".KWKWWWKKKWKKWK.", ".KWKKKKKKKKKKWK.", ".KWWWWWWWWWWWWK.", "..KKKKKKKKKKKK..", "................", "................" } },
-        { "RESET", 0xFFDE3A3A, 0xFF961E1E, {
+        { "Reset", 0xFFDE3A3A, 0xFF961E1E, {
             "................", "......WWWW..W...", "....WWWWWWWWWW..", "...WWW....WWWW..", "..WWW......WWW..", "..WW......WWWW..", ".WWW............", ".WW.............", ".WW.........WW..", ".WWW.......WWW..", "..WW.......WW...", "..WWW.....WWW...", "...WWWW.WWWW....", "....WWWWWWW.....", "......WWW.......", "................" } },
-        { "MAP", 0xFF4CA854, 0xFF286E32, {
+        { "Map", 0xFF4CA854, 0xFF286E32, {
             "................", "...........RR...", "..........RRRR..", ".KKKK.KKKRRWWRR.", ".KLLKKKLLRRWWRR.", ".KLLLKLLLKRRRRK.", ".KLDLKLLLKLRRLK.", ".KLDDKLDLKLLRLK.", ".KLLDKLDDKDLLLK.", ".KLLLKLLDKDDLLK.", ".KLLLKLLLKLDLLK.", ".KLLLKKKLKKLLLK.", ".KKKK..KKK.KKKK.", "................", "................", "................" } },
-        { "POK\xC3\x89" "DEX", 0xFFF4F4F4, 0xFFC8C8C8, {
+        { "Pok\xC3\xA9" "dex", 0xFFF4F4F4, 0xFFC8C8C8, {
             "................", ".....KKKKKK.....", "...KKRRRRRRKK...", "..KRRRRRRRRWRK..", "..KRRRRRRRRRWK..", ".KRRRRRRRRRRRRK.", ".KRRRRKKKKRRRRK.", ".KKKKKKWWKKKKKK.", ".KWWWWKKKKWWWWK.", ".KWWWWWWWWWWWWK.", "..KWWWWWWWWWWK..", "..KGWWWWWWWWGK..", "...KKGGGGGGKK...", ".....KKKKKK.....", "................", "................" } },
-        { "BAG", 0xFFC48C4C, 0xFF825628, {
+        { "Bag", 0xFFC48C4C, 0xFF825628, {
             "................", "......KKKK......", ".....KK..KK.....", "....KK....KK....", "..KKKKKKKKKKKK..", ".KWWWWWWWWWWWWK.", ".KWLLLLLLLLLLWK.", ".KKKKKKYYKKKKKK.", ".KDDDDKYYKDDDDK.", ".KDDDDDKKDDDDDK.", ".KDDDDDDDDDDDDK.", ".KDDDDDDDDDDDDK.", ".KDDDDDDDDDDDDK.", "..KKKKKKKKKKKK..", "................", "................" } },
     };
     return apps[std::clamp(i, 0, APPS - 1)];
@@ -65,22 +65,60 @@ struct State
 
 struct Geo { int x = 0, y = 0, w = 0, h = 0; float k = 1; int sx0 = 0, sy0 = 0, sx1 = 0, sy1 = 0; int tile[APPS][4] = {}; };
 
-// Where it goes: bottom right; centred (centre) when a phone's buttons are at the sides.
-inline Geo Layout(int outW, int outH, bool centre)
+// Where it goes: bottom right; centred (centre) when a phone's buttons are at the sides. style: NAV STYLE,
+// 0 MODERN, the watch (graphite case, glass face); 1 CLASSIC, the red watch; 2 SIMPLE, a glass card.
+inline Geo Layout(int outW, int outH, bool centre, int style = 0)
 {
     Geo g;
+    if (style == 2)
+    {
+        g.k = std::max(0.5f, std::min(outW / 1280.0f, outH / 720.0f));
+        const float k = g.k;
+        g.w = (int)std::lround(360 * k); g.h = (int)std::lround(392 * k);
+        g.x = centre ? (outW - g.w) / 2 : outW - g.w - (int)std::lround(56 * k);
+        g.y = centre ? (outH - g.h) / 2 : outH - g.h - (int)std::lround(44 * k);
+        g.sx0 = g.x + (int)std::lround(26 * k); g.sy0 = g.y + (int)std::lround(36 * k);
+        g.sx1 = g.x + g.w - (int)std::lround(26 * k); g.sy1 = g.y + g.h - (int)std::lround(26 * k);
+        const float gw = (g.w - 40 * k) / 3.0f, gh = 104 * k, ts = 60 * k;
+        for (int i = 0; i < APPS; i++)
+        {
+            const float cx = g.x + 20 * k + (i % 3) * gw, cy = g.y + 62 * k + (i / 3) * gh;
+            g.tile[i][0] = (int)std::lround(cx + gw / 2 - ts / 2); g.tile[i][1] = (int)std::lround(cy + 4 * k);
+            g.tile[i][2] = (int)std::lround(ts); g.tile[i][3] = (int)std::lround(ts);
+        }
+        return g;
+    }
+    if (style == 1)
+    {
+        g.k = std::max(0.5f, std::min(outW / 1280.0f, outH / 720.0f));
+        const float k = g.k;
+        g.w = (int)std::lround(380 * k); g.h = (int)std::lround(400 * k);
+        g.x = centre ? (outW - g.w) / 2 : outW - g.w - (int)std::lround(56 * k);
+        g.y = centre ? (outH - g.h) / 2 : outH - g.h - (int)std::lround(44 * k);
+        g.sx0 = g.x + (int)std::lround(26 * k); g.sy0 = g.y + (int)std::lround(36 * k);
+        g.sx1 = g.x + g.w - (int)std::lround(26 * k); g.sy1 = g.y + g.h - (int)std::lround(26 * k);
+        const float gw = (g.sx1 - g.sx0 - 16 * k) / 3.0f, gh = 98 * k, ts = 60 * k;
+        for (int i = 0; i < APPS; i++)
+        {
+            const float cx = g.sx0 + 8 * k + (i % 3) * gw, cy = g.sy0 + 34 * k + (i / 3) * gh;
+            g.tile[i][0] = (int)std::lround(cx + gw / 2 - ts / 2); g.tile[i][1] = (int)std::lround(cy + 4 * k);
+            g.tile[i][2] = (int)std::lround(ts); g.tile[i][3] = (int)std::lround(ts);
+        }
+        return g;
+    }
     g.k = std::max(0.5f, std::min(outW / 1280.0f, outH / 720.0f));
     const float k = g.k;
-    g.w = (int)std::lround(380 * k); g.h = (int)std::lround(400 * k);
-    g.x = centre ? (outW - g.w) / 2 : outW - g.w - (int)std::lround(56 * k);
-    g.y = centre ? (outH - g.h) / 2 : outH - g.h - (int)std::lround(44 * k);
-    g.sx0 = g.x + (int)std::lround(26 * k); g.sy0 = g.y + (int)std::lround(36 * k);
-    g.sx1 = g.x + g.w - (int)std::lround(26 * k); g.sy1 = g.y + g.h - (int)std::lround(26 * k);
-    const float gw = (g.sx1 - g.sx0 - 16 * k) / 3.0f, gh = 98 * k, ts = 60 * k;
+    g.w = (int)std::lround(372 * k); g.h = (int)std::lround(404 * k);
+    g.x = centre ? (outW - g.w) / 2 : outW - g.w - (int)std::lround(50 * k);
+    g.y = centre ? (outH - g.h) / 2 : outH - g.h - (int)std::lround(70 * k);
+    // (sx/sy: the glass face, set into the case.)
+    g.sx0 = g.x + (int)std::lround(16 * k); g.sy0 = g.y + (int)std::lround(16 * k);
+    g.sx1 = g.x + g.w - (int)std::lround(16 * k); g.sy1 = g.y + g.h - (int)std::lround(16 * k);
+    const float gw = (g.sx1 - g.sx0 - 40 * k) / 3.0f, gh = 100 * k, ts = 60 * k;
     for (int i = 0; i < APPS; i++)
     {
-        const float cx = g.sx0 + 8 * k + (i % 3) * gw, cy = g.sy0 + 34 * k + (i / 3) * gh;
-        g.tile[i][0] = (int)std::lround(cx + gw / 2 - ts / 2); g.tile[i][1] = (int)std::lround(cy + 4 * k);
+        const float cx = g.sx0 + 20 * k + (i % 3) * gw, cy = g.sy0 + 58 * k + (i / 3) * gh;
+        g.tile[i][0] = (int)std::lround(cx + gw / 2 - ts / 2); g.tile[i][1] = (int)std::lround(cy);
         g.tile[i][2] = (int)std::lround(ts); g.tile[i][3] = (int)std::lround(ts);
     }
     return g;
@@ -100,7 +138,14 @@ inline int Hit(const Geo& g, int x, int y)
 
 // dim: an app this game cannot do (drawn faded). label: what an app's name says now (the counter's
 // count, RESET's question), empty for its own. hint: the line under the watch.
-inline void Draw(Canvas& c, const Geo& g, const State& s, const bool dim[APPS], const std::string label[APPS], const std::string& hint)
+// NAV STYLE CLASSIC: the first Nav, a red watch with a light screen, its words in capitals.
+inline std::string Upper(std::string t)
+{
+    for (char& ch : t) if (ch >= 'a' && ch <= 'z') ch -= 32;
+    for (size_t p; (p = t.find("\xC3\xA9")) != std::string::npos;) t.replace(p, 2, "\xC3\x89");
+    return t;
+}
+inline void DrawClassic(Canvas& c, const Geo& g, const State& s, const bool dim[APPS], const std::string label[APPS], const std::string& hint)
 {
     using namespace SettingsArt;
     const float k = g.k;
@@ -149,16 +194,157 @@ inline void Draw(Canvas& c, const Geo& g, const State& s, const bool dim[APPS], 
                 uint32_t col = ch == 'W' ? 0xFFFFFFFF : ch == 'Y' ? 0xFFFFD640 : ch == 'R' ? 0xFFE23834 : ch == 'K' ? 0xFF1E1E24 : ch == 'G' ? 0xFFB0B0B8 : ch == 'L' ? lite : a.dark;
                 c.Fill(ox + q * px, oy + r * px, px, px, fade(col));
             }
-        const std::string name = label && !label[i].empty() ? label[i] : std::string(a.label);
+        const std::string name = Upper(label && !label[i].empty() ? label[i] : std::string(a.label));
         const int tw = W(name, ls, true, false);
         T(c, x + sz / 2 - tw / 2, y + sz + K(20), name, ls, faded ? 0x80344038 : ink, true, false);
     }
     if (!hint.empty())
     {
-        const int hs = std::max(9, K(14)), hw = W(hint, hs, true, false) + K(28);
+        const int hs = std::max(9, K(14)), hw = W(Upper(hint), hs, true, false) + K(28);
         const int hx = g.x + g.w / 2 - hw / 2, hy = std::min(c.h - K(34), g.y + g.h + K(10));
         Glass::Round(c, hx, hy, hw, K(26), 13 * k, 0xD8101418);
-        T(c, hx + K(14), hy + K(18), hint, hs, 0xFFEBF0F5, true, false);
+        T(c, hx + K(14), hy + K(18), Upper(hint), hs, 0xFFEBF0F5, true, false);
+    }
+}
+
+// NAV STYLE SIMPLE: a plain glass card, as the companion window's, no case.
+inline void DrawSimple(Canvas& c, const Geo& g, const State& s, const bool dim[APPS], const std::string label[APPS], const std::string& hint)
+{
+    using namespace SettingsArt;
+    const float k = g.k;
+    auto K = [&](float v) { return (int)std::lround(v * k); };
+    // (The watch: dark glass as the companion window's, its light rim, the crown on its side.)
+    Glass::Round(c, g.x + K(4), g.y + K(10), g.w, g.h, 44 * k, 0x50000000);
+    Glass::Round(c, g.x, g.y, g.w, g.h, 44 * k, 0xE0101826);
+    Glass::Rim(c, g.x, g.y, g.w, g.h, 44 * k, std::max(1.2f, 1.8f * k));
+    Glass::Round(c, g.x + g.w - K(3), g.y + K(150), K(12), K(64), 6 * k, 0x60FFFFFF);
+    char clock[8] = "--:--";
+    const time_t now = time(nullptr);
+    if (const tm* t = localtime(&now)) snprintf(clock, sizeof(clock), "%02d:%02d", t->tm_hour, t->tm_min);
+    const int fs = std::max(9, K(16));
+    T(c, g.x + K(26), g.y + K(36), "FullDex Nav", fs, Menu::GlassText, true, false);
+    T(c, g.x + g.w - K(26) - W(clock, fs, true, false), g.y + K(36), clock, fs, Menu::GlassHint, true, false);
+    c.Fill(g.x + K(22), g.y + K(48), g.w - K(44), 1, 0x32FFFFFF);
+    const uint32_t ink = Menu::GlassText;
+    const int ls = std::max(8, K(13));
+    for (int i = 0; i < APPS; i++)
+    {
+        const App& a = Get(i);
+        const int* t = g.tile[i];
+        const int x = t[0], y = t[1], sz = t[2];
+        const bool faded = dim && dim[i];
+        // (Faded: an app this game cannot do yet, the glass showing through.)
+        auto fade = [&](uint32_t col) {
+            if (!faded) return col;
+            auto mix = [](uint32_t a, uint32_t b, int sh) { return (((a >> sh) & 0xFF) * 38 + ((b >> sh) & 0xFF) * 62) / 100; };
+            const uint32_t bg = 0xFF161E2A; // (the glass's own colour: opaque, so no hole to the game)
+            return 0xFF000000u | (mix(col, bg, 16) << 16) | (mix(col, bg, 8) << 8) | mix(col, bg, 0);
+        };
+        if (i == s.sel) Glass::Round(c, x - K(6), y - K(6), sz + K(12), sz + K(12), 20 * k, 0, 0xE6FFFFFF, 3 * k);
+        Glass::Round(c, x, y + K(3), sz, sz, 14 * k, fade(a.dark));
+        Glass::Round(c, x, y, sz, sz, 14 * k, fade(a.col));
+        const int px = std::max(1, (sz - K(12)) / 16), ox = x + (sz - px * 16) / 2, oy = y + (sz - px * 16) / 2;
+        for (int r = 0; r < 16; r++)
+            for (int q = 0; q < 16; q++)
+            {
+                const char ch = a.rows[r][q];
+                if (ch == '.') continue;
+                const uint32_t lite = 0xFF000000u | ((((a.col >> 16) & 0xFF) * 45 / 100 + 140) << 16) | ((((a.col >> 8) & 0xFF) * 45 / 100 + 140) << 8) | ((a.col & 0xFF) * 45 / 100 + 140);
+                uint32_t col = ch == 'W' ? 0xFFFFFFFF : ch == 'Y' ? 0xFFFFD640 : ch == 'R' ? 0xFFE23834 : ch == 'K' ? 0xFF1E1E24 : ch == 'G' ? 0xFFB0B0B8 : ch == 'L' ? lite : a.dark;
+                c.Fill(ox + q * px, oy + r * px, px, px, fade(col));
+            }
+        const std::string name = label && !label[i].empty() ? label[i] : std::string(a.label);
+        const int tw = W(name, ls, true, false);
+        T(c, x + sz / 2 - tw / 2, y + sz + K(22), name, ls, faded ? 0x70F2F5F9 : ink, true, false);
+    }
+    if (!hint.empty())
+    {
+        const int hs = std::max(9, K(14)), hw = W(hint, hs, true, true) + K(28);
+        const int hx = g.x + g.w / 2 - hw / 2, hy = std::min(c.h - K(34), g.y + g.h + K(10));
+        Glass::Round(c, hx, hy, hw, K(26), 13 * k, 0xD8101418);
+        T(c, hx + K(14), hy + K(18), hint, hs, 0xFFEBF0F5, true, true);
+    }
+}
+
+inline void Draw(Canvas& c, const Geo& g, const State& s, const bool dim[APPS], const std::string label[APPS], const std::string& hint, int style = 0)
+{
+    if (style == 1) { DrawClassic(c, g, s, dim, label, hint); return; }
+    if (style == 2) { DrawSimple(c, g, s, dim, label, hint); return; }
+    using namespace SettingsArt;
+    const float k = g.k;
+    auto K = [&](float v) { return (int)std::lround(v * k); };
+    // (The watch: its strap above and below, a graphite case, the red crown and a button on its side, and
+    // the dark glass face set into the case, where the apps are.)
+    const int sw = K(230), sx = g.x + (g.w - sw) / 2, groove = std::max(1, K(2));
+    Glass::Round(c, sx, g.y - K(70), sw, K(110), 24 * k, 0xFF22262E);
+    Glass::Round(c, sx, g.y + g.h - K(40), sw, K(130), 24 * k, 0xFF22262E);
+    for (int yy = g.y - K(58); yy < g.y; yy += std::max(4, K(14))) c.Fill(sx + K(18), yy, sw - K(36), groove, 0xFF30363F);
+    for (int yy = g.y + g.h + K(4); yy < std::min(c.h, g.y + g.h + K(86)); yy += std::max(4, K(14))) c.Fill(sx + K(18), yy, sw - K(36), groove, 0xFF30363F);
+    Glass::Round(c, g.x + K(4), g.y + K(10), g.w, g.h, 70 * k, 0x50000000);
+    Glass::Round(c, g.x, g.y, g.w, g.h, 70 * k, 0xFF40444E, 0xFF969CA8, 2 * k);
+    {
+        // (The case's shading, light at the top to dark at the bottom, inside its rounded edge.)
+        const float r = 70 * k - 3;
+        for (int y = g.y + K(3); y < g.y + g.h - K(3); y++)
+        {
+            const float t = (y - g.y) / (float)std::max(1, g.h), dy = (float)std::min(y - g.y, g.y + g.h - 1 - y);
+            const int inset = dy < r ? (int)std::ceil(r - std::sqrt(std::max(0.0f, r * r - (r - dy) * (r - dy)))) : 0;
+            const uint32_t col = 0xFF000000u | ((uint32_t)(92 - 56 * t) << 16) | ((uint32_t)(98 - 58 * t) << 8) | (uint32_t)(110 - 62 * t);
+            c.Fill(g.x + inset + K(3), y, g.w - 2 * inset - K(6), 1, col);
+        }
+    }
+    Glass::Round(c, g.x + K(18), g.y + K(4), g.w - K(36), K(6), 3 * k, 0x78B4BAC4);
+    Glass::Round(c, g.x + g.w - K(4), g.y + K(110), K(20), K(60), 8 * k, 0xFFCE2E30, 0xFF141418, 2 * k);
+    for (int yy = g.y + K(116); yy < g.y + K(166); yy += std::max(3, K(6))) c.Fill(g.x + g.w + K(3), yy, K(11), 1, 0x60000000);
+    Glass::Round(c, g.x + g.w - K(3), g.y + K(210), K(12), K(60), 5 * k, 0xFF464C56, 0xFF141418, 2 * k);
+    Glass::Round(c, g.sx0 - K(3), g.sy0 - K(3), g.sx1 - g.sx0 + K(6), g.sy1 - g.sy0 + K(6), 56 * k, 0xFF080A0E);
+    Glass::Round(c, g.sx0, g.sy0, g.sx1 - g.sx0, g.sy1 - g.sy0, 54 * k, 0xF2121A24);
+    Glass::Round(c, g.sx0, g.sy0, g.sx1 - g.sx0, g.sy1 - g.sy0, 54 * k, 0, 0x46FFFFFF, 2 * k);
+    char clock[8] = "--:--";
+    const time_t now = time(nullptr);
+    if (const tm* t = localtime(&now)) snprintf(clock, sizeof(clock), "%02d:%02d", t->tm_hour, t->tm_min);
+    const int fs = std::max(9, K(16));
+    T(c, g.sx0 + K(24), g.sy0 + K(32), "FullDex Nav", fs, Menu::GlassText, true, false);
+    T(c, g.sx1 - K(24) - W(clock, fs, true, false), g.sy0 + K(32), clock, fs, Menu::GlassHint, true, false);
+    c.Fill(g.sx0 + K(20), g.sy0 + K(44), g.sx1 - g.sx0 - K(40), 1, 0x32FFFFFF);
+    const uint32_t ink = Menu::GlassText;
+    const int ls = std::max(8, K(13));
+    for (int i = 0; i < APPS; i++)
+    {
+        const App& a = Get(i);
+        const int* t = g.tile[i];
+        const int x = t[0], y = t[1], sz = t[2];
+        const bool faded = dim && dim[i];
+        // (Faded: an app this game cannot do yet, the glass showing through.)
+        auto fade = [&](uint32_t col) {
+            if (!faded) return col;
+            auto mix = [](uint32_t a, uint32_t b, int sh) { return (((a >> sh) & 0xFF) * 38 + ((b >> sh) & 0xFF) * 62) / 100; };
+            const uint32_t bg = 0xFF121A24; // (the face's own colour: opaque, so no hole to the game)
+            return 0xFF000000u | (mix(col, bg, 16) << 16) | (mix(col, bg, 8) << 8) | mix(col, bg, 0);
+        };
+        if (i == s.sel) Glass::Round(c, x - K(6), y - K(6), sz + K(12), sz + K(12), 20 * k, 0, 0xE6FFFFFF, 3 * k);
+        Glass::Round(c, x, y + K(3), sz, sz, 14 * k, fade(a.dark));
+        Glass::Round(c, x, y, sz, sz, 14 * k, fade(a.col));
+        const int px = std::max(1, (sz - K(12)) / 16), ox = x + (sz - px * 16) / 2, oy = y + (sz - px * 16) / 2;
+        for (int r = 0; r < 16; r++)
+            for (int q = 0; q < 16; q++)
+            {
+                const char ch = a.rows[r][q];
+                if (ch == '.') continue;
+                const uint32_t lite = 0xFF000000u | ((((a.col >> 16) & 0xFF) * 45 / 100 + 140) << 16) | ((((a.col >> 8) & 0xFF) * 45 / 100 + 140) << 8) | ((a.col & 0xFF) * 45 / 100 + 140);
+                uint32_t col = ch == 'W' ? 0xFFFFFFFF : ch == 'Y' ? 0xFFFFD640 : ch == 'R' ? 0xFFE23834 : ch == 'K' ? 0xFF1E1E24 : ch == 'G' ? 0xFFB0B0B8 : ch == 'L' ? lite : a.dark;
+                c.Fill(ox + q * px, oy + r * px, px, px, fade(col));
+            }
+        const std::string name = label && !label[i].empty() ? label[i] : std::string(a.label);
+        const int tw = W(name, ls, true, false);
+        T(c, x + sz / 2 - tw / 2, y + sz + K(22), name, ls, faded ? 0x70F2F5F9 : ink, true, false);
+    }
+    if (!hint.empty())
+    {
+        const int hs = std::max(9, K(14)), hw = W(hint, hs, true, true) + K(28);
+        const int hx = g.x + g.w / 2 - hw / 2, hy = std::min(c.h - K(34), g.y + g.h + K(10));
+        Glass::Round(c, hx, hy, hw, K(26), 13 * k, 0xD8101418);
+        T(c, hx + K(14), hy + K(18), hint, hs, 0xFFEBF0F5, true, true);
     }
 }
 
@@ -168,7 +354,7 @@ inline void DrawCount(Canvas& c, int outW, int outH, int count)
     using namespace SettingsArt;
     const float k = std::max(0.5f, std::min(outW / 1280.0f, outH / 720.0f));
     auto K = [&](float v) { return (int)std::lround(v * k); };
-    const std::string t = std::to_string(count) + " MET";
+    const std::string t = std::to_string(count) + " Met";
     const int fs = std::max(9, K(16)), w = W(t, fs, true, false) + K(40);
     const int x = outW - w - K(16), y = K(14);
     Glass::Round(c, x, y, w, K(30), 15 * k, 0xD8101418);

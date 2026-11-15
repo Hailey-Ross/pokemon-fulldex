@@ -1725,6 +1725,7 @@ struct Settings : OptionalFeatures
     // as the message box; 3 CLASSIC, the earlier STRIP: the touch screen's own buttons cut into
     // the message box's band in Black and White, the corner panel in Black 2 (Bw1Layouts::BUTTONS_*).
     int battleButtons = 1;
+    int navStyle = 0; // NAV STYLE (FULLDEX NAV): 0 MODERN, 1 CLASSIC, 2 SIMPLE
     // The PC all-games program: the window's size when it last closed (0: 1280x720, a wide view).
     int windowW = 0, windowH = 0;
     Controls::Bindings controls; // CONTROLS (controls.h): map_key_* and map_pad_* lines
@@ -1820,6 +1821,7 @@ struct Settings : OptionalFeatures
             else if (k == "ra_user") ra.user = v;
             else if (k == "ra_token") ra.token = v;
             else if (k == "battle_buttons") battleButtons = v == "corner" ? 0 : v == "panel" ? 2 : v == "classic" ? 3 : v == "sunmoon" ? 4 : 1;
+            else if (k == "nav_style") navStyle = v == "classic" ? 1 : v == "simple" ? 2 : 0;
             else if (k == "window")
             {
                 const size_t x = v.find('x');
@@ -1887,6 +1889,7 @@ struct Settings : OptionalFeatures
         if (!listLang.empty()) f << "list_lang=" << listLang << "\n";
         f << "start_button=" << (startMenu ? "menu" : "ds") << "\n";
         f << "battle_buttons=" << (battleButtons == 0 ? "corner" : battleButtons == 2 ? "panel" : battleButtons == 3 ? "classic" : battleButtons == 4 ? "sunmoon" : "strip") << "\n";
+        f << "nav_style=" << (navStyle == 1 ? "classic" : navStyle == 2 ? "simple" : "modern") << "\n";
         controls.Save(f);
         f << "both_versions=" << (bothVersions ? 1 : 0) << "\n";
         f << "ra=" << (ra.on ? 1 : 0) << "\n";
@@ -5583,7 +5586,7 @@ int main(int argc, char** argv)
     // (PAGE_KEYS, controls.h). Items a platform does not have are left out of its pages.
     enum
     {
-        M_RESUME, M_LAYOUT, M_LARGE, M_FPS60, M_FULLSCREEN, M_SMOOTH, M_WIDE, M_WIDEMAP, M_BATTLEBUTTONS,
+        M_RESUME, M_LAYOUT, M_LARGE, M_FPS60, M_FULLSCREEN, M_SMOOTH, M_WIDE, M_WIDEMAP, M_BATTLEBUTTONS, M_NAVSTYLE,
         M_WIDELINES, M_AUTODETAIL, M_WIDEGPU, M_GPU3D, M_SHOWFPS, M_BUTTONS, M_PADTOUCH, M_EMULATION,
         M_CONTROLS, M_TOUCHLAYOUT, M_STARTBTN, M_FAST, M_FFLOWRES, M_SAVESTATE, M_LOADSTATE, M_RESET, M_QUIT,
         M_DISPLAY, M_LANGUAGE, M_SOUND, M_GRAPHICS, M_CONTROLMENU, M_BACK, M_CHEATS, M_NOTHING,
@@ -6102,6 +6105,9 @@ int main(int argc, char** argv)
                        own ? "The battle menu's FIGHT, POKEMON, BAG and RUN: this game's own, or as Sun and Moon have them." : "Where the on-screen battle buttons go in Black, White, Black 2 and White 2.",
                        "Sun and Moon: FIGHT across the top, POKEMON, BAG and RUN below it.", art);
             }
+            picker(M_NAVSTYLE, "NAV STYLE", Glass::I_GRID, Menu::P_NONE, { "MODERN", "CLASSIC", "SIMPLE" }, std::clamp(cfg.navStyle, 0, 2),
+                   "FullDex Nav, opened with L3 or Tab: a watch with a graphite case and a glass face, the first one (a red watch), or a plain glass card.",
+                   "Its apps are the same in both.");
             toggle(M_ZOOM, "ZOOM AND LOOK AROUND", Glass::I_SPARKLE, Menu::P_NONE, cfg.zoom,
                    "A click of the right stick (C on a keyboard) zooms out in steps to show more of the world, and the right stick looks around.",
                    "Text, menus and battles come back close by themselves.");
@@ -9382,7 +9388,7 @@ int main(int argc, char** argv)
             if (down(KEY_B)) { fdNav.open = false; swallowMenuButtons = true; }
             if (mouseDown && !fdNavMouseWas)
             {
-                const FdNav::Geo g = FdNav::Layout(outW, outH, touchPadUsed && touchPad.visible);
+                const FdNav::Geo g = FdNav::Layout(outW, outH, touchPadUsed && touchPad.visible, cfg.navStyle);
                 const int h = FdNav::Hit(g, mouseX, mouseY);
                 if (h >= 0) { sel = h; fdNavUse = h; }
                 else if (h == -1) { fdNav.open = false; swallowMenuButtons = true; }
@@ -9400,7 +9406,6 @@ int main(int argc, char** argv)
                 if (!canAct || !flyGame.Supported()) say("FLY: NOT IN THIS GAME YET");
                 else if (startFly()) { fdNav.open = false; swallowMenuButtons = true; }
                 break;
-            case FdNav::FREE: say("FREE FLIGHT: IN THE GBA GAMES"); break;
             case FdNav::PC:
                 if (!canAct) say("OPEN PC: NOT IN THIS GAME YET");
                 else
@@ -9416,13 +9421,14 @@ int main(int argc, char** argv)
                 if (fdNav.resetAsk && frame - fdNav.resetAsk < 180) { fdNav.open = false; fdNav.resetAsk = 0; swallowMenuButtons = true; resetGame(); }
                 else fdNav.resetAsk = frame;
                 break;
-            default: // MAP, POKEDEX, BAG: the companion's own pages
+            default: // PARTY, MAP, POKEDEX, BAG: the companion's own pages
                 fdNav.open = false;
                 menu.open = true; menu.selected = 0; menu.npFocus = -1; menuPage = 0; capturing = -1;
                 buildMenu();
                 readCompanion(true);
                 companionReferenceReturn = false;
-                if (fdNavUse == FdNav::MAP) goPage(PAGE_CLOCATION, M_BACK);
+                if (fdNavUse == FdNav::PARTY) goPage(PAGE_CPARTY, -1);
+                else if (fdNavUse == FdNav::MAP) goPage(PAGE_CLOCATION, M_BACK);
                 else if (fdNavUse == FdNav::DEX) goPage(PAGE_CDEX, M_CDEX_FILTER);
                 else goPage(PAGE_CBAG, M_CPOCKET);
                 break;
@@ -9988,6 +9994,7 @@ int main(int argc, char** argv)
                 else cfg.battleButtons = (cfg.battleButtons + (dir < 0 ? 4 : 1)) % 5; // CORNER, STRIP, PANEL, CLASSIC, SUN AND MOON
                 bw1.battleButtons = cfg.battleButtons;
                 break;
+            case M_NAVSTYLE: cfg.navStyle = (std::clamp(cfg.navStyle, 0, 2) + (dir < 0 ? 2 : 1)) % 3; cfg.Save(opt.config); break;
             case M_FPS60:
                 cfg.fps60 = !cfg.fps60;
                 nds->GPU.GPU3D.InterpolationEnabled = cfg.fps60;
@@ -12027,19 +12034,19 @@ int main(int argc, char** argv)
         // FULLDEX NAV, or its counter on the picture.
         if (fdNav.open && !menu.open)
         {
-            const FdNav::Geo g = FdNav::Layout(outW, outH, touchPadUsed && touchPad.visible);
+            const FdNav::Geo g = FdNav::Layout(outW, outH, touchPadUsed && touchPad.visible, cfg.navStyle);
             const bool canAct = pokeActions.Supported() && !opt.lockstep;
             bool dim[FdNav::APPS] = {};
             dim[FdNav::FLY] = !canAct || !flyGame.Supported();
             dim[FdNav::PC] = !canAct;
-            dim[FdNav::FREE] = dim[FdNav::REPEL] = true; // (the GBA games' for now)
+            dim[FdNav::REPEL] = true; // (the GBA games' for now)
             std::string label[FdNav::APPS];
-            label[FdNav::COUNT] = std::to_string(fdNav.count) + " MET";
-            if (fdNav.resetAsk && frame - fdNav.resetAsk < 180) label[FdNav::RESET] = "A AGAIN";
+            label[FdNav::COUNT] = std::to_string(fdNav.count) + " Met";
+            if (fdNav.resetAsk && frame - fdNav.resetAsk < 180) label[FdNav::RESET] = "A again";
             std::string hint = "A: USE   B: CLOSE";
             if (fdNav.sel == FdNav::COUNT) hint = std::string("A: ") + (fdNav.counterShown ? "HIDE" : "SHOW") + " ON SCREEN   X: SET TO 0   B: CLOSE";
             else if (fdNav.sel == FdNav::RESET) hint = "A TWICE: RESET THE GAME   B: CLOSE";
-            FdNav::Draw(canvas, g, fdNav, dim, label, hint);
+            FdNav::Draw(canvas, g, fdNav, dim, label, hint, cfg.navStyle);
             overlayUsed = true;
         }
         else if (fdNav.counterShown && !menu.open)
