@@ -48,9 +48,13 @@ STEAM DECK
 
 1. In Desktop Mode, unpack the Linux download (for example into your Games folder) and put
    your ROMs in its roms folder.
-2. In Steam: Games > Add a Non-Steam Game to My Library > Browse, set the file type to
-   All Files and choose pokemon-ds-wide.
-3. Back in Gaming Mode, start it from your library with a gamepad controller layout.
+2. Quit Steam. Open pokemon-ds-wide from your apps menu; add the launcher itself from
+   Settings > STEAM LAUNCHER, or add one game from its menu (A on the game) > ADD TO STEAM.
+   The same menu item says ADD TO DESKTOP when Steam is not found, and makes the normal
+   desktop shortcut instead (automatic fallback). Entries are user-selected: nothing is
+   added automatically.
+3. Start Steam again, then start pokemon-ds-wide or the game from your library in Gaming
+   Mode with a gamepad controller layout.
 4. The Deck's screen is 1280x800: set 3D RESOLUTION to 720P in the settings (Y in the game
    list), full sharpness there and easier on the battery.
 
@@ -85,6 +89,9 @@ PICTURE SETTINGS (Esc menu)
                      starts that game straight away; QUIT in the pause menu still comes back
                      to the list. The same from a command line:
                      "Pokemon Fulldex.exe" --game IREO (the game codes are under icons/).
+                     A game's menu (A) adds just that game, or the launcher itself in
+                     Settings > STEAM LAUNCHER: ADD TO STEAM when Steam is found, otherwise
+                     ADD TO DESKTOP (the automatic fallback).
 
 
 WHERE THINGS ARE KEPT
