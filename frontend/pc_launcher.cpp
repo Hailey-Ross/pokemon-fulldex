@@ -3798,6 +3798,9 @@ void ResolveFolders(Folders& fo, bool atStart)
     if (!fo.states.empty()) FolderSet::MakeDirs(fo.states);
     FolderSet::States() = fo.states;
     FolderSet::CheatsDir() = fo.cheats;
+    // (Cloud saves: the Hub syncs the save the game reads, in the saves folder, not the one beside
+    // the settings. Refreshed here so a change of saves folder is followed.)
+    Launcher::PlatformSavePath() = [saves = fo.saves](const Launcher::Game& g) { return saves + "/" + g.saveName; };
     fprintf(stderr, "[folders] %s: saves %s, states %s, cheats %s, settings %s\n", layout.empty() ? "classic (for now)" : layout.c_str(),
             fo.saves.c_str(), fo.states.empty() ? "(beside the saves)" : fo.states.c_str(),
             fo.cheats.empty() ? "(beside the saves folder)" : fo.cheats.c_str(), fo.settings.c_str());
