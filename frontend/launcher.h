@@ -8109,6 +8109,8 @@ inline std::vector<Setting> SettingsList()
     const std::string steamLauncher = PlatformLauncherState() ? PlatformLauncherState()() : "NOT IN STEAM";
     l.push_back({ "!steam_launcher", "STEAM LAUNCHER", { { "", steamLauncher } }, "",
                   "ADDS FULLDEX ITSELF TO YOUR STEAM LIBRARY, NOT THE GAMES. QUIT STEAM FIRST, THEN CHOOSE THIS (THE MESSAGE SAYS HOW TO REOPEN IT). WHEN IT IS ALREADY IN STEAM, CHOOSE THIS TO TAKE IT OUT. WHEN STEAM IS NOT INSTALLED, A GAME'S MENU OFFERS ADD TO DESKTOP INSTEAD." });
+    l.push_back({ "!steam_refresh", "STEAM ACCOUNT", { { "", "REFRESH" } }, "",
+                  "FINDS THE STEAM ACCOUNT SIGNED IN LAST AND ITS shortcuts.vdf AGAIN (AFTER SWITCHING ACCOUNTS OR MOVING STEAM) AND SAVES THEM IN settings.cfg AS steam_account AND steam_shortcuts. THE VALUE SHOWS THE ACCOUNT FOUND." });
 #endif
 #endif
 #endif
@@ -8529,7 +8531,7 @@ inline int SettingIcon(const Setting& s, int group)
         { "screen_filter", Glass::I_SPARKLE }, { "gba_lcd", Glass::I_SPARKLE }, { "battle_buttons", Glass::I_PAD }, { "show_fps", Glass::I_GAUGE }, { "fps60", Glass::I_FAST }, { "wide", Glass::I_RATIO },
         { "wide_map", Glass::I_GLOBE }, { "wide_lines", Glass::I_LAYERS }, { "busy_detail", Glass::I_GAUGE }, { "ff_low_res", Glass::I_FAST },
         { "wide_gpu", Glass::I_CHIP }, { "volume", Glass::I_SPEAKER }, { "start_button", Glass::I_PAD }, { "buttons", Glass::I_PAD },
-        { "pad_touch", Glass::I_PAD }, { "!keys", Glass::I_PAD }, { "!shortcuts", Glass::I_WINDOW }, { "!steam_launcher", Glass::I_GLOBE }, { "!forwarders", Glass::I_WINDOW },
+        { "pad_touch", Glass::I_PAD }, { "!keys", Glass::I_PAD }, { "!shortcuts", Glass::I_WINDOW }, { "!steam_launcher", Glass::I_GLOBE }, { "!steam_refresh", Glass::I_GLOBE }, { "!forwarders", Glass::I_WINDOW },
         { "list_lang", Glass::I_GLOBE }, { "ra", Glass::I_TROPHY }, { "!ra_login", Glass::I_PEOPLE }, { "!updates", Glass::I_LOAD }, { "!releases", Glass::I_GLOBE } };
     for (const auto& o : own)
         if (!strcmp(s.key, o.first)) return o.second;

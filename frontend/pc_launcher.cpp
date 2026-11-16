@@ -1447,6 +1447,11 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             page.items[page.selected].values[0].second = SteamShortcuts::LauncherDo();
             return;
         }
+        if (key && !strcmp(key, "!steam_refresh"))
+        {
+            page.items[page.selected].values[0].second = SteamShortcuts::RefreshAccount(fo.cfg);
+            return;
+        }
 #endif
 #if !defined(__ANDROID__) && !defined(SSR_IOS)
         // SAVES FOLDER: a folder of the player's own (copied into, nothing replaced), used from the next start; again: back beside the ROMs.

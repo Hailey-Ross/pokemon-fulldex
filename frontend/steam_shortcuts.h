@@ -71,6 +71,19 @@ inline bool SteamRunning()
 #endif
 }
 
+// The Steam install roots (Linux; the Windows/macOS paths are a later slice).
+inline std::vector<std::string> SteamRoots()
+{
+    std::vector<std::string> roots;
+#if defined(__linux__) && !defined(__ANDROID__)
+    const std::string h = Home();
+    if (!h.empty())
+        roots = { h + "/.local/share/Steam", h + "/.steam/steam", h + "/.steam/root",
+                  h + "/.var/app/com.valvesoftware.Steam/.local/share/Steam" };
+#endif
+    return roots;
+}
+
 // Every Steam account folder with a config folder. (Linux first; Windows/macOS detection is a
 // later slice, and until then Available() is false there and the desktop fallback is used.)
 // The shortcuts file may not exist yet — a Steam account with no non-Steam shortcuts — so it
@@ -83,37 +96,97 @@ struct Account
 inline std::vector<Account> Accounts()
 {
     std::vector<Account> out;
-#if defined(__linux__) && !defined(__ANDROID__)
-    const std::string h = Home();
-    if (!h.empty())
+    for (const std::string& root : SteamRoots())
     {
-        const std::string roots[] = {
-            h + "/.local/share/Steam/userdata",
-            h + "/.steam/steam/userdata",
-            h + "/.steam/root/userdata",
-            h + "/.var/app/com.valvesoftware.Steam/.local/share/Steam/userdata",
-        };
-        for (const std::string& root : roots)
+        const std::string userdata = root + "/userdata";
+        std::error_code ec;
+        if (!fs::is_directory(fs::u8path(userdata), ec)) continue;
+        for (fs::directory_iterator it(fs::u8path(userdata), ec), end; !ec && it != end; it.increment(ec))
         {
-            std::error_code ec;
-            if (!fs::is_directory(fs::u8path(root), ec)) continue;
-            for (fs::directory_iterator it(fs::u8path(root), ec), end; !ec && it != end; it.increment(ec))
-            {
-                const fs::path config = it->path() / "config";
-                std::error_code e2;
-                if (!fs::is_directory(config, e2)) continue;
-                const fs::path vdf = config / "shortcuts.vdf";
-                std::error_code e3;
-                const bool exists = fs::is_regular_file(vdf, e3);
-                const auto time = fs::last_write_time(exists ? vdf : config, e3);
-                out.push_back({ vdf.u8string(), e3 ? fs::file_time_type{} : time });
-            }
+            const fs::path config = it->path() / "config";
+            std::error_code e2;
+            if (!fs::is_directory(config, e2)) continue;
+            const fs::path vdf = config / "shortcuts.vdf";
+            std::error_code e3;
+            const bool exists = fs::is_regular_file(vdf, e3);
+            const auto time = fs::last_write_time(exists ? vdf : config, e3);
+            out.push_back({ vdf.u8string(), e3 ? fs::file_time_type{} : time });
         }
     }
-#endif
     std::sort(out.begin(), out.end(), [](const Account& a, const Account& b) { return a.shortcuts < b.shortcuts; });
     out.erase(std::unique(out.begin(), out.end(), [](const Account& a, const Account& b) { return a.shortcuts == b.shortcuts; }), out.end());
     return out;
+}
+
+// Steam's config/loginusers.vdf names the account signed in last ("MostRecent 1"). Its key is
+// the 64-bit SteamID; userdata folders use the account id (SteamID64 - the account base).
+inline bool MostRecentAccount(std::string& path, std::string& account)
+{
+#if defined(__linux__) && !defined(__ANDROID__)
+    for (const std::string& root : SteamRoots())
+    {
+        FILE* f = fopen((root + "/config/loginusers.vdf").c_str(), "r");
+        if (!f) continue;
+        std::string bestId;
+        std::string current;
+        char buf[1024];
+        while (fgets(buf, sizeof buf, f))
+        {
+            std::string line = buf;
+            while (!line.empty() && (line.back() == '\n' || line.back() == '\r')) line.pop_back();
+            const size_t q1 = line.find('"');
+            if (q1 == std::string::npos) continue;
+            const size_t q2 = line.find('"', q1 + 1);
+            if (q2 == std::string::npos) continue;
+            const std::string key = line.substr(q1 + 1, q2 - q1 - 1);
+            if (line.find('{', q2) != std::string::npos) { current = key; continue; }
+            // (loginusers.vdf usually puts the account key and its "{" on separate lines.)
+            if (line.find('"', q2 + 1) == std::string::npos) { current = key; continue; }
+            if (key != "MostRecent") continue;
+            const size_t q3 = line.find('"', q2 + 1);
+            const size_t q4 = q3 == std::string::npos ? std::string::npos : line.find('"', q3 + 1);
+            if (q3 != std::string::npos && q4 != std::string::npos && line.substr(q3 + 1, q4 - q3 - 1) == "1")
+                bestId = current;
+        }
+        fclose(f);
+        if (bestId.empty()) continue;
+        const unsigned long long id = strtoull(bestId.c_str(), nullptr, 10);
+        if (id <= 76561197960265728ULL) continue;
+        const unsigned long long accountId = id - 76561197960265728ULL;
+        const std::string config = root + "/userdata/" + std::to_string(accountId) + "/config";
+        std::error_code ec;
+        if (!fs::is_directory(fs::u8path(config), ec)) continue;
+        path = config + "/shortcuts.vdf";
+        account = std::to_string(accountId);
+        return true;
+    }
+#endif
+    return false;
+}
+
+// The account to use: the one Steam signed in last, else the most recently touched account.
+struct Detected
+{
+    std::string path;
+    std::string account;
+};
+inline Detected Detect()
+{
+    Detected d;
+    if (MostRecentAccount(d.path, d.account)) return d;
+    fs::file_time_type bestTime{};
+    bool have = false;
+    for (const Account& a : Accounts())
+    {
+        if (!have || a.time > bestTime)
+        {
+            d.path = a.shortcuts;
+            d.account = fs::u8path(a.shortcuts).parent_path().parent_path().filename().u8string();
+            bestTime = a.time;
+            have = true;
+        }
+    }
+    return d;
 }
 
 // The active shortcuts file: decided once at load and saved in the launcher's settings.cfg
@@ -137,23 +210,20 @@ inline void Initialize(const std::string& configPath)
         ActivePath() = saved;
         return;
     }
-    std::string best;
-    std::string account;
-    fs::file_time_type bestTime{};
-    bool have = false;
-    for (const Account& a : Accounts())
-    {
-        if (!have || a.time > bestTime)
-        {
-            best = a.shortcuts;
-            account = fs::u8path(a.shortcuts).parent_path().parent_path().filename().u8string();
-            bestTime = a.time;
-            have = true;
-        }
-    }
-    ActivePath() = best;
-    if (!best.empty())
-        SetConfigValues(configPath, { { "steam_shortcuts", best }, { "steam_account", account } });
+    const Detected d = Detect();
+    ActivePath() = d.path;
+    if (!d.path.empty())
+        SetConfigValues(configPath, { { "steam_shortcuts", d.path }, { "steam_account", d.account } });
+}
+
+// Settings > STEAM ACCOUNT: find the account signed in last again (after switching accounts
+// or moving Steam) and save it.
+inline std::string RefreshAccount(const std::string& configPath)
+{
+    const Detected d = Detect();
+    ActivePath() = d.path;
+    SetConfigValues(configPath, { { "steam_shortcuts", d.path }, { "steam_account", d.account } });
+    return d.path.empty() ? "STEAM NOT FOUND" : "STEAM ACCOUNT " + d.account;
 }
 
 inline bool ReadAll(const std::string& path, std::vector<uint8_t>& data)

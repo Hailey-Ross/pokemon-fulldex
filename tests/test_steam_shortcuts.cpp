@@ -77,8 +77,15 @@ int main()
     const fs::path temp = fs::temp_directory_path() / ("fulldex-steam-test-" + std::to_string((long)getpid()));
     fs::remove_all(temp);
     const fs::path home = temp / "home";
-    const fs::path config = home / ".local/share/Steam/userdata/123/config";
+    const fs::path steam = home / ".local/share/Steam";
+    const fs::path config = steam / "userdata/123/config";
     fs::create_directories(config);
+    // (Account 123 signed in last; account 456 has a newer shortcuts file but is not signed in.
+    // The refresh must choose the signed-in account, not merely the newest file.)
+    WriteText(steam / "config/loginusers.vdf",
+              "\"users\"\n{\n    \"76561197960265851\"\n    {\n        \"MostRecent\" \"1\"\n    }\n"
+              "    \"76561197960266184\"\n    {\n        \"MostRecent\" \"0\"\n    }\n}\n");
+    WriteText(steam / "userdata/456/config/shortcuts.vdf", "");
     const fs::path app = temp / "Fulldex.AppImage";
     WriteText(app, "fake appimage", true);
     setenv("HOME", home.string().c_str(), 1);
@@ -98,6 +105,8 @@ int main()
     Check(SteamShortcuts::Available(), "a fresh Steam account is found without shortcuts.vdf");
     Check(Launcher::ConfigValue(settings.string(), "steam_shortcuts") == vdf.string(), "saves the Steam shortcuts path in settings.cfg");
     Check(Launcher::ConfigValue(settings.string(), "steam_account") == "123", "saves the Steam account in settings.cfg");
+    Check(SteamShortcuts::RefreshAccount(settings.string()) == "STEAM ACCOUNT 123", "refresh finds the signed-in account, not the newest file");
+    Check(Launcher::ConfigValue(settings.string(), "steam_account") == "123", "refresh keeps the account in settings.cfg");
     Check(!fs::exists(vdf), "there is no shortcuts.vdf yet");
 
     Launcher::Game black = MakeGame((temp / "roms/black.nds").string(), "IREO", "POKEMON BLACK");
@@ -180,6 +189,8 @@ int main()
     setenv("HOME", home2.string().c_str(), 1);
     SteamShortcuts::Initialize((temp / "settings-home2.cfg").string());
     Check(!SteamShortcuts::Available(), "Steam is not found in a home without userdata");
+    Check(SteamShortcuts::RefreshAccount((temp / "settings-home2.cfg").string()) == "STEAM NOT FOUND", "refresh reports no Steam");
+    Check(Launcher::ConfigValue((temp / "settings-home2.cfg").string(), "steam_shortcuts").empty(), "refresh clears a stale path");
     Check(SteamShortcuts::PlatformEntryLabel(launcherDir.string(), black) == "Add To Desktop", "the menu label falls back to Desktop");
     const std::string added = SteamShortcuts::PlatformEntryDo(launcherDir.string(), black);
     Check(added.rfind("ADDED", 0) == 0, "the fallback adds a desktop shortcut");

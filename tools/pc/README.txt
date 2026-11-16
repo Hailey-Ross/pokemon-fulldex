@@ -52,7 +52,8 @@ STEAM DECK
    Settings > STEAM LAUNCHER, or add one game from its menu (A on the game) > ADD TO STEAM.
    The same menu item says ADD TO DESKTOP when Steam is not found, and makes the normal
    desktop shortcut instead (automatic fallback). Entries are user-selected: nothing is
-   added automatically.
+   added automatically. If you switch Steam accounts or move Steam, Settings > STEAM
+   ACCOUNT > REFRESH finds the account's shortcuts file again.
 3. Start Steam again, then start pokemon-ds-wide or the game from your library in Gaming
    Mode with a gamepad controller layout.
 4. The Deck's screen is 1280x800: set 3D RESOLUTION to 720P in the settings (Y in the game

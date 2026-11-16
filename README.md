@@ -143,9 +143,10 @@ hacks; the launcher itself is added from Settings > **STEAM LAUNCHER**. Quit Ste
 FullDex says how to reopen it on your OS. **If Steam is not found, the same menu item
 automatically says ADD TO DESKTOP** and makes the normal desktop shortcut instead (Windows
 `.lnk`, macOS `.app`, Linux `.desktop`), so the action never dead-ends. Entries are
-user-selected; nothing is added automatically. Recreate after moving a ROM. Steam library
-cover artwork can be assigned separately in Steam. New Deck setups use Start for the pause
-menu; saved START BUTTON choices are respected.
+user-selected; nothing is added automatically. Recreate after moving a ROM. If you switch
+Steam accounts or move Steam, Settings > **STEAM ACCOUNT** > **REFRESH** finds the account's
+shortcuts file again. Steam library cover artwork can be assigned separately in Steam. New
+Deck setups use Start for the pause menu; saved START BUTTON choices are respected.
 
 **What it needs:** Windows 10 or 11 (64-bit), or 64-bit Linux from late 2023 on
 (Ubuntu 24.04, Fedora 39, SteamOS 3.5 or newer); nothing else to install. For WORLD
