@@ -84,6 +84,7 @@ static void ListWindowSize(SDL_Window* w, int* ww, int* wh) { SDL_GetWindowSize(
 #endif
 #if !defined(SSR_PHONE) && !defined(__SWITCH__)
 #include "shortcuts.h"
+#include "steam_shortcuts.h"
 #endif
 #ifdef SSR_UPDATER
 #include "updater.h"
@@ -866,6 +867,11 @@ static void FillUpdateStatus()
 
 int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool& fullscreen, int winW, int winH)
 {
+#if !defined(SSR_PHONE) && !defined(__SWITCH__)
+    // The game menu's platform-launcher item: Add To Steam, or Add To Desktop when Steam is not
+    // found. It is user-selected; nothing is added automatically.
+    Launcher::PlatformEntryLabel() = [dir = fo.dir](const Launcher::Game& g) { return SteamShortcuts::PlatformEntryLabel(dir, g); };
+#endif
 #ifdef __ANDROID__
     JavaVoid("showLauncherOrientation");
     SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight Portrait PortraitUpsideDown");
@@ -1462,6 +1468,14 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             return;
         }
 #endif
+#if !defined(SSR_PHONE) && !defined(__SWITCH__) && !defined(__APPLE__)
+        // STEAM LAUNCHER: add or take out Fulldex itself; the value says what happened.
+        if (key && !strcmp(key, "!steam_launcher"))
+        {
+            page.items[page.selected].values[0].second = SteamShortcuts::LauncherDo();
+            return;
+        }
+#endif
 #if !defined(__ANDROID__) && !defined(SSR_IOS)
         // SAVES FOLDER: a folder of the player's own (copied into, nothing replaced), used from the next start; again: back beside the ROMs.
         if (key && !strcmp(key, "!saves_folder"))
@@ -1781,6 +1795,15 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                         env->DeleteLocalRef(a); env->DeleteLocalRef(b); env->DeleteLocalRef(p);
                     });
                     note = ok ? "CONFIRM ON YOUR PHONE TO ADD THE SHORTCUT" : "THIS PHONE'S HOME SCREEN DOES NOT TAKE SHORTCUTS";
+                    return;
+                }
+#endif
+#if !defined(SSR_PHONE) && !defined(__SWITCH__)
+                // The platform-launcher entry: Add To Steam, or Add To Desktop when Steam is
+                // not found (Android's phone home shortcut is above).
+                if (item == 7 && valid)
+                {
+                    note = SteamShortcuts::PlatformEntryDo(fo.dir, games[selected]);
                     return;
                 }
 #endif
