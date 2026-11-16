@@ -595,6 +595,7 @@ Save to it from the game's menu	Im Spielmenü darauf speichern
 Choose a slot to play from it, or delete it. Save to the slots from the game's menu.	Wähle einen Platz, um davon zu spielen oder ihn zu löschen. Gespeichert wird im Spielmenü.
 Fulldex backs up this save every time the game starts and before anything here changes it. Your ROM is never changed.	Fulldex sichert diesen Spielstand bei jedem Spielstart und bevor hier etwas daran geändert wird. Dein ROM wird nie verändert.
 The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.	Die GBA-Spiele haben je einen Speicherzustand, im Spielmenü gespeichert und geladen. Plätze gibt es für die DS-Spiele.
+Omega Ruby and Alpha Sapphire have no save states: they save from the game's own menu. Save state slots are for the DS games.	Omega Rubin und Alpha Saphir haben keine Speicherzustände: Sie speichern im Menü des Spiels. Plätze gibt es für die DS-Spiele.
 Keep This One	Diesen behalten
 Choose A File...	Datei wählen...
 Restore Backup	Sicherung wiederherstellen
@@ -1239,6 +1240,7 @@ Save to it from the game's menu	Guarda en ella desde el menú del juego
 Choose a slot to play from it, or delete it. Save to the slots from the game's menu.	Elige una ranura para jugar desde ella o borrarla. Se guarda desde el menú del juego.
 Fulldex backs up this save every time the game starts and before anything here changes it. Your ROM is never changed.	Fulldex hace una copia de esta partida cada vez que empieza el juego y antes de cambiarla aquí. Tu ROM nunca se modifica.
 The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.	Los juegos de GBA tienen un estado guardado cada uno, desde el menú del juego. Las ranuras son para los juegos de DS.
+Omega Ruby and Alpha Sapphire have no save states: they save from the game's own menu. Save state slots are for the DS games.	Rubí Omega y Zafiro Alfa no tienen estados guardados: se guarda desde el menú del juego. Las ranuras son para los juegos de DS.
 Keep This One	Quedarme con esta
 Choose A File...	Elegir un archivo...
 Restore Backup	Restaurar copia
@@ -1883,6 +1885,7 @@ Save to it from the game's menu	Sauvegardez-y depuis le menu du jeu
 Choose a slot to play from it, or delete it. Save to the slots from the game's menu.	Choisissez un emplacement pour y jouer ou le supprimer. On sauvegarde depuis le menu du jeu.
 Fulldex backs up this save every time the game starts and before anything here changes it. Your ROM is never changed.	Fulldex sauvegarde ce fichier à chaque lancement et avant toute modification ici. Votre ROM n'est jamais modifiée.
 The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.	Les jeux GBA ont un état sauvegardé chacun, depuis le menu du jeu. Les emplacements sont pour les jeux DS.
+Omega Ruby and Alpha Sapphire have no save states: they save from the game's own menu. Save state slots are for the DS games.	Rubis Oméga et Saphir Alpha n'ont pas d'états sauvegardés : on sauvegarde depuis le menu du jeu. Les emplacements sont pour les jeux DS.
 Keep This One	Garder celle-ci
 Choose A File...	Choisir un fichier...
 Restore Backup	Restaurer
@@ -2527,6 +2530,7 @@ Save to it from the game's menu	Salva qui dal menu del gioco
 Choose a slot to play from it, or delete it. Save to the slots from the game's menu.	Scegli uno slot per giocare da lì o eliminarlo. Si salva dal menu del gioco.
 Fulldex backs up this save every time the game starts and before anything here changes it. Your ROM is never changed.	Fulldex fa un backup di questo salvataggio a ogni avvio e prima di qualsiasi modifica qui. La tua ROM non viene mai modificata.
 The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.	I giochi GBA hanno uno stato salvato ciascuno, dal menu del gioco. Gli slot sono per i giochi DS.
+Omega Ruby and Alpha Sapphire have no save states: they save from the game's own menu. Save state slots are for the DS games.	Rubino Omega e Zaffiro Alpha non hanno stati salvati: si salva dal menu del gioco. Gli slot sono per i giochi DS.
 Keep This One	Tieni questo
 Choose A File...	Scegli un file...
 Restore Backup	Ripristina backup
@@ -3171,6 +3175,7 @@ Save to it from the game's menu	ゲームのメニューから保存します
 Choose a slot to play from it, or delete it. Save to the slots from the game's menu.	スロットを選ぶとそこから遊ぶか削除できます。保存はゲームのメニューから。
 Fulldex backs up this save every time the game starts and before anything here changes it. Your ROM is never changed.	Fulldex は起動のたびと、ここで変更する前にこのセーブをバックアップします。ROM は変更されません。
 The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.	GBA のゲームはステートを一つずつ持ち、ゲームのメニューで保存・読み込みします。スロットは DS のゲーム用です。
+Omega Ruby and Alpha Sapphire have no save states: they save from the game's own menu. Save state slots are for the DS games.	オメガルビーとアルファサファイアにはステートセーブがありません。ゲームのメニューでセーブします。スロットは DS のゲーム用です。
 Keep This One	こちらを残す
 Choose A File...	ファイルを選ぶ...
 Restore Backup	バックアップを戻す
@@ -3815,6 +3820,7 @@ Save to it from the game's menu	게임 메뉴에서 저장하세요
 Choose a slot to play from it, or delete it. Save to the slots from the game's menu.	슬롯을 골라 플레이하거나 삭제하세요. 저장은 게임 메뉴에서 합니다.
 Fulldex backs up this save every time the game starts and before anything here changes it. Your ROM is never changed.	Fulldex는 게임을 시작할 때마다, 그리고 여기서 바꾸기 전에 이 저장을 백업합니다. ROM은 절대 바뀌지 않습니다.
 The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.	GBA 게임은 상태 저장이 하나씩이며 게임 메뉴에서 저장하고 불러옵니다. 슬롯은 DS 게임용입니다.
+Omega Ruby and Alpha Sapphire have no save states: they save from the game's own menu. Save state slots are for the DS games.	오메가루비와 알파사파이어는 상태 저장이 없으며 게임 메뉴에서 저장합니다. 슬롯은 DS 게임용입니다.
 Keep This One	이것을 유지
 Choose A File...	파일 선택...
 Restore Backup	백업 복원
