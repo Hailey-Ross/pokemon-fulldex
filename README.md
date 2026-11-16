@@ -1,5 +1,7 @@
 # Pokémon Fulldex
 
+<a href="https://recomplauncher.com/game/pokemon-fulldex"><picture><source media="(prefers-color-scheme: dark)" srcset="https://recomplauncher.com/assets/press/launcher/badge-light.svg"><img alt="Get it on RecompLauncher" src="https://recomplauncher.com/assets/press/launcher/badge-dark.svg" height="48"></picture></a>
+
 **All your favourite Pokémon games on a PC (Windows and Linux), a Mac, a Steam
 Deck or other handheld PC, an Android phone, an iPhone or iPad, or a modded Nintendo Switch: one screen,
 widescreen, 60 fps, up to 4K on a PC and 720p on the Switch.** No more squinting at two tiny stacked DS screens.
