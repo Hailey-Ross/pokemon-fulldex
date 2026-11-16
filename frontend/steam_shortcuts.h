@@ -7,6 +7,7 @@
 #include "shortcuts.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -369,19 +370,52 @@ inline std::string RemoveGrid(const std::string& shortcutsPath, uint32_t appid)
         fs::remove(fs::u8path(base + suffix), ec);
     return std::string();
 }
-// The entry's icon: the game's picture, or for the launcher the AppImage's own icon beside it.
+// The entry's Steam art: the icon, the portrait (600x900) and the hero (1920x620) from the
+// game's picture, or for the launcher the AppImage's own icon beside it.
 inline std::string WriteIcon(const std::string& shortcutsPath, uint32_t appid, const Launcher::Game* game,
                              const std::string& appPath)
 {
     const std::string grid = GridDir(shortcutsPath);
     std::error_code ec;
     fs::create_directories(fs::u8path(grid), ec);
-    const std::string path = grid + "/" + std::to_string(appid) + "_icon.png";
-    std::vector<uint32_t> px;
-    if (game) px = Shortcuts::Picture(*game, 256);
-    if (!px.empty())
-        return Shortcuts::WriteFile(path, Shortcuts::Png(px, 256, 256)) ? path : std::string();
+    const std::string base = grid + "/" + std::to_string(appid);
+    if (game)
+    {
+        // (Steam's icon: the DS icon, scaled sharply from its 32x32 pixels.)
+        std::vector<uint32_t> iconPx;
+        if (game->hasIcon)
+        {
+            iconPx.resize(256u * 256u);
+            for (int y = 0; y < 256; y++)
+                for (int x = 0; x < 256; x++)
+                    iconPx[(size_t)y * 256 + x] = game->icon[(size_t)(y * 32 / 256) * 32 + x * 32 / 256];
+        }
+        if (!iconPx.empty())
+            Shortcuts::WriteFile(base + "_icon.png", Shortcuts::Png(iconPx, 256, 256));
+        // (Steam's portrait: the middle 600 of a 900x900 picture, 600x900.)
+        const std::vector<uint32_t> big = Shortcuts::Picture(*game, 900);
+        if (big.size() == 900u * 900u)
+        {
+            std::vector<uint32_t> px(600u * 900u);
+            for (int y = 0; y < 900; y++)
+                for (int x = 0; x < 600; x++)
+                    px[(size_t)y * 600 + x] = big[(size_t)y * 900 + (x + 150)];
+            Shortcuts::WriteFile(base + "p.png", Shortcuts::Png(px, 600, 900));
+        }
+        // (Steam's hero: the square picture centred on a dark 1920x620 canvas.)
+        const std::vector<uint32_t> hero = Shortcuts::Picture(*game, 620);
+        if (hero.size() == 620u * 620u)
+        {
+            std::vector<uint32_t> px(1920u * 620u, 0xFF10161Cu);
+            for (int y = 0; y < 620; y++)
+                for (int x = 0; x < 620; x++)
+                    px[(size_t)y * 1920 + 650 + x] = hero[(size_t)y * 620 + x];
+            Shortcuts::WriteFile(base + "_hero.png", Shortcuts::Png(px, 1920, 620));
+        }
+        return iconPx.empty() ? std::string() : base + "_icon.png";
+    }
     // (The launcher: the AppImage's .icons/<name>, which its .desktop entry uses too.)
+    const std::string path = base + "_icon.png";
     const fs::path app = fs::u8path(appPath);
     const fs::path own = app.parent_path() / ".icons" / app.stem();
     std::error_code c2;
@@ -417,18 +451,45 @@ inline bool AddEntry(const std::string& shortcutsPath, const std::string& title,
     Vdf::Node* entry = game ? GameEntry(root, game->rom) : LauncherEntry(root);
     const uint32_t appid = AppId(exe, title);
     const std::string icon = WriteIcon(shortcutsPath, appid, game, exe);
+    Vdf::Node made;
     if (!entry)
     {
-        Vdf::Node made;
         made.kind = Vdf::Node::Object;
         made.key = std::to_string(NextKey(root));
-        root.children.push_back(std::move(made));
-        entry = &root.children.back();
+        FillEntry(made, title, exe, args, icon, appid);
     }
-    FillEntry(*entry, title, exe, args, icon, appid);
+    else
+    {
+        FillEntry(*entry, title, exe, args, icon, appid);
+    }
+    std::vector<uint8_t> out;
+    if (data.empty())
+    {
+        // (A new shortcuts file: there is nothing to preserve.)
+        root.kind = Vdf::Node::Object;
+        root.key = "shortcuts";
+        root.children.push_back(std::move(made));
+        out = Vdf::Write(root);
+    }
+    else if (entry)
+    {
+        // (Replace just this entry in place; every other byte stays as the player's Steam wrote it.)
+        const std::vector<uint8_t> encoded = Vdf::Write(*entry);
+        out = data;
+        out.erase(out.begin() + (std::ptrdiff_t)entry->begin, out.begin() + (std::ptrdiff_t)entry->end);
+        out.insert(out.begin() + (std::ptrdiff_t)entry->begin, encoded.begin(), encoded.end());
+    }
+    else
+    {
+        // (A new entry goes inside the root, before its 0x08 end; the rest is untouched.)
+        const std::vector<uint8_t> encoded = Vdf::Write(made);
+        out = data;
+        const size_t at = root.end > 0 ? root.end - 1 : data.size();
+        out.insert(out.begin() + (std::ptrdiff_t)at, encoded.begin(), encoded.end());
+    }
     const std::string backup = Backup(shortcutsPath);
     if (backup.empty()) { error = "CANNOT BACK UP STEAM'S SHORTCUTS"; return false; }
-    if (!WriteAtomic(shortcutsPath, Vdf::Write(root))) { error = "CANNOT WRITE STEAM'S SHORTCUTS"; return false; }
+    if (!WriteAtomic(shortcutsPath, out)) { error = "CANNOT WRITE STEAM'S SHORTCUTS"; return false; }
     return true;
 }
 
@@ -447,14 +508,12 @@ inline bool RemoveEntry(const std::string& shortcutsPath, const Launcher::Game* 
     Vdf::Node* entry = game ? GameEntry(root, game->rom) : LauncherEntry(root);
     if (!entry) return true;
     const uint32_t appid = AppId(Vdf::String(*entry, "Exe"), Vdf::String(*entry, "AppName"));
-    root.children.erase(std::remove_if(root.children.begin(), root.children.end(), [&](const Vdf::Node& n) { return &n == entry; }),
-                        root.children.end());
-    int64_t key = 0;
-    for (Vdf::Node& n : root.children)
-        if (n.kind == Vdf::Node::Object) n.key = std::to_string(key++);
+    // (Cut just this entry; every other byte stays as the player's Steam wrote it.)
+    std::vector<uint8_t> out = data;
+    out.erase(out.begin() + (std::ptrdiff_t)entry->begin, out.begin() + (std::ptrdiff_t)entry->end);
     const std::string backup = Backup(shortcutsPath);
     if (backup.empty()) { error = "CANNOT BACK UP STEAM'S SHORTCUTS"; return false; }
-    if (!WriteAtomic(shortcutsPath, Vdf::Write(root))) { error = "CANNOT WRITE STEAM'S SHORTCUTS"; return false; }
+    if (!WriteAtomic(shortcutsPath, out)) { error = "CANNOT WRITE STEAM'S SHORTCUTS"; return false; }
     RemoveGrid(shortcutsPath, appid);
     return true;
 }
