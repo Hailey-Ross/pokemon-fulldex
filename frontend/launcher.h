@@ -477,6 +477,27 @@ inline std::string HackSave(const std::string& rom)
     if (!k.empty() && k.front() == '-') k.erase(0, 1);
     return "hack-" + (k.empty() ? std::string("game") : k) + ".sav";
 }
+// FullDex 1.6 took some players' own full-size dumps for hacks: the game then played from a copy of its
+// save named after the ROM (hack-....sav). Once the ROM is its game again, a newer one of those is put
+// back as the game's save (the game's own kept beside it as .before-1.6.1), so nothing played since is lost.
+inline void TakeBackHackSave(const std::string& folder, const std::string& hackSave, const std::string& gameSave)
+{
+    const std::string own = folder + "/" + hackSave, base = folder + "/" + gameSave;
+    struct stat a, b;
+    if (stat(own.c_str(), &a) != 0 || a.st_size <= 0) return;
+    const bool haveBase = stat(base.c_str(), &b) == 0;
+    if (haveBase && a.st_mtime <= b.st_mtime) return;
+    if (haveBase)
+    {
+        std::ifstream x(own, std::ios::binary), y(base, std::ios::binary);
+        const std::string sx((std::istreambuf_iterator<char>(x)), {}), sy((std::istreambuf_iterator<char>(y)), {});
+        if (sx == sy) return;
+        if (!RomHacks::CopyFile(base, base + ".before-1.6.1")) return;
+    }
+    if (RomHacks::CopyFile(own, base))
+        fprintf(stderr, "[launcher] %s: the save played since 1.6 put back as %s\n", own.c_str(), base.c_str());
+}
+
 inline std::string HackName(const std::string& rom)
 {
     std::string n;
@@ -731,6 +752,8 @@ inline bool ReadGame(const std::string& rom, const std::string& folder, Game& g)
             g.name = HackName(rom);
             g.saveName = HackSave(rom);
         }
+        else
+            TakeBackHackSave(folder, HackSave(rom), g.saveName);
     }
     else
     {
