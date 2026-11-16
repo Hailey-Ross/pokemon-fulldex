@@ -2578,7 +2578,7 @@ int main(int argc, char** argv)
         h = cfg.windowW >= 320 && cfg.windowH >= 240 ? cfg.windowH : 720;
         static std::string gameTitle;
         gameTitle = PcLauncher::GameName();
-        if (!gameTitle.empty()) windowTitle = gameTitle.c_str();
+        windowTitle = gameTitle.empty() ? "FullDex" : gameTitle.c_str(); // (not "Pokemon SoulSilver", the old program's)
 #endif
         window = SDL_CreateWindow(windowTitle, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
             w, h,

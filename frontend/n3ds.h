@@ -501,10 +501,18 @@ inline bool MakeFolder(const std::string& appDir, const Launcher::Game& g)
 }
 
 // Making the game's code: one at a time, on a thread of its own, the launcher showing how it goes.
+// (A thread let go of when the program ends, still making a game's code or long finished: a joinable
+// std::thread destroyed at exit ends the program with "terminate called", a crash on quitting.)
+struct LooseThread : std::thread
+{
+    using std::thread::thread;
+    using std::thread::operator=;
+    ~LooseThread() { if (joinable()) detach(); }
+};
 struct Prep
 {
     std::mutex m;
-    std::thread th;
+    LooseThread th;
     std::atomic<bool> running { false };
     bool finished = false, failed = false, told = true;
     int done = 0, total = 0;

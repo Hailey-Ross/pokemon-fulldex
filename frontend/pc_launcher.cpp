@@ -3986,6 +3986,8 @@ bool Start(int& argc, char**& argv)
         direct = argv[2];
         for (char& c : direct) c = (char)toupper((unsigned char)c);
     }
+    else if (argc == 2 && argv[1] && (N3ds::EndsWith(argv[1], ".3ds") || N3ds::EndsWith(argv[1], ".cci") || N3ds::EndsWith(argv[1], ".cia")))
+        directRom = argv[1]; // (a 3DS dump opened with FullDex, "Open With" or a Steam shortcut: the 3DS game, never the DS one)
     else if (argc >= 2)
     {
 #ifdef SSR_GBA
@@ -4171,9 +4173,39 @@ bool Start(int& argc, char**& argv)
         if (directGame < 0 && copiedDirectGba && IsGbaRomName(directRom))
             for (size_t i = 0; i < games.size() && directGame < 0; i++)
                 if (sameRom(games[i].rom, copy) && Playable(fo, games[i])) directGame = (int)i;
+#ifdef SSR_N3DS_PC
+        // (A 3DS dump from anywhere: the 3DS game, as if it were with the ROMs; one that cannot be played says why.)
+        if (directGame < 0 && (N3ds::EndsWith(directRom, ".3ds") || N3ds::EndsWith(directRom, ".cci") || N3ds::EndsWith(directRom, ".cia")))
+        {
+            if (const N3ds::Title* t = N3ds::Check(directRom))
+            {
+                for (size_t i = 0; i < games.size() && directGame < 0; i++)
+                    if (games[i].platform == Launcher::N3DS && games[i].code == t->code) directGame = (int)i;
+                if (directGame < 0 && N3ds::ProgramHere())
+                {
+                    games.push_back(N3ds::Make(*t, directRom, fo.dir + "/3ds/" + t->id));
+                    games.back().saveName = N3ds::SaveName(t->code);
+                    games.back().built = N3ds::Prepared(games.back());
+                    directGame = (int)games.size() - 1;
+                }
+                else if (directGame < 0)
+                    N3ds::Skip(directRom, "THE 3DS FOLDER FROM THE FULLDEX DOWNLOAD IS MISSING BESIDE THE PROGRAM", 3);
+            }
+        }
+        else
+#endif
         if (directGame < 0) directGame = DirectRom::Ds(directRom, fo.saves, fo.art, games);
         if (directGame >= 0 && !Playable(fo, games[directGame])) directGame = -1;
         if (directGame < 0) fprintf(stderr, "[launcher] --rom %s: not in the list\n", directRom.c_str());
+#ifdef SSR_N3DS_PC
+        // (A 3DS game whose code is not made yet: the list, with it being made, rather than a game that cannot start.)
+        if (directGame >= 0 && games[directGame].platform == Launcher::N3DS && !N3ds::Prepared(games[directGame]))
+        {
+            chosen = directGame;
+            directGame = -1;
+            if (!N3ds::Busy()) N3ds::StartPrepare(fo.dir, games[chosen]);
+        }
+#endif
     }
 #ifdef SSR_UPDATER
     // (At launch, as the list opens: a popup if a new version is out, never installed unasked.)
