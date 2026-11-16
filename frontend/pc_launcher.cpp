@@ -84,6 +84,7 @@ static void ListWindowSize(SDL_Window* w, int* ww, int* wh) { SDL_GetWindowSize(
 #endif
 #if !defined(SSR_PHONE) && !defined(__SWITCH__)
 #include "shortcuts.h"
+#include "steam_shortcuts.h"
 #endif
 #ifdef SSR_UPDATER
 #include "updater.h"
@@ -166,36 +167,6 @@ bool ConfigFullscreen(const std::string& cfg, int& w, int& h)
 }
 
 // F11 in the list: the game then starts the same way (the settings file says so).
-// Lines of the settings file set (key=value) or, for an empty value, taken out; the others kept.
-void SetConfigValues(const std::string& cfg, const std::vector<std::pair<std::string, std::string>>& values)
-{
-    std::vector<std::string> lines;
-    if (FILE* f = fopen(cfg.c_str(), "r"))
-    {
-        char line[1024];
-        while (fgets(line, sizeof line, f))
-        {
-            std::string l = line;
-            while (!l.empty() && (l.back() == '\n' || l.back() == '\r')) l.pop_back();
-            bool set = false;
-            for (const auto& kv : values) set |= l.size() > kv.first.size() && !l.compare(0, kv.first.size(), kv.first) && l[kv.first.size()] == '=';
-            if (!set) lines.push_back(l);
-        }
-        fclose(f);
-    }
-    for (const auto& kv : values)
-        if (!kv.second.empty()) lines.push_back(kv.first + "=" + kv.second);
-    const std::string tmp = cfg + ".tmp";
-    if (FILE* f = fopen(tmp.c_str(), "w"))
-    {
-        bool ok = true;
-        for (const std::string& l : lines) if (fprintf(f, "%s\n", l.c_str()) < 0) ok = false;
-        ok = fclose(f) == 0 && ok;
-        std::error_code ec;
-        if (ok) std::filesystem::rename(tmp, cfg, ec);
-        if (!ok || ec) fprintf(stderr, "[launcher] settings could not be saved: %s\n", cfg.c_str());
-    }
-}
 
 void SetConfigFullscreen(const std::string& cfg, bool on)
 {
@@ -874,6 +845,13 @@ static void FillUpdateStatus()
 
 int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool& fullscreen, int winW, int winH)
 {
+#if !defined(SSR_PHONE) && !defined(__SWITCH__)
+    // The Steam account/shortcuts path is found once at load and kept in settings.cfg; the
+    // game menu's label is drawn every frame and must not touch Steam's folders there.
+    SteamShortcuts::Initialize(fo.cfg);
+    Launcher::PlatformEntryLabel() = [dir = fo.dir](const Launcher::Game& g) { return SteamShortcuts::PlatformEntryLabel(dir, g); };
+    Launcher::PlatformLauncherState() = [] { return SteamShortcuts::HasLauncher() ? "IN STEAM" : "NOT IN STEAM"; };
+#endif
 #ifdef __ANDROID__
     JavaVoid("showLauncherOrientation");
     SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight Portrait PortraitUpsideDown");
@@ -974,6 +952,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
     // the chosen game is; a key, button or tap that chooses a game makes it follow again.
     bool follow = true;
     std::string note;
+    bool noteKeep = false; // (a menu action's message survives the pointer-up that follows it)
     if (Launcher::ConfigValue(fo.cfg, "folders_moved") == "1")
     {
         note = "FOLDERS TIDIED: SAVES, STATES, CHEATS AND SETTINGS EACH HAVE ONE. SETTINGS TO UNDO.";
@@ -1474,6 +1453,19 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             return;
         }
 #endif
+#if !defined(SSR_PHONE) && !defined(__SWITCH__) && !defined(__APPLE__)
+        // STEAM LAUNCHER: add or take out Fulldex itself; the value says what happened.
+        if (key && !strcmp(key, "!steam_launcher"))
+        {
+            page.items[page.selected].values[0].second = SteamShortcuts::LauncherDo();
+            return;
+        }
+        if (key && !strcmp(key, "!steam_refresh"))
+        {
+            page.items[page.selected].values[0].second = SteamShortcuts::RefreshAccount(fo.cfg);
+            return;
+        }
+#endif
 #if !defined(__ANDROID__) && !defined(SSR_IOS)
         // SAVES FOLDER: a folder of the player's own (copied into, nothing replaced), used from the next start; again: back beside the ROMs.
         if (key && !strcmp(key, "!saves_folder"))
@@ -1738,9 +1730,15 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             }
             if (F.banner == 2)
             {
-                // (Game Options: the menu of the game the banner offers.)
-                const int cg = Launcher::ContinueGame(games, selected);
-                if (cg >= 0) { selected = cg; F.banner = 0; F.popup = 0; follow = true; }
+                // (Game Options: the selected game's menu, however it was selected: a grid
+                // click/tap, the pointer on this header button, or the keyboard/gamepad.)
+                if (selected < 0 || selected >= (int)games.size()) selected = Launcher::FirstIn(view());
+                if (selected >= 0 && selected < (int)games.size())
+                {
+                    F.banner = 0;
+                    F.popup = 0;
+                    follow = true;
+                }
                 return;
             }
             bool direct = false; // (Continue, or Play in the game's menu: played at once)
@@ -1794,6 +1792,16 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                         env->DeleteLocalRef(a); env->DeleteLocalRef(b); env->DeleteLocalRef(p);
                     });
                     note = ok ? "CONFIRM ON YOUR PHONE TO ADD THE SHORTCUT" : "THIS PHONE'S HOME SCREEN DOES NOT TAKE SHORTCUTS";
+                    return;
+                }
+#endif
+#if !defined(SSR_PHONE) && !defined(__SWITCH__)
+                // The platform-launcher entry: Add To Steam, or Add To Desktop when Steam is
+                // not found (Android's phone home shortcut is above).
+                if (item == 7 && valid)
+                {
+                    note = SteamShortcuts::PlatformEntryDo(fo.dir, games[selected]);
+                    noteKeep = true;
                     return;
                 }
 #endif
@@ -3115,7 +3123,8 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 {
                     selected = i;
                     onSettings = onTabs = false; Launcher::Focus() = Launcher::GlassFocus{};
-                    note.clear();
+                    if (!noteKeep) note.clear();
+                    noteKeep = false;
                     // Pointer selection leaves the list under the finger; controller movement
                     // follows its chosen card. A partial card must not jump at touch-down.
                     if (e.type == SDL_MOUSEBUTTONDOWN) follow = false;

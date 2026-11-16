@@ -136,10 +136,20 @@ Launcher **Settings > Display** also lets you choose the **DS Screen Filter** or
 | SCREEN LAYOUT | MERGED | the one widescreen picture, or the two DS screens laid out as on other emulators |
 
 **Desktop shortcuts:** DESKTOP SHORTCUTS on the settings page puts a shortcut for each
-game on your desktop (on Linux also in your apps menu, and so in the Steam Deck's "Add a
-Non-Steam Game" list), with its box art; each starts its game straight away.
+game on your desktop (on Linux also in your apps menu), with its box art; each starts its
+game straight away. It creates every game at once; the game menu's ADD TO DESKTOP adds
+just the chosen one.
 
-**Steam Deck direct launches:** In Desktop Mode, use FullDex Settings > DESKTOP SHORTCUTS, then open Steam > Add a Game > Add a Non-Steam Game and select the generated game entries. They appear in Gaming Mode under Non-Steam and start the selected ROM directly, including hacks. Recreate shortcuts after moving a ROM. The desktop icon is included; Steam library cover artwork can be assigned separately in Steam. New Deck setups use Start for the pause menu; saved START BUTTON choices are respected.
+**Steam Deck direct launches:** In a game's menu (A on the game), choose **ADD TO STEAM**.
+FullDex writes that game into Steam's own library and starts the ROM directly, including
+hacks; the launcher itself is added from Settings > **Shortcuts** > **STEAM LAUNCHER**. Quit Steam first:
+FullDex says how to reopen it on your OS. **If Steam is not found, the same menu item
+automatically says ADD TO DESKTOP** and makes the normal desktop shortcut instead (Windows
+`.lnk`, macOS `.app`, Linux `.desktop`), so the action never dead-ends. Entries are
+user-selected; nothing is added automatically. Recreate after moving a ROM. If you switch
+Steam accounts or move Steam, Settings > **Shortcuts** > **STEAM ACCOUNT** > **REFRESH** finds the account's
+shortcuts file again. Steam library cover artwork can be assigned separately in Steam. New
+Deck setups use Start for the pause menu; saved START BUTTON choices are respected.
 
 **What it needs:** Windows 10 or 11 (64-bit), or 64-bit Linux from late 2023 on
 (Ubuntu 24.04, Fedora 39, SteamOS 3.5 or newer); nothing else to install. For WORLD
@@ -148,10 +158,11 @@ up-to-date drivers; without it, the processor draws the world (that wants a
 much faster processor).
 
 **Steam Deck:** in Desktop Mode, unpack the Linux download and put your ROMs in
-its `roms` folder; in Steam, **Games > Add a Non-Steam Game to My Library**,
-browse to `pokemon-ds-wide` (file type: All Files); then start it from your
-library in Gaming Mode with a gamepad controller layout. Set 3D RESOLUTION to
-720P for the Deck's 1280x800 screen.
+its `roms` folder. Quit Steam. Open Fulldex from your apps menu; add the launcher from
+Settings > **Shortcuts** > **STEAM LAUNCHER**, or one game from its menu (A on the game) > **ADD TO STEAM**.
+The game menu says **ADD TO DESKTOP** instead when Steam is not found (automatic fallback).
+Start Steam again; then start FullDex or the game from your library in Gaming Mode with a
+gamepad controller layout. Set 3D RESOLUTION to 720P for the Deck's 1280x800 screen.
 
 **Mac** (macOS 11 or newer):
 

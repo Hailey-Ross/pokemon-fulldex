@@ -314,8 +314,13 @@ struct GlassFocus { int side = -1; int banner = 0; int popup = -1; int popX = 0,
                     // (The settings drawn as a page: its title; where its list and preview go, for the menu.)
                     std::string pageTitle; int sX = 0, sY = 0, sW = 0, sH = 0, sListW = 0, sPvX = 0, sListH = 0, sPvY = 0, pdY = 0, dScroll = 0, dMax = 0; };
 inline GlassFocus& Focus() { static GlassFocus f; return f; }
-#ifdef __ANDROID__
-inline int PopupCount() { return 8; } // (Android: Add To Phone Home Screen as well)
+// The game menu's platform-launcher item (Add To Steam, or Add To Desktop when Steam is not
+// found): the game list supplies the label because only it knows what is available.
+inline std::function<std::string(const Game&)>& PlatformEntryLabel() { static std::function<std::string(const Game&)> f; return f; }
+// Whether the launcher itself is in Steam ("IN STEAM") or not, for the settings row.
+inline std::function<std::string()>& PlatformLauncherState() { static std::function<std::string()> f; return f; }
+#if defined(__ANDROID__) || (!defined(SSR_PHONE) && !defined(__SWITCH__))
+inline int PopupCount() { return 8; } // (Android's phone home, or the desktop's Steam/Desktop entry)
 #else
 inline int PopupCount() { return 7; }
 #endif
@@ -330,6 +335,17 @@ inline std::string PopupLabel(const Game& g, int i)
     if (g.platform == N3DS && i == 3) return "Use Game Code From PC";
     if (g.platform == N3DS && i == 4) return g.built ? "Game Code Built" : "Build For Best Speed (25 Min)";
 #endif
+    if (i == 7)
+    {
+#if defined(__ANDROID__)
+        return n[7];
+#elif !defined(SSR_PHONE) && !defined(__SWITCH__)
+        if (PlatformEntryLabel()) return PlatformEntryLabel()(g);
+        return "Add To Desktop";
+#else
+        return n[7];
+#endif
+    }
     return i == 1 ? (g.favourite ? "Remove From Home" : "Add To Home") : i >= 0 && i < 8 ? n[i] : "";
 }
 // The pause menu's keyboard page (Menu::keyGrid) for Rename: BACK, four rows of keys (capitals, small
@@ -7619,7 +7635,7 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
         const int k = v.SpotOf(selected);
         if (k >= 0)
         {
-            static const int icons[] = { Glass::I_PLAY, Glass::I_POKEBALL, Glass::I_SPARKLE, Glass::I_WINDOW, Glass::I_SAVE, Glass::I_LAYERS, Glass::I_BACK, Glass::I_EXPAND };
+            static const int icons[] = { Glass::I_PLAY, Glass::I_POKEBALL, Glass::I_SPARKLE, Glass::I_WINDOW, Glass::I_SAVE, Glass::I_LAYERS, Glass::I_BACK, Glass::I_GLOBE };
             const Game& g = games[selected];
             const int cx = grid.horiz ? v.spots[k].x - scroll : v.spots[k].x, cyy = grid.horiz ? grid.top + v.spots[k].y : grid.top + v.spots[k].y - scroll;
             const int n = PopupCount(), rowH = (int)(44 * u), rg = (int)(4 * u), pad = (int)(8 * u), pw = (int)(250 * u);
@@ -8123,6 +8139,11 @@ inline std::vector<Setting> SettingsList()
 #elif !defined(__APPLE__)
     l.push_back({ "!shortcuts", "DESKTOP SHORTCUTS", { { "", "CREATE" } }, "",
                   "PUTS A SHORTCUT FOR EACH GAME IN THIS LIST ON YOUR DESKTOP AND IN YOUR APPS MENU WITH ITS PICTURE. IT STARTS THAT GAME STRAIGHT AWAY. ON THE STEAM DECK THEY ALSO SHOW UP IN ADD A NON-STEAM GAME. CREATE AGAIN AFTER ADDING GAMES OR MOVING THIS FOLDER." });
+    const std::string steamLauncher = PlatformLauncherState() ? PlatformLauncherState()() : "NOT IN STEAM";
+    l.push_back({ "!steam_launcher", "STEAM LAUNCHER", { { "", steamLauncher } }, "",
+                  "ADDS FULLDEX ITSELF TO YOUR STEAM LIBRARY, NOT THE GAMES. QUIT STEAM FIRST, THEN CHOOSE THIS (THE MESSAGE SAYS HOW TO REOPEN IT). WHEN IT IS ALREADY IN STEAM, CHOOSE THIS TO TAKE IT OUT. WHEN STEAM IS NOT INSTALLED, A GAME'S MENU OFFERS ADD TO DESKTOP INSTEAD." });
+    l.push_back({ "!steam_refresh", "STEAM ACCOUNT", { { "", "REFRESH" } }, "",
+                  "FINDS THE STEAM ACCOUNT SIGNED IN LAST AND ITS shortcuts.vdf AGAIN (AFTER SWITCHING ACCOUNTS OR MOVING STEAM) AND SAVES THEM IN settings.cfg AS steam_account AND steam_shortcuts. THE VALUE SHOWS THE ACCOUNT FOUND." });
 #endif
 #endif
 #endif
@@ -8543,7 +8564,7 @@ inline int SettingIcon(const Setting& s, int group)
         { "screen_filter", Glass::I_SPARKLE }, { "gba_lcd", Glass::I_SPARKLE }, { "battle_buttons", Glass::I_PAD }, { "show_fps", Glass::I_GAUGE }, { "fps60", Glass::I_FAST }, { "wide", Glass::I_RATIO },
         { "wide_map", Glass::I_GLOBE }, { "wide_lines", Glass::I_LAYERS }, { "busy_detail", Glass::I_GAUGE }, { "ff_low_res", Glass::I_FAST },
         { "wide_gpu", Glass::I_CHIP }, { "volume", Glass::I_SPEAKER }, { "start_button", Glass::I_PAD }, { "buttons", Glass::I_PAD },
-        { "pad_touch", Glass::I_PAD }, { "!keys", Glass::I_PAD }, { "!shortcuts", Glass::I_WINDOW }, { "!forwarders", Glass::I_WINDOW },
+        { "pad_touch", Glass::I_PAD }, { "!keys", Glass::I_PAD }, { "!shortcuts", Glass::I_WINDOW }, { "!steam_launcher", Glass::I_GLOBE }, { "!steam_refresh", Glass::I_GLOBE }, { "!forwarders", Glass::I_WINDOW },
         { "list_lang", Glass::I_GLOBE }, { "ra", Glass::I_TROPHY }, { "!ra_login", Glass::I_PEOPLE }, { "!updates", Glass::I_LOAD }, { "!releases", Glass::I_GLOBE } };
     for (const auto& o : own)
         if (!strcmp(s.key, o.first)) return o.second;
@@ -8688,4 +8709,36 @@ inline void BuildSettingsMenu(Menu& m, std::vector<int>& map, const SettingsPage
     m.selected = onBack ? 0 : std::max(0, std::min((int)m.items.size() - 1, p.selected + 1));
 }
 
+}
+
+// Lines of a settings file set (key=value) or, for an empty value, taken out; the others kept.
+// (The launcher and the Steam writer both keep settings in settings.cfg.)
+inline void SetConfigValues(const std::string& cfg, const std::vector<std::pair<std::string, std::string>>& values)
+{
+    std::vector<std::string> lines;
+    if (FILE* f = fopen(cfg.c_str(), "r"))
+    {
+        char line[1024];
+        while (fgets(line, sizeof line, f))
+        {
+            std::string l = line;
+            while (!l.empty() && (l.back() == '\n' || l.back() == '\r')) l.pop_back();
+            bool set = false;
+            for (const auto& kv : values) set |= l.size() > kv.first.size() && !l.compare(0, kv.first.size(), kv.first) && l[kv.first.size()] == '=';
+            if (!set) lines.push_back(l);
+        }
+        fclose(f);
+    }
+    for (const auto& kv : values)
+        if (!kv.second.empty()) lines.push_back(kv.first + "=" + kv.second);
+    const std::string tmp = cfg + ".tmp";
+    if (FILE* f = fopen(tmp.c_str(), "w"))
+    {
+        bool ok = true;
+        for (const std::string& l : lines) if (fprintf(f, "%s\n", l.c_str()) < 0) ok = false;
+        ok = fclose(f) == 0 && ok;
+        std::error_code ec;
+        if (ok) std::filesystem::rename(tmp, cfg, ec);
+        if (!ok || ec) fprintf(stderr, "[launcher] settings could not be saved: %s\n", cfg.c_str());
+    }
 }

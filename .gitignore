@@ -35,3 +35,4 @@ __pycache__/
 /gen.new/
 /dist/
 .DS_Store
+fulldex-google-client.txt
