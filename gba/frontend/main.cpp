@@ -4549,6 +4549,7 @@ struct App
         if (navOpen)
         {
             GbaGlass::Nav n;
+            n.centre = touchUi; // (in the middle while the touch controls are up, clear of A and B)
             n.sel = navSel;
             n.count = navCount;
             for (int i = 0; i < NAV_APPS; i++) n.dim[i] = NavDim(i);
@@ -5423,7 +5424,11 @@ struct App
             }
 #endif
         }
+#ifdef GBAW_EMBEDDED
+        else if (touchUi) Touch::Draw(ui, touchLayout, touchHeld, fastToggle, navOpen);
+#else
         else if (touchUi) Touch::Draw(ui, touchLayout, touchHeld, fastToggle);
+#endif
         else any = false;
         const Uint32 now = SDL_GetTicks();
         if (set.Int("show_fps") && screen == PLAY && !paused)
@@ -5746,6 +5751,20 @@ struct App
                     if (m & (1u << Touch::MENU)) in.menu = true;
                     // (The >> button on the screen: a tap turns fast forward on, another off.)
                     if (m & (1u << Touch::FAST)) fastToggle = !fastToggle;
+#ifdef GBAW_EMBEDDED
+                    // (FULLDEX NAV: its button opens and closes the watch; a tap on an app uses it, one off the
+                    // watch and the controls closes it.)
+                    if (m & (1u << Touch::NAV)) navToggle = true;
+                    else if (navOpen && core)
+                    {
+                        GbaGlass::Nav at;
+                        at.centre = touchUi;
+                        const int hit = GbaGlass::NavHit(at, ow, oh, (int)(f.x * ow), (int)(f.y * oh));
+                        if (hit >= 0) { navSel = hit; NavUse(hit); return; }
+                        if (hit == -2) return;
+                        if (!(m & 0x3FF)) { navOpen = false; holdKeys = true; return; }
+                    }
+#endif
                     if (m & 0x3FF)
                     {
                         touchTap |= m & 0x3FF;
