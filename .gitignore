@@ -35,4 +35,5 @@ __pycache__/
 /gen.new/
 /dist/
 .DS_Store
+# The Google sign-in client, mounted for builds; never commit it.
 fulldex-google-client.txt
