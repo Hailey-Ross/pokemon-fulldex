@@ -7,6 +7,7 @@
 #include "shortcuts.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -117,8 +118,17 @@ inline std::vector<Account> Accounts()
 }
 
 // The account used most recently: its shortcuts file (existing, or the one Add will create).
-inline std::string ActiveShortcuts()
+// Cached: the game menu asks for the label every frame, and scanning Steam's folders there
+// made the menu slow to open. Add/Remove force a refresh; otherwise a few seconds is plenty.
+inline std::string ActiveShortcuts(bool refresh = false)
 {
+    static std::string cached;
+    static std::string cachedHome;
+    static std::chrono::steady_clock::time_point when{};
+    static bool loaded = false;
+    const auto now = std::chrono::steady_clock::now();
+    const std::string home = Home();
+    if (!refresh && loaded && home == cachedHome && now - when < std::chrono::seconds(3)) return cached;
     std::string best;
     fs::file_time_type bestTime{};
     bool have = false;
@@ -131,7 +141,11 @@ inline std::string ActiveShortcuts()
             have = true;
         }
     }
-    return best;
+    cached = best;
+    cachedHome = home;
+    when = now;
+    loaded = true;
+    return cached;
 }
 inline bool Available() { return !ActiveShortcuts().empty(); }
 
@@ -419,35 +433,39 @@ inline bool HasLauncher()
 
 inline std::string AddGame(const Launcher::Game& g)
 {
-    if (!Available()) return "STEAM NOT FOUND";
+    const std::string path = ActiveShortcuts(true);
+    if (path.empty()) return "STEAM NOT FOUND";
     if (SteamRunning()) return QuitSteamMessage();
     const std::string exe = Shortcuts::ExecutablePath();
     if (exe.empty()) return "NO PROGRAM PATH";
     std::string error;
-    return AddEntry(ActiveShortcuts(), GameTitle(g), exe, ArgsFor(g), &g, error) ? "ADDED TO STEAM" : error;
+    return AddEntry(path, GameTitle(g), exe, ArgsFor(g), &g, error) ? "ADDED TO STEAM" : error;
 }
 inline std::string RemoveGame(const Launcher::Game& g)
 {
-    if (!Available()) return "STEAM NOT FOUND";
+    const std::string path = ActiveShortcuts(true);
+    if (path.empty()) return "STEAM NOT FOUND";
     if (SteamRunning()) return QuitSteamMessage();
     std::string error;
-    return RemoveEntry(ActiveShortcuts(), &g, error) ? "REMOVED FROM STEAM" : error;
+    return RemoveEntry(path, &g, error) ? "REMOVED FROM STEAM" : error;
 }
 inline std::string AddLauncher()
 {
-    if (!Available()) return "STEAM NOT FOUND";
+    const std::string path = ActiveShortcuts(true);
+    if (path.empty()) return "STEAM NOT FOUND";
     if (SteamRunning()) return QuitSteamMessage();
     const std::string exe = Shortcuts::ExecutablePath();
     if (exe.empty()) return "NO PROGRAM PATH";
     std::string error;
-    return AddEntry(ActiveShortcuts(), ProductName(), exe, "", nullptr, error) ? "ADDED TO STEAM" : error;
+    return AddEntry(path, ProductName(), exe, "", nullptr, error) ? "ADDED TO STEAM" : error;
 }
 inline std::string RemoveLauncher()
 {
-    if (!Available()) return "STEAM NOT FOUND";
+    const std::string path = ActiveShortcuts(true);
+    if (path.empty()) return "STEAM NOT FOUND";
     if (SteamRunning()) return QuitSteamMessage();
     std::string error;
-    return RemoveEntry(ActiveShortcuts(), nullptr, error) ? "REMOVED FROM STEAM" : error;
+    return RemoveEntry(path, nullptr, error) ? "REMOVED FROM STEAM" : error;
 }
 
 // The game menu's platform-launcher item: Steam when found, otherwise the OS desktop shortcut.
