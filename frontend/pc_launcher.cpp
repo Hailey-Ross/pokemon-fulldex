@@ -3820,6 +3820,9 @@ void ResolveFolders(Folders& fo, bool atStart)
     if (!fo.states.empty()) FolderSet::MakeDirs(fo.states);
     FolderSet::States() = fo.states;
     FolderSet::CheatsDir() = fo.cheats;
+    // (Cloud saves: the Hub syncs the save the game reads, in the saves folder, not the one beside
+    // the settings. Refreshed here so a change of saves folder is followed.)
+    Launcher::PlatformSavePath() = [saves = fo.saves](const Launcher::Game& g) { return saves + "/" + g.saveName; };
     fprintf(stderr, "[folders] %s: saves %s, states %s, cheats %s, settings %s\n", layout.empty() ? "classic (for now)" : layout.c_str(),
             fo.saves.c_str(), fo.states.empty() ? "(beside the saves)" : fo.states.c_str(),
             fo.cheats.empty() ? "(beside the saves folder)" : fo.cheats.c_str(), fo.settings.c_str());
@@ -4323,7 +4326,7 @@ bool Start(int& argc, char**& argv)
     fprintf(stderr, "[launcher] %s (game code %s), save %s/%s\n", game.rom.c_str(), game.code.c_str(), fo.saves.c_str(),
         game.saveName.c_str());
     g_args = { argc > 0 && argv[0] ? argv[0] : "pokemon-ds-wide", game.rom, "--save", fo.saves + "/" + game.saveName,
-               "--config", fo.cfg };
+               "--config", fo.cfg, "--cloud-dir", fo.settings };
     if (!fo.states.empty()) { g_args.push_back("--states"); g_args.push_back(fo.states); } // (FOLDERS)
     if (!fo.cheats.empty()) { g_args.push_back("--cheats"); g_args.push_back(fo.cheats); }
     if (game.hack) g_args.push_back("--rom-hack"); // (says once that widescreen is tried on it)

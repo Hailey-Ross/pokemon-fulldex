@@ -2654,6 +2654,7 @@ struct HubState
     CloudSaves::Settings set;
     int busy = 0;                           // 0 nothing, 1 signing in, 2 syncing
     std::string code, url, msg;             // signing in: the code and where to type it; the last word
+    bool needSignIn = false;                // the cloud says the Google sign-in is no longer good
     std::map<std::string, CloudSaves::Result> results; // by the save's path
     std::map<std::string, std::string> synced;          // the saves in the cloud (cloud-state.txt): name, as last synced
     std::atomic<int> version{ 0 };
@@ -4488,6 +4489,7 @@ inline std::vector<std::string> HubActions(int row)
         if (h.busy == 1) return { "Cancel" };
         if (h.busy) return {};
         if (!HubOnLocked(h)) return { "Sign In With Google" };
+        if (h.needSignIn) return { "Sign In With Google", "Sign Out" };
         return { "Sync All Now", "Sign Out" };
     }
     if (!HubOnLocked(h) || h.busy || row - HUB_FIRST >= (int)games.size()) return {};
@@ -4504,6 +4506,7 @@ inline void HubSyncJob(std::vector<std::string> paths, int resolve)
     { std::lock_guard<std::mutex> l(h.m); s = h.set; dir = h.dir; }
     std::unique_ptr<CloudSaves::Sync> sync = CloudSaves::FromSettings(s, dir + "/cloud-state.txt", HubDevice());
     int up = 0, down = 0, both = 0, failed = 0;
+    std::string firstError;
     for (const std::string& p : paths)
     {
         if (h.stop) break;
@@ -4519,16 +4522,24 @@ inline void HubSyncJob(std::vector<std::string> paths, int resolve)
         down += r.outcome == CloudSaves::Outcome::Pulled;
         both += r.outcome == CloudSaves::Outcome::Conflict;
         failed += r.outcome == CloudSaves::Outcome::Failed;
+        if (r.outcome == CloudSaves::Outcome::Failed && firstError.empty()) firstError = r.message;
         { std::lock_guard<std::mutex> l(h.m); h.results[p] = r; }
         h.version++;
     }
     std::lock_guard<std::mutex> l(h.m);
     h.busy = 0;
     HubReadState(h);
-    if (!sync) h.msg = "Cloud saves are not set up.";
-    else if (failed) h.msg = "Could not reach " + std::string(HubProvider(s.provider)) + ". The saves here are kept, and sync next time.";
+    if (!sync) { h.needSignIn = false; h.msg = "Cloud saves are not set up."; }
+    else if (failed)
+    {
+        h.needSignIn = firstError.find("SIGN IN AGAIN") != std::string::npos;
+        h.msg = "Could not reach " + std::string(HubProvider(s.provider)) +
+                (firstError.empty() ? std::string() : ": " + SettingSentence(firstError)) +
+                ". The saves here are kept, and sync next time.";
+    }
     else
     {
+        h.needSignIn = false;
         h.msg = "Synced.";
         if (up) h.msg += " " + std::to_string(up) + " sent up.";
         if (down) h.msg += " " + std::to_string(down) + " brought down.";
@@ -4550,7 +4561,12 @@ inline void HubSignInJob(std::vector<std::string> paths)
     if (client.id.empty()) { done("This build of Fulldex has no Google sign-in built in."); return; }
     CloudSaves::SignIn in;
     std::string err, refresh;
-    if (!CloudSaves::GoogleSignInStart(client, in, err)) { done("Could not reach Google. Check the internet connection and try again."); return; }
+    if (!CloudSaves::GoogleSignInStart(client, in, err))
+    {
+        done(err.empty() ? "Could not reach Google. Check the internet connection and try again."
+                         : "Could not sign in to Google: " + SettingSentence(err) + ".");
+        return;
+    }
     {
         std::lock_guard<std::mutex> l(h.m);
         h.code = in.userCode; h.url = in.verificationUrl; h.msg.clear();
@@ -4570,6 +4586,7 @@ inline void HubSignInJob(std::vector<std::string> paths)
                 h.set.googleRefreshToken = refresh;
                 if (h.set.deviceName.empty()) h.set.deviceName = HubDevice();
                 CloudSaves::SaveSettings(h.dir + "/cloud.ini", h.set);
+                h.needSignIn = false;
                 h.busy = 2; h.code.clear(); h.url.clear(); h.msg = "Signed in. Syncing your saves...";
                 h.version++;
             }
@@ -4578,7 +4595,13 @@ inline void HubSignInJob(std::vector<std::string> paths)
         }
         if (st == CloudSaves::SignInState::SlowDown) in.interval += 5;
         else if (st == CloudSaves::SignInState::Denied) { done("Sign-in was turned down on the phone."); return; }
-        else if (st != CloudSaves::SignInState::Waiting) { done(st == CloudSaves::SignInState::Expired ? "The code ran out. Choose Sign In again for a new one." : "Sign-in did not work. Try again."); return; }
+        else if (st != CloudSaves::SignInState::Waiting)
+        {
+            if (st == CloudSaves::SignInState::Expired) done("The code ran out. Choose Sign In again for a new one.");
+            else if (err.empty()) done("Sign-in did not work. Try again.");
+            else done("Sign-in did not work: " + SettingSentence(err) + ".");
+            return;
+        }
     }
     done(h.cancel ? "Sign-in cancelled." : "The code ran out. Choose Sign In again for a new one.");
 }
@@ -4615,6 +4638,7 @@ inline std::string HubDo(int row, int act)
         h.set.googleRefreshToken.clear();
         const bool ok = CloudSaves::SaveSettings(h.dir + "/cloud.ini", h.set);
         h.results.clear();
+        h.needSignIn = false;
         h.msg = ok ? "Signed out. Your saves stay here, and in your Drive." : "Could not save the cloud settings.";
         h.version++;
         return "";
@@ -6686,6 +6710,10 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
             case CloudSaves::Outcome::Pushed: para("This save was sent up to the cloud.", text, 14 * u); break;
             case CloudSaves::Outcome::Pulled: para("A newer save from " + cloudDev + " was brought down. The one that was here is in the backups.", text, 14 * u); break;
             case CloudSaves::Outcome::NothingYet: para("There is no save for this game yet, here or in the cloud.", hint, 14 * u); break;
+            case CloudSaves::Outcome::Failed:
+                para((r->message.empty() ? std::string("Could not reach the cloud.") : SettingSentence(r->message)) +
+                     " The save here is kept, and syncs next time.", hint, 14 * u);
+                break;
             default: para("Could not reach the cloud. The save here is kept, and syncs next time.", hint, 14 * u); break;
             }
             GT(c, ix, y + 8 * u, "Save File", 12 * u, hint, true);

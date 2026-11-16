@@ -1715,7 +1715,7 @@ bool Start(int& argc, char**& argv)
     // The settings: settings.cfg beside the game (ssrecomp.cfg before; an old one is renamed).
     const std::string cfgPath = SettingsPath(dir);
     g_args = { argc > 0 && argv[0] ? argv[0] : "pokemon-ds-wide", rom, "--save", SavePath(game), "--fullscreen",
-               "--config", cfgPath };
+               "--config", cfgPath, "--cloud-dir", dir };
     if (game.hack) g_args.push_back("--rom-hack"); // (says once that widescreen is tried on it)
     // (Play From Slot, Manage Saves: the game starts from that state.)
     if (!Launcher::PlayState().empty() && game.platform == Launcher::DS && StateSlots::Exists(Launcher::PlayState())) { g_args.push_back("--state-load"); g_args.push_back(Launcher::PlayState()); }

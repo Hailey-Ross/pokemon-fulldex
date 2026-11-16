@@ -55,6 +55,18 @@ static bool ReadAll(const std::string& path, std::vector<uint8_t>& data)
     return ok;
 }
 
+// True when the save could be read, or is simply not there. False when it is there but cannot be
+// read (permissions, a failing drive): that is not an empty save that a cloud one may replace.
+static bool ReadSave(const std::string& path, std::vector<uint8_t>& data, std::string& error)
+{
+    data.clear();
+    if (ReadAll(path, data)) return true;
+    std::error_code ec;
+    const bool exists = fs::exists(fs::u8path(path), ec);
+    if (ec || exists) { data.clear(); error = "THIS SAVE CANNOT BE READ - CHECK ITS PERMISSIONS"; return false; }
+    return true;
+}
+
 static int64_t ModifiedTime(const std::string& path)
 {
     struct stat st;
@@ -720,7 +732,8 @@ Result Sync::BeforePlay(const std::string& savePath)
     std::lock_guard<std::mutex> lock(d->mutex);
     const std::string name = FileName(savePath);
     std::vector<uint8_t> local;
-    ReadAll(savePath, local);
+    std::string readError;
+    if (!ReadSave(savePath, local, readError)) return Impl::Say(Outcome::Failed, readError);
     const std::string here = local.empty() ? std::string() : Hash(local);
     const std::string last = d->base.count(name) ? d->base[name] : std::string();
 
@@ -746,7 +759,8 @@ Result Sync::AfterPlay(const std::string& savePath)
     std::lock_guard<std::mutex> lock(d->mutex);
     const std::string name = FileName(savePath);
     std::vector<uint8_t> local;
-    ReadAll(savePath, local);
+    std::string readError;
+    if (!ReadSave(savePath, local, readError)) return Impl::Say(Outcome::Failed, readError);
     if (local.empty()) return Impl::Say(Outcome::NothingYet, "NO SAVE YET");
     const std::string here = Hash(local);
     const std::string last = d->base.count(name) ? d->base[name] : std::string();
@@ -772,7 +786,8 @@ Result Sync::Resolve(const std::string& savePath, bool keepCloud)
     std::lock_guard<std::mutex> lock(d->mutex);
     const std::string name = FileName(savePath);
     std::vector<uint8_t> local;
-    ReadAll(savePath, local);
+    std::string readError;
+    if (!ReadSave(savePath, local, readError)) return Impl::Say(Outcome::Failed, readError);
     bool exists = false;
     Meta cloud;
     std::string error;

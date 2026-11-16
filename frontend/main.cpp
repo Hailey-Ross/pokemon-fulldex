@@ -717,6 +717,7 @@ struct Options
     std::set<uint32_t> traceFuncsAt;     // frames at which to list the functions that just ran
     std::string symbols = "gen/symbols.txt";
     std::string config;          // settings file
+    std::string cloudDir;        // where cloud.ini is (the launcher's settings folder)
     std::string stateLoad;       // snapshot to resume from
     std::string stateSave;       // snapshot to write
     uint32_t stateSaveAt = 0;    // frame at which to write it
@@ -806,6 +807,7 @@ static bool ParseArgs(int argc, char** argv, Options& o)
         else if (a == "--no-save") o.noSave = true;
         else if (a == "--layout") { o.layout = next(); o.layoutGiven = true; }
         else if (a == "--config") o.config = next();
+        else if (a == "--cloud-dir") o.cloudDir = next(); // (the launcher's settings folder: cloud.ini)
         else if (a == "--audio-stats") o.audioStats = true;
         else if (a == "--shot-layers") o.shotLayers = true;
         else if (a == "--count-changes") o.countChanges = true;
@@ -2103,9 +2105,14 @@ int main(int argc, char** argv)
     const bool countPlay = !opt.noSave && !opt.headless && !opt.lockstep;
     if (!opt.noSave && !opt.headless && !opt.lockstep)
     {
-        const std::string& at = opt.config.empty() ? opt.save : opt.config;
-        const size_t cs = at.find_last_of("/\\");
-        cloudNote = CloudAuto::Start(cs == std::string::npos ? std::string(".") : at.substr(0, cs), opt.save);
+        std::string cloudDir = opt.cloudDir; // (the launcher gives the folder its Hub writes cloud.ini in)
+        if (cloudDir.empty())
+        {
+            const std::string& at = opt.config.empty() ? opt.save : opt.config;
+            const size_t cs = at.find_last_of("/\\");
+            cloudDir = cs == std::string::npos ? std::string(".") : at.substr(0, cs);
+        }
+        cloudNote = CloudAuto::Start(cloudDir, opt.save);
     }
     std::vector<uint8_t> sav = ReadFile(opt.save);
     fprintf(stderr, "ROM %s: %zu bytes; save %s: %zu bytes\n", opt.rom.c_str(), rom.size(), opt.save.c_str(), sav.size());
