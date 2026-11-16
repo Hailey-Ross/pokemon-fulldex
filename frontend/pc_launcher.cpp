@@ -1730,12 +1730,12 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             }
             if (F.banner == 2)
             {
-                // (Game Options: the selected game's menu, however it was selected: a grid
-                // click/tap, the pointer on this header button, or the keyboard/gamepad.)
+                // (Game Options: the selected game's menu, keeping the Game Options focus. The
+                // pointer, the grid selection, and the keyboard/gamepad all land here.)
                 if (selected < 0 || selected >= (int)games.size()) selected = Launcher::FirstIn(view());
                 if (selected >= 0 && selected < (int)games.size())
                 {
-                    F.banner = 0;
+                    F.banner = 2;
                     F.popup = 0;
                     follow = true;
                 }
