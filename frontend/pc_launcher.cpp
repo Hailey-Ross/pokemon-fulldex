@@ -4401,6 +4401,13 @@ void ChangeGame() { g_change = true; }
 void Finish()
 {
     DiscordPresence::Stop();
+#ifdef SSR_IOS
+    // iOS lets no app start a program (execl fails), and SDL keeps the app open with nothing on
+    // the screen when main ends: that was the black screen after QUIT. The app closes instead,
+    // and opens on the list the next time it is tapped.
+    fflush(stderr);
+    exit(0);
+#endif
     if (!g_change || g_direct) return; // (#196: a game started directly: the program ends with it)
     fflush(stderr);
     // The program again, without arguments: the list.
