@@ -106,7 +106,7 @@ inline const std::unordered_map<std::string,std::string>& Spanish() { return UiT
 inline const std::unordered_map<std::string,std::string>& Italian() { return UiTranslations::Table(2); }
 inline std::vector<std::pair<std::string,std::string>> Prefixes(int language) {
     std::vector<std::pair<std::string,std::string>> out;const auto& table=UiTranslations::Table(language);
-    for(const char* key:{"RETROACHIEVEMENTS: LOGGED IN AS ","RETROACHIEVEMENTS: LOGIN FAILED: ","RETROACHIEVEMENTS: COULD NOT LOAD: ","USRCHEAT.DAT HAS NO ENTRY FOR THIS GAME CODE: ","ACHIEVEMENT: ","SETTINGS: ","FOLDER: ","LOADED: ","FAILED: ","UNLOCKED ","SO FAR ","VERSION ","FIND: ","SAVE IN ","NEW IN "}) {
+    for(const char* key:{"RETROACHIEVEMENTS: LOGGED IN AS ","RETROACHIEVEMENTS: LOGIN FAILED: ","RETROACHIEVEMENTS: COULD NOT LOAD: ","USRCHEAT.DAT HAS NO ENTRY FOR THIS GAME CODE: ","ACHIEVEMENT: ","SETTINGS: ","FOLDER: ","LOADED: ","FAILED: ","UNLOCKED ","SO FAR ","VERSION ","FIND: ","SAVE IN ","NEW IN ","ZOOM "}) {
         auto value=table.find(key);if(value!=table.end())out.push_back({key,value->second});
     }
     return out;
@@ -136,7 +136,7 @@ inline std::string Tr(const std::string& s) {
         }
         return out;
     }
-    for(const char* prefix:{"RETROACHIEVEMENTS: LOGGED IN AS ","RETROACHIEVEMENTS: LOGIN FAILED: ","RETROACHIEVEMENTS: COULD NOT LOAD: ","USRCHEAT.DAT HAS NO ENTRY FOR THIS GAME CODE: ","ACHIEVEMENT: ","SETTINGS: ","FOLDER: ","LOADED: ","FAILED: ","UNLOCKED ","SO FAR ","VERSION ","FIND: ","SAVE IN ","NEW IN "}) {
+    for(const char* prefix:{"RETROACHIEVEMENTS: LOGGED IN AS ","RETROACHIEVEMENTS: LOGIN FAILED: ","RETROACHIEVEMENTS: COULD NOT LOAD: ","USRCHEAT.DAT HAS NO ENTRY FOR THIS GAME CODE: ","ACHIEVEMENT: ","SETTINGS: ","FOLDER: ","LOADED: ","FAILED: ","UNLOCKED ","SO FAR ","VERSION ","FIND: ","SAVE IN ","NEW IN ","ZOOM "}) {
         const std::string key=prefix;if(s.size()>key.size()&&!s.compare(0,key.size(),key))if(const auto* value=direct(key))return *value+((key=="UNLOCKED "||key=="SO FAR ")?Tr(s.substr(key.size())):s.substr(key.size()));
     }
     const auto colon=s.find(": ");

@@ -159,6 +159,7 @@ struct Mon
     std::array<int,4> moves{},pp{};
     // HP, attack, defence, speed, special attack, special defence.
     std::array<int,6> iv{},ev{},stats{};
+    int slot=-1; // (its place in the party: a slot that did not decode is left out of Snapshot::party)
 };
 inline bool DecodeMon(const uint8_t* raw, size_t length, bool gen5, Mon& result)
 {
@@ -244,6 +245,9 @@ inline Profile ProfileFor(const std::string& code, int revision)
     else if(code=="IRDO" && revision==0){p.system=0x02141134;p.gen5Battle=true;p.battleProc=0xA7;}
     return p;
 }
+// Whether this game's battles are read (Read below: US Platinum's layout, and Black, White, Black 2 and
+// White 2's): BATTLE INFO says so when they are not, instead of waiting for a battle it will never see.
+inline bool BattleMapped(const Profile& p) { return (!p.gen5 && p.pointer==0x021C0794) || (p.gen5 && p.system && p.gen5Battle); }
 struct Item {int id=0,quantity=0,pocket=0;};
 inline const char* PocketName(const Profile& profile,int pocket)
 {
@@ -279,6 +283,7 @@ struct Snapshot
     std::vector<Battler> battlers;
     std::vector<Item> items;
     std::vector<bool> seen,caught;
+    uint32_t saveBase=0; // (where the save's body is in memory: its flags, for FLY's towns)
 };
 using Reader=std::function<bool(uint32_t,void*,size_t)>;
 // (Main memory: 4MB, or 8MB where Fulldex gives Black 2 and White 2 more for the wider map.)
@@ -338,7 +343,8 @@ inline Snapshot Read(const Profile& p,const Reader& read)
     int count=U32(head.data()+4),stride=p.gen5?0xDC:0xEC;
     auto party=bytes(base+p.party+8,count*stride);
     if(party.size()!=(size_t)count*stride){s.message="PARTY DATA IS UNAVAILABLE";return s;}
-    for(int i=0;i<count;i++){Mon mon;if(DecodeMon(party.data()+i*stride,stride,p.gen5,mon))s.party.push_back(mon);else s.invalidSlots++;}
+    for(int i=0;i<count;i++){Mon mon;if(DecodeMon(party.data()+i*stride,stride,p.gen5,mon)){mon.slot=i;s.party.push_back(mon);}else s.invalidSlots++;}
+    s.saveBase=base;
     int slots=0;for(int n:p.pockets)slots+=n;
     auto bag=bytes(base+p.bag,slots*4);
     if(bag.size()==(size_t)slots*4){int slot=0;for(size_t pocket=0;pocket<p.pockets.size();pocket++)for(int i=0;i<p.pockets[pocket];i++,slot++){int id=U16(bag.data()+slot*4),qty=U16(bag.data()+slot*4+2);if(id && qty && id<2048 && qty<=999)s.items.push_back({id,qty,(int)pocket});}}

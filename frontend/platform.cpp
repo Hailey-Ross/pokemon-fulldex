@@ -242,8 +242,33 @@ int MP_SendReply(u8*, int, u64, u16, void*) { return 0; }
 int MP_SendAck(u8*, int, u64, void*) { return 0; }
 int MP_RecvHostPacket(u8*, u64*, void*) { return 0; }
 u16 MP_RecvReplies(u8*, u64, u16, void*) { return 0; }
+#ifdef SSR_NET
+// ONLINE PLAY (#149): the console's Wi-Fi reaches the internet through melonDS's user-mode network
+// (libslirp): the game connects to the emulated access point, and its DNS (set in the game's Nintendo
+// Wi-Fi Connection settings, e.g. Wiimmfi's) is used as the game asks. Started on the first packet.
+}
+#include "net/Net.h"
+#include "net/Net_Slirp.h"
+namespace melonDS::Platform
+{
+static melonDS::Net& OnlineNet()
+{
+    static melonDS::Net* net = [] {
+        auto* n = new melonDS::Net();
+        n->RegisterInstance(0);
+        n->SetDriver(std::make_unique<melonDS::Net_Slirp>([n](const u8* data, int len) { n->RXEnqueue(data, len); }));
+        fprintf(stderr, "[online] the Wi-Fi's network is up (user-mode, libslirp)\n");
+        return n;
+    }();
+    return *net;
+}
+static std::mutex g_netLock;
+int Net_SendPacket(u8* data, int len, void*) { std::lock_guard<std::mutex> l(g_netLock); return OnlineNet().SendPacket(data, len, 0); }
+int Net_RecvPacket(u8* data, void*) { std::lock_guard<std::mutex> l(g_netLock); return OnlineNet().RecvPacket(data, 0); }
+#else
 int Net_SendPacket(u8*, int, void*) { return 0; }
 int Net_RecvPacket(u8*, void*) { return 0; }
+#endif
 
 void Camera_Start(int, void*) {}
 void Camera_Stop(int, void*) {}

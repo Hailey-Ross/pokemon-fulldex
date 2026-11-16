@@ -69,6 +69,9 @@ public class GameActivity extends SDLActivity {
     private SecondScreen secondScreen;
     // True from chooseFolder() until the picker (and the access question before it) is done.
     private static volatile boolean picking;
+    // FOLDERS (Settings): the kind a folder is being chosen for ("saves", "states", "cheats",
+    // "settings"), null when the picker is for the ROM folder.
+    private static volatile String pickPurpose;
     private boolean waitingForAccess;
     private Intent startupRomIntent;
     private static final java.util.concurrent.atomic.AtomicBoolean openingRom = new java.util.concurrent.atomic.AtomicBoolean();
@@ -82,6 +85,7 @@ public class GameActivity extends SDLActivity {
         try { startupTrace("Memory page size " + Os.sysconf(OsConstants._SC_PAGESIZE), true); }
         catch (Exception ignored) { }
         // SDL treats URI paths as local files. Resolve granted document URIs ourselves instead.
+        if (getIntent() != null && getIntent().hasExtra(EXTRA_GAME)) startupGame = getIntent().getStringExtra(EXTRA_GAME);
         if (isRomIntent(getIntent())) {
             startupRomIntent = new Intent(getIntent());
             Intent clean = new Intent(getIntent()); clean.setData(null); setIntent(clean);
@@ -125,8 +129,14 @@ public class GameActivity extends SDLActivity {
         }
     }
 
+    // A home-screen shortcut for one game (pinShortcut): its game code, started without the list.
+    static final String EXTRA_GAME = "io.github.mamesj.pokemonds.GAME";
+    private String startupGame;
+
     @Override protected String[] getArguments() {
         // SDL calls this on its main/native thread, not Android's UI thread.
+        String game = startupGame; startupGame = null;
+        if (game != null && !game.isEmpty()) return new String[] { "--game", game };
         Intent launch = startupRomIntent; startupRomIntent = null;
         if (launch != null) {
             openingRom.set(true);
@@ -138,6 +148,17 @@ public class GameActivity extends SDLActivity {
     }
 
     @Override protected void onNewIntent(Intent intent) {
+        // A game's home-screen shortcut while the app is already open: on the list, the app starts
+        // again straight into that game (as a fresh start would); in a game, it stays in that game.
+        if (intent != null && intent.hasExtra(EXTRA_GAME)) {
+            if (playingGame) { romMessage("Quit the current game before starting another."); return; }
+            Intent again = new Intent(this, Restart.class);
+            again.putExtra("pid", Process.myPid());
+            again.putExtra(EXTRA_GAME, intent.getStringExtra(EXTRA_GAME));
+            again.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(again);
+            return;
+        }
         Intent clean = new Intent(intent); clean.setData(null);
         super.onNewIntent(clean); setIntent(clean);
         if (!isRomIntent(intent)) return;
@@ -309,6 +330,21 @@ public class GameActivity extends SDLActivity {
     }
 
     // Asks for access to files if the app does not have it yet, then shows the folder picker.
+    // FOLDERS: the folder picker for one kind; takePicked gives its path back ("!" one that cannot be
+    // used, "-" none chosen) once picking() is false.
+    public static void chooseFolderFor(String purpose) {
+        if (self == null || picking) return;
+        pickPurpose = purpose;
+        picking = true;
+        self.runOnUiThread(() -> self.nextStep());
+    }
+    public static String takePicked(String purpose) {
+        if (self == null) return "";
+        String v = prefs().getString("picked_" + purpose, "");
+        if (!v.isEmpty()) prefs().edit().remove("picked_" + purpose).apply();
+        return v;
+    }
+
     public static void chooseFolder() {
         if (self == null || picking) return;
         picking = true;
@@ -384,6 +420,20 @@ public class GameActivity extends SDLActivity {
         GameActivity activity = self;
         if (activity != null && activity.secondScreen != null) activity.secondScreen.submit(pixels,width,height);
     }
+    // The second display's own surface: the game draws into it from its own thread (no copy through
+    // Java, no wait for this thread). Null until the display's window is up; the serial changes with it.
+    public static Object secondScreenSurface() {
+        GameActivity activity = self;
+        return activity == null || activity.secondScreen == null ? null : activity.secondScreen.surface();
+    }
+    public static int secondScreenSurfaceSerial() {
+        GameActivity activity = self;
+        return activity == null || activity.secondScreen == null ? 0 : activity.secondScreen.surfaceSerial();
+    }
+    public static void secondScreenShown(int serial,int width,int height) {
+        GameActivity activity = self;
+        if (activity != null && activity.secondScreen != null) activity.secondScreen.shown(serial,width,height);
+    }
 
     @Override
     protected void onDestroy() {
@@ -415,6 +465,14 @@ public class GameActivity extends SDLActivity {
             // (Restart game: the game asks to be started again.)
             Object restart = call3ds("restartCode", new Class<?>[0]);
             if (restart != null && result == (Integer) restart) threeDsPlay(playing3ds);
+            return;
+        }
+        if (request == PICK_FOLDER && pickPurpose != null) {
+            String purpose = pickPurpose;
+            pickPurpose = null;
+            String path = result == RESULT_OK && data != null && data.getData() != null ? pathOf(data.getData()) : null;
+            prefs().edit().putString("picked_" + purpose, path != null && broadFileAccess() ? path : result == RESULT_OK ? "!" : "-").apply();
+            picking = false;
             return;
         }
         if (request == PICK_FOLDER) {
@@ -527,6 +585,38 @@ public class GameActivity extends SDLActivity {
             catch (Exception error) { Log.w(TAG, "No file picker for the game code", error); }
         });
     }
+    // ADD TO PHONE HOME SCREEN (a game's menu): a shortcut that starts that game, with its picture
+    // (iconPath: the list's picture as raw pixels, 4-byte width and height then ARGB, written by
+    // pc_launcher.cpp). Android asks the player to confirm where it goes. Android 8 and later.
+    public static boolean pinShortcut(String code, String label, String iconPath) {
+        if (self == null || Build.VERSION.SDK_INT < 26) return false;
+        try {
+            android.content.pm.ShortcutManager sm = self.getSystemService(android.content.pm.ShortcutManager.class);
+            if (sm == null || !sm.isRequestPinShortcutSupported()) return false;
+            Intent start = new Intent(self, GameActivity.class);
+            start.setAction(Intent.ACTION_MAIN);
+            start.putExtra(EXTRA_GAME, code);
+            start.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            android.content.pm.ShortcutInfo.Builder b = new android.content.pm.ShortcutInfo.Builder(self, "game-" + code + "-" + label.hashCode())
+                .setShortLabel(label.length() > 24 ? label.substring(0, 24) : label).setLongLabel(label).setIntent(start);
+            android.graphics.Bitmap icon = readIcon(iconPath);
+            if (icon != null) b.setIcon(android.graphics.drawable.Icon.createWithBitmap(icon));
+            return sm.requestPinShortcut(b.build(), null);
+        } catch (Exception error) {
+            Log.w(TAG, "Could not add the shortcut", error);
+            return false;
+        }
+    }
+    private static android.graphics.Bitmap readIcon(String path) {
+        try (java.io.DataInputStream in = new java.io.DataInputStream(new java.io.FileInputStream(path))) {
+            int w = Integer.reverseBytes(in.readInt()), h = Integer.reverseBytes(in.readInt());
+            if (w <= 0 || h <= 0 || w > 1024 || h > 1024) return null;
+            int[] px = new int[w * h];
+            for (int i = 0; i < px.length; i++) px[i] = Integer.reverseBytes(in.readInt());
+            return android.graphics.Bitmap.createBitmap(px, w, h, android.graphics.Bitmap.Config.ARGB_8888);
+        } catch (Exception error) { return null; }
+    }
+
     public static void threeDsPlay(String id) {
         if (self == null) return;
         playing3ds = id;

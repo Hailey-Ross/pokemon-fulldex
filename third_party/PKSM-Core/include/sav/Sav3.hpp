@@ -185,6 +185,8 @@ namespace pksm
         void dex(const PKX& pk) override;
         [[nodiscard]] int dexSeen(void) const override;
         [[nodiscard]] int dexCaught(void) const override;
+        [[nodiscard]] bool dexSeenSpecies(Species species) const override;
+        [[nodiscard]] bool dexCaughtSpecies(Species species) const override;
 
         [[nodiscard]] int currentGiftAmount(void) const override { return 0; }
 

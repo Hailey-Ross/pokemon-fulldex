@@ -32,9 +32,9 @@ its header (`frontend/ff_music.h` does).
 
 | Feature | PokeDaisy | FullDex today | Work | Platforms | Status |
 |---|---|---|---|---|---|
-| Party, Bag, Dex, Map, Guide, Battle pages | Yes | Yes, as glass pages (`companion_*.h`, pause menu COMPANION) | Keep | All | Implemented untested (not re-checked here) |
+| Party, Bag, Dex, Map, Guide, Battle pages | Yes | Yes, as glass pages (`companion_*.h`; GBA: `gba_companion.h`, `gba_dex.h`, `gba_guides.h`), Pokédex its own tile | Keep | All | Tested (Windows; GBA Party and Location on the Switch) |
 | PC from anywhere (DS) | `Pc.kt`, `pk_nds_call` | Yes: `PokeDsActions::OpenPc` | Keep | DS games with a recipe | Implemented untested |
-| Other DS field actions (Fly, Bike, Rod, Repel) | `pk_nds_call` actions | Only `PK_NDS_ACTION_PC` is exposed | Expose the remaining actions PokeDaisy's recipes carry, each behind the same idle-state checks | DS games with a recipe | Not started |
+| Other DS field actions (Fly) | `pk_nds_call` actions (PokeDaisy 1.5.1 has only PC and Fly on DS; Bike, Rod, Repel are GBA-only) | PC and Fly exposed | Done | DS games with a recipe | Implemented |
 | GBA field actions, items, Fly | `FieldItems.kt`, `Fly.kt`, `pk_call.c` | *to verify* | Port per game table | GBA | Not started |
 | Party reorder, give and take items, use medicine | Yes (GBA; DS partly) | Read only | Needs write paths with legality and safe-point checks | Per game | Not started |
 | Boxes while playing (withdraw, deposit) | GBA Gen 3 and hacks | Hub moves Pokemon between saves with the game closed | Port live box access; keep the Hub | GBA first | Not started |
@@ -54,7 +54,7 @@ its header (`frontend/ff_music.h` does).
 |---|---|---|---|
 | DS widescreen world | EXPAND (`pk_nds_wide.cpp`): extra slices round the screen | FullDex's own merged widescreen | Keep FullDex's |
 | 2D layers blended over the 3D carried into the margins | Drawn from the layer itself with the game's blend registers | Judged from the finished picture (`MergedEdgeContinuation`) | Not started: the likely fix for the Black 2 banner corners, see the handover |
-| Zoom, look-around, auto zoom | Yes (DS and GBA) | No | Not started |
+| Zoom, look-around, auto zoom | Yes (DS and GBA) | Yes (DS and GBA) | Implemented |
 | GBA EXPAND past the screen edges | `pk_wide.c`, per game tables | ROM widescreen patches per game | Not started (would help hacks the patches do not fit) |
 | Fast-forward frame skip in the DS core | Yes | Yes (`rc_frame_hidden`, `rc_wide_render_skip`) | Keep |
 
@@ -71,9 +71,9 @@ its header (`frontend/ff_music.h` does).
 |---|---|---|---|
 | Fast forward, smart fast forward, slow motion, rewind, turbo A | Yes | Yes | Keep |
 | Fast-forward music at normal speed, DS | `pk_nds_music` | Ported as `frontend/ff_music.h` | Implemented, measured headless in Black 2 and HeartGold on Windows; not yet heard by James; off on Switch, Apple and Android |
-| Fast-forward music at normal speed, GBA | Clips recorded per song (`FfMusicRenderer`) | Stretches (`fast_forward_audio.h`) | Not started |
-| Scene speeds (battle, text, menu, bike, surf) | Yes | Smart fast forward only | Not started |
-| Instant text, reusable TMs, auto-run, run indoors, wild encounters off, shiny odds | Per game tables | Some as cheats (GBA built-in cheats: no wild encounters and others) | Not started as options |
+| Fast-forward music at normal speed, GBA | Clips recorded per song (`FfMusicRenderer`) | Ported: `gba/frontend/ff_music_gba.h`, `pk_call_lite.c`; stretches remain for songs that end by themselves | Tested on Windows (Emerald) |
+| Scene speeds (battle, text, menu, bike, surf) | Yes | GBA: battle, text, bike, surf (Settings, Gameplay); no menu speed | Tested on Windows (battle) |
+| Instant text, reusable TMs, auto-run, run indoors, wild encounters off, shiny odds | Found by code | GBA: all but auto-run (`gba/frontend/gameplay.h`) | Tested on Windows (instant text, encounters off, shiny); reusable TMs and run indoors not played |
 
 ## Phase 6: Dex, maps, guides
 
@@ -83,16 +83,18 @@ its header (`frontend/ff_music.h` does).
 | Encounters here, map, guide with hints first | Yes | Yes (`companion_guides.h`, encounters, map) | Implemented untested |
 | Hack-aware data | Per hack tables | *to verify* | Not started |
 
+GBA FLY from the Companion: `gba/frontend/fly_gba.h`, `pk_call_lite.c`'s pk_game_call; flown on Windows in Emerald and Ruby. Free flight: PokeDaisy's `pk_flight.c` ported, addresses in `gba/frontend/flight_records.h` (`gba/tools/gen_flight.py`); flown on Windows in Emerald (the bird, a party Pokemon from HeartGold, Rayquaza, Lugia, Latias) and Ruby. FLY ON a Pokemon or a legendary and clouds over unexplored maps are FullDex's own. Not yet flown: Sapphire, FireRed, LeafGreen (no saves to fly from). Flight is drawn through WIDE's view at every zoom (an even 2 px a frame, measured); a crossing into the next map now glides on (the view keeps its speed through the game's 3-frame map load; one frame moves 5 px).
+
 ## Phase 7: appearance
 
-Following Pokemon, player and rival looks, day and night tints: PokeDaisy has them per game; FullDex has none. Not started.
+Day and night tints: GBA, Display (pk_wide.c's tint), tested on Windows. Following Pokemon: GBA, Display, sprites from the player's own HeartGold or SoulSilver (481 of 493), tested on Windows. Player looks: not started; PokeDaisy takes their sprites from hacks (Heart and Soul, R.O.W.E., Recharged Yellow, Emerald Seaglass).
 
 ## Phase 8: save editing and link play
 
 | Feature | PokeDaisy | FullDex today | Status |
 |---|---|---|---|
 | Save-to-save trades, trade evolutions | Gen 3 | Hub (`pokemon_hub.cpp`, `trade_evolutions.cpp`), friend rooms | Keep |
-| PC box, bag and move editing | Gen 3 | *to verify* | Not started |
+| PC box, bag and move editing | Gen 3 | GBA Companion BOXES: live boxes, withdraw / swap / deposit (`gba/frontend/boxes_gba.h`, PokeDaisy's BoxSwap) in Ruby, Sapphire, Emerald, FireRed, LeafGreen (Ruby: a swap tested on Windows) | Boxes and the bag's USE / GIVE / TAKE (`gba/frontend/items_gba.h`) tested on Windows (Emerald); TEACH (the game's TM screen, PokeDaisy's TmTeach) tested on Windows (Emerald: HM02 screen, a refusal, CANCEL back to the field); the foe's team in BATTLE INFO (gEnemyParty) tested on Windows (Emerald, a wild battle made a team of three) |
 | GBA link cable, 2 to 4 games | `pk_link.c`, co-op | No | Not started |
 
 ## Phase 9: GB/GBC and hacks

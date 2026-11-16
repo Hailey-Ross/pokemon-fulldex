@@ -12,7 +12,12 @@ import sys
 
 GAMES = ['emerald', 'firered', 'firered11', 'leafgreen', 'leafgreen11',
          'ruby', 'ruby11', 'ruby10', 'sapphire', 'sapphire11', 'sapphire10', 'rubyde', 'sapphirede',
-         'rubyfr', 'rubyes', 'rubyit', 'rubyjp', 'sapphirefr', 'sapphirees', 'sapphireit', 'sapphirejp']
+         'rubyfr', 'rubyes', 'rubyit', 'rubyjp', 'sapphirefr', 'sapphirees', 'sapphireit', 'sapphirejp',
+         'emeraldfr', 'emeraldde', 'emeraldes', 'emeraldit', 'emeraldjp',
+         'fireredfr', 'fireredde', 'fireredes', 'fireredit', 'leafgreenfr', 'leafgreende', 'leafgreenes', 'leafgreenit',
+         # (Hacks with a patch of their own: CFRU hacks of FireRed 1.0, and Emerald hacks built from
+         # their own source.)
+         'radicalred', 'unbound', 'emeraldlegacy', 'inclement', 'monomyth']
 
 
 def main():
@@ -23,7 +28,7 @@ def main():
              '    size_t ipsSize;', '    const char* safety;', '};', '']
     for g in GAMES:
         data = open(os.path.join(src, g + '-wide.ips'), 'rb').read()
-        if not data.startswith(b'PATCH') or not data.endswith(b'EOF'):
+        if not (data.startswith(b'PATCH') and data.endswith(b'EOF')) and not (data.startswith(b'IPS32') and data.endswith(b'EEOF')):
             sys.exit('%s-wide.ips is not an IPS patch' % g)
         rows = [', '.join('0x%02X' % b for b in data[i:i + 16]) for i in range(0, len(data), 16)]
         parts.append('static const unsigned char k%sIps[] = {\n    %s,\n};' % (g.capitalize(), ',\n    '.join(rows)))

@@ -105,6 +105,8 @@ namespace pksm
         void dex(const PKX& pk) override;
         [[nodiscard]] int dexSeen(void) const override;
         [[nodiscard]] int dexCaught(void) const override;
+        [[nodiscard]] bool dexSeenSpecies(Species species) const override;
+        [[nodiscard]] bool dexCaughtSpecies(Species species) const override;
         [[nodiscard]] int currentGiftAmount(void) const override;
         void mysteryGift(const WCX& wc, int& pos) override;
         [[nodiscard]] std::unique_ptr<WCX> mysteryGift(int pos) const override;

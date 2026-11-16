@@ -559,6 +559,38 @@ namespace pksm
         return ret;
     }
 
+    bool Sav7::dexSeenSpecies(Species spec) const
+    {
+        const u16 species = u16(spec);
+        if (species < 1)
+        {
+            return false;
+        }
+        const int forms = formCount(spec);
+        for (int form = 0; form < forms; form++)
+        {
+            int dexForms = form == 0
+                               ? -1
+                               : dexFormIndex(species, forms, u16(VersionTables::maxSpecies(version())) - 1);
+            int index = species - 1;
+            if (dexForms >= 0)
+            {
+                index = dexForms + form;
+            }
+            if (getDexFlags(index, species) > 0)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool Sav7::dexCaughtSpecies(Species species) const
+    {
+        const int i = u16(species);
+        return i >= 1 && (data[PokeDex + 0x88 + ((i - 1) >> 3)] >> ((i - 1) & 7) & 1) != 0;
+    }
+
     void Sav7::mysteryGift(const WCX& wc, int& pos)
     {
         if (wc.generation() == Generation::SEVEN)

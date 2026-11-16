@@ -693,6 +693,10 @@ namespace pksm
             [this](const auto& spec) { return getCaught(spec); });
     }
 
+    bool Sav3::dexSeenSpecies(Species species) const { return getSeen(species); }
+
+    bool Sav3::dexCaughtSpecies(Species species) const { return getCaught(species); }
+
     // Unused
     std::unique_ptr<WCX> Sav3::mysteryGift(int) const
     {

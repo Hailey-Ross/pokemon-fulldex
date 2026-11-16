@@ -5,6 +5,7 @@
 #include "companion_icons.h"
 #include "companion_data.h"
 #include "companion_art.h"
+#include "companion_dex.h"
 #include <map>
 #include <sstream>
 #include <cctype>
@@ -44,7 +45,7 @@ inline std::vector<Bytes> Narc(const Bytes& data)
     for(int i=0;i<16 && Range(data.size(),pos,8);i++)
     {
         uint32_t len=U32(data.data()+pos+4);if(len<8||!Range(data.size(),pos,len))return {};
-        if(!memcmp(data.data()+pos,"BTAF",4)){if(len<12)return {};count=U16(data.data()+pos+8);fat=pos+12;if(count>8192||!Range(len,12,(size_t)count*8))return {};}
+        if(!memcmp(data.data()+pos,"BTAF",4)){if(len<12)return {};count=U16(data.data()+pos+8);fat=pos+12;if(count>32768||!Range(len,12,(size_t)count*8))return {};}
         if(!memcmp(data.data()+pos,"GMIF",4)){img=pos+8;imgSize=len-8;}
         pos+=len;
     }
@@ -109,6 +110,19 @@ inline Bytes UnpackBlz(const Bytes& input)
     }
     return op==start?out:Bytes{};
 }
+// ARM9 overlay [n] as the game loads it (unpacked when its flags say so).
+inline Bytes RomOverlay(const Bytes& rom,unsigned n)
+{
+    if(rom.size()<0x200)return {};
+    size_t table=U32(rom.data()+0x50),tableSize=U32(rom.data()+0x54),fat=U32(rom.data()+0x48);
+    if(n>=tableSize/32||!Range(rom.size(),table+n*32,32))return {};
+    const uint8_t* e=rom.data()+table+n*32;uint32_t id=U32(e+24),flags=U32(e+28);
+    if(!Range(rom.size(),fat+(size_t)id*8,8))return {};
+    uint32_t begin=U32(rom.data()+fat+id*8),end=U32(rom.data()+fat+id*8+4);
+    if(end<begin||!Range(rom.size(),begin,end-begin))return {};
+    Bytes data(rom.begin()+begin,rom.begin()+end);
+    return flags&0x01000000?UnpackBlz(data):data;
+}
 inline Bytes RomArm9(const Bytes& rom)
 {
     if(rom.size()<0x200)return {};
@@ -132,6 +146,37 @@ struct Metadata
 {
     std::vector<std::string> species,moves,items,descriptions,abilities,itemDescriptions;
     std::vector<Bytes> personal,evolutions,learnsets,moveRecords;
+    // (The Pokedex page: companion_dex.h.)
+    std::vector<uint16_t> machineMoves;
+    std::vector<std::vector<uint16_t>> eggMoves;
+    std::vector<Bytes> battlePics,dexSizes;
+    std::vector<uint16_t> tutorMoves;
+    std::vector<uint64_t> tutorBits; // (by species: bit i, tutorMoves[i])
+    std::vector<uint16_t> Tutors(int species)const
+    {
+        std::vector<uint16_t> out;
+        if(species<=0||species>=(int)tutorBits.size())return out;
+        for(size_t i=0;i<tutorMoves.size()&&i<64;i++)if(tutorBits[species]>>i&1)out.push_back(tutorMoves[i]);
+        return out;
+    }
+    DexStats Stats(int species)const{return species>0&&species<(int)personal.size()?PersonalStats(personal[species],gen5):DexStats{};}
+    // Height in tenths of a metre, weight in tenths of a kilogram; false when unknown.
+    bool Size(int species,int& height,int& weight)const
+    {
+        if(gen5){if(species<=0||species>=(int)personal.size()||personal[species].size()<0x28)return false;height=U16(personal[species].data()+0x24);weight=U16(personal[species].data()+0x26);return true;}
+        if(dexSizes.size()<2||!Range(dexSizes[0].size(),(size_t)species*4,4)||!Range(dexSizes[1].size(),(size_t)species*4,4))return false;
+        height=(int)U32(dexSizes[0].data()+species*4);weight=(int)U32(dexSizes[1].data()+species*4);return true;
+    }
+    // Each machine this species can learn: its index in machineMoves.
+    std::vector<int> Machines(int species)const
+    {
+        std::vector<int> out;
+        if(species<=0||species>=(int)personal.size())return out;
+        for(int i=0;i<(int)machineMoves.size();i++)if(CanLearnMachine(personal[species],gen5,i))out.push_back(i);
+        return out;
+    }
+    const std::vector<uint16_t>& EggMoves(int species)const{static const std::vector<uint16_t> none;return species>0&&species<(int)eggMoves.size()?eggMoves[species]:none;}
+    MapImage Picture(int species,bool shiny,bool female=false)const{return BattlePicture(battlePics,gen5,species,shiny,female);}
     bool gen5=false;
     MapImage regionMap;
     // (Party icons: the ROM's icon archive and its palettes, HGSS and Platinum; companion_icons.h.)
@@ -312,6 +357,38 @@ struct Metadata
             {size_t at=208+method*44+slot*8;unsigned levels=U32(b.data()+at);add(U32(b.data()+at+4),(levels>>8)&255,levels&255,methods[method]);}
         }
         return out;
+    }
+    // Where to find a species: every place whose wild encounters have it, by how (merged over the
+    // place's maps), worked out once from the encounter tables above.
+    struct Habitat {std::string place,method;int low=0,high=0;};
+    mutable std::vector<std::vector<Habitat>> habitats;
+    mutable bool habitatsBuilt=false;
+    const std::vector<Habitat>& WhereToFind(int id)const
+    {
+        static const std::vector<Habitat> none;
+        if(!habitatsBuilt)
+        {
+            habitatsBuilt=true;habitats.assign(gen5?650:494,{});
+            std::set<int> sets;
+            for(int map=0;map<(int)mapRecords.size();map++)
+            {
+                const int set=mapRecords[map].encounter;if(set<0)continue;
+                const std::string place=Name(places,mapRecords[map].place,"PLACE");
+                if(!sets.insert(set*4096+std::max(0,mapRecords[map].place)).second)continue; // (the same table at the same place)
+                for(const auto& e:Encounters(map))
+                {
+                    if(e.species<=0||e.species>=(int)habitats.size())continue;
+                    bool merged=false;
+                    for(auto& h:habitats[e.species])if(h.place==place&&h.method==e.method)
+                    {
+                        if(h.low==0||e.low==0)h.low=h.high=0;else{h.low=std::min(h.low,e.low);h.high=std::max(h.high,e.high);}
+                        merged=true;break;
+                    }
+                    if(!merged)habitats[e.species].push_back({place,e.method,e.low,e.high});
+                }
+            }
+        }
+        return id>0&&id<(int)habitats.size()?habitats[id]:none;
     }
     std::vector<std::string> EncounterLines(int map)const
     {
@@ -614,6 +691,93 @@ struct Metadata
         evolutions=Narc(RomFile(rom,gen5?"a/0/1/9":hg?"a/0/3/4":"poketool/personal/evo.narc"));
         learnsets=Narc(RomFile(rom,gen5?"a/0/1/8":hg?"a/0/3/3":"poketool/personal/wotbl.narc"));
         moveRecords=Narc(RomFile(rom,gen5?"a/0/2/1":hg?"a/0/1/1":"poketool/waza/pl_waza_tbl.narc"));
+        LoadDex(rom,hg,b2);
+    }
+    void LoadDex(const Bytes& rom,bool hg,bool b2)
+    {
+        machineMoves=FindMachineMoves(RomArm9(rom),gen5);
+        if(gen5)
+        {
+            auto eggs=Narc(RomFile(rom,b2?"a/1/2/4":"a/1/2/3"));
+            for(auto& m:eggs)eggMoves.push_back(Gen5EggMoves(m));
+        }
+        else if(hg)
+        {
+            auto eggs=Narc(RomFile(rom,"a/2/2/9"));
+            if(!eggs.empty())eggMoves=Gen4EggMoves(eggs[0],0);
+        }
+        else
+        {
+            auto overlay=RomOverlay(rom,5);size_t at=FindGen4EggList(overlay);
+            if(at!=std::string::npos)eggMoves=Gen4EggMoves(overlay,at);
+        }
+        // (Move tutors: Platinum's in overlay 5, 12 bytes each, the species' 5 bytes of bits after them;
+        // HeartGold and SoulSilver's in overlay 1, 4 bytes each, the bits 8 bytes a species in
+        // waza_oshie.bin; Black 2 and White 2's in overlay 36, 12 bytes each (the move, its cost in
+        // shards, its place in the list), the bits in the personal records, a word a tutor from 0x3C.)
+        {
+            size_t at=0;
+            if(b2)
+            {
+                const int first[3]={450,343,162};
+                const Bytes overlay=RomOverlay(rom,36);
+                // (Three tutors' lists one after another: Driftveil's 15, Nacrene's 15 and Lentimas's 17;
+                // Humilau's 13 found by its own first moves, Bind, Snore and Knock Off. Their bits
+                // in the personal records in the order Driftveil, Lentimas, Humilau, Nacrene.)
+                auto list=[&](const int f[3],int count){size_t a=0;auto m=FindTutorMoves(overlay,f,12,count,a);return m;};
+                const int humilauFirst[3]={20,173,282};
+                auto shared=list(first,47),humilau=list(humilauFirst,13);
+                if(shared.size()==47)
+                {
+                    tutorMoves=shared;tutorMoves.insert(tutorMoves.end(),humilau.begin(),humilau.end());
+                    tutorBits.assign(personal.size(),0);
+                    const int sizes[4]={15,17,13,15},bases[4]={0,30,humilau.size()==13?47:-1,15};
+                    for(size_t sp=0;sp<personal.size();sp++)if(personal[sp].size()>=0x4C)
+                        for(int l=0;l<4;l++)if(bases[l]>=0)
+                        {
+                            uint32_t w=U32(personal[sp].data()+0x3C+l*4);
+                            for(int i=0;i<sizes[l];i++)if(w>>i&1)tutorBits[sp]|=1ull<<(bases[l]+i);
+                        }
+                }
+            }
+            else if(!gen5)
+            {
+                const int first[3]={291,189,210};
+                if(hg)
+                {
+                    tutorMoves=FindTutorMoves(RomOverlay(rom,1),first,4,52,at);
+                    auto bits=RomFile(rom,"fielddata/wazaoshie/waza_oshie.bin");
+                    if(!tutorMoves.empty()&&bits.size()>=8)
+                    {
+                        tutorBits.assign(personal.size(),0);
+                        for(size_t sp=1;sp<personal.size()&&Range(bits.size(),(sp-1)*8,8);sp++)
+                            for(int i=0;i<52;i++)if(bits[(sp-1)*8+i/8]>>(i%8)&1)tutorBits[sp]|=1ull<<i;
+                    }
+                }
+                else
+                {
+                    auto overlay=RomOverlay(rom,5);
+                    tutorMoves=FindTutorMoves(overlay,first,12,38,at);
+                    if(!tutorMoves.empty())
+                    {
+                        tutorBits.assign(personal.size(),0);
+                        const size_t bits=at+38*12;
+                        for(size_t sp=1;sp<personal.size()&&Range(overlay.size(),bits+(sp-1)*5,5);sp++)
+                            for(int i=0;i<38;i++)if(overlay[bits+(sp-1)*5+i/8]>>(i%8)&1)tutorBits[sp]|=1ull<<i;
+                    }
+                }
+            }
+        }
+        if(!gen5)dexSizes=Narc(RomFile(rom,hg?"a/0/7/4":"application/zukanlist/zkn_data/zukan_data_gira.narc"));
+        if(dexSizes.size()>2)dexSizes.resize(2);
+        // Only the members a front picture uses are kept (the archive also has backs and animations).
+        battlePics=Narc(RomFile(rom,gen5?"a/0/0/4":hg?"a/0/0/4":"poketool/pokegra/pl_pokegra.narc"));
+        const size_t per=gen5?20:6;
+        for(size_t i=0;i<battlePics.size();i++)
+        {
+            size_t k=i%per;bool keep=gen5?(k<=1||k>=18):(k>=2);
+            if(!keep){Bytes().swap(battlePics[i]);}
+        }
     }
 };
 }

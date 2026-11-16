@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "funcwatch.h"
+#include "gen5strip.h"
 #include "merged.h"
 
 class Bw1Layouts
@@ -30,14 +31,19 @@ class Bw1Layouts
 public:
     bool on = false;
     bool regionalMenu = false;
+    // The top screen darkened or whitened this frame (set before Adjust): the wide arena would
+    // show at full brightness through holes cut in it, so the HP boxes are not kept then.
+    bool topFaded = false;
 
     // The battle's buttons on a wide view (BATTLE BUTTONS in the pause menu, when the shared code
     // has that row; ssrecomp.cfg key battle_buttons=strip|panel|corner):
-    //   STRIP:  large buttons in the message box's band, like SoulSilver's (BattleStrip);
+    //   STRIP:  the buttons in their own shapes on the message box's band (BattleStrip);
     //   PANEL:  the touch screen's own panel, as it looks, scaled to the message box's height
     //           at its right end;
     //   CORNER: that panel in the lower right corner, larger, standing above the box (Black 2's).
-    enum { BUTTONS_CORNER, BUTTONS_STRIP, BUTTONS_PANEL };
+    // (CLASSIC: the earlier STRIP, the touch screen's own buttons cut into the message box's
+    // band, BattleStripClassic.)
+    enum { BUTTONS_CORNER, BUTTONS_STRIP, BUTTONS_PANEL, BUTTONS_CLASSIC, BUTTONS_SUNMOON };
     int battleButtons = BUTTONS_STRIP;
 
     // romPath: the game being started; names: the functions the layouts watch (Black's own
@@ -52,7 +58,9 @@ public:
             while (fgets(line, sizeof(line), f))
                 if (!strncmp(line, "battle_buttons=", 15))
                     battleButtons = !strncmp(line + 15, "corner", 6) ? BUTTONS_CORNER
-                        : !strncmp(line + 15, "panel", 5) ? BUTTONS_PANEL : BUTTONS_STRIP;
+                        : !strncmp(line + 15, "panel", 5) ? BUTTONS_PANEL
+                        : !strncmp(line + 15, "classic", 7) ? BUTTONS_CLASSIC
+                        : !strncmp(line + 15, "sunmoon", 7) ? BUTTONS_SUNMOON : BUTTONS_STRIP;
             fclose(f);
         }
         char code[5] = {};
@@ -177,13 +185,23 @@ public:
             sc.softBars = true;
             return;
         }
+        boxesAge++;
         if (!strcmp(sc.name, "battle"))
         {
             const bool many = BattleBoxes(sc, viewLeft, viewRight);
+            // (Kept for a choice in the battle, which pickSceneBw2 lays out without them.)
+            boxesTop = sc.items.empty() ? Element{} : sc.items[0];
+            boxes.clear();
+            for (const Element& e : sc.items)
+                if (e.wideOnly) boxes.push_back(e);
+            boxesAge = 0;
             // (A double, triple or rotation battle has the player's boxes down to the message
             // box, where the corner panel would stand: there the panel takes the box's band.)
-            const int buttons = many && battleButtons == BUTTONS_CORNER ? BUTTONS_PANEL : battleButtons;
-            if (buttons != BUTTONS_CORNER && wideView && screens)
+            // (SUN AND MOON: the strip, its command buttons Sun and Moon's: Gen5Strip::Commands.)
+            const int buttons = many && battleButtons == BUTTONS_CORNER ? BUTTONS_PANEL
+                : battleButtons == BUTTONS_SUNMOON ? BUTTONS_STRIP : battleButtons;
+            // CLASSIC: the earlier strip, as it was before the rounded buttons.
+            if (buttons == BUTTONS_CLASSIC && wideView && screens)
             {
                 const bool moves = Fw->Ran(moveMenu, 1), command = !moves && Fw->Ran(commandMenu, 1);
                 // (Choosing a move's target, in a double, triple or rotation battle: the foes'
@@ -197,8 +215,8 @@ public:
                     for (const Element& e : sc.items)
                         if (e.screen != 1 && !(e.screen == -1 && e.border)) keep.push_back(e);
                     sc.items = keep;
-                    if (buttons == BUTTONS_STRIP && !target)
-                        BattleStrip(sc, viewRight, screens[1].pixels, moves);
+                    if (!target)
+                        BattleStripClassic(sc, viewRight, screens[1].pixels, moves);
                     else
                     {
                         // The same pieces as the corner panel (pickSceneBw2's: the four moves,
@@ -213,7 +231,96 @@ public:
                         sc.items.push_back(c);
                     }
                 }
+                return;
             }
+            if (buttons == BUTTONS_CORNER || buttons == BUTTONS_CLASSIC || !screens) return;
+            const bool moves = Fw->Ran(moveMenu, 1), command = !moves && Fw->Ran(commandMenu, 1);
+            // (Choosing a move's target, in a double, triple or rotation battle: the foes'
+            // buttons above, the player's side below, touch screen rows 32-134.)
+            const bool target = !moves && !command && Fw->Ran(targetMenu, 1);
+            // The strip (the targets too, which are laid out as the moves are), a few frames
+            // longer: as the command menu turns into the moves neither function runs for a frame
+            // or two, which blinked the buttons away; the strip draws only a menu the touch
+            // screen shows, so it is drawn no longer than that.
+            const bool strip = buttons == BUTTONS_STRIP &&
+                (Fw->Ran(moveMenu, 4) || Fw->Ran(commandMenu, 4) || Fw->Ran(targetMenu, 4));
+            // (On a narrow view, 4:3, the strip takes the place of pickSceneBw2's corner panel
+            // too, at the screen's right edge; PANEL keeps the corner panel there.)
+            if (!(strip || ((moves || command || target) && wideView))) return;
+            // The panel pickSceneBw2 put in the corner (a bordered backing and a piece of the
+            // touch screen) goes; the strip or the smaller panel takes its place.
+            std::vector<Element> keep;
+            for (const Element& e : sc.items)
+                if (e.screen != 1 && !(e.screen == -1 && e.border)) keep.push_back(e);
+            sc.items = keep;
+            if (strip)
+            {
+                // Where the parties' rows of balls go: under the foes' HP boxes, right-aligned to
+                // their arrows' tips (x 109 of their piece, 120 with two or three a side; their
+                // last rows 25 and 58 below its top), and in a single battle under the player's,
+                // right-aligned to it (its last row 33 below the piece's top): only where
+                // BattleBoxes moved them, on a wide view.
+                Gen5Strip::PartyPlaces party;
+                const Element* piece[2] = {};
+                for (const Element& e : sc.items)
+                    if (e.wideOnly && !piece[1]) (piece[0] ? piece[1] : piece[0]) = &e;
+                if (piece[1] && sc.items[0].holeCount == 2)
+                {
+                    if (piece[0]->sw > 0)
+                    {
+                        party.foeRight = piece[0]->dx + (many ? 120 : 109);
+                        party.foeTop = piece[0]->dy + (many ? 60 : 27);
+                    }
+                    if (piece[1]->sw > 0 && !many && piece[1]->sy != 20)
+                    {
+                        party.mineRight = piece[1]->dx + piece[1]->sw - 4;
+                        party.mineTop = piece[1]->dy + 37.5f;
+                    }
+                }
+                BattleStrip(sc, wideView ? viewRight : 256, screens, moves || target || !command, party);
+            }
+            else
+            {
+                // The same pieces as the corner panel (pickSceneBw2's: the four moves, or FIGHT
+                // above BAG, RUN and POKEMON; the targets, also in STRIP), as tall as the message
+                // box (rows 147-189), against the view's right edge.
+                Element c = moves ? Crop(1, 0, 30, 256, 98) : target ? Crop(1, 0, 32, 256, 103)
+                    : Crop(1, 0, 78, 256, 114);
+                c.scale = 43.0f / c.sh;
+                c.dx = viewRight - 2 - c.sw * c.scale;
+                c.dy = 147;
+                c.border = true;
+                sc.items.push_back(c);
+            }
+            return;
+        }
+        if (!strcmp(sc.name, "battle-list") && screens)
+        {
+            // The party (POKEMON, or the next one to send out after a faint) or the Bag in a
+            // battle: a page of the touch screen, shown alone at the view's height (pickSceneBw2).
+            // As it fades in and out the touch screen is one colour for a few frames, black: the
+            // battle stays on screen for those (its HP boxes where it had them) rather than the
+            // whole view going black.
+            if (Gen5Strip::OneColour(screens[1]))
+            {
+                sc.items = { FullScreen(0) };
+                sc.wide = viewWidth > 256.5f;
+                if (boxesAge < 600 && !topFaded) Gen5Strip::KeepBoxes(sc, boxesTop, boxes, 1);
+            }
+            return;
+        }
+        if (!strcmp(sc.name, "battle-choice") && screens && !sc.items.empty())
+        {
+            // A choice on the touch screen in a battle, its question on the top screen ("Will you
+            // switch your Pokemon?"): the HP boxes stay where the battle had them a moment ago,
+            // and with STRIP the answers are on the message box's band in their own shapes
+            // (Gen5Strip::ChoiceBars; the band is rows 147-189). Where they are not in their places
+            // for a while (a choice drawn some other way), the pieces pickSceneBw2 cut stay.
+            if (boxesAge < 600 && !topFaded) Gen5Strip::KeepBoxes(sc, boxesTop, boxes, 1);
+            if (battleButtons != BUTTONS_STRIP && battleButtons != BUTTONS_SUNMOON) return;
+            const Scene cut = sc;
+            if (Gen5Strip::ChoiceBars(sc, (wideView ? viewRight : 256) - 2, screens, 147, 42)) choiceMissing = 0;
+            else if (++choiceMissing > 30) sc = cut;
             return;
         }
         if (!strcmp(sc.name, "pokedex-list"))
@@ -238,6 +345,12 @@ private:
     int badges = -1, cardEdit = -1, report = -1, field = -1, dexRegister = -1, touchInput = -1;
     int commandMenu = -1, moveMenu = -1, targetMenu = -1;
     bool saving = false; // the save's screen was shown last
+    // The battle's top piece (its holes) and HP boxes as BattleBoxes placed them last, and how
+    // many frames ago.
+    Element boxesTop = {};
+    std::vector<Element> boxes;
+    unsigned boxesAge = 1000;
+    int choiceMissing = 0; // frames a battle's choice has not had its bars in their places
 
     static void Only(Scene& sc, const char* name, int screen)
     {
@@ -310,15 +423,20 @@ private:
         return many;
     }
 
-    // The battle's buttons as a strip in the lower right of a wide view, below the player's HP
-    // box, in the message box's band right of its text ("What will" and a ten-letter name end
-    // before x 150), like SoulSilver's: on
-    // the command menu FIGHT across the top and BAG, RUN, POKEMON below it; on the move menu the
-    // four moves two by two. Each is cut from the touch screen (Black's buttons are octagons,
-    // so the cut takes their middle: the label, the move's type and PP) and framed; the one the
-    // game's cursor (magenta brackets, 0xFB0092, at its corners) is on gets a magenta frame. The
-    // D-pad moves the cursor as it looks: the cells are where the buttons are on the DS.
-    static void BattleStrip(Scene& sc, float viewRight, const uint32_t* px, bool moves)
+    // The battle's buttons (STRIP): in the lower right of the view (on a 4:3 view too), on the
+    // message box's band (rows 147-188) right of its text, without the touch screen's Poke Ball
+    // around them, so that they stand on the band as part of the battle's own screen rather than
+    // as a piece of the other one: on the command menu FIGHT!, BAG, RUN and POKEMON as rounded
+    // buttons in the touch screen's colours and with its labels (Gen5Strip::Commands); on the
+    // move menu (and the choice of a move's target) the hexagons two by two, as the touch screen
+    // draws them, with the buttons it has below them (back, SHIFT, the rotation's) beside them,
+    // each in its own shape (the layers behind it left out). They are at a size the band holds,
+    // and the game's own cursor (magenta brackets at a button's corners, once a key has moved
+    // it) comes with the button it is on. The moves' pieces are where they are on the touch
+    // screen, scaled, and the command buttons are in its order, so a click lands on the button
+    // it shows and the D-pad moves the cursor as it looks. grid: the moves or targets rather than
+    // the command menu, when the touch screen's layers cannot tell.
+    static void BattleStripClassic(Scene& sc, float viewRight, const uint32_t* px, bool moves)
     {
         struct Cell { int sx, sy, sw, sh; int hit[4]; float dx, dy, scale; }; // hit: the button's area
         // Lined up with the message box (rows 147-189 of the top screen, a band across it):
@@ -398,6 +516,96 @@ private:
             }
             sc.items.push_back(e);
         }
+    }
+
+    static void BattleStrip(Scene& sc, float viewRight, const ScreenImage* screens, bool grid,
+        const Gen5Strip::PartyPlaces& party)
+    {
+        // Which menu the touch screen shows, by the layers at a few places: the command menu's
+        // octagons (BG0: BAG, RUN, POKEMON) below the lens, inside which the backdrop shows; or
+        // hexagons (BG1) with the backdrop beside them: the moves, two by two, or the Pokemon a
+        // move can be aimed at in a double or triple battle (the foes above, the player's side
+        // below, two or three across), which the game lays out in the same rows (32-127). While
+        // one menu turns into another the next one's function already runs, over a few frames of
+        // the Ball closing on the commands and opening on the moves (or the hexagons shrinking
+        // away): nothing is drawn until the buttons are in their places. (Without the layers:
+        // the menu whose function runs.)
+        const uint8_t* fl = screens[1].flags;
+        auto layer = [&](int x, int y) { return fl ? LayerClass(fl[y * 256 + x]) : 0; };
+        if (fl)
+        {
+            // (BAG, RUN and POKEMON slide up into their places: their tops, rows 132, 148 and 132,
+            // are the last of them there.)
+            const bool commands = layer(39, 170) == LAYER_BG0 && layer(127, 180) == LAYER_BG0 &&
+                                  layer(216, 170) == LAYER_BG0 && layer(128, 100) == LAYER_BACKDROP &&
+                                  layer(39, 133) == LAYER_BG0 && layer(127, 149) == LAYER_BG0 && layer(216, 133) == LAYER_BG0;
+            // (Inside the hexagons below their words: the moves' names, types and PP and the
+            // targets' names are on other layers. Rows 80 at the screen's edges are between
+            // them; across the command menu's Ball they are its dark seam, BG1.)
+            const bool hexagons = layer(40, 74) == LAYER_BG1 && layer(216, 74) == LAYER_BG1 &&
+                                  layer(40, 120) == LAYER_BG1 && layer(216, 120) == LAYER_BG1 &&
+                                  layer(0, 80) == LAYER_BACKDROP && layer(255, 80) == LAYER_BACKDROP;
+            if (!commands && !hexagons) return;
+            grid = hexagons;
+        }
+        const float right = viewRight - 2;
+        // The buttons are drawn smaller where they would reach the message (a long name on a
+        // narrow view): at least 4 pixels clear of it.
+        const float room = right - (Gen5Strip::MessageEnd(screens[0]) + 4);
+        // A piece of the touch screen at scale s whose source (x, y) is drawn at
+        // (left + x * s, top + y * s): the pieces of a menu keep their places to one another.
+        auto piece = [&](int x, int y, int w, int h, float s, float left, float top) {
+            Element e = Crop(1, x, y, w, h);
+            e.scale = s;
+            e.dx = left + x * s;
+            e.dy = top + y * s;
+            return e;
+        };
+        // The parties' rows of balls, by the HP boxes (Gen5Strip::PartyRows): the foe's x 106-150,
+        // rows 44-50 on the command menu and 20-26 on the others; the player's x 81-169, rows
+        // 129-142.
+        Gen5Strip::PartyRows(sc, party, Crop(1, 104, grid ? 18 : 42, 50, 11), Crop(1, 78, 128, 94, 16));
+        if (!grid)
+        {
+            // FIGHT!, BAG, RUN and POKEMON as rounded buttons on the moves' grid
+            // (Gen5Strip::Commands), as wide as the moves are with nothing beside them: 113 at
+            // 0.44, smaller, to 0.36, where the message leaves less room; from row 148, clear of
+            // the lowest of the player's HP boxes in a double battle (which ends at row 144).
+            const float s = std::clamp(room / 256, 0.36f, 0.44f);
+            Gen5Strip::Commands(sc, screens[1], Gen5Strip::BlackCommands(), right - 256 * s,
+                147 + (42 - 96 * s) / 2 - 32 * s, s);
+            return;
+        }
+        // The moves (126 x 48 each, at x 1 and 129, rows 32 and 80: name, type and PP), or the
+        // targets (two or three across, rows 32-83 and 88-127), as tall as the band, without the
+        // dark field behind them (the moves' types and the cursor are sprites, and stay). The
+        // buttons below them go left of them in the same order, as rounded buttons as tall as
+        // their two rows (Gen5Strip::Below): in a triple battle SHIFT, in a rotation battle the two
+        // that turn the Pokemon round, and back. Where the message leaves too little room for all
+        // of them at 0.44, they are drawn smaller, down to 0.36, and then without back (B goes
+        // back as well).
+        const Gen5Strip::BelowButton* below[3];
+        int n = 0;
+        if (layer(39, 175) == LAYER_BG0 && layer(39, 140) == LAYER_BG0) below[n++] = &Gen5Strip::BlackShift();
+        else if (layer(39, 175) == LAYER_BG0) below[n++] = &Gen5Strip::BlackTurn(0);
+        if (layer(120, 175) == LAYER_BG0) below[n++] = &Gen5Strip::BlackTurn(1);
+        const bool back = layer(216, 175) == LAYER_BG0;
+        const float gap = 3;
+        auto fit = [&](bool withBack) {
+            float w = 256, k = 0;
+            for (int i = 0; i < n; i++) { w += below[i]->width; k++; }
+            if (withBack) { w += Gen5Strip::BlackBack().width; k++; }
+            return (room - gap * k) / w;
+        };
+        const bool drawBack = back && (fit(true) >= 0.36f || !fl);
+        const float s = std::max(0.36f, std::min(0.44f, fit(drawBack)));
+        if (drawBack) below[n++] = &Gen5Strip::BlackBack();
+        const float left = right - 256 * s, top = 147 + (42 - 96 * s) / 2 - 32 * s;
+        Element hexagons = piece(0, 32, 256, 96, s, left, top);
+        hexagons.drop = LAYER_BACKDROP;
+        sc.items.push_back(hexagons);
+        // (The hexagons start at source x 1.)
+        Gen5Strip::Below(sc, screens[1], below, n, left + s, top + 34 * s, 92 * s, s, gap, 0xFB0092);
     }
 
     // The X menu. Black's buttons are 123 x 41 on a light grid, two to a row, rows 48 apart

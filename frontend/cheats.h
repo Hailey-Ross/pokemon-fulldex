@@ -18,6 +18,7 @@
 // other games and a new database keep theirs. CHEATS in the pause menu lists the database's
 // folders (a folder shows how many of its codes are on); opening one turns its codes on and off.
 // Codes with no folder, such as a text file of your own, are listed above the folders.
+#include "folders.h"
 #include <algorithm>
 #include <cctype>
 #include <cstdio>
@@ -400,6 +401,7 @@ struct List
 // The cheats folder for a save: beside a folder called saves, otherwise in the save's own folder.
 inline std::string FolderFor(const std::string& save)
 {
+    if (!FolderSet::CheatsDir().empty()) return FolderSet::CheatsDir(); // (FOLDERS: a cheats folder of the player's own)
     const size_t slash = save.find_last_of("/\\");
     const std::string dir = slash == std::string::npos ? "." : save.substr(0, slash);
     const size_t s2 = dir.find_last_of("/\\");

@@ -436,6 +436,18 @@ if(SSR_GBA_DIR AND (SSR_PC_ALL_GAMES OR SSR_ALL_GAMES))
     target_link_libraries(ssrecomp PRIVATE gbawide)
     target_compile_definitions(ssrecomp PRIVATE SSR_GBA)
 endif()
+# ONLINE PLAY (#149): the DS games' Nintendo Wi-Fi Connection through melonDS's user-mode network
+# (libslirp, bundled), so a custom DNS (Wiimmfi, Pokemon Classic Network) reaches the internet. Not
+# on the Switch for now (libslirp is untried on libnx's sockets): there the connection still fails.
+option(SSR_NET "Online play through the emulated Wi-Fi (libslirp)" ON)
+if(SSR_NET AND NOT SSR_SWITCH)
+    add_subdirectory(melonDS/src/net/libslirp EXCLUDE_FROM_ALL)
+    add_library(ssrnet STATIC melonDS/src/net/Net.cpp melonDS/src/net/Net_Slirp.cpp melonDS/src/net/PacketDispatcher.cpp)
+    target_include_directories(ssrnet PUBLIC melonDS/src melonDS/src/net)
+    target_link_libraries(ssrnet PUBLIC slirp PRIVATE core)
+    target_link_libraries(ssrecomp PRIVATE ssrnet)
+    target_compile_definitions(ssrecomp PRIVATE SSR_NET)
+endif()
 # RetroAchievements: the library, and each platform's way to the internet (achievements_http.cpp);
 # the program's version, which the server is told with its name, from CHANGELOG.md's newest release.
 target_link_libraries(ssrecomp PRIVATE rcheevos)
@@ -453,7 +465,7 @@ elseif(APPLE)
         # The list upright, a game sideways (frontend/ios_orient.mm). UIKit is iOS only.
         target_sources(ssrecomp PRIVATE frontend/ios_orient.mm)
         set_source_files_properties(frontend/ios_orient.mm PROPERTIES LANGUAGE CXX COMPILE_FLAGS "-x objective-c++")
-        target_link_libraries(ssrecomp PRIVATE "-framework UIKit")
+        target_link_libraries(ssrecomp PRIVATE "-framework UIKit" "-framework GameController")
     endif()
 elseif(SSR_SWITCH)
     # (devkitPro's libcurl, with its TLS library, from the portlibs.)
@@ -483,7 +495,8 @@ if(SSR_GPU3D)
 endif()
 
 # PokeDaisy's guarded DS field-action recipes. These extend the frontend, not either core.
-target_sources(ssrecomp PRIVATE frontend/pokedaisy/pk_nds_field.cpp frontend/pokedaisy/pk_nds_call.cpp)
+target_sources(ssrecomp PRIVATE frontend/pokedaisy/pk_nds_field.cpp frontend/pokedaisy/pk_nds_field_gpu.cpp
+    frontend/pokedaisy/pk_nds_call.cpp frontend/pokedaisy/pk_nds_call_melonds.cpp)
 # The Pokémon hub (frontend/pokemon_hub.cpp): moving Pokémon between the player's games, on
 # PKSM-Core (third_party/PKSM-Core: FlagBrew, GPL-3.0), whose data files are built in by
 # tools/pksm/embed_data.py. C++20, as PKSM-Core wants; the rest of the program sees only

@@ -29,7 +29,11 @@ set(GBAW_PATCH_FILES emerald-wide.ips emerald-wide.safety firered-wide.ips firer
     rubyde-wide.ips rubyde-wide.safety sapphirede-wide.ips sapphirede-wide.safety
     rubyfr-wide.ips rubyfr-wide.safety rubyes-wide.ips rubyes-wide.safety rubyit-wide.ips rubyit-wide.safety
     rubyjp-wide.ips rubyjp-wide.safety sapphirefr-wide.ips sapphirefr-wide.safety sapphirees-wide.ips sapphirees-wide.safety
-    sapphireit-wide.ips sapphireit-wide.safety sapphirejp-wide.ips sapphirejp-wide.safety)
+    sapphireit-wide.ips sapphireit-wide.safety sapphirejp-wide.ips sapphirejp-wide.safety
+    emeraldfr-wide.ips emeraldfr-wide.safety emeraldde-wide.ips emeraldde-wide.safety emeraldes-wide.ips emeraldes-wide.safety emeraldit-wide.ips emeraldit-wide.safety emeraldjp-wide.ips emeraldjp-wide.safety fireredfr-wide.ips fireredfr-wide.safety fireredde-wide.ips fireredde-wide.safety fireredes-wide.ips fireredes-wide.safety fireredit-wide.ips fireredit-wide.safety leafgreenfr-wide.ips leafgreenfr-wide.safety leafgreende-wide.ips leafgreende-wide.safety leafgreenes-wide.ips leafgreenes-wide.safety leafgreenit-wide.ips leafgreenit-wide.safety
+    radicalred-wide.ips radicalred-wide.safety unbound-wide.ips unbound-wide.safety
+    emeraldlegacy-wide.ips emeraldlegacy-wide.safety inclement-wide.ips inclement-wide.safety
+    monomyth-wide.ips monomyth-wide.safety)
 if(NOT GBAW_PATCHES_H)
     foreach(f ${GBAW_PATCH_FILES})
         if(NOT EXISTS "${GBAW_PATCHES}/${f}")
@@ -108,7 +112,11 @@ add_custom_command(
     COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/tools/embed_art.py" "${CMAKE_CURRENT_SOURCE_DIR}/art" "${CMAKE_CURRENT_BINARY_DIR}/gen/art.h"
     DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/tools/embed_art.py" ${GBAW_ART}
     VERBATIM)
-set(GBAW_SOURCES frontend/main.cpp frontend/third_party/xbrz/xbrz.cpp "${CMAKE_CURRENT_BINARY_DIR}/gen/patches.h" "${CMAKE_CURRENT_BINARY_DIR}/gen/art.h")
+# PokeDaisy's WIDE (frontend/pokedaisy, GPL-3.0): the overworld past the picture, rebuilt from the game's memory,
+# for ZOOM and the look-around. Its last-resort fault guard (POSIX signals) is left out: its reads are bounds-checked.
+set(GBAW_PK_WIDE frontend/pokedaisy/pk_wide.c frontend/pokedaisy/pk_wide_gb_none.c)
+set_source_files_properties(${GBAW_PK_WIDE} PROPERTIES COMPILE_DEFINITIONS PK_WIDE_NO_GUARD)
+set(GBAW_SOURCES frontend/main.cpp frontend/third_party/xbrz/xbrz.cpp ${GBAW_PK_WIDE} frontend/pokedaisy/pk_call_lite.c frontend/pokedaisy/pk_flight.c "${CMAKE_CURRENT_BINARY_DIR}/gen/patches.h" "${CMAKE_CURRENT_BINARY_DIR}/gen/art.h")
 get_target_property(GBAW_MGBA_DEFS mgba COMPILE_DEFINITIONS)
 if(GBAW_EMBEDDED)
     # The library for the launcher: the player without its own list (embed.h), on the

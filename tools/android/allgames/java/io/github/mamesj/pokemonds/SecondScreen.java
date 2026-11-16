@@ -15,12 +15,17 @@ import android.util.Log;
 import android.view.Display;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
+import android.view.Surface;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
 
-// One DS session, two displays. The UI owns windows; the SDL thread only submits a bounded
-// latest-frame mailbox and polls an atomic input snapshot. No game or save data is stored here.
+// One DS session, two displays. The UI owns windows; the game draws the second display's pictures
+// straight into its surface (android_second_screen.h), from a thread of its own, and polls an atomic
+// input snapshot. The older path (a bounded latest-frame mailbox drawn here) is kept for a game that
+// does not take the surface. No game or save data is stored here.
 final class SecondScreen implements DisplayManager.DisplayListener {
     static final int OFF = 0, MERGED_TOUCH = 1, PHYSICAL_DS = 2, SWAPPED_DS = 3, COMPANION = 4;
     private final GameActivity host;
@@ -33,6 +38,9 @@ final class SecondScreen implements DisplayManager.DisplayListener {
     private volatile int touch;
     private volatile boolean ready, haveFrame;
     private volatile ScreenView view;
+    private volatile Surface surface;
+    private volatile int surfaceSerial = 1;
+    private volatile int shownSerial;
     private boolean running, resumed, closed;
     private Presentation presentation;
     private int failedDisplay = -1;
@@ -46,6 +54,18 @@ final class SecondScreen implements DisplayManager.DisplayListener {
     }
     int mode() { return mode; }
     long state() { return ((long) mode << 28) | (ready ? 1L << 32 : 0) | (view != null ? 1L << 33 : 0) | touch; }
+    Surface surface() { return surface; }
+    int surfaceSerial() { return surfaceSerial; }
+    // The game has put a picture on this surface (its serial), of this size: touches are worked out for it.
+    void shown(int serial, int width, int height) {
+        if (serial != surfaceSerial || width < 1 || height < 1) return;
+        sourceWidth = width; sourceHeight = height;
+        boolean first = shownSerial != serial;
+        shownSerial = serial;
+        ScreenView target = view;
+        ready = target != null && surface != null;
+        if (first && target != null) target.postInvalidate(); // (the drawn fallback goes, the surface shows)
+    }
     void setMode(int next) {
         touch=0;
         mode = Math.max(OFF, Math.min(COMPANION, next));
@@ -102,6 +122,7 @@ final class SecondScreen implements DisplayManager.DisplayListener {
         ready = false;
         touch = 0;
         view = null;
+        dropSurface();
         synchronized (pixelsLock) { haveFrame = false; java.util.Arrays.fill(pixels, Color.BLACK); }
         if (presentation != null) {
             presentation.dismiss();
@@ -136,6 +157,7 @@ final class SecondScreen implements DisplayManager.DisplayListener {
                     ready = false;
                     touch = 0;
                     view = null;
+                    dropSurface();
                     super.onStop();
                 }
             };
@@ -152,13 +174,36 @@ final class SecondScreen implements DisplayManager.DisplayListener {
     @Override public void onDisplayRemoved(int id) { failedDisplay = -1; touch = 0; sync(); }
     @Override public void onDisplayChanged(int id) { failedDisplay = -1; touch = 0; sync(); }
 
-    private final class ScreenView extends View {
+    private void dropSurface() {
+        if (surface != null) { surface = null; surfaceSerial++; }
+    }
+
+    // The second display's picture: a surface the game draws into, with the older drawn picture
+    // (onDraw) as the fallback while no surface is up or a game does not use it.
+    private final class ScreenView extends SurfaceView implements SurfaceHolder.Callback {
         private Bitmap bitmap = Bitmap.createBitmap(256, 192, Bitmap.Config.ARGB_8888);
+        ScreenView(android.content.Context context) {
+            super(context);
+            getHolder().addCallback(this);
+            setWillNotDraw(false);
+        }
+        @Override public void surfaceCreated(SurfaceHolder holder) {
+            if (this != view) return;
+            surface = holder.getSurface(); surfaceSerial++; ready = false;
+        }
+        @Override public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+            if (this != view) return;
+            surface = holder.getSurface(); surfaceSerial++; ready = false;
+        }
+        @Override public void surfaceDestroyed(SurfaceHolder holder) {
+            if (surface != null && surface == holder.getSurface()) { ready = false; dropSurface(); }
+        }
         private final Paint paint = new Paint();
         private int pointer = -1;
-        ScreenView(android.content.Context context) { super(context); setBackgroundColor(Color.BLACK); }
         @Override protected void onDraw(Canvas canvas) {
             super.onDraw(canvas);
+            // (The game draws into the surface: nothing over it here, so it shows through.)
+            if (surface != null && shownSerial == surfaceSerial) return;
             int width,height;
             synchronized (pixelsLock) {
                 width=sourceWidth;height=sourceHeight;

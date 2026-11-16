@@ -280,6 +280,9 @@ bool Save::ReadOnly() const { return d->readOnly; }
 int Save::Boxes() const { return d->sav->maxBoxes(); }
 std::string Save::BoxName(int box) const { return d->sav->boxName((u8)box); }
 bool Save::Changed() const { return d->changed; }
+bool Save::DexSeen(int species) const { return species > 0 && species <= MaxSpecies() && d->sav->dexSeenSpecies(pksm::Species{(u16)species}); }
+bool Save::DexCaught(int species) const { return species > 0 && species <= MaxSpecies() && d->sav->dexCaughtSpecies(pksm::Species{(u16)species}); }
+int Save::MaxSpecies() const { return (int)u16(d->sav->maxSpecies()); }
 
 std::vector<Mon> Save::Box(int box) const
 {

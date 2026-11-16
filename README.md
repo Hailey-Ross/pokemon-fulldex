@@ -257,7 +257,7 @@ in busy places.
 | Setting | Recommended | What it does |
 |---|---|---|
 | 60 FPS | ON | in-between frames: the games draw their 3D at 30 fps |
-| BATTLE BUTTONS | PANEL | Black 2, White 2, Black and White: the game's own FIGHT, BAG, RUN and POKÉMON panel beside the battle (Black and White also have STRIP: large buttons in the message box) |
+| BATTLE BUTTONS | PANEL | Black 2, White 2, Black and White: the game's own FIGHT, BAG, RUN and POKÉMON panel beside the battle (STRIP, the default, puts them on the message box as rounded buttons, like the moves) |
 | WORLD DETAIL | 720 | lines the wide world is drawn with (540 if you want headroom) |
 | LOWER DETAIL WHEN BUSY | OFF | ON: fewer lines for a moment instead of slowing down |
 
@@ -701,9 +701,24 @@ version and the **`game.log`** file, which says what the program did:
    as ftpd over Wi-Fi.
 3. **Add it to the form:** drag the file into the `game.log` box.
 
-A screenshot or short video helps too. Please never attach your ROM. A white or A white or black screen when a game starts usually means the ROM isn't one in
+A screenshot or short video helps too. Please never attach your ROM. A white or black screen when a game starts usually means the ROM isn't one in
 [Supported games](#supported-games), or has been changed (patches, translations, randomizers
 or trimming).
+
+## Custom touch controls and regional profiles
+
+Android players can move and resize on-screen controls in the paused layout editor.
+The launcher and Fulldex menus offer AUTO, English, Spanish, Italian, French, German, Japanese and Korean interface languages. Embedded GBA menus follow the launcher language too. See [controls, regional games and build notes](docs/REGIONAL-AND-TOUCH-CONTROLS.md).
+
+### Open a DS game from an Android frontend
+
+A frontend or file manager can send an Android VIEW intent for an `.nds` ROM to FullDex. A readable file opens directly. Document-provider links are copied into FullDex storage before launch, so they also work when the provider exposes no ordinary file path; the original file is unchanged. Existing save-folder settings and save checks are retained. While FullDex is already showing its library, a new link starts the selected game. Quit an active game before opening another link. This integration still needs testing with individual frontends and devices.
+
+### Android folders without ordinary file access
+
+Granting all-files access lets FullDex use a shared ROM folder directly. If that permission is declined, or a document provider exposes no filesystem path, choosing a folder imports its `.nds` and `.gba` files into FullDex storage instead. The app shows when it is importing and how many ROMs were found. Nested folders are supported; choose a smaller folder if a traversal/size limit is reached. Original files remain untouched. These are separate ROM copies: changes made by another emulator are not automatically synchronised, and source saves are not imported automatically. Existing FullDex save locations are retained and must remain accessible. This fallback needs testing on affected GrapheneOS devices.
+
+ROM imports reuse identical files and refuse to overwrite a different ROM with the same filename. Rename the incoming ROM or choose its existing ROM folder instead. An explicitly imported save still gets a safety backup before replacement.
 
 ## Support
 
@@ -716,20 +731,30 @@ Tips are welcome but never expected:
 A fork of [ClickingMaster/ssrecomp](https://github.com/ClickingMaster/ssrecomp)
 (Pokémon SoulSilver recompiled for single-screen devices), which gave this its
 single-screen and widescreen view; [its README](docs/original-ssrecomp-README.md)
-covers that project. Function names come from the
-[pokebw2](https://github.com/fuddlesworth/pokebw2) and
-[aletheia](https://github.com/Project-Holon/aletheia) decompilations (only their
-symbol files), Platinum's from a build of
-[pret/pokeplatinum](https://github.com/pret/pokeplatinum); SoulSilver's and HeartGold's
-addresses come from ssrecomp's own SoulSilver layout. The DS is emulated by [melonDS](https://melonds.kuribo64.net).
-The built-in DS cheats come from DeadSkullzJr's cheat database, as carried in
-[libretro-database](https://github.com/libretro/libretro-database).
-The Switch's HOME MENU ICONS are made the way [sphaira](https://github.com/ITotalJustice/sphaira)
-makes its forwarders, with its homebrew loader (`tools/switch/forwarder`, GPL-3.0, based on
-nx-hbloader). The GBA games are played by Pokémon GBA Widescreen, built on
-[mGBA](https://mgba.io) (MPL-2.0: `LICENSE-mGBA.txt` in the downloads that have the GBA games).
+covers that project.
 
-GPL-3.0-or-later (see `LICENSE`), as required by melonDS. Not affiliated with
+Based on PokeDaisy by Lidor Itzhari - https://github.com/lidor30/pokedaisy
+
+- **Companion, OPEN PC and FLY:** PokéDaisy's readers, data and DS field actions (GPL-3.0).
+- **DS emulation:** [melonDS](https://melonds.kuribo64.net).
+- **GBA games:** Pokémon GBA Widescreen, built on [mGBA](https://mgba.io) (MPL-2.0:
+  `LICENSE-mGBA.txt` in the downloads that have the GBA games).
+- **Function names:** the [pokebw2](https://github.com/fuddlesworth/pokebw2) and
+  [aletheia](https://github.com/Project-Holon/aletheia) decompilations (only their symbol
+  files), Platinum's from a build of [pret/pokeplatinum](https://github.com/pret/pokeplatinum);
+  SoulSilver's and HeartGold's addresses come from ssrecomp's own SoulSilver layout.
+- **DS cheats:** DeadSkullzJr's cheat database, as carried in
+  [libretro-database](https://github.com/libretro/libretro-database).
+- **Moving Pokémon between games:** [PKSM-Core](https://github.com/FlagBrew/PKSM-Core) by FlagBrew (GPL-3.0).
+- **Switch HOME MENU ICONS:** made the way [sphaira](https://github.com/ITotalJustice/sphaira)
+  makes its forwarders, with its homebrew loader (`tools/switch/forwarder`, GPL-3.0, based on
+  nx-hbloader).
+- **Fonts:** Noto Sans CJK (SIL OFL 1.1, `LICENSE-Noto.txt`) and the launcher's fonts (SIL OFL 1.1,
+  `frontend/fonts/FONT-LICENSES.txt`).
+- **Translations:** see [localisation](localisation/README.md), including AlessioGiacobbe's
+  Italian improvements.
+
+GPL-3.0-or-later (see `LICENSE` and `NOTICE`), as required by melonDS. Not affiliated with
 or endorsed by Nintendo, Game Freak, The Pokémon Company or the melonDS
 project; Pokémon is a trademark of its owners. The box art in the PC game list belongs to
 Nintendo, Creatures, GAME FREAK and The Pokémon Company and is shown only to tell the games
@@ -739,20 +764,3 @@ open an issue and it will be taken out.
 ---
 
 Built with AI assistance.
-
-## Custom touch controls and regional profiles
-
-Android players can move and resize on-screen controls in the paused layout editor.
-The launcher and Fulldex menus offer AUTO, English, Spanish, Italian, French, German, Japanese and Korean interface languages. Embedded GBA menus follow the launcher language too. See [controls, regional games and build notes](docs/REGIONAL-AND-TOUCH-CONTROLS.md).
-
-Companion additions: Based on PokeDaisy by Lidor Itzhari - https://github.com/lidor30/pokedaisy
-
-### Open a DS game from an Android frontend
-
-A frontend or file manager can send an Android VIEW intent for an `.nds` ROM to FullDex. A readable file opens directly. Document-provider links are copied into FullDex storage before launch, so they also work when the provider exposes no ordinary file path; the original file is unchanged. Existing save-folder settings and save checks are retained. While FullDex is already showing its library, a new link starts the selected game. Quit an active game before opening another link. This integration still needs testing with individual frontends and devices.
-
-### Android folders without ordinary file access
-
-Granting all-files access lets FullDex use a shared ROM folder directly. If that permission is declined, or a document provider exposes no filesystem path, choosing a folder imports its `.nds` and `.gba` files into FullDex storage instead. The app shows when it is importing and how many ROMs were found. Nested folders are supported; choose a smaller folder if a traversal/size limit is reached. Original files remain untouched. These are separate ROM copies: changes made by another emulator are not automatically synchronised, and source saves are not imported automatically. Existing FullDex save locations are retained and must remain accessible. This fallback needs testing on affected GrapheneOS devices.
-
-ROM imports reuse identical files and refuse to overwrite a different ROM with the same filename. Rename the incoming ROM or choose its existing ROM folder instead. An explicitly imported save still gets a safety backup before replacement.

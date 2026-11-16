@@ -4,6 +4,7 @@ call 000166C 2 EE6EB441 InitBgsFromTemplates
 call 00019F8 2 B01047AD SetBgAttribute
 call 0001FB4 2 2594630F SetBgTilemapBuffer
 call 0002BC4 2 FAD255FC AllocZeroed
+call 0004964 2 FAD255FC GetWindowAttribute
 call 0006FF4 2 EE6EB441 CreateSpriteAtEnd
 call 0007294 2 EE6EB441 DestroySprite
 call 0007334 2 FAD255FC LoadOam
@@ -66,6 +67,7 @@ same 007D780 60 A615513C UpdateSandstormSprite
 call 0087F3C 2 B01047AD ScanlineEffect_InitHBlankDmaTransfer
 call 00F6CBC 2 FAD255FC InitStandardTextBoxWindows
 call 00F6CE8 2 FAD255FC InitTextBoxGfxAndPrinters
+call 00F798C 2 20C5EA1C GetStartMenuWindowId
 call 01E3C00 2 2B7A5E95 _call_via_r3
 call 01E4064 2 036B8A93 __divsi3
 call 01E4140 2 FAA552CC __modsi3
@@ -84,4 +86,4 @@ same 03C6694 8 E9A87D05 gFogDiagonalSpriteSheet
 same 03C66B0 18 906BC344 sFogDiagonalSpriteTemplate
 same 03C66E8 18 3A5564D7 sSandstormSpriteTemplate
 same 03C6700 8 BC4961E9 sSandstormSpriteSheet
-free 0F00000 1B60
+free 0F00000 1C58

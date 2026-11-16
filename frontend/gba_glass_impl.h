@@ -10,7 +10,9 @@ static_assert(IC_PLAY == Glass::I_PLAY && IC_SAVE == Glass::I_SAVE && IC_LOAD ==
               IC_FAST == Glass::I_FAST && IC_TROPHY == Glass::I_TROPHY && IC_GEAR == Glass::I_GEAR && IC_POWER == Glass::I_POWER &&
               IC_MONITOR == Glass::I_MONITOR && IC_RATIO == Glass::I_RATIO && IC_EXPAND == Glass::I_EXPAND &&
               IC_FULLSCREEN == Glass::I_FULLSCREEN && IC_GRID == Glass::I_GRID && IC_PAD == Glass::I_PAD && IC_GAUGE == Glass::I_GAUGE &&
-              IC_SPARKLE == Glass::I_SPARKLE && IC_INFO == Glass::I_INFO && IC_SPEAKER == Glass::I_SPEAKER && IC_REWIND == Glass::I_REWIND,
+              IC_SPARKLE == Glass::I_SPARKLE && IC_INFO == Glass::I_INFO && IC_SPEAKER == Glass::I_SPEAKER && IC_REWIND == Glass::I_REWIND &&
+              IC_PEOPLE == Glass::I_PEOPLE && IC_POKEBALL == Glass::I_POKEBALL && IC_NOTE == Glass::I_NOTE &&
+              IC_GLOBE == Glass::I_GLOBE && IC_CHIP == Glass::I_CHIP,
               "gba_glass.h's icon numbers are Glass::Icon's");
 
 namespace
@@ -31,7 +33,7 @@ void Sync(const Page& p)
     State& s = S();
     Menu& m = s.menu;
     m.open = true;
-    m.columns = p.style == TILES ? 4 : 0;
+    m.columns = p.style == TILES ? (p.items.size() > 8 ? 5 : 4) : 0; // (the DS games' two rows of five)
     m.style = p.style == PAGE ? 1 : p.style == DIALOG ? 2 : 0;
     m.pageIcon = p.style == PAGE ? p.icon : -1;
     m.dialogIcon = p.style == DIALOG ? p.icon : -1;
@@ -61,6 +63,34 @@ void Sync(const Page& p)
         b.choices = a.choices;
         b.choice = a.choice;
         b.preview = Menu::P_NONE;
+        if (a.dexCard >= 0 && a.dexCard < (int)p.dex.size()) { b.preview = Menu::P_CDEXMON; b.choice = a.dexCard; }
+        if (a.monCard >= 0 && a.monCard < (int)p.mons.size()) { b.preview = Menu::P_CMON; b.choice = a.monCard; }
+        if (a.placeCard) b.preview = Menu::P_CPLACE;
+    }
+    // (POKEDEX's cards, as the DS games' entries; seen and caught from the save where it was read.)
+    m.companion.dex.clear();
+    for (const DexCard& d : p.dex)
+    {
+        Menu::CompanionView::DexEntry e;
+        e.id = d.id; e.type1 = d.type1; e.type2 = d.type2;
+        for (int i = 0; i < 6; i++) e.base[i] = d.base[i];
+        e.name = d.name; e.desc = d.desc; e.abilities = d.abilities; e.evolutions = d.evolutions;
+        e.pic = d.pic; e.shinyPic = d.shinyPic; e.picW = d.picW; e.picH = d.picH;
+        e.stateKnown = d.state >= 0; e.seen = d.state != 0; e.caught = d.state == 2;
+        m.companion.dex.push_back(std::move(e));
+    }
+    m.companion.place = p.place; m.companion.area.clear();
+    m.companion.map = p.map; m.companion.mapW = p.mapW; m.companion.mapH = p.mapH;
+    m.companion.markerX = p.markerX; m.companion.markerY = p.markerY;
+    m.companion.party.clear();
+    for (const MonCard& d : p.mons)
+    {
+        Menu::CompanionView::Mon e;
+        e.name = d.name; e.item = d.item; e.level = d.level; e.hp = d.hp; e.maxHp = d.maxHp; e.status = d.status; e.egg = d.egg;
+        e.icon = d.icon; e.iconW = d.iconW; e.iconH = d.iconH; e.type1 = d.type1; e.type2 = d.type2; e.nature = d.nature; e.ability = d.ability;
+        for (int i = 0; i < 6; i++) { e.stats[i] = d.stats[i]; e.iv[i] = d.iv[i]; e.ev[i] = d.ev[i]; }
+        for (const auto& mv : d.moves) e.moves.push_back({ mv.name, mv.type, mv.pp, mv.maxPp });
+        m.companion.party.push_back(std::move(e));
     }
     // (Another page: its list from the top.)
     const std::string pk = std::to_string(p.style) + "|" + p.title;
@@ -184,7 +214,10 @@ const uint32_t* Draw(const Page& page, int w, int h, bool& changed)
     for (const Item& it : page.items)
         key += "|" + it.label + "=" + it.value + "," + std::to_string(it.kind) + "," + std::to_string(it.choice) + "," + std::to_string(it.slider) + "," +
                std::to_string(it.disabled) + "," + it.sub + "," + it.desc + "," + std::to_string(it.thumb.size()) + "," +
-               std::to_string(it.thumb.empty() ? 0u : it.thumb[it.thumb.size() / 2]);
+               std::to_string(it.thumb.empty() ? 0u : it.thumb[it.thumb.size() / 2]) + "," + std::to_string(it.dexCard) + "," + std::to_string(it.monCard);
+    for (const DexCard& d : page.dex) key += "|d" + std::to_string(d.id) + "," + std::to_string(d.pic.size());
+    key += "|p" + page.place + std::to_string(page.map.size()) + "," + std::to_string(page.markerX);
+    for (const MonCard& d : page.mons) key += "|m" + d.name + "," + std::to_string(d.hp) + "," + std::to_string(d.level);
     changed = key != s.key;
     if (changed)
     {

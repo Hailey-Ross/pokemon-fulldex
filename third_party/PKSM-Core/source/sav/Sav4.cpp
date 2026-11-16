@@ -756,6 +756,19 @@ namespace pksm
         return ret;
     }
 
+    bool Sav4::dexSeenSpecies(Species species) const
+    {
+        static constexpr int brSize = 0x40;
+        const int bit               = u16(species) - 1;
+        return bit >= 0 && (1 << (bit & 7) & data[PokeDex + 0x4 + (bit >> 3) + brSize]) != 0;
+    }
+
+    bool Sav4::dexCaughtSpecies(Species species) const
+    {
+        const int bit = u16(species) - 1;
+        return bit >= 0 && (1 << (bit & 7) & data[PokeDex + 0x4 + (bit >> 3)]) != 0;
+    }
+
     bool Sav4::checkInsertForm(SmallVector<u8, 0x20>& forms, u8 formNum)
     {
         SmallVector<u8, 0x20> dummy;
