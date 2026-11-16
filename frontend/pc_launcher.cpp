@@ -871,6 +871,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
     // The game menu's platform-launcher item: Add To Steam, or Add To Desktop when Steam is not
     // found. It is user-selected; nothing is added automatically.
     Launcher::PlatformEntryLabel() = [dir = fo.dir](const Launcher::Game& g) { return SteamShortcuts::PlatformEntryLabel(dir, g); };
+    Launcher::PlatformLauncherState() = [] { return SteamShortcuts::HasLauncher() ? "IN STEAM" : "NOT IN STEAM"; };
 #endif
 #ifdef __ANDROID__
     JavaVoid("showLauncherOrientation");

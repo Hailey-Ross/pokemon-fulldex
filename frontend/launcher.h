@@ -312,6 +312,8 @@ inline GlassFocus& Focus() { static GlassFocus f; return f; }
 // The game menu's platform-launcher item (Add To Steam, or Add To Desktop when Steam is not
 // found): the game list supplies the label because only it knows what is available.
 inline std::function<std::string(const Game&)>& PlatformEntryLabel() { static std::function<std::string(const Game&)> f; return f; }
+// Whether the launcher itself is in Steam ("IN STEAM") or not, for the settings row.
+inline std::function<std::string()>& PlatformLauncherState() { static std::function<std::string()> f; return f; }
 #if defined(__ANDROID__) || (!defined(SSR_PHONE) && !defined(__SWITCH__))
 inline int PopupCount() { return 8; } // (Android's phone home, or the desktop's Steam/Desktop entry)
 #else
@@ -8104,8 +8106,9 @@ inline std::vector<Setting> SettingsList()
 #elif !defined(__APPLE__)
     l.push_back({ "!shortcuts", "DESKTOP SHORTCUTS", { { "", "CREATE" } }, "",
                   "PUTS A SHORTCUT FOR EACH GAME IN THIS LIST ON YOUR DESKTOP AND IN YOUR APPS MENU WITH ITS PICTURE. IT STARTS THAT GAME STRAIGHT AWAY. ON THE STEAM DECK THEY ALSO SHOW UP IN ADD A NON-STEAM GAME. CREATE AGAIN AFTER ADDING GAMES OR MOVING THIS FOLDER." });
-    l.push_back({ "!steam_launcher", "STEAM LAUNCHER", { { "", "ADD" } }, "",
-                  "ADDS FULLDEX ITSELF TO YOUR STEAM LIBRARY, NOT THE GAMES. QUIT STEAM FIRST, THEN CHOOSE THIS (THE MESSAGE SAYS HOW TO REOPEN IT). CHOOSE AGAIN TO TAKE IT OUT. WHEN STEAM IS NOT INSTALLED, A GAME'S MENU OFFERS ADD TO DESKTOP INSTEAD." });
+    const std::string steamLauncher = PlatformLauncherState() ? PlatformLauncherState()() : "NOT IN STEAM";
+    l.push_back({ "!steam_launcher", "STEAM LAUNCHER", { { "", steamLauncher } }, "",
+                  "ADDS FULLDEX ITSELF TO YOUR STEAM LIBRARY, NOT THE GAMES. QUIT STEAM FIRST, THEN CHOOSE THIS (THE MESSAGE SAYS HOW TO REOPEN IT). WHEN IT IS ALREADY IN STEAM, CHOOSE THIS TO TAKE IT OUT. WHEN STEAM IS NOT INSTALLED, A GAME'S MENU OFFERS ADD TO DESKTOP INSTEAD." });
 #endif
 #endif
 #endif
