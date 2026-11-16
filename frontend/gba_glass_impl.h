@@ -230,3 +230,57 @@ const uint32_t* Draw(const Page& page, int w, int h, bool& changed)
     return c.px.data();
 }
 }
+
+// FULLDEX NAV for the GBA games (gba_glass.h): the DS games' own drawing, kept until something on it changes.
+#include "fulldex_nav.h"
+namespace GbaGlass
+{
+namespace
+{
+struct NavPicture { Canvas c; std::string key; };
+NavPicture& NavWatch() { static NavPicture p; return p; }
+NavPicture& NavCounter() { static NavPicture p; return p; }
+}
+const uint32_t* NavDraw(const Nav& nav, int w, int h, bool& changed)
+{
+    NavPicture& p = NavWatch();
+    const FdNav::Geo g = FdNav::Layout(w, h, nav.centre, nav.style);
+    FdNav::State s;
+    s.open = true;
+    s.sel = nav.sel;
+    s.count = nav.count;
+    char clock[8] = "--:--";
+    const time_t now = time(nullptr);
+    if (const tm* t = localtime(&now)) snprintf(clock, sizeof clock, "%02d:%02d", t->tm_hour, t->tm_min);
+    std::string key = std::to_string(w) + "x" + std::to_string(h) + "|" + std::to_string(nav.style) + "|" + std::to_string(nav.centre) + "|" +
+                      std::to_string(nav.sel) + "|" + std::to_string(nav.count) + "|" + clock + "|" + nav.hint + "|" + std::to_string(UiLang::lang);
+    for (int i = 0; i < FdNav::APPS; i++) { key += nav.dim[i] ? "|1" : "|0"; key += nav.label[i]; }
+    changed = key != p.key || p.c.w != w || p.c.h != h;
+    if (changed)
+    {
+        p.c.Resize(w, h);
+        p.c.Clear();
+        FdNav::Draw(p.c, g, s, nav.dim, nav.label, nav.hint, nav.style);
+        p.key = key;
+    }
+    return p.c.px.data();
+}
+int NavHit(const Nav& nav, int w, int h, int x, int y)
+{
+    return FdNav::Hit(FdNav::Layout(w, h, nav.centre, nav.style), x, y);
+}
+const uint32_t* NavCount(int count, int w, int h, bool& changed)
+{
+    NavPicture& p = NavCounter();
+    const std::string key = std::to_string(w) + "x" + std::to_string(h) + "|" + std::to_string(count);
+    changed = key != p.key || p.c.w != w || p.c.h != h;
+    if (changed)
+    {
+        p.c.Resize(w, h);
+        p.c.Clear();
+        FdNav::DrawCount(p.c, w, h, count, 0);
+        p.key = key;
+    }
+    return p.c.px.data();
+}
+}

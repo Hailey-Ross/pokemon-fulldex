@@ -748,6 +748,15 @@ struct App
     // (-1: the one for pause.selected), the paused game's picture it is drawn over, and a tap's
     // slider value or choice card for the chosen setting.
     GbaGlass::Page glass;
+    // FULLDEX NAV (gba_glass.h, fulldex_nav.h): the DS games' watch over the running game, L3 (a click of the left
+    // stick) or N. Its ENCOUNTERS count is kept beside the save states (<game>.counter: the count, then whether shown).
+    bool navOpen = false, navToggle = false, navCountShown = false, navBattleWas = false, navCountLoaded = false;
+    int navSel = 0, navCount = 0;
+    Uint32 navResetAsk = 0;
+    uint32_t navKeysWas = 0;
+    unsigned long long navBattleAt = 0;
+    SDL_Texture* navTex = nullptr;
+    int navTexW = 0, navTexH = 0;
     std::vector<int> glassRow;
     int glassSel = -1;
     PausePage glassPage = P_ROOT;
@@ -1528,6 +1537,9 @@ struct App
             core->reloadConfigOption(core, "gba.wideExtra", nullptr);
         }
         uint32_t keys = paused ? 0 : GameKeys();
+#ifdef GBAW_EMBEDDED
+        if (!paused) keys = NavTick(keys); // (FULLDEX NAV open: the keys are the watch's)
+#endif
         if (holdKeys)
         {
             if (keys == 0) holdKeys = false;
@@ -4399,6 +4411,169 @@ struct App
         g.selected = glassSel;
     }
 
+    // FULLDEX NAV. Its apps, in fulldex_nav.h's order.
+    enum { NAV_FLY, NAV_PARTY, NAV_PC, NAV_REPEL, NAV_COUNT, NAV_RESET, NAV_MAP, NAV_DEX, NAV_BAG, NAV_APPS };
+    std::string NavCountFile() const { return states + "/" + game.key + ".counter"; }
+    void NavLoadCount()
+    {
+        navCountLoaded = true;
+        navCount = 0;
+        navCountShown = false;
+        if (FILE* f = fopen(NavCountFile().c_str(), "r")) { int c = 0, s = 0; if (fscanf(f, "%d %d", &c, &s) >= 1) { navCount = std::max(0, c); navCountShown = s != 0; } fclose(f); }
+    }
+    void NavSaveCount() const
+    {
+        const std::string tmp = NavCountFile() + ".tmp";
+        if (FILE* f = fopen(tmp.c_str(), "w")) { fprintf(f, "%d %d\n", navCount, navCountShown ? 1 : 0); fclose(f); std::remove(NavCountFile().c_str()); std::rename(tmp.c_str(), NavCountFile().c_str()); }
+    }
+    // (The strongest Repel in the Bag, as the DS games' Nav takes: Max Repel, Super Repel, Repel; 0 none.)
+    int NavRepel() const
+    {
+        for (int id : { 84, 83, 86 })
+            for (const auto& p : comp.pockets)
+                for (const auto& it : p.second)
+                    if (it.id == id && it.quantity > 0) return id;
+        return 0;
+    }
+    bool NavDim(int app) const
+    {
+        switch (app)
+        {
+        case NAV_FLY: return !fly.Supported();
+        case NAV_REPEL: return !items.Supported() || !NavRepel();
+        case NAV_PARTY: case NAV_PC: case NAV_MAP: case NAV_BAG: return !compConfig;
+        default: return false;
+        }
+    }
+    // Each frame the game runs: the watch opened and closed, its keys (the game gets none while it is open), the
+    // test's (GBAW_TEST_NAV=<frame>,<app>[,1]: opened at that frame on that app, used 10 frames on), and the count.
+    uint32_t NavTick(uint32_t keys)
+    {
+        if (!navCountLoaded) NavLoadCount();
+        static long long testAt = -2;
+        static int testSel = 0, testUse = 0;
+        if (testAt == -2) { testAt = -1; if (const char* t = getenv("GBAW_TEST_NAV")) { int a = -1; sscanf(t, "%d,%d,%d", &a, &testSel, &testUse); testAt = a; } }
+        if (testAt >= 0 && (long long)gameFrames == testAt && !navOpen) { navToggle = true; navSel = std::clamp(testSel, 0, NAV_APPS - 1); }
+        // (ENCOUNTERS: a battle starting counts, a moment in, unless its foe has a team, a trainer's.)
+        if (compConfig && compConfig->gMain)
+        {
+            const bool inBattle = (core->busRead8(core, compConfig->gMain + compConfig->inBattleOff) & 2) != 0;
+            if (inBattle && !navBattleWas) navBattleAt = gameFrames + 90;
+            navBattleWas = inBattle;
+            if (navBattleAt && gameFrames >= navBattleAt)
+            {
+                navBattleAt = 0;
+                ReadCompanion();
+                if (comp.foeParty.size() <= 1) { navCount++; NavSaveCount(); }
+            }
+        }
+        if (navToggle)
+        {
+            navToggle = false;
+            navOpen = !navOpen;
+            navResetAsk = 0;
+            navKeysWas = keys;
+            if (navOpen) ReadCompanion();
+            else { holdKeys = true; return 0; }
+        }
+        if (!navOpen) return keys;
+        const uint32_t down = keys & ~navKeysWas;
+        navKeysWas = keys;
+        auto pressed = [&](GbaKey k) { return ((down >> k) & 1) != 0; };
+        int& sel = navSel;
+        if (pressed(K_LEFT)) sel = sel % 3 == 0 ? sel + 2 : sel - 1;
+        if (pressed(K_RIGHT)) sel = sel % 3 == 2 ? sel - 2 : sel + 1;
+        if (pressed(K_UP)) sel = (sel + 6) % NAV_APPS;
+        if (pressed(K_DOWN)) sel = (sel + 3) % NAV_APPS;
+        if (pressed(K_SELECT) && sel == NAV_COUNT) { navCount = 0; NavSaveCount(); Toast("ENCOUNTERS SET TO 0", 1500); }
+        if (pressed(K_B)) { navOpen = false; holdKeys = true; return 0; }
+        if (pressed(K_A) || (testUse && testAt >= 0 && (long long)gameFrames == testAt + 10)) NavUse(sel);
+        return 0;
+    }
+    // An app chosen: the page of the pause menu it is (the game paused there), or done at once (REPEL, RESET, ENCOUNTERS).
+    void NavUse(int app)
+    {
+        auto open = [&](PausePage p) { if (!dexTried) { dexTried = true; dex.Load(dexRom); } navOpen = false; OpenPause(); GoPage(p, ""); };
+        auto needCompanion = [&]() { if (!compConfig) Toast("COMPANION ISN'T AVAILABLE FOR THIS GAME"); else ReadCompanion(); return compConfig != nullptr; };
+        switch (app)
+        {
+        case NAV_FLY: // (the Fly page: the towns, and Free Flight)
+            if (!fly.Supported()) { Toast("FLY ISN'T AVAILABLE FOR THIS GAME YET"); return; }
+            if (!dexTried) { dexTried = true; dex.Load(dexRom); }
+            flyT = fly.Now();
+            if (set.Get("fly_on") == "pokemon" && followState == 0) FollowFind();
+            if (flyT.result != GbaFly::OK) { Toast(GbaFly::Why(flyT.result), 3000); return; }
+            if (flyT.towns.empty()) { Toast("NO TOWNS TO FLY TO YET", 3000); return; }
+            open(P_FLY);
+            return;
+        case NAV_PARTY: if (needCompanion()) open(P_PARTY); return;
+        case NAV_PC: if (needCompanion()) open(P_BOXES); return; // (the boxes, as the PC has them)
+        case NAV_MAP: if (needCompanion()) open(P_PLACE); return;
+        case NAV_BAG: if (needCompanion()) open(P_BAG); return;
+        case NAV_DEX:
+            if (!dexTried) { dexTried = true; dex.Load(dexRom); }
+            if (!dex.Ready() || !dex.count) { Toast("THE POKEDEX ISN'T AVAILABLE FOR THIS GAME"); return; }
+            ReadCompanion();
+            open(P_DEX);
+            return;
+        case NAV_REPEL:
+        {
+            if (!items.Supported()) { Toast("REPEL ISN'T AVAILABLE FOR THIS GAME YET"); return; }
+            ReadCompanion();
+            const int id = NavRepel();
+            if (!id) { Toast("NO REPEL IN YOUR BAG"); return; }
+            int steps = 0;
+            const GbaItems::Result r = items.UseRepel(id, steps);
+            if (r != GbaItems::USED) { Toast(GbaItems::Why(r), 2500); return; }
+            Toast(ItemName(id) + ": " + std::to_string(steps) + " STEPS WITHOUT WILD POKEMON", 2500);
+            navOpen = false;
+            holdKeys = true;
+            ReadCompanion();
+            return;
+        }
+        case NAV_COUNT: navCountShown = !navCountShown; NavSaveCount(); return; // (ENCOUNTERS on the picture, or not)
+        case NAV_RESET: // (A twice within 3 seconds)
+            if (navResetAsk && SDL_GetTicks() - navResetAsk < 3000) { navOpen = false; navResetAsk = 0; ResetGame(); }
+            else navResetAsk = SDL_GetTicks();
+            return;
+        }
+    }
+    // The watch over the game (or ENCOUNTERS on the picture), at the window's size.
+    void DrawNav()
+    {
+        if (!navOpen && !navCountShown) return;
+        int ow, oh;
+        SDL_GetRendererOutputSize(ren, &ow, &oh);
+        bool changed = false;
+        const uint32_t* px = nullptr;
+        if (navOpen)
+        {
+            GbaGlass::Nav n;
+            n.sel = navSel;
+            n.count = navCount;
+            for (int i = 0; i < NAV_APPS; i++) n.dim[i] = NavDim(i);
+            if (navResetAsk && SDL_GetTicks() - navResetAsk < 3000) n.label[NAV_RESET] = "A again";
+            n.hint = navSel == NAV_COUNT ? std::string("A: ") + (navCountShown ? "HIDE" : "SHOW") + " ON SCREEN   SELECT: SET TO 0   B: CLOSE"
+                   : navSel == NAV_RESET ? "A TWICE: RESET THE GAME   B: CLOSE" : "A: USE   B: CLOSE";
+            px = GbaGlass::NavDraw(n, ow, oh, changed);
+        }
+        else px = GbaGlass::NavCount(navCount, ow, oh, changed);
+        if (!navTex || navTexW != ow || navTexH != oh)
+        {
+            if (navTex) SDL_DestroyTexture(navTex);
+            navTex = SDL_CreateTexture(ren, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, ow, oh);
+            navTexW = ow;
+            navTexH = oh;
+            if (navTex) SDL_SetTextureBlendMode(navTex, SDL_BLENDMODE_BLEND);
+            changed = true;
+        }
+        if (!navTex || !px) return;
+        static bool lastOpen = false;
+        if (changed || lastOpen != navOpen) SDL_UpdateTexture(navTex, nullptr, px, ow * 4);
+        lastOpen = navOpen;
+        SDL_RenderCopy(ren, navTex, nullptr, nullptr);
+    }
+
     // The glass menu over the game: the game as just drawn is read back once (blurred under the
     // menu), the page drawn at the window's size and shown whole.
     void DrawGlass(int ow, int oh)
@@ -5158,6 +5333,9 @@ struct App
         SDL_SetRenderDrawColor(ren, 0, 0, 0, 255);
         SDL_RenderClear(ren);
         if (core) DrawGame();
+#ifdef GBAW_EMBEDDED
+        if (core && screen == PLAY && !paused) DrawNav();
+#endif
 
         // The menus, at about 360 lines whatever the window's size (and at least 600 wide, for
         // the game list); on a phone about 300, so they are bigger under a finger.
@@ -5376,6 +5554,11 @@ struct App
                 case SDL_SCANCODE_AC_BACK: // (Android's back button or gesture)
                     if (!e.key.repeat) (screen == LIST ? in.escape : screen == PLAY && !paused ? in.menu : in.back) = true;
                     break;
+#ifdef GBAW_EMBEDDED
+                case SDL_SCANCODE_N: // (FULLDEX NAV, as in the DS games)
+                    if (!e.key.repeat && screen == PLAY && !paused && core) navToggle = true;
+                    break;
+#endif
                 case SDL_SCANCODE_UP: in.up = true; break;
                 case SDL_SCANCODE_DOWN: in.down = true; break;
                 case SDL_SCANCODE_LEFT: in.left = true; break;
@@ -5477,6 +5660,10 @@ struct App
                 // round. The Guide (Home, PS) button and a stick click open it too.
                 // (ZOOM AND LOOK AROUND: in a game it knows, a click of the right stick zooms instead.)
                 if (b == SDL_CONTROLLER_BUTTON_RIGHTSTICK && screen == PLAY && !paused && ZoomOn()) ZoomCycle();
+#ifdef GBAW_EMBEDDED
+                // (FULLDEX NAV: a click of the left stick in a game, as in the DS games.)
+                else if (b == SDL_CONTROLLER_BUTTON_LEFTSTICK && screen == PLAY && !paused && core) navToggle = true;
+#endif
                 else if (b == SDL_CONTROLLER_BUTTON_GUIDE || b == SDL_CONTROLLER_BUTTON_LEFTSTICK || b == SDL_CONTROLLER_BUTTON_RIGHTSTICK)
                     in.menu = true;
                 if (screen == PLAY)
