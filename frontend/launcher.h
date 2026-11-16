@@ -1,4 +1,9 @@
 #pragma once
+// FullDex's version, shown on the About page and written to the log (releases from 2.0 on are numbered,
+// tagged vMAJOR.MINOR.PATCH). A build can set its own with -DFULLDEX_VERSION="...".
+#ifndef FULLDEX_VERSION
+#define FULLDEX_VERSION "2.0"
+#endif
 #include <pthread.h>
 #include <functional>
 // The game picker of the all-games download (one program for every game): finds the players'
@@ -6744,7 +6749,7 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
         const int cx = L + pad, cy = top + lhA - pad - ch, cw = lw - 2 * pad;
         if (cy >= top + pad + 5 * (rowH + rg)) { // (not on a short screen: it would be drawn over the rows)
         Glass::Round(c, cx, cy, cw, ch, 12 * u, SettingsArt::Row, 0x3DFFFFFF, 1.0f * u);
-        GT(c, cx + (int)(14 * u), cy + 24 * u, "Fulldex", 20 * u, text, true);
+        GT(c, cx + (int)(14 * u), cy + 24 * u, (std::string("FullDex ") + FULLDEX_VERSION).c_str(), 20 * u, text, true);
         GT(c, cx + (int)(14 * u), cy + 48 * u, PlatformLabel(), 14 * u, hint, true);
         int ly = cy + (int)(70 * u);
         for (const std::string& l : lines) { GT(c, cx + (int)(14 * u), ly, l, 13 * u, hint, false); ly += (int)(18 * u); }

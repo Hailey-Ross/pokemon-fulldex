@@ -2469,6 +2469,7 @@ int main(int argc, char** argv)
     // DS clock. Set where the renderer is created; the frame loop reads them.
     bool syncToDisplay = false;
     int refreshesPerFrame = 1;
+    bool swapPaced = false; // (Linux, 120 Hz and up: the driver holds each picture refreshesPerFrame refreshes)
     double refreshPeriod = 1001.0 / 60000.0;
     double screenPace = 0; // Android: seconds a picture when the frames keep the screen's rate (0: the DS's own)
     SDL_Renderer* renderer = nullptr;
@@ -2712,6 +2713,18 @@ int main(int argc, char** argv)
             if (SDL_GetRendererInfo(renderer, &info) == 0)
                 fprintf(stderr, "SDL renderer %s, video driver %s\n", info.name, SDL_GetCurrentVideoDriver());
         }
+#if !defined(_WIN32) && !defined(__APPLE__) && !defined(__ANDROID__) && !defined(__SWITCH__)
+        // Linux at 120 Hz or more (a Steam Deck docked at 120, #173): the driver holds each picture
+        // for refreshesPerFrame refreshes (swap interval 2 at 120 Hz), counted from the refresh it was
+        // shown on. Timing it here from when Present came back lost a whole refresh whenever the
+        // compositor handed it back late: three refreshes a picture, 40 a second. A 60 Hz screen is as
+        // before. SSR_SWAP_PACE=0 keeps the old way.
+        if (syncToDisplay && refreshesPerFrame > 1 && !(getenv("SSR_SWAP_PACE") && getenv("SSR_SWAP_PACE")[0] == '0'))
+        {
+            swapPaced = SDL_GL_SetSwapInterval(refreshesPerFrame) == 0;
+            fprintf(stderr, "[display] swap interval %d: %s\n", refreshesPerFrame, swapPaced ? "the driver paces the pictures" : SDL_GetError());
+        }
+#endif
 #ifdef __SWITCH__
         // The OpenGL ES swapchain starts uninitialised (often white). Show black at once so
         // opening a ROM does not sit on a white screen until the first pipelined present
@@ -8479,7 +8492,7 @@ int main(int argc, char** argv)
         // Waiting after Present on the DS's 59.8 a second instead is what walked past a
         // 59.94 Hz screen. Present itself then blocks only for the last couple of milliseconds
         // and returns on the refresh, which is when the next frame's work starts.
-        if (pace && syncToDisplay)
+        if (pace && syncToDisplay && !swapPaced)
         {
             const uint64_t now = SDL_GetPerformanceCounter();
             if (now < nextTick)

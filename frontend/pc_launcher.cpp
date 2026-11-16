@@ -613,7 +613,7 @@ std::vector<Launcher::Game> FindGames(const Folders& fo, std::map<std::string, s
         const size_t before = games.size();
         Launcher::AddPatchedHacks(romDirs, HacksFolder(fo), fo.saves, games, false);
         for (size_t i = before; i < games.size(); i++) artFor(games[i]);
-        Launcher::AdoptHackSaves(games, [](const Launcher::Game& g, const std::string& name) { return g.folder + "/" + name; });
+        Launcher::AdoptHackSaves(games, [&fo](const Launcher::Game&, const std::string& name) { return fo.saves + "/" + name; });
     }
     Launcher::EndScan();
 #ifdef SSR_GBA
@@ -1179,6 +1179,8 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
         const int gi = atoi(sv);
         if (gi >= 0 && gi < (int)games.size())
         {
+            Launcher::ConfirmHack(games, (size_t)gi, fo.settings,
+                                  [&fo](const Launcher::Game&, const std::string& name) { return fo.saves + "/" + name; });
             Launcher::OpenSaves(games[gi], fo.saves + "/" + games[gi].saveName);
             if (const char* k = strchr(sv, ',')) Launcher::Focus().pact = atoi(k + 1);
             if (const char* all = getenv("SSR_LIST_SAVESDO"))
@@ -1591,7 +1593,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
         {
             // (A ROM not yet checked is, now: a hack plays with a save of its own.)
             Launcher::ConfirmHack(games, (size_t)selected, fo.settings,
-                                  [](const Launcher::Game& g, const std::string& name) { return g.folder + "/" + name; });
+                                  [&fo](const Launcher::Game&, const std::string& name) { return fo.saves + "/" + name; });
             if (Launcher::SavesPlayCheck(games[selected], fo.saves + "/" + games[selected].saveName)) return; // (a save with a problem: says so first)
             note = PrepareLaunch(games[selected]);
             if (!note.empty()) { fprintf(stderr, "[launcher] launch blocked: %s: %s\n", games[selected].rom.c_str(), note.c_str()); return; }
@@ -1792,7 +1794,10 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 }
                 if (item == 4 && valid)
                 {
-                    // Manage Saves: the game's saves on a page of their own (saves_page.h).
+                    // Manage Saves: the game's saves on a page of their own (saves_page.h). A DS ROM not yet
+                    // checked is, first, so that a hack shows its own save, not its game's.
+                    Launcher::ConfirmHack(games, (size_t)selected, fo.settings,
+                                          [&fo](const Launcher::Game&, const std::string& name) { return fo.saves + "/" + name; });
                     Launcher::OpenSaves(games[selected], fo.saves + "/" + games[selected].saveName);
                     return;
                 }
@@ -4088,6 +4093,7 @@ bool Start(int& argc, char**& argv)
         rename(logPath.c_str(), prev.c_str());
     }
     if (freopen(logPath.c_str(), "w", stderr)) setvbuf(stderr, nullptr, _IOLBF, 0);
+    fprintf(stderr, "[launcher] FullDex %s\n", FULLDEX_VERSION);
     fprintf(stderr, "[launcher] folder %s\n", fo.dir.c_str());
     if (fo.saves != fo.dir + "/saves") fprintf(stderr, "[launcher] saves folder %s\n", fo.saves.c_str()); // (SAVES FOLDER, or the phone's ROM folder)
     ResolveFolders(fo, true);
@@ -4177,7 +4183,7 @@ bool Start(int& argc, char**& argv)
         if (directGame >= 0 && games[chosen].platform != Launcher::N3DS)
         {
             Launcher::ConfirmHack(games, (size_t)chosen, fo.settings,
-                                  [](const Launcher::Game& g, const std::string& name) { return g.folder + "/" + name; });
+                                  [&fo](const Launcher::Game&, const std::string& name) { return fo.saves + "/" + name; });
             if (Launcher::SavesPlayCheck(games[chosen], fo.saves + "/" + games[chosen].saveName)) { directGame = -1; continue; }
             const std::string error = PrepareLaunch(games[chosen]);
             if (!error.empty()) { fprintf(stderr, "[launcher] %s\n", error.c_str()); directGame = -1; continue; }
@@ -4254,7 +4260,7 @@ bool Start(int& argc, char**& argv)
     }
     g_canChange = true;
     Launcher::ConfirmHack(games, (size_t)chosen, fo.settings,
-                          [](const Launcher::Game& g, const std::string& name) { return g.folder + "/" + name; });
+                          [&fo](const Launcher::Game&, const std::string& name) { return fo.saves + "/" + name; });
     const Launcher::Game& game = games[chosen];
     LibraryHistory recent;recent.Load(fo.settings+"/fulldex-library.txt");if(Launcher::ConfigValue(fo.cfg,"extra_library_history")=="1")recent.Played(game.rom);
     if (const Launcher::KnownGame* k = Launcher::Known(game.code)) g_name = game.hack ? Launcher::TitleCase(game.name) : k->name;

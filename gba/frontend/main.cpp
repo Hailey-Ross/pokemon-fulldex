@@ -902,6 +902,19 @@ struct App
             ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC | SDL_RENDERER_TARGETTEXTURE);
             if (!ren) ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_PRESENTVSYNC | SDL_RENDERER_TARGETTEXTURE);
             if (!ren) ren = SDL_CreateRenderer(win, -1, 0);
+#if defined(__linux__) && !defined(__ANDROID__)
+            // Linux on a screen at 120, 180 or 240 Hz (a Steam Deck docked at 120, #173): the driver
+            // holds each picture for 2, 3 or 4 refreshes, so they come back 60 a second and Run()
+            // settles on a frame each. Showing every refresh and running a frame every 2nd, the
+            // pictures came back unevenly there, the rate check gave up and the clock ran it at 40.
+            // A 60 Hz screen is as before. SSR_SWAP_PACE=0 keeps the old way.
+            SDL_DisplayMode dm;
+            const int hz = ren && !SDL_GetWindowDisplayMode(win, &dm) ? dm.refresh_rate : 0;
+            const int n = (hz + 30) / 60;
+            if (n > 1 && std::abs(hz - n * 60) <= 1 && !(getenv("SSR_SWAP_PACE") && getenv("SSR_SWAP_PACE")[0] == '0'))
+                fprintf(stderr, "[gba] %d Hz: swap interval %d: %s\n", hz, n,
+                        SDL_GL_SetSwapInterval(n) == 0 ? "the driver paces the pictures" : SDL_GetError());
+#endif
         }
         if (!ren) return false;
         SDL_RendererInfo info;
