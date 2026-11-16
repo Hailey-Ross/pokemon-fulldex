@@ -1,11 +1,11 @@
 # Changelog
 
 
-## Unreleased
+## FullDex 1.6 (16 November 2026)
 
 - **Linux and Steam Deck at 120 Hz (docked) stay at 60 fps** (#173): the graphics driver now holds each picture for two refreshes; FullDex timed it itself from when the last picture was handed back, which on the Deck docked at 120 Hz came back late and cost a refresh, so the games ran at 40. The GBA games too, and the same at 180 and 240 Hz (three and four refreshes a picture).
 - **ROM hacks that are trimmed (Renegade Platinum) are known as hacks again.** A smaller ROM was read whole, matched none of its game's releases and was then left "unknown", so it was listed, played and synced as its game, with its game's save (Platinum's for Renegade Platinum). It is now a hack with its own name and save, and Manage Saves checks a ROM first. A hack's save is also looked for in the saves folder (since the tidy folders), not beside the ROM.
-- **The version on the About page:** FullDex 2.0, also in the log.
+- **The version on the About page:** FullDex 1.6, also in the log (the releases are numbered from now on).
 - **FullDex Nav in the GBA games** (Ruby, Sapphire, Emerald, FireRed, LeafGreen and the hacks the Companion knows): the DS games' watch, opened with a click of the left stick (N on a keyboard) while you play, the game running behind it. Fly opens the Fly page (the towns, and Free Flight), Party, Open PC (your boxes), Map, Pokédex and Bag open the Companion's pages, Repel uses the strongest Repel in your Bag at once, Encounters counts wild battles (shown on the picture if you like, SELECT sets it to 0) and Reset resets the game (A twice). Before, the left stick opened the pause menu in the GBA games.
 - **FullDex Nav on phones and with the touch controls** (DS and GBA games): the watch is smaller, its text bigger, and it sits on the right clear of A and R instead of in the middle (the Wheel style stays in the middle). The "A: Use B: Close" hint is left out there, as the apps are tapped. The GBA games get the same four Nav styles as the DS games (Display, Nav Style: Modern, Classic, Simple, Wheel).
 - **Back from a page FullDex Nav opened goes back to the watch** (DS and GBA games): Party, Map, Pokédex and Bag (and Open PC and Fly in the GBA games). Before, Back went to the Companion's menu and then the pause menu. A page opened from it (a Pokémon in Party) still goes back to its page first.
