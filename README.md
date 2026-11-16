@@ -54,6 +54,7 @@ DS game, presented the way it should look on a modern screen.
 | **Ruby / Sapphire** (GBA) | English (1.0, 1.1, 1.2), German, French, Spanish, Italian, Japanese | |
 | **FireRed / LeafGreen** (GBA) | English (1.0, 1.1) | |
 | **Ultra Violet** (GBA, a FireRed hack) | 1.22 | as its `.gba`, or its `.ips` patch beside a FireRed 1.0 ROM |
+| **Generation 3 Evolved** (GBA, a FireRed hack) | 1.0.22 | as its `.gba`, or its `.bps` patch beside a FireRed 1.0 ROM ([details](docs/GEN3-EVOLVED-WIDESCREEN.md)) |
 | **Omega Ruby / Alpha Sapphire** (3DS) | Every language on the cartridge | Beta: Windows, Android and Switch ([how](#omega-ruby-and-alpha-sapphire-3ds-beta)); Mac, iPhone and iPad coming soon |
 | **X / Y, Ultra Sun / Ultra Moon** (3DS) | | Coming soon |
 
