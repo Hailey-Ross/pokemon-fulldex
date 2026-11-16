@@ -182,6 +182,10 @@ const std::vector<Setting>& SettingsList()
         { "day_night", "DAY AND NIGHT", onOff, "0",
           "ON: OUTDOORS FOLLOWS YOUR CLOCK: A WARM DAWN, PLAIN DAY, AN ORANGE DUSK AND A BLUE NIGHT. ONLY THE COLOURS AS THEY ARE "
           "DRAWN CHANGE: NOTHING IN THE GAME OR ITS SAVE. TEXT BOXES, MENUS AND BATTLES KEEP THEIR OWN. NEEDS ZOOM AND LOOK AROUND'S GAMES." },
+        { "nav_style", "NAV STYLE",
+          { { "modern", "MODERN" }, { "classic", "CLASSIC" }, { "simple", "SIMPLE" }, { "wheel", "WHEEL" } },
+          "modern",
+          "FULLDEX NAV (A CLICK OF THE LEFT STICK, N, OR NAV ON A PHONE): A GRAPHITE WATCH, A RED ONE, A GLASS CARD OR THE APPS IN A RING. ON A PHONE IT IS SMALLER, AT THE RIGHT (THE RING IN THE MIDDLE)." },
         { "follower", "FOLLOWING POKEMON", onOff, "0",
           "ON: THE FIRST POKEMON OF YOUR PARTY WALKS BEHIND YOU, AS IN HEARTGOLD AND SOULSILVER. ITS SPRITES COME FROM YOUR OWN "
           "HEARTGOLD OR SOULSILVER IN THE ROMS FOLDER (THE VERY BIG ONES HAVE NONE). NEEDS ZOOM AND LOOK AROUND'S GAMES." },
@@ -1756,7 +1760,7 @@ struct App
 #endif
         if (IsSettingsPage())
         {
-            static const char* const display[] = { "widescreen", "fullscreen", "scaling", "hd_filter", "lcd", "colour", "zoom", "zoom_text", "day_night", "follower", "show_fps" };
+            static const char* const display[] = { "widescreen", "fullscreen", "scaling", "hd_filter", "lcd", "colour", "zoom", "zoom_text", "day_night", "follower", "nav_style", "show_fps" };
             static const char* const sound[] = { "volume", "ff_mute" };
             static const char* const controls[] = { "gba_start", "buttons", "fast_lock", "ff_speed", "fast_button" };
             static const char* const gameplay[] = { "instant_text", "reusable_tms", "run_indoors", "wild_encounters", "shiny_odds", "battle_speed", "text_speed", "bike_speed", "surf_speed", "fly_on", "flight_clouds" };
@@ -3907,7 +3911,7 @@ struct App
             { "widescreen", IC_RATIO }, { "fullscreen", IC_FULLSCREEN }, { "scaling", IC_EXPAND }, { "hd_filter", IC_SPARKLE },
             { "lcd", IC_GRID }, { "colour", IC_MONITOR }, { "zoom", IC_EXPAND }, { "zoom_text", IC_EXPAND }, { "show_fps", IC_GAUGE }, { "volume", IC_SPEAKER }, { "ff_mute", IC_FAST },
             { "gba_start", IC_PAD }, { "buttons", IC_PAD }, { "ff_speed", IC_FAST }, { "fast_button", IC_FAST }, { "fast_lock", IC_FAST },
-            { "instant_text", IC_INFO }, { "reusable_tms", IC_CHIP }, { "run_indoors", IC_FAST }, { "wild_encounters", IC_GLOBE }, { "shiny_odds", IC_SPARKLE }, { "battle_speed", IC_FAST }, { "text_speed", IC_FAST }, { "bike_speed", IC_FAST }, { "surf_speed", IC_FAST }, { "day_night", IC_SPARKLE }, { "follower", IC_POKEBALL } };
+            { "instant_text", IC_INFO }, { "reusable_tms", IC_CHIP }, { "run_indoors", IC_FAST }, { "wild_encounters", IC_GLOBE }, { "shiny_odds", IC_SPARKLE }, { "battle_speed", IC_FAST }, { "text_speed", IC_FAST }, { "bike_speed", IC_FAST }, { "surf_speed", IC_FAST }, { "day_night", IC_SPARKLE }, { "follower", IC_POKEBALL }, { "nav_style", IC_GRID } };
         icon = IC_GEAR;
         for (const auto& i : icons)
             if (!strcmp(i.key, key)) icon = i.icon;
@@ -4538,6 +4542,13 @@ struct App
             return;
         }
     }
+    // NAV STYLE (Display), as the DS games have it (GBAW_TEST_NAVLOOK=<style>: a test's).
+    void NavLook(GbaGlass::Nav& n) const
+    {
+        const std::string v = set.Get("nav_style");
+        n.style = v == "classic" ? 1 : v == "simple" ? 2 : v == "wheel" ? 3 : 0;
+        if (const char* t = getenv("GBAW_TEST_NAVLOOK")) n.style = std::clamp(atoi(t), 0, 3);
+    }
     // The watch over the game (or ENCOUNTERS on the picture), at the window's size.
     void DrawNav()
     {
@@ -4550,6 +4561,7 @@ struct App
         {
             GbaGlass::Nav n;
             n.centre = touchUi; // (in the middle while the touch controls are up, clear of A and B)
+            NavLook(n);
             n.sel = navSel;
             n.count = navCount;
             for (int i = 0; i < NAV_APPS; i++) n.dim[i] = NavDim(i);
@@ -5759,6 +5771,7 @@ struct App
                     {
                         GbaGlass::Nav at;
                         at.centre = touchUi;
+                        NavLook(at);
                         const int hit = GbaGlass::NavHit(at, ow, oh, (int)(f.x * ow), (int)(f.y * oh));
                         if (hit >= 0) { navSel = hit; NavUse(hit); return; }
                         if (hit == -2) return;

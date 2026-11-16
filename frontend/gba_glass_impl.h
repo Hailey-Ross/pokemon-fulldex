@@ -240,11 +240,13 @@ namespace
 struct NavPicture { Canvas c; std::string key; };
 NavPicture& NavWatch() { static NavPicture p; return p; }
 NavPicture& NavCounter() { static NavPicture p; return p; }
+// Where the watch goes: as the DS games place it (FdNav::Place; centre: the touch controls are up).
+FdNav::Geo NavPlace(const Nav& nav, int w, int h) { return FdNav::Place(w, h, nav.centre, nav.style); }
 }
 const uint32_t* NavDraw(const Nav& nav, int w, int h, bool& changed)
 {
     NavPicture& p = NavWatch();
-    const FdNav::Geo g = FdNav::Layout(w, h, nav.centre, nav.style);
+    const FdNav::Geo g = NavPlace(nav, w, h);
     FdNav::State s;
     s.open = true;
     s.sel = nav.sel;
@@ -267,7 +269,7 @@ const uint32_t* NavDraw(const Nav& nav, int w, int h, bool& changed)
 }
 int NavHit(const Nav& nav, int w, int h, int x, int y)
 {
-    return FdNav::Hit(FdNav::Layout(w, h, nav.centre, nav.style), x, y);
+    return FdNav::Hit(NavPlace(nav, w, h), x, y);
 }
 const uint32_t* NavCount(int count, int w, int h, bool& changed)
 {

@@ -9514,7 +9514,7 @@ int main(int argc, char** argv)
             if (down(KEY_B)) { fdNav.open = false; swallowMenuButtons = true; }
             if (mouseDown && !fdNavMouseWas)
             {
-                const FdNav::Geo g = FdNav::Layout(outW, outH, touchPadUsed && touchPad.visible, cfg.navStyle);
+                const FdNav::Geo g = FdNav::Place(outW, outH, touchPadUsed && touchPad.visible, cfg.navStyle);
                 const int h = FdNav::Hit(g, mouseX, mouseY);
                 if (h >= 0) { sel = h; fdNavUse = h; }
                 else if (h == -1) { fdNav.open = false; swallowMenuButtons = true; }
@@ -12254,7 +12254,7 @@ int main(int argc, char** argv)
         // FULLDEX NAV, or its counter on the picture.
         if (fdNav.open && !menu.open)
         {
-            const FdNav::Geo g = FdNav::Layout(outW, outH, touchPadUsed && touchPad.visible, cfg.navStyle);
+            const FdNav::Geo g = FdNav::Place(outW, outH, touchPadUsed && touchPad.visible, cfg.navStyle);
             const bool canAct = pokeActions.Supported() && !opt.lockstep;
             bool dim[FdNav::APPS] = {};
             dim[FdNav::FLY] = !canAct || !flyGame.Supported();

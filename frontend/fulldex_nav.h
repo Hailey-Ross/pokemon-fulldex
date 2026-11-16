@@ -63,18 +63,19 @@ struct State
     }
 };
 
-struct Geo { int x = 0, y = 0, w = 0, h = 0; float k = 1; int sx0 = 0, sy0 = 0, sx1 = 0, sy1 = 0; int tile[APPS][4] = {}; };
+struct Geo { int x = 0, y = 0, w = 0, h = 0; float k = 1, tk = 1; int sx0 = 0, sy0 = 0, sx1 = 0, sy1 = 0; int tile[APPS][4] = {}; };
 
 // Where it goes: bottom right; centred (centre) when a phone's buttons are at the sides. style: NAV STYLE,
 // 0 MODERN, the watch (graphite case, glass face); 1 CLASSIC, the red watch; 2 SIMPLE, a glass card; 3 WHEEL,
 // the tiles alone in a ring.
-inline Geo Layout(int outW, int outH, bool centre, int style = 0)
+// size: smaller (0.7) or as designed (1), for a phone's screen.
+inline Geo Layout(int outW, int outH, bool centre, int style = 0, float size = 1.0f)
 {
     Geo g;
     if (style == 3)
     {
         // WHEEL: the apps' tiles in a ring round the middle of the picture, the first at the top.
-        g.k = std::max(0.5f, std::min(outW / 1280.0f, outH / 720.0f));
+        g.k = std::max(0.5f, std::min(outW / 1280.0f, outH / 720.0f)) * size;
         const float k = g.k, R = 200 * k, ts = 66 * k;
         const int cx = outW / 2, cy = outH / 2;
         g.w = g.h = (int)std::lround(2 * R + ts + 20 * k); g.x = cx - g.w / 2; g.y = cy - g.h / 2;
@@ -89,7 +90,7 @@ inline Geo Layout(int outW, int outH, bool centre, int style = 0)
     }
     if (style == 2)
     {
-        g.k = std::max(0.5f, std::min(outW / 1280.0f, outH / 720.0f));
+        g.k = std::max(0.5f, std::min(outW / 1280.0f, outH / 720.0f)) * size;
         const float k = g.k;
         g.w = (int)std::lround(360 * k); g.h = (int)std::lround(392 * k);
         g.x = centre ? (outW - g.w) / 2 : outW - g.w - (int)std::lround(56 * k);
@@ -107,7 +108,7 @@ inline Geo Layout(int outW, int outH, bool centre, int style = 0)
     }
     if (style == 1)
     {
-        g.k = std::max(0.5f, std::min(outW / 1280.0f, outH / 720.0f));
+        g.k = std::max(0.5f, std::min(outW / 1280.0f, outH / 720.0f)) * size;
         const float k = g.k;
         g.w = (int)std::lround(380 * k); g.h = (int)std::lround(400 * k);
         g.x = centre ? (outW - g.w) / 2 : outW - g.w - (int)std::lround(56 * k);
@@ -123,7 +124,7 @@ inline Geo Layout(int outW, int outH, bool centre, int style = 0)
         }
         return g;
     }
-    g.k = std::max(0.5f, std::min(outW / 1280.0f, outH / 720.0f));
+    g.k = std::max(0.5f, std::min(outW / 1280.0f, outH / 720.0f)) * size;
     const float k = g.k;
     g.w = (int)std::lround(372 * k); g.h = (int)std::lround(404 * k);
     g.x = centre ? (outW - g.w) / 2 : outW - g.w - (int)std::lround(50 * k);
@@ -138,6 +139,21 @@ inline Geo Layout(int outW, int outH, bool centre, int style = 0)
         g.tile[i][0] = (int)std::lround(cx + gw / 2 - ts / 2); g.tile[i][1] = (int)std::lround(cy);
         g.tile[i][2] = (int)std::lround(ts); g.tile[i][3] = (int)std::lround(ts);
     }
+    return g;
+}
+
+// Where it goes, by what is on the screen. With the touch controls up (a phone): 70% and its words 1.8 times their
+// size, readable there; WHEEL in the middle, the others at the right between R and A, so the middle of the game
+// stays in view (James, 16 Nov). Otherwise as Layout has it.
+inline Geo Place(int outW, int outH, bool touch, int style)
+{
+    Geo g = Layout(outW, outH, touch, style, touch ? 0.7f : 1.0f);
+    if (!touch) return g;
+    g.tk = 1.8f;
+    if (style == 3) return g;
+    const int dx = (int)(outW * 0.97f) - (g.x + g.w), dy = (int)(outH * 0.42f) - (g.y + g.h / 2);
+    g.x += dx; g.y += dy; g.sx0 += dx; g.sy0 += dy; g.sx1 += dx; g.sy1 += dy;
+    for (int i = 0; i < APPS; i++) { g.tile[i][0] += dx; g.tile[i][1] += dy; }
     return g;
 }
 
@@ -197,16 +213,16 @@ inline void DrawClassic(Canvas& c, const Geo& g, const State& s, const bool dim[
     // (The screen.)
     Glass::Round(c, g.sx0 - K(8), g.sy0 - K(8), g.sx1 - g.sx0 + K(16), g.sy1 - g.sy0 + K(16), 20 * k, 0xFF221C20);
     Glass::Round(c, g.sx0, g.sy0, g.sx1 - g.sx0, g.sy1 - g.sy0, 10 * k, 0xFFE2ECD6);
-    for (int y = g.sy0 + K(3); y < g.sy1 - K(3); y += std::max(2, K(4))) c.Fill(g.sx0 + K(2), y, g.sx1 - g.sx0 - K(4), 1, 0xFFDAE5CD);
+    for (int y = g.sy0 + K(3); y < g.sy1 - K(3); y += std::max(2, (int)std::lround(4 * k * g.tk))) c.Fill(g.sx0 + K(2), y, g.sx1 - g.sx0 - K(4), 1, 0xFFDAE5CD);
     const uint32_t ink = 0xFF344038;
     char clock[8] = "--:--";
     const time_t now = time(nullptr);
     if (const tm* t = localtime(&now)) snprintf(clock, sizeof(clock), "%02d:%02d", t->tm_hour, t->tm_min);
-    const int fs = std::max(9, K(15));
+    const int fs = std::max(9, (int)std::lround(15 * k * g.tk));
     T(c, g.sx0 + K(10), g.sy0 + K(22), "FULLDEX NAV", fs, ink, true, false);
     T(c, g.sx1 - K(10) - W(clock, fs, true, false), g.sy0 + K(22), clock, fs, ink, true, false);
-    c.Fill(g.sx0 + K(8), g.sy0 + K(28), g.sx1 - g.sx0 - K(16), std::max(1, K(2)), 0xFFA0AC9C);
-    const int ls = std::max(8, K(12));
+    c.Fill(g.sx0 + K(8), g.sy0 + K(28), g.sx1 - g.sx0 - K(16), std::max(1, (int)std::lround(2 * k * g.tk)), 0xFFA0AC9C);
+    const int ls = std::max(8, (int)std::lround(12 * k * g.tk));
     for (int i = 0; i < APPS; i++)
     {
         const App& a = Get(i);
@@ -240,10 +256,13 @@ inline void DrawClassic(Canvas& c, const Geo& g, const State& s, const bool dim[
     }
     if (!hint.empty())
     {
-        const int hs = std::max(9, K(14)), hw = W(Upper(hint), hs, true, false) + K(28);
+        const int hs = std::max(9, (int)std::lround(14 * k * g.tk)), hw = W(Upper(hint), hs, true, false) + K(28);
         const int hx = g.x + g.w / 2 - hw / 2, hy = std::min(c.h - K(34), g.y + g.h + K(10));
-        Glass::Round(c, hx, hy, hw, K(26), 13 * k, 0xD8101418);
-        T(c, hx + K(14), hy + K(18), Upper(hint), hs, 0xFFEBF0F5, true, false);
+        // (The pill as tall as its words; kept on the screen when the watch is at its edge.)
+        const int ph = std::max(K(26), hs + K(12));
+        const int px0 = std::clamp(hx, K(4), std::max(K(4), c.w - hw - K(4))), py0 = std::min(hy, c.h - ph - K(6));
+        Glass::Round(c, px0, py0, hw, ph, 13 * k, 0xD8101418);
+        T(c, px0 + K(14), py0 + ph * 18 / 26, Upper(hint), hs, 0xFFEBF0F5, true, false);
     }
 }
 
@@ -260,12 +279,12 @@ inline void DrawSimple(Canvas& c, const Geo& g, const State& s, const bool dim[A
     char clock[8] = "--:--";
     const time_t now = time(nullptr);
     if (const tm* t = localtime(&now)) snprintf(clock, sizeof(clock), "%02d:%02d", t->tm_hour, t->tm_min);
-    const int fs = std::max(9, K(16));
+    const int fs = std::max(9, (int)std::lround(16 * k * g.tk));
     T(c, g.x + K(26), g.y + K(36), "FullDex Nav", fs, Menu::GlassText, true, false);
     T(c, g.x + g.w - K(26) - W(clock, fs, true, false), g.y + K(36), clock, fs, Menu::GlassHint, true, false);
-    Glass::Round(c, g.x + K(22), g.y + K(48), g.w - K(44), std::max(1, K(1)), 0, 0x40FFFFFF);
+    Glass::Round(c, g.x + K(22), g.y + K(48), g.w - K(44), std::max(1, (int)std::lround(1 * k * g.tk)), 0, 0x40FFFFFF);
     const uint32_t ink = Menu::GlassText;
-    const int ls = std::max(8, K(13));
+    const int ls = std::max(8, (int)std::lround(13 * k * g.tk));
     for (int i = 0; i < APPS; i++)
     {
         const App& a = Get(i);
@@ -299,10 +318,13 @@ inline void DrawSimple(Canvas& c, const Geo& g, const State& s, const bool dim[A
     }
     if (!hint.empty())
     {
-        const int hs = std::max(9, K(14)), hw = W(hint, hs, true, true) + K(28);
+        const int hs = std::max(9, (int)std::lround(14 * k * g.tk)), hw = W(hint, hs, true, true) + K(28);
         const int hx = g.x + g.w / 2 - hw / 2, hy = std::min(c.h - K(34), g.y + g.h + K(10));
-        Glass::Round(c, hx, hy, hw, K(26), 13 * k, 0xD8101418);
-        T(c, hx + K(14), hy + K(18), hint, hs, 0xFFEBF0F5, true, true);
+        // (The pill as tall as its words; kept on the screen when the watch is at its edge.)
+        const int ph = std::max(K(26), hs + K(12));
+        const int px0 = std::clamp(hx, K(4), std::max(K(4), c.w - hw - K(4))), py0 = std::min(hy, c.h - ph - K(6));
+        Glass::Round(c, px0, py0, hw, ph, 13 * k, 0xD8101418);
+        T(c, px0 + K(14), py0 + ph * 18 / 26, hint, hs, 0xFFEBF0F5, true, true);
     }
 }
 
@@ -347,7 +369,7 @@ inline void DrawWheel(Canvas& c, const Geo& g, const State& s, const bool dim[AP
     // (The middle: the chosen app's name, and the clock.)
     const int sel = std::clamp(s.sel, 0, APPS - 1);
     const std::string name = label && !label[sel].empty() ? label[sel] : std::string(Get(sel).label);
-    const int fs = std::max(10, K(20)), cs = std::max(8, K(13));
+    const int fs = std::max(10, (int)std::lround(20 * k * g.tk)), cs = std::max(8, (int)std::lround(13 * k * g.tk));
     T(c, cx - W(name, fs, true, false) / 2, cy + K(7), name, fs, (dim && dim[sel]) ? 0x90F2F5F9 : Menu::GlassText, true, false);
     char clock[8] = "--:--";
     const time_t now = time(nullptr);
@@ -355,15 +377,21 @@ inline void DrawWheel(Canvas& c, const Geo& g, const State& s, const bool dim[AP
     T(c, cx - W(clock, cs, true, false) / 2, cy - K(30), clock, cs, Menu::GlassHint, true, false);
     if (!hint.empty())
     {
-        const int hs = std::max(9, K(14)), hw = W(hint, hs, true, true) + K(28);
+        const int hs = std::max(9, (int)std::lround(14 * k * g.tk)), hw = W(hint, hs, true, true) + K(28);
         const int hx = cx - hw / 2, hy = c.h - K(40);
-        Glass::Round(c, hx, hy, hw, K(26), 13 * k, 0xD8101418);
-        T(c, hx + K(14), hy + K(18), hint, hs, 0xFFEBF0F5, true, true);
+        // (The pill as tall as its words; kept on the screen when the watch is at its edge.)
+        const int ph = std::max(K(26), hs + K(12));
+        const int px0 = std::clamp(hx, K(4), std::max(K(4), c.w - hw - K(4))), py0 = std::min(hy, c.h - ph - K(6));
+        Glass::Round(c, px0, py0, hw, ph, 13 * k, 0xD8101418);
+        T(c, px0 + K(14), py0 + ph * 18 / 26, hint, hs, 0xFFEBF0F5, true, true);
     }
 }
 
-inline void Draw(Canvas& c, const Geo& g, const State& s, const bool dim[APPS], const std::string label[APPS], const std::string& hint, int style = 0)
+inline void Draw(Canvas& c, const Geo& g, const State& s, const bool dim[APPS], const std::string label[APPS], const std::string& hintIn, int style = 0)
 {
+    // (On a phone (the touch controls up) no key hint: the apps are tapped.)
+    static const std::string noHint;
+    const std::string& hint = g.tk > 1 ? noHint : hintIn;
     if (style == 3) { DrawWheel(c, g, s, dim, label, hint); return; }
     if (style == 1) { DrawClassic(c, g, s, dim, label, hint); return; }
     if (style == 2) { DrawSimple(c, g, s, dim, label, hint); return; }
@@ -372,11 +400,11 @@ inline void Draw(Canvas& c, const Geo& g, const State& s, const bool dim[APPS], 
     auto K = [&](float v) { return (int)std::lround(v * k); };
     // (The watch: its strap above and below, a graphite case, the red crown and a button on its side, and
     // the dark glass face set into the case, where the apps are.)
-    const int sw = K(230), sx = g.x + (g.w - sw) / 2, groove = std::max(1, K(2));
+    const int sw = K(230), sx = g.x + (g.w - sw) / 2, groove = std::max(1, (int)std::lround(2 * k * g.tk));
     Glass::Round(c, sx, g.y - K(70), sw, K(110), 24 * k, 0xFF22262E);
     Glass::Round(c, sx, g.y + g.h - K(40), sw, K(130), 24 * k, 0xFF22262E);
-    for (int yy = g.y - K(58); yy < g.y; yy += std::max(4, K(14))) c.Fill(sx + K(18), yy, sw - K(36), groove, 0xFF30363F);
-    for (int yy = g.y + g.h + K(4); yy < std::min(c.h, g.y + g.h + K(86)); yy += std::max(4, K(14))) c.Fill(sx + K(18), yy, sw - K(36), groove, 0xFF30363F);
+    for (int yy = g.y - K(58); yy < g.y; yy += std::max(4, (int)std::lround(14 * k * g.tk))) c.Fill(sx + K(18), yy, sw - K(36), groove, 0xFF30363F);
+    for (int yy = g.y + g.h + K(4); yy < std::min(c.h, g.y + g.h + K(86)); yy += std::max(4, (int)std::lround(14 * k * g.tk))) c.Fill(sx + K(18), yy, sw - K(36), groove, 0xFF30363F);
     Glass::Round(c, g.x, g.y, g.w, g.h, 70 * k, 0xFF40444E, 0xFF969CA8, 2 * k);
     {
         // (The case's shading, light at the top to dark at the bottom, inside its rounded edge.)
@@ -392,7 +420,7 @@ inline void Draw(Canvas& c, const Geo& g, const State& s, const bool dim[APPS], 
         }
     }
     Glass::Round(c, g.x + g.w - K(4), g.y + K(110), K(20), K(60), 8 * k, 0xFFCE2E30, 0xFF141418, 2 * k);
-    for (int yy = g.y + K(116); yy < g.y + K(166); yy += std::max(3, K(6))) Glass::Round(c, g.x + g.w + K(3), yy, K(11), 1, 0, 0x60000000);
+    for (int yy = g.y + K(116); yy < g.y + K(166); yy += std::max(3, (int)std::lround(6 * k * g.tk))) Glass::Round(c, g.x + g.w + K(3), yy, K(11), 1, 0, 0x60000000);
     Glass::Round(c, g.x + g.w - K(3), g.y + K(210), K(12), K(60), 5 * k, 0xFF464C56, 0xFF141418, 2 * k);
     Glass::Round(c, g.sx0 - K(3), g.sy0 - K(3), g.sx1 - g.sx0 + K(6), g.sy1 - g.sy0 + K(6), 56 * k, 0xFF080A0E);
     Glass::Round(c, g.sx0, g.sy0, g.sx1 - g.sx0, g.sy1 - g.sy0, 54 * k, 0xF2121A24);
@@ -400,12 +428,12 @@ inline void Draw(Canvas& c, const Geo& g, const State& s, const bool dim[APPS], 
     char clock[8] = "--:--";
     const time_t now = time(nullptr);
     if (const tm* t = localtime(&now)) snprintf(clock, sizeof(clock), "%02d:%02d", t->tm_hour, t->tm_min);
-    const int fs = std::max(9, K(16));
+    const int fs = std::max(9, (int)std::lround(16 * k * g.tk));
     T(c, g.sx0 + K(24), g.sy0 + K(32), "FullDex Nav", fs, Menu::GlassText, true, false);
     T(c, g.sx1 - K(24) - W(clock, fs, true, false), g.sy0 + K(32), clock, fs, Menu::GlassHint, true, false);
-    Glass::Round(c, g.sx0 + K(20), g.sy0 + K(44), g.sx1 - g.sx0 - K(40), std::max(1, K(1)), 0, 0x40FFFFFF);
+    Glass::Round(c, g.sx0 + K(20), g.sy0 + K(44), g.sx1 - g.sx0 - K(40), std::max(1, (int)std::lround(1 * k * g.tk)), 0, 0x40FFFFFF);
     const uint32_t ink = Menu::GlassText;
-    const int ls = std::max(8, K(13));
+    const int ls = std::max(8, (int)std::lround(13 * k * g.tk));
     for (int i = 0; i < APPS; i++)
     {
         const App& a = Get(i);
@@ -439,10 +467,13 @@ inline void Draw(Canvas& c, const Geo& g, const State& s, const bool dim[APPS], 
     }
     if (!hint.empty())
     {
-        const int hs = std::max(9, K(14)), hw = W(hint, hs, true, true) + K(28);
+        const int hs = std::max(9, (int)std::lround(14 * k * g.tk)), hw = W(hint, hs, true, true) + K(28);
         const int hx = g.x + g.w / 2 - hw / 2, hy = std::min(c.h - K(34), g.y + g.h + K(10));
-        Glass::Round(c, hx, hy, hw, K(26), 13 * k, 0xD8101418);
-        T(c, hx + K(14), hy + K(18), hint, hs, 0xFFEBF0F5, true, true);
+        // (The pill as tall as its words; kept on the screen when the watch is at its edge.)
+        const int ph = std::max(K(26), hs + K(12));
+        const int px0 = std::clamp(hx, K(4), std::max(K(4), c.w - hw - K(4))), py0 = std::min(hy, c.h - ph - K(6));
+        Glass::Round(c, px0, py0, hw, ph, 13 * k, 0xD8101418);
+        T(c, px0 + K(14), py0 + ph * 18 / 26, hint, hs, 0xFFEBF0F5, true, true);
     }
 }
 

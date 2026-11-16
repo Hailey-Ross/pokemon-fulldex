@@ -113,8 +113,8 @@ const uint32_t* Draw(const Page& page, int w, int h, bool& changed);
 // (Fly, Party, Open PC, Repel, Encounters, Reset, Map, Pokedex, Bag, in that order), drawn as the DS games draw it.
 struct Nav
 {
-    int sel = 0, count = 0, style = 0;
-    bool centre = false;    // (in the middle, for a phone's buttons at the sides)
+    int sel = 0, count = 0, style = 0; // (style: NAV STYLE, 0 MODERN, 1 CLASSIC, 2 SIMPLE, 3 WHEEL)
+    bool centre = false;    // (the touch controls are up: WHEEL in the middle, the others at the right between R and A)
     bool dim[9] = {};       // (an app that can't be used here, faded)
     std::string label[9];   // (an app's word in place of its name: RESET's "A again")
     std::string hint;
