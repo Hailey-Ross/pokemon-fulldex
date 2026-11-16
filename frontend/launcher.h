@@ -8675,3 +8675,35 @@ inline void BuildSettingsMenu(Menu& m, std::vector<int>& map, const SettingsPage
 }
 
 }
+
+// Lines of a settings file set (key=value) or, for an empty value, taken out; the others kept.
+// (The launcher and the Steam writer both keep settings in settings.cfg.)
+inline void SetConfigValues(const std::string& cfg, const std::vector<std::pair<std::string, std::string>>& values)
+{
+    std::vector<std::string> lines;
+    if (FILE* f = fopen(cfg.c_str(), "r"))
+    {
+        char line[1024];
+        while (fgets(line, sizeof line, f))
+        {
+            std::string l = line;
+            while (!l.empty() && (l.back() == '\n' || l.back() == '\r')) l.pop_back();
+            bool set = false;
+            for (const auto& kv : values) set |= l.size() > kv.first.size() && !l.compare(0, kv.first.size(), kv.first) && l[kv.first.size()] == '=';
+            if (!set) lines.push_back(l);
+        }
+        fclose(f);
+    }
+    for (const auto& kv : values)
+        if (!kv.second.empty()) lines.push_back(kv.first + "=" + kv.second);
+    const std::string tmp = cfg + ".tmp";
+    if (FILE* f = fopen(tmp.c_str(), "w"))
+    {
+        bool ok = true;
+        for (const std::string& l : lines) if (fprintf(f, "%s\n", l.c_str()) < 0) ok = false;
+        ok = fclose(f) == 0 && ok;
+        std::error_code ec;
+        if (ok) std::filesystem::rename(tmp, cfg, ec);
+        if (!ok || ec) fprintf(stderr, "[launcher] settings could not be saved: %s\n", cfg.c_str());
+    }
+}

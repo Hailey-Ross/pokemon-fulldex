@@ -7,7 +7,6 @@
 #include "shortcuts.h"
 
 #include <algorithm>
-#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -117,19 +116,29 @@ inline std::vector<Account> Accounts()
     return out;
 }
 
-// The account used most recently: its shortcuts file (existing, or the one Add will create).
-// Cached: the game menu asks for the label every frame, and scanning Steam's folders there
-// made the menu slow to open. Add/Remove force a refresh; otherwise a few seconds is plenty.
-inline std::string ActiveShortcuts(bool refresh = false)
+// The active shortcuts file: decided once at load and saved in the launcher's settings.cfg
+// (steam_shortcuts, steam_account). The game menu's label is drawn every frame, so there is no
+// folder scan or VDF read here. If the saved account's folder has gone (Steam moved or was
+// reinstalled), Initialize detects it again and saves the new path.
+inline std::string& ActivePath()
 {
-    static std::string cached;
-    static std::string cachedHome;
-    static std::chrono::steady_clock::time_point when{};
-    static bool loaded = false;
-    const auto now = std::chrono::steady_clock::now();
-    const std::string home = Home();
-    if (!refresh && loaded && home == cachedHome && now - when < std::chrono::seconds(3)) return cached;
+    static std::string path;
+    return path;
+}
+inline const std::string& ActiveShortcuts() { return ActivePath(); }
+inline bool Available() { return !ActivePath().empty(); }
+
+inline void Initialize(const std::string& configPath)
+{
+    const std::string saved = Launcher::ConfigValue(configPath, "steam_shortcuts");
+    std::error_code ec;
+    if (!saved.empty() && fs::is_directory(fs::u8path(saved).parent_path(), ec))
+    {
+        ActivePath() = saved;
+        return;
+    }
     std::string best;
+    std::string account;
     fs::file_time_type bestTime{};
     bool have = false;
     for (const Account& a : Accounts())
@@ -137,17 +146,15 @@ inline std::string ActiveShortcuts(bool refresh = false)
         if (!have || a.time > bestTime)
         {
             best = a.shortcuts;
+            account = fs::u8path(a.shortcuts).parent_path().parent_path().filename().u8string();
             bestTime = a.time;
             have = true;
         }
     }
-    cached = best;
-    cachedHome = home;
-    when = now;
-    loaded = true;
-    return cached;
+    ActivePath() = best;
+    if (!best.empty())
+        SetConfigValues(configPath, { { "steam_shortcuts", best }, { "steam_account", account } });
 }
-inline bool Available() { return !ActiveShortcuts().empty(); }
 
 inline bool ReadAll(const std::string& path, std::vector<uint8_t>& data)
 {
@@ -433,7 +440,7 @@ inline bool HasLauncher()
 
 inline std::string AddGame(const Launcher::Game& g)
 {
-    const std::string path = ActiveShortcuts(true);
+    const std::string path = ActiveShortcuts();
     if (path.empty()) return "STEAM NOT FOUND";
     if (SteamRunning()) return QuitSteamMessage();
     const std::string exe = Shortcuts::ExecutablePath();
@@ -443,7 +450,7 @@ inline std::string AddGame(const Launcher::Game& g)
 }
 inline std::string RemoveGame(const Launcher::Game& g)
 {
-    const std::string path = ActiveShortcuts(true);
+    const std::string path = ActiveShortcuts();
     if (path.empty()) return "STEAM NOT FOUND";
     if (SteamRunning()) return QuitSteamMessage();
     std::string error;
@@ -451,7 +458,7 @@ inline std::string RemoveGame(const Launcher::Game& g)
 }
 inline std::string AddLauncher()
 {
-    const std::string path = ActiveShortcuts(true);
+    const std::string path = ActiveShortcuts();
     if (path.empty()) return "STEAM NOT FOUND";
     if (SteamRunning()) return QuitSteamMessage();
     const std::string exe = Shortcuts::ExecutablePath();
@@ -461,7 +468,7 @@ inline std::string AddLauncher()
 }
 inline std::string RemoveLauncher()
 {
-    const std::string path = ActiveShortcuts(true);
+    const std::string path = ActiveShortcuts();
     if (path.empty()) return "STEAM NOT FOUND";
     if (SteamRunning()) return QuitSteamMessage();
     std::string error;

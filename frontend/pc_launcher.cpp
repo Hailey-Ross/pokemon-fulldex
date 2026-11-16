@@ -167,36 +167,6 @@ bool ConfigFullscreen(const std::string& cfg, int& w, int& h)
 }
 
 // F11 in the list: the game then starts the same way (the settings file says so).
-// Lines of the settings file set (key=value) or, for an empty value, taken out; the others kept.
-void SetConfigValues(const std::string& cfg, const std::vector<std::pair<std::string, std::string>>& values)
-{
-    std::vector<std::string> lines;
-    if (FILE* f = fopen(cfg.c_str(), "r"))
-    {
-        char line[1024];
-        while (fgets(line, sizeof line, f))
-        {
-            std::string l = line;
-            while (!l.empty() && (l.back() == '\n' || l.back() == '\r')) l.pop_back();
-            bool set = false;
-            for (const auto& kv : values) set |= l.size() > kv.first.size() && !l.compare(0, kv.first.size(), kv.first) && l[kv.first.size()] == '=';
-            if (!set) lines.push_back(l);
-        }
-        fclose(f);
-    }
-    for (const auto& kv : values)
-        if (!kv.second.empty()) lines.push_back(kv.first + "=" + kv.second);
-    const std::string tmp = cfg + ".tmp";
-    if (FILE* f = fopen(tmp.c_str(), "w"))
-    {
-        bool ok = true;
-        for (const std::string& l : lines) if (fprintf(f, "%s\n", l.c_str()) < 0) ok = false;
-        ok = fclose(f) == 0 && ok;
-        std::error_code ec;
-        if (ok) std::filesystem::rename(tmp, cfg, ec);
-        if (!ok || ec) fprintf(stderr, "[launcher] settings could not be saved: %s\n", cfg.c_str());
-    }
-}
 
 void SetConfigFullscreen(const std::string& cfg, bool on)
 {
@@ -868,8 +838,9 @@ static void FillUpdateStatus()
 int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool& fullscreen, int winW, int winH)
 {
 #if !defined(SSR_PHONE) && !defined(__SWITCH__)
-    // The game menu's platform-launcher item: Add To Steam, or Add To Desktop when Steam is not
-    // found. It is user-selected; nothing is added automatically.
+    // The Steam account/shortcuts path is found once at load and kept in settings.cfg; the
+    // game menu's label is drawn every frame and must not touch Steam's folders there.
+    SteamShortcuts::Initialize(fo.cfg);
     Launcher::PlatformEntryLabel() = [dir = fo.dir](const Launcher::Game& g) { return SteamShortcuts::PlatformEntryLabel(dir, g); };
     Launcher::PlatformLauncherState() = [] { return SteamShortcuts::HasLauncher() ? "IN STEAM" : "NOT IN STEAM"; };
 #endif

@@ -93,7 +93,11 @@ int main()
     steamRunning(false);
 
     const fs::path vdf = config / "shortcuts.vdf";
+    const fs::path settings = temp / "settings.cfg";
+    SteamShortcuts::Initialize(settings.string());
     Check(SteamShortcuts::Available(), "a fresh Steam account is found without shortcuts.vdf");
+    Check(Launcher::ConfigValue(settings.string(), "steam_shortcuts") == vdf.string(), "saves the Steam shortcuts path in settings.cfg");
+    Check(Launcher::ConfigValue(settings.string(), "steam_account") == "123", "saves the Steam account in settings.cfg");
     Check(!fs::exists(vdf), "there is no shortcuts.vdf yet");
 
     Launcher::Game black = MakeGame((temp / "roms/black.nds").string(), "IREO", "POKEMON BLACK");
@@ -174,6 +178,7 @@ int main()
     const fs::path launcherDir = temp / "launcher";
     fs::create_directories(launcherDir);
     setenv("HOME", home2.string().c_str(), 1);
+    SteamShortcuts::Initialize((temp / "settings-home2.cfg").string());
     Check(!SteamShortcuts::Available(), "Steam is not found in a home without userdata");
     Check(SteamShortcuts::PlatformEntryLabel(launcherDir.string(), black) == "Add To Desktop", "the menu label falls back to Desktop");
     const std::string added = SteamShortcuts::PlatformEntryDo(launcherDir.string(), black);
