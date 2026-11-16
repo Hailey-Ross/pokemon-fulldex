@@ -49,10 +49,10 @@ STEAM DECK
 1. In Desktop Mode, unpack the Linux download (for example into your Games folder) and put
    your ROMs in its roms folder.
 2. Quit Steam. Open pokemon-ds-wide from your apps menu; add the launcher itself from
-   Settings > STEAM LAUNCHER, or add one game from its menu (A on the game) > ADD TO STEAM.
+   Settings > Shortcuts > STEAM LAUNCHER, or add one game from its menu (A on the game) > ADD TO STEAM.
    The same menu item says ADD TO DESKTOP when Steam is not found, and makes the normal
    desktop shortcut instead (automatic fallback). Entries are user-selected: nothing is
-   added automatically. If you switch Steam accounts or move Steam, Settings > STEAM
+   added automatically. If you switch Steam accounts or move Steam, Settings > Shortcuts > STEAM
    ACCOUNT > REFRESH finds the account's shortcuts file again.
 3. Start Steam again, then start pokemon-ds-wide or the game from your library in Gaming
    Mode with a gamepad controller layout.
@@ -91,7 +91,7 @@ PICTURE SETTINGS (Esc menu)
                      to the list. The same from a command line:
                      "Pokemon Fulldex.exe" --game IREO (the game codes are under icons/).
                      A game's menu (A) adds just that game, or the launcher itself in
-                     Settings > STEAM LAUNCHER: ADD TO STEAM when Steam is found, otherwise
+                     Settings > Shortcuts > STEAM LAUNCHER: ADD TO STEAM when Steam is found, otherwise
                      ADD TO DESKTOP (the automatic fallback).
 
 
