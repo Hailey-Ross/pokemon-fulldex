@@ -7890,6 +7890,7 @@ int main(int argc, char** argv)
     // FULLDEX NAV (fulldex_nav.h): the quick menu, opened with L3 or N; its encounter counter is kept
     // beside the save (<save>.counter).
     FdNav::State fdNav;
+    int fdNavReturn = -1, fdNavLastPage = -1; // (a page opened from FULLDEX NAV: Back from it goes back to the watch)
     fdNav.countFile = opt.noSave ? std::string() : opt.save + ".counter";
     fdNav.LoadCount();
     bool fdNavToggle = false, fdNavBattleWas = false, fdNavMouseWas = false;
@@ -9486,6 +9487,14 @@ int main(int argc, char** argv)
             if (fdNav.open) readCompanion(true);
             if (!fdNav.open) swallowMenuButtons = true;
         }
+        // (Back from a page FULLDEX NAV opened (to the companion or the menu) closes the menu and opens the watch again.)
+        if (fdNavReturn >= 0)
+        {
+            if (!menu.open) fdNavReturn = -1;
+            else if (fdNavLastPage == fdNavReturn && (menuPage == PAGE_COMPANION || menuPage == PAGE_MAIN))
+            { menu.open = false; fdNav.open = true; swallowMenuButtons = true; fdNavReturn = -1; }
+        }
+        fdNavLastPage = menu.open ? menuPage : -1;
         int fdNavUse = -1;
         if (fdNav.open && testNavUse && testNavAt >= 0 && testNavFrames == (uint32_t)testNavAt + 10) fdNavUse = fdNav.sel;
         if (fdNav.open)
@@ -9596,6 +9605,7 @@ int main(int argc, char** argv)
                 else if (fdNavUse == FdNav::MAP) goPage(PAGE_CLOCATION, M_BACK);
                 else if (fdNavUse == FdNav::DEX) goPage(PAGE_CDEX, M_CDEX_FILTER);
                 else goPage(PAGE_CBAG, M_CPOCKET);
+                fdNavReturn = fdNavLastPage = menuPage;
                 break;
             }
         }

@@ -755,6 +755,7 @@ struct App
     // FULLDEX NAV (gba_glass.h, fulldex_nav.h): the DS games' watch over the running game, L3 (a click of the left
     // stick) or N. Its ENCOUNTERS count is kept beside the save states (<game>.counter: the count, then whether shown).
     bool navOpen = false, navToggle = false, navCountShown = false, navBattleWas = false, navCountLoaded = false;
+    int navReturn = -1; // (a page opened from FULLDEX NAV: Back from it goes back to the watch)
     int navSel = 0, navCount = 0;
     Uint32 navResetAsk = 0;
     uint32_t navKeysWas = 0;
@@ -1873,6 +1874,7 @@ struct App
     void OpenPause()
     {
         paused = true;
+        navReturn = -1;
 #ifdef GBAW_EMBEDDED
         pausePage = P_ROOT;
 #endif
@@ -4497,7 +4499,7 @@ struct App
     // An app chosen: the page of the pause menu it is (the game paused there), or done at once (REPEL, RESET, ENCOUNTERS).
     void NavUse(int app)
     {
-        auto open = [&](PausePage p) { if (!dexTried) { dexTried = true; dex.Load(dexRom); } navOpen = false; OpenPause(); GoPage(p, ""); };
+        auto open = [&](PausePage p) { if (!dexTried) { dexTried = true; dex.Load(dexRom); } navOpen = false; OpenPause(); GoPage(p, ""); navReturn = p; };
         auto needCompanion = [&]() { if (!compConfig) Toast("COMPANION ISN'T AVAILABLE FOR THIS GAME"); else ReadCompanion(); return compConfig != nullptr; };
         switch (app)
         {
@@ -4642,6 +4644,12 @@ struct App
         const int selWas = pause.selected;
         const PausePage pageWas = pausePage;
         PauseAct(in);
+        // (Back from a page FULLDEX NAV opened: the game again, with the watch open.)
+        if (navReturn >= 0 && pageWas == navReturn && (pausePage == P_COMP || pausePage == P_ROOT))
+        {
+            navReturn = -1;
+            if (paused) { Resume(); navOpen = true; }
+        }
         if (pausePage != pageWas || pause.selected != selWas) glassSel = -1; // (the row the action chose)
         glassSlider = glassPick = -1;
     }
