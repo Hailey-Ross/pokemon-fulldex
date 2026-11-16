@@ -183,9 +183,9 @@ const std::vector<Setting>& SettingsList()
           "ON: OUTDOORS FOLLOWS YOUR CLOCK: A WARM DAWN, PLAIN DAY, AN ORANGE DUSK AND A BLUE NIGHT. ONLY THE COLOURS AS THEY ARE "
           "DRAWN CHANGE: NOTHING IN THE GAME OR ITS SAVE. TEXT BOXES, MENUS AND BATTLES KEEP THEIR OWN. NEEDS ZOOM AND LOOK AROUND'S GAMES." },
         { "nav_style", "NAV STYLE",
-          { { "modern", "MODERN" }, { "classic", "CLASSIC" }, { "simple", "SIMPLE" }, { "wheel", "WHEEL" } },
+          { { "modern", "MODERN" }, { "classic", "CLASSIC" }, { "simple", "SIMPLE" }, { "wheel", "WHEEL" }, { "off", "OFF" } },
           "modern",
-          "FULLDEX NAV (A CLICK OF THE LEFT STICK, N, OR NAV ON A PHONE): A GRAPHITE WATCH, A RED ONE, A GLASS CARD OR THE APPS IN A RING. ON A PHONE IT IS SMALLER, AT THE RIGHT (THE RING IN THE MIDDLE)." },
+          "FULLDEX NAV (A CLICK OF THE LEFT STICK, N, OR NAV ON A PHONE): A GRAPHITE WATCH, A RED ONE, A GLASS CARD OR THE APPS IN A RING. ON A PHONE IT IS SMALLER, AT THE RIGHT (THE RING IN THE MIDDLE). OFF: THE LEFT STICK OPENS THE PAUSE MENU AGAIN, AS BEFORE (N AND NAV STILL OPEN THE WATCH)." },
         { "follower", "FOLLOWING POKEMON", onOff, "0",
           "ON: THE FIRST POKEMON OF YOUR PARTY WALKS BEHIND YOU, AS IN HEARTGOLD AND SOULSILVER. ITS SPRITES COME FROM YOUR OWN "
           "HEARTGOLD OR SOULSILVER IN THE ROMS FOLDER (THE VERY BIG ONES HAVE NONE). NEEDS ZOOM AND LOOK AROUND'S GAMES." },
@@ -5687,7 +5687,7 @@ struct App
                 if (b == SDL_CONTROLLER_BUTTON_RIGHTSTICK && screen == PLAY && !paused && ZoomOn()) ZoomCycle();
 #ifdef GBAW_EMBEDDED
                 // (FULLDEX NAV: a click of the left stick in a game, as in the DS games.)
-                else if (b == SDL_CONTROLLER_BUTTON_LEFTSTICK && screen == PLAY && !paused && core) navToggle = true;
+                else if (b == SDL_CONTROLLER_BUTTON_LEFTSTICK && screen == PLAY && !paused && core && set.Get("nav_style") != "off") navToggle = true;
 #endif
                 else if (b == SDL_CONTROLLER_BUTTON_GUIDE || b == SDL_CONTROLLER_BUTTON_LEFTSTICK || b == SDL_CONTROLLER_BUTTON_RIGHTSTICK)
                     in.menu = true;

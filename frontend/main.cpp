@@ -1734,7 +1734,7 @@ struct Settings : OptionalFeatures
     // the message box's band in Black and White, the corner panel in Black 2 (Bw1Layouts::BUTTONS_*).
     int battleButtons = 1;
     bool encountersShown = false; // ENCOUNTERS ON SCREEN (FULLDEX NAV's count on the picture)
-    int navStyle = 0; // NAV STYLE (FULLDEX NAV): 0 MODERN, 1 CLASSIC, 2 SIMPLE, 3 WHEEL
+    int navStyle = 0; // NAV STYLE (FULLDEX NAV): 0 MODERN, 1 CLASSIC, 2 SIMPLE, 3 WHEEL, 4 OFF (#181: L3 as before)
     // The PC all-games program: the window's size when it last closed (0: 1280x720, a wide view).
     int windowW = 0, windowH = 0;
     Controls::Bindings controls; // CONTROLS (controls.h): map_key_* and map_pad_* lines
@@ -1831,7 +1831,7 @@ struct Settings : OptionalFeatures
             else if (k == "ra_token") ra.token = v;
             else if (k == "battle_buttons") battleButtons = v == "corner" ? 0 : v == "panel" ? 2 : v == "classic" ? 3 : v == "sunmoon" ? 4 : 1;
             else if (k == "encounters_shown") encountersShown = v == "1";
-            else if (k == "nav_style") navStyle = v == "classic" ? 1 : v == "simple" ? 2 : v == "wheel" ? 3 : 0;
+            else if (k == "nav_style") navStyle = v == "classic" ? 1 : v == "simple" ? 2 : v == "wheel" ? 3 : v == "off" ? 4 : 0;
             else if (k == "window")
             {
                 const size_t x = v.find('x');
@@ -1900,7 +1900,7 @@ struct Settings : OptionalFeatures
         f << "start_button=" << (startMenu ? "menu" : "ds") << "\n";
         f << "battle_buttons=" << (battleButtons == 0 ? "corner" : battleButtons == 2 ? "panel" : battleButtons == 3 ? "classic" : battleButtons == 4 ? "sunmoon" : "strip") << "\n";
         f << "encounters_shown=" << (encountersShown ? 1 : 0) << "\n";
-        f << "nav_style=" << (navStyle == 1 ? "classic" : navStyle == 2 ? "simple" : navStyle == 3 ? "wheel" : "modern") << "\n";
+        f << "nav_style=" << (navStyle == 1 ? "classic" : navStyle == 2 ? "simple" : navStyle == 3 ? "wheel" : navStyle == 4 ? "off" : "modern") << "\n";
         controls.Save(f);
         f << "both_versions=" << (bothVersions ? 1 : 0) << "\n";
         f << "ra=" << (ra.on ? 1 : 0) << "\n";
@@ -6211,7 +6211,7 @@ int main(int argc, char** argv)
                        own ? "The battle menu's FIGHT, POKEMON, BAG and RUN: this game's own, or as Sun and Moon have them." : "Where the on-screen battle buttons go in Black, White, Black 2 and White 2.",
                        "Sun and Moon: FIGHT across the top, POKEMON, BAG and RUN below it.", art);
             }
-            picker(M_NAVSTYLE, "NAV STYLE", Glass::I_GRID, Menu::P_NONE, { "MODERN", "CLASSIC", "SIMPLE", "WHEEL" }, std::clamp(cfg.navStyle, 0, 3),
+            picker(M_NAVSTYLE, "NAV STYLE", Glass::I_GRID, Menu::P_NONE, { "MODERN", "CLASSIC", "SIMPLE", "WHEEL", "OFF" }, std::clamp(cfg.navStyle, 0, 4),
                    "FullDex Nav, opened with L3 or N: a watch with a graphite case and a glass face, the first one (a red watch), a plain glass card, or a wheel of its apps alone.",
                    "Its apps are the same in both.");
             toggle(M_ENCSHOWN, "ENCOUNTERS ON SCREEN", Glass::I_INFO, Menu::P_NONE, cfg.encountersShown,
@@ -9482,7 +9482,7 @@ int main(int argc, char** argv)
         static uint32_t testNavFrames = 0; // (counted from the run's start, as SSR_TEST_PAGE)
         ++testNavFrames;
         if (testNavAt >= 0 && testNavFrames == (uint32_t)testNavAt) { fdNav.open = true; readCompanion(true); fdNav.sel = std::clamp(testNavSel, 0, FdNav::APPS - 1); }
-        if (!menu.open && pressed(PAD_LS)) fdNavToggle = true;
+        if (!menu.open && pressed(PAD_LS) && cfg.navStyle != 4) fdNavToggle = true; // (OFF: the left stick as before, below)
         if (menu.open) { fdNav.open = false; fdNavToggle = false; }
         const uint32_t fdNavKeys = PadKeys(ps, cfg.byLabel) | kbKeysHeld, fdNavDown = fdNavKeys & ~fdNavKeysWas;
         fdNavKeysWas = fdNavKeys;
@@ -9531,7 +9531,7 @@ int main(int argc, char** argv)
             if (down(KEY_B)) { fdNav.open = false; swallowMenuButtons = true; }
             if (mouseDown && !fdNavMouseWas)
             {
-                const FdNav::Geo g = FdNav::Place(outW, outH, touchPadUsed && touchPad.visible, cfg.navStyle);
+                const FdNav::Geo g = FdNav::Place(outW, outH, touchPadUsed && touchPad.visible, cfg.navStyle == 4 ? 0 : cfg.navStyle);
                 const int h = FdNav::Hit(g, mouseX, mouseY);
                 if (h >= 0) { sel = h; fdNavUse = h; }
                 else if (h == -1) { fdNav.open = false; swallowMenuButtons = true; }
@@ -10177,7 +10177,7 @@ int main(int argc, char** argv)
                 else cfg.battleButtons = (cfg.battleButtons + (dir < 0 ? 4 : 1)) % 5; // CORNER, STRIP, PANEL, CLASSIC, SUN AND MOON
                 bw1.battleButtons = cfg.battleButtons;
                 break;
-            case M_NAVSTYLE: cfg.navStyle = (std::clamp(cfg.navStyle, 0, 3) + (dir < 0 ? 3 : 1)) % 4; cfg.Save(opt.config); break;
+            case M_NAVSTYLE: cfg.navStyle = (std::clamp(cfg.navStyle, 0, 4) + (dir < 0 ? 4 : 1)) % 5; cfg.Save(opt.config); break;
             case M_FPS60:
                 cfg.fps60 = !cfg.fps60;
                 nds->GPU.GPU3D.InterpolationEnabled = cfg.fps60;
@@ -10446,7 +10446,9 @@ int main(int argc, char** argv)
             const bool padTouchNow = cfg.padTouch || athlonNow || touchOnlyNow;
             const bool companionVisible = (cfg.companionOverlay && companionSnapshot.ready) ||
                 (DsDisplayState::Mode(secondScreenState) == 4 && (secondScreenState & DsDisplayState::Ready));
-            (void)companionVisible; // (L3 is FULLDEX NAV's now; the companion's tabs are tapped, or opened from the Nav)
+            // (L3 is FULLDEX NAV's, unless NAV STYLE is OFF (#181): then, as before, the companion's next tab.)
+            if (cfg.navStyle == 4 && companionVisible && pressed(PAD_LS))
+                CompanionTabs::Next(liveTab, liveTabBeforeBattle);
             // (SWAP SCREENS given a button of its own in CONTROLS works without the touch cursor.)
             if (!padTouchNow && cfg.controls.pad[Controls::SWAP] >= 0 && pressed(PAD_RS)) focus.manualFlip = !focus.manualFlip;
             // (ZOOM: a click of the right stick steps it, the right stick looks around; not while the stick is the
@@ -10463,7 +10465,8 @@ int main(int argc, char** argv)
                 if (pressed(PAD_RS)) focus.manualFlip = !focus.manualFlip;
 #ifndef __SWITCH__
                 // (Not on the Switch: a left stick pressed while walking would change the view.)
-                // (L3: FULLDEX NAV, above.)
+                // (L3: FULLDEX NAV, above; with NAV STYLE OFF the next screen layout, as before.)
+                if (cfg.navStyle == 4 && !companionVisible && pressed(PAD_LS)) layout = LayoutNext(layout);
 #endif
                 if (fabsf(ps.rx) > 0.2f) curDX += ps.rx;
                 if (fabsf(ps.ry) > 0.2f) curDY += ps.ry;
@@ -12272,7 +12275,7 @@ int main(int argc, char** argv)
         // FULLDEX NAV, or its counter on the picture.
         if (fdNav.open && !menu.open)
         {
-            const FdNav::Geo g = FdNav::Place(outW, outH, touchPadUsed && touchPad.visible, cfg.navStyle);
+            const FdNav::Geo g = FdNav::Place(outW, outH, touchPadUsed && touchPad.visible, cfg.navStyle == 4 ? 0 : cfg.navStyle);
             const bool canAct = pokeActions.Supported() && !opt.lockstep;
             bool dim[FdNav::APPS] = {};
             dim[FdNav::FLY] = !canAct || !flyGame.Supported();

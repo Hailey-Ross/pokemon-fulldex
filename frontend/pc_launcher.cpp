@@ -109,7 +109,7 @@ namespace
 {
 std::vector<std::string> g_args;
 std::vector<char*> g_argv;
-bool g_canChange = false, g_change = false;
+bool g_canChange = false, g_change = false, g_direct = false; // (g_direct: started for one game, #196)
 std::string g_name;
 
 bool Exists(const std::string& path)
@@ -4241,6 +4241,11 @@ bool Start(int& argc, char**& argv)
         }
 #endif
         if (chosen < 0) return false;
+#ifndef __ANDROID__
+        // (#196: a game started directly (a Steam or desktop shortcut, --rom, --game) ends the program when it is
+        // quit, back to Steam or the desktop, rather than opening the list.)
+        g_direct = directGame >= 0;
+#endif
         if (directGame >= 0 && games[chosen].platform != Launcher::N3DS)
         {
             Launcher::ConfirmHack(games, (size_t)chosen, fo.settings,
@@ -4265,6 +4270,7 @@ bool Start(int& argc, char**& argv)
             N3ds::Play(fo.dir, games[chosen]);
             PlayTime::Add(fo.settings, (long long)std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start).count());
             DiscordPresence::InLauncher();
+            if (g_direct) return false;
             directGame = -1;
             games = FindGames(fo, artCache);
             chosen = 0;
@@ -4310,6 +4316,7 @@ bool Start(int& argc, char**& argv)
             PlayTime::Add(fo.settings, (long long)std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - gbaStart).count());
             CloudAuto::Saved();
             CloudAuto::Finish();
+            if (g_direct) return false;
             directGame = -1;
             games = FindGames(fo, artCache);
             chosen = 0;
@@ -4394,7 +4401,7 @@ void ChangeGame() { g_change = true; }
 void Finish()
 {
     DiscordPresence::Stop();
-    if (!g_change) return;
+    if (!g_change || g_direct) return; // (#196: a game started directly: the program ends with it)
     fflush(stderr);
     // The program again, without arguments: the list.
 #if defined(__ANDROID__)
