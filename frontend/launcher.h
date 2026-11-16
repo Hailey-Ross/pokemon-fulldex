@@ -7636,7 +7636,8 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
     if (Focus().popup >= 0 && mg >= 0 && mg < (int)games.size())
     {
         const int k = v.SpotOf(mg);
-        if (k >= 0)
+        // (from the Game Options button the menu sits under it, so the game need not be in the list shown)
+        if (k >= 0 || (Focus().banner == 2 && !PhoneLook()))
         {
             static const int icons[] = { Glass::I_PLAY, Glass::I_POKEBALL, Glass::I_SPARKLE, Glass::I_WINDOW, Glass::I_SAVE, Glass::I_LAYERS, Glass::I_BACK, Glass::I_GLOBE };
             const Game& g = games[mg];

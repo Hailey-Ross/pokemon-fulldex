@@ -1732,7 +1732,8 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             {
                 // (Game Options: the selected game's menu, keeping the Game Options focus. The
                 // pointer, the grid selection, and the keyboard/gamepad all land here.)
-                if (selected < 0 || selected >= (int)games.size()) selected = Launcher::FirstIn(view());
+                // (nothing chosen in the list, as on an empty Home: the game the banner shows, else the first one)
+                if (selected < 0 || selected >= (int)games.size()) { const int cg = Launcher::ContinueGame(games, selected); selected = cg >= 0 ? cg : Launcher::FirstIn(view()); }
                 if (selected >= 0 && selected < (int)games.size())
                 {
                     F.banner = 2;
@@ -3641,10 +3642,10 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             loggedPresent = true;
         }
 #endif
-        // (SSR_LIST_KEYS=lrud...: those arrow presses, once, before the first picture, for the navigation tests.)
+        // (SSR_LIST_KEYS=lrud...: those arrow presses (a: A), once, before the first picture, for the navigation tests.)
         static int keysAge = -1;
         if (keysAge >= 0) keysAge++;
-        if (const char* tk = getenv("SSR_LIST_KEYS")) { static bool keysDone = false; if (!keysDone) { keysDone = true; keysAge = 0; for (const char* q = tk; *q; q++) move(*q == 'l' ? 1 : *q == 'r' ? 2 : *q == 'u' ? 3 : 4); } }
+        if (const char* tk = getenv("SSR_LIST_KEYS")) { static bool keysDone = false; if (!keysDone) { keysDone = true; keysAge = 0; for (const char* q = tk; *q; q++) { if (*q == 'a') choose(); else move(*q == 'l' ? 1 : *q == 'r' ? 2 : *q == 'u' ? 3 : 4); } } }
         // (SSR_LIST_CHOOSE=a game code: that game chosen once as a player would, its menu's Play: a 3DS
         // game not prepared yet starts preparing, and SSR_LIST_SHOT waits until that has ended.)
         if (const char* tc = getenv("SSR_LIST_CHOOSE"))
