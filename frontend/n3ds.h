@@ -92,6 +92,49 @@ inline std::string DumpTitle(const std::string& path)
     return hex;
 }
 
+// Whether a dump is encrypted, as a console's cartridge is (#155): 1 encrypted, 0 not, -1 not a .3ds dump at
+// all. The first partition's NCCH header has a flag for "no encryption" (byte 0x18F, bit 2), which tools
+// that decrypt a dump (GodMode9) set.
+inline int DumpCrypt(const std::string& path)
+{
+#ifdef _WIN32
+    FILE* f = _wfopen(std::filesystem::u8path(path).wstring().c_str(), L"rb");
+#else
+    FILE* f = fopen(path.c_str(), "rb");
+#endif
+    if (!f) return -1;
+    unsigned char h[0x200] = {}, n[0x200] = {};
+    bool ok = fread(h, 1, sizeof h, f) == sizeof h && memcmp(h + 0x100, "NCSD", 4) == 0;
+    const long at = ok ? (long)((uint32_t)h[0x120] | (uint32_t)h[0x121] << 8 | (uint32_t)h[0x122] << 16 | (uint32_t)h[0x123] << 24) * 0x200 : 0;
+    ok = ok && at > 0 && fseek(f, at, SEEK_SET) == 0 && fread(n, 1, sizeof n, f) == sizeof n && memcmp(n + 0x100, "NCCH", 4) == 0;
+    fclose(f);
+    if (!ok) return -1;
+    return (n[0x18F] & 4) ? 0 : 1;
+}
+// Why a 3DS file with the ROMs is not in the list (#155), said once on the list: the one that matters most (an
+// Omega Ruby or Alpha Sapphire that cannot be played before another game, or a file that is no dump).
+inline std::string& SkipNote() { static std::string s; return s; }
+inline int& SkipRank() { static int r = 0; return r; }
+inline void Skip(const std::string& path, const std::string& why, int rank = 1)
+{
+    const std::string name = path.substr(path.find_last_of("/\\") + 1); // (as it is: the list's notes set the case)
+    fprintf(stderr, "[3ds] not listed: %s: %s\n", path.c_str(), why.c_str());
+    if (rank > SkipRank()) { SkipNote() = name + ": " + why; SkipRank() = rank; }
+}
+// (A 3DS file among the ROMs: its title if FullDex plays it, else nullptr and why not said.)
+inline const Title* Check(const std::string& path)
+{
+    if (EndsWith(path, ".cia")) { Skip(path, "A .CIA IS NOT PLAYED: THE 3DS GAMES NEED A .3DS DUMP OF THE CARTRIDGE", 2); return nullptr; }
+    if (EndsWith(path, ".cci")) { Skip(path, "RENAME IT TO .3DS", 2); return nullptr; }
+    if (!EndsWith(path, ".3ds")) return nullptr;
+    const int crypt = DumpCrypt(path);
+    if (crypt < 0) { Skip(path, "NOT A 3DS CARTRIDGE DUMP"); return nullptr; }
+    const Title* t = ById(DumpTitle(path));
+    if (!t) { Skip(path, "NOT OMEGA RUBY OR ALPHA SAPPHIRE, THE 3DS GAMES FULLDEX PLAYS"); return nullptr; }
+    if (crypt == 1) { Skip(path, "ENCRYPTED: DECRYPT IT FIRST (GODMODE9 ON YOUR 3DS)", 3); return nullptr; }
+    return t;
+}
+
 inline Launcher::Game Make(const Title& t, const std::string& rom, const std::string& folder)
 {
     Launcher::Game g;
@@ -312,6 +355,7 @@ inline void AddSwitch(std::vector<Launcher::Game>& games, const std::string& roo
 // is copied there the first time it is chosen (GameActivity.threeDsAdd).
 inline void AddAndroid(const std::vector<std::string>& romDirs, const std::string& appDir, std::vector<Launcher::Game>& games)
 {
+    SkipNote().clear(); SkipRank() = 0;
     auto have = [&](const Title& t) {
         for (const Launcher::Game& o : games) if (o.platform == Launcher::N3DS && o.code == t.code) return true;
         return false;
@@ -328,8 +372,8 @@ inline void AddAndroid(const std::vector<std::string>& romDirs, const std::strin
         while (dirent* e = readdir(d))
         {
             const std::string path = dir + "/" + e->d_name;
-            if (!EndsWith(path, ".3ds") || !IsFile(path)) continue;
-            const Title* t = ById(DumpTitle(path));
+            if (!IsFile(path)) continue;
+            const Title* t = Check(path);
             if (!t || have(*t)) continue;
             games.push_back(Make(*t, path, appDir + "/3ds/" + t->id));
             fprintf(stderr, "[3ds] %s: %s\n", t->name, path.c_str());
@@ -380,7 +424,7 @@ inline bool Prepared(const Launcher::Game& g) { std::error_code ec; return std::
 inline void AddPc(const std::vector<std::string>& romDirs, const std::string& appDir, std::vector<Launcher::Game>& games)
 {
     ProgramHere() = HaveProgram(appDir);
-    if (!ProgramHere()) return;
+    SkipNote().clear(); SkipRank() = 0;
     for (const std::string& dir : romDirs)
     {
         std::error_code ec;
@@ -388,9 +432,15 @@ inline void AddPc(const std::vector<std::string>& romDirs, const std::string& ap
         {
             if (!it->is_regular_file(ec)) continue;
             const std::string path = it->path().u8string();
-            if (!EndsWith(path, ".3ds")) continue;
-            const Title* t = ById(DumpTitle(path));
+            const Title* t = Check(path);
             if (!t) continue;
+            if (!ProgramHere())
+            {
+#if defined(_WIN32) || defined(__x86_64__)
+                Skip(path, "THE 3DS FOLDER FROM THE FULLDEX DOWNLOAD IS MISSING BESIDE THE PROGRAM", 3);
+#endif
+                continue;
+            }
             bool dup = false;
             for (const Launcher::Game& o : games) dup |= o.platform == Launcher::N3DS && o.code == t->code;
             if (dup) continue;

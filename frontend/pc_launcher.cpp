@@ -979,6 +979,8 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
         note = "FOLDERS TIDIED: SAVES, STATES, CHEATS AND SETTINGS EACH HAVE ONE. SETTINGS TO UNDO.";
         SetConfigValues(fo.cfg, { { "folders_moved", "shown" } });
     }
+    // (A 3DS file with the ROMs that is not listed: why, #155.)
+    if (note.empty() && !N3ds::SkipNote().empty()) note = N3ds::SkipNote();
     if (getenv("SSR_TEST_FOLDERS_SWITCH")) note = SwitchFolders(fo, games); // (tests: the FOLDERS option chosen once)
     if (const char* own = getenv("SSR_TEST_OWN_FOLDER")) // (tests: "kind|folder", as if chosen in the picker)
     {
