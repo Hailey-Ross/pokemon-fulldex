@@ -944,6 +944,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
     // the chosen game is; a key, button or tap that chooses a game makes it follow again.
     bool follow = true;
     std::string note;
+    bool noteKeep = false; // (a menu action's message survives the pointer-up that follows it)
     if (Launcher::ConfigValue(fo.cfg, "folders_moved") == "1")
     {
         note = "FOLDERS TIDIED: SAVES, STATES, CHEATS AND SETTINGS EACH HAVE ONE. SETTINGS TO UNDO.";
@@ -1787,6 +1788,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 if (item == 7 && valid)
                 {
                     note = SteamShortcuts::PlatformEntryDo(fo.dir, games[selected]);
+                    noteKeep = true;
                     return;
                 }
 #endif
@@ -3103,7 +3105,8 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 {
                     selected = i;
                     onSettings = onTabs = false; Launcher::Focus() = Launcher::GlassFocus{};
-                    note.clear();
+                    if (!noteKeep) note.clear();
+                    noteKeep = false;
                     // Pointer selection leaves the list under the finger; controller movement
                     // follows its chosen card. A partial card must not jump at touch-down.
                     if (e.type == SDL_MOUSEBUTTONDOWN) follow = false;
