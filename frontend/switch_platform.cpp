@@ -848,7 +848,7 @@ int PickGame(const std::vector<Launcher::Game>& gamesIn, int selected, const std
                     }
                     else if (item == 2) { F.kbFor = 0; F.text = Launcher::ShortName(g); F.dialog = 3; F.drow = 0; kbLayer = 0; kbBuild(); }
                     else if (item == 3) { F.dialog = 4; F.drow = 0; }
-                    else if (item == 4 && g.platform == Launcher::N3DS) note = "3DS SAVES ARE KEPT IN THE GAME'S OWN FOLDER";
+                    else if (item == 4 && g.platform == Launcher::N3DS) { N3ds::SyncSave(g, SavePath(g)); Launcher::OpenSaves(g, SavePath(g)); }
                     else if (item == 4) Launcher::OpenSaves(g, SavePath(g)); // (Manage Saves: a page of its own, saves_page.h)
                     else if (item == 5) Launcher::OpenAddToTab(g.rom);
                     else if (item == 6) { F.dialog = 1; F.drow = 0; }
@@ -1368,6 +1368,14 @@ std::vector<Launcher::Game> FindGames(const std::string& dir, bool& ownFolder)
     Launcher::AdoptHackSaves(games, SavePathFor);
     // Omega Ruby and Alpha Sapphire: the FullDex Builder's folders in /switch (n3ds.h).
     N3ds::AddSwitch(games);
+    // (Their saves: a copy beside the game's folder kept the same as the game's own, n3ds.h.)
+    for (Launcher::Game& g : games)
+        if (g.platform == Launcher::N3DS)
+        {
+            g.saveName = N3ds::SaveName(g.code);
+            N3ds::SyncSave(g, SavePath(g));
+            g.hasSave = N3ds::IsFile(SavePath(g));
+        }
     Launcher::AddComingSoon(games);
     N3ds::DropPlaceholders(games);
     Launcher::Sort(games);
@@ -1421,6 +1429,7 @@ extern "C" void userAppExit(void)
 // (FULLDEX_RETURN), so that quitting the game from its menu brings the list back.
 static bool Start3ds(const Launcher::Game& g)
 {
+    N3ds::SyncSave(g, SavePath(g), true); // (a save brought in since the list was made, into the game; a backup)
     if (!envHasNextLoad())
     {
         fprintf(stderr, "[3ds] cannot start another program from here (no homebrew loader)\n");

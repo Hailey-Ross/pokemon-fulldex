@@ -669,6 +669,14 @@ std::vector<Launcher::Game> FindGames(const Folders& fo, std::map<std::string, s
     for (Launcher::Game& g : games)
         if (g.platform == Launcher::N3DS) g.built = JavaBoolStringArg("threeDsBuilt", N3ds::IdOf(g));
 #endif
+    // (Their saves: the copy in the saves folder and the game's own kept the same, n3ds.h.)
+    for (Launcher::Game& g : games)
+        if (g.platform == Launcher::N3DS)
+        {
+            g.saveName = N3ds::SaveName(g.code);
+            N3ds::SyncSave(g, fo.saves + "/" + g.saveName);
+            g.hasSave = N3ds::IsFile(fo.saves + "/" + g.saveName);
+        }
     Launcher::AddComingSoon(games);
     N3ds::DropPlaceholders(games);
     for (Launcher::Game& g : games)
@@ -1584,6 +1592,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 note = "ADDING " + name + " TO FULLDEX (ONE TIME, ABOUT 2 GB): IT STARTS WHEN READY";
                 return;
             }
+            N3ds::SyncSave(g, fo.saves + "/" + g.saveName, true); // (a save brought in since the list was made)
             JavaStringArg("threeDsPlay", N3ds::IdOf(g));
             note = "STARTING " + name;
             return;
@@ -1789,7 +1798,9 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 if (item == 3 && valid) { F.dialog = 4; F.drow = 0; return; }
                 if (item == 4 && valid && games[selected].platform == Launcher::N3DS)
                 {
-                    note = "3DS SAVES ARE KEPT IN THE GAME'S OWN FOLDER";
+                    // (Its save as the game last left it, then the page.)
+                    N3ds::SyncSave(games[selected], fo.saves + "/" + games[selected].saveName);
+                    Launcher::OpenSaves(games[selected], fo.saves + "/" + games[selected].saveName);
                     return;
                 }
                 if (item == 4 && valid)
@@ -3458,6 +3469,10 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                     // (Built, or code from a PC taken: the tile and menu say so.)
                     for (Launcher::Game& g : games)
                         if (g.platform == Launcher::N3DS && !busy3ds) g.built = JavaBoolStringArg("threeDsBuilt", N3ds::IdOf(g));
+                    // (Back from a game: its save copied to the saves folder.)
+                    if (!busy3ds)
+                        for (const Launcher::Game& g : games)
+                            if (g.platform == Launcher::N3DS) N3ds::SyncSave(g, fo.saves + "/" + g.saveName);
                     // (The first Play's copy done: the game starts.)
                     std::string& autoPlay = N3dsAutoPlay();
                     if (!autoPlay.empty() && !busy3ds)
@@ -4200,6 +4215,7 @@ bool Start(int& argc, char**& argv)
             }
             DiscordPresence::Playing(Launcher::TitleCase(games[chosen].name));
             const auto start = std::chrono::steady_clock::now();
+            N3ds::SyncSave(games[chosen], fo.saves + "/" + games[chosen].saveName, true); // (a save brought in since the list was made)
             N3ds::Play(fo.dir, games[chosen]);
             PlayTime::Add(fo.settings, (long long)std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start).count());
             DiscordPresence::InLauncher();

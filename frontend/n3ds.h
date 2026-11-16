@@ -104,6 +104,125 @@ inline Launcher::Game Make(const Title& t, const std::string& rom, const std::st
     return g;
 }
 
+// The save. The game keeps it in its own folder (data/user/savedata/<title id>/main, 472 KB); FullDex keeps
+// a copy with the other games' saves (omegaruby.sav, alphasapphire.sav), which Manage Saves, a saves folder
+// of the player's own and cloud saves use. SyncSave makes the two the same: whichever was written last
+// wins (a game played, or a save brought in by Import Save or cloud saves), the one it replaces backed up first.
+// (beforePlay: a backup of the save the game is about to start with, as the DS games make.)
+inline const size_t kSaveSize = 0x76000;
+inline std::string SaveName(const std::string& code) { return code == "ECLA" ? "alphasapphire.sav" : "omegaruby.sav"; }
+inline std::string GameSave(const Launcher::Game& g) { return g.folder + "/data/user/savedata/" + IdOf(g) + "/main"; }
+inline bool ReadSave(const std::string& p, std::vector<unsigned char>& d)
+{
+    std::error_code ec;
+    const std::filesystem::path f = std::filesystem::u8path(p);
+    if (!std::filesystem::is_regular_file(f, ec) || std::filesystem::file_size(f, ec) != kSaveSize || ec) return false;
+#ifdef _WIN32
+    FILE* h = _wfopen(f.wstring().c_str(), L"rb");
+#else
+    FILE* h = fopen(p.c_str(), "rb");
+#endif
+    if (!h) return false;
+    d.resize(kSaveSize);
+    const bool ok = fread(d.data(), 1, kSaveSize, h) == kSaveSize;
+    fclose(h);
+    return ok;
+}
+// A copy of a save in the backups folder beside the saves folder's copy (backups/omegaruby-20261116-112000.sav,
+// as the DS games' are, so Restore A Backup lists it), unless the newest is the same; the newest 10 kept.
+inline void Backup(const std::string& copy, const std::vector<unsigned char>& d)
+{
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    const fs::path dir = fs::u8path(copy).parent_path() / "backups";
+    const std::string stem = fs::u8path(copy).stem().u8string();
+    fs::create_directories(dir, ec);
+    std::vector<fs::path> old;
+    for (fs::directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec))
+    {
+        const std::string n = it->path().filename().u8string();
+        if (n.size() == stem.size() + 20 && n.compare(0, stem.size() + 1, stem + "-") == 0 && EndsWith(n, ".sav")) old.push_back(it->path());
+    }
+    std::sort(old.begin(), old.end());
+    std::vector<unsigned char> last;
+    if (!old.empty() && ReadSave(old.back().u8string(), last) && last == d) return;
+    const time_t now = time(nullptr);
+    char when[32];
+    strftime(when, sizeof when, "%Y%m%d-%H%M%S", localtime(&now));
+    const fs::path b = dir / fs::u8path(stem + "-" + when + ".sav");
+#ifdef _WIN32
+    FILE* h = _wfopen(b.wstring().c_str(), L"wb");
+#else
+    FILE* h = fopen(b.u8string().c_str(), "wb");
+#endif
+    if (!h) return;
+    const bool ok = fwrite(d.data(), 1, d.size(), h) == d.size();
+    fclose(h);
+    if (!ok) { fs::remove(b, ec); return; }
+    old.push_back(b);
+    while (old.size() > 10) { fs::remove(old.front(), ec); old.erase(old.begin()); }
+}
+// (from over to: written beside it first, then put in its place and given from's time.)
+inline bool CopySave(const std::string& from, const std::vector<unsigned char>& d, const std::string& to)
+{
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    const fs::path t = fs::u8path(to), tmp = fs::u8path(to + ".new");
+    fs::create_directories(t.parent_path(), ec);
+#ifdef _WIN32
+    FILE* h = _wfopen(tmp.wstring().c_str(), L"wb");
+#else
+    FILE* h = fopen((to + ".new").c_str(), "wb");
+#endif
+    if (!h) return false;
+    const bool ok = fwrite(d.data(), 1, d.size(), h) == d.size();
+    if (fclose(h) != 0 || !ok) { fs::remove(tmp, ec); return false; }
+    ec.clear();
+    fs::rename(tmp, t, ec);
+    if (ec) { fs::remove(tmp, ec); return false; }
+    const auto when = fs::last_write_time(fs::u8path(from), ec);
+    if (!ec) fs::last_write_time(t, when, ec);
+    return true;
+}
+inline void SyncSave(const Launcher::Game& g, const std::string& copy, bool beforePlay = false)
+{
+    namespace fs = std::filesystem;
+    if (g.platform != Launcher::N3DS || g.comingSoon || copy.empty() || IdOf(g).empty()) return;
+    const std::string game = GameSave(g);
+    std::vector<unsigned char> a, b;
+    const bool hasGame = ReadSave(game, a), hasCopy = ReadSave(copy, b);
+    if (beforePlay && hasGame && hasCopy && a == b) Backup(copy, a);
+    if ((!hasGame && !hasCopy) || (hasGame && hasCopy && a == b)) return;
+    std::error_code ec;
+    const auto tg = hasGame ? fs::last_write_time(fs::u8path(game), ec) : fs::file_time_type::min();
+    const auto tc = hasCopy ? fs::last_write_time(fs::u8path(copy), ec) : fs::file_time_type::min();
+    if (hasGame && (!hasCopy || tg >= tc))
+    {
+        if (hasCopy) Backup(copy, b);
+        const bool ok = CopySave(game, a, copy);
+        if (ok && beforePlay) Backup(copy, a);
+        fprintf(stderr, "[3ds] %s: save copied to %s%s\n", g.name.c_str(), copy.c_str(), ok ? "" : " (FAILED)");
+        return;
+    }
+    // (Into the game: its save folder made as the game would make it, the first time.)
+    const std::string fmt = g.folder + "/data/user/savedata/" + IdOf(g) + ".format";
+    if (!IsFile(fmt))
+    {
+        fs::create_directories(fs::u8path(g.folder + "/data/user/savedata/" + IdOf(g)), ec);
+        static const unsigned char kFormat[16] = { 0, 0, 4, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0 };
+#ifdef _WIN32
+        FILE* h = _wfopen(fs::u8path(fmt).wstring().c_str(), L"wb");
+#else
+        FILE* h = fopen(fmt.c_str(), "wb");
+#endif
+        if (h) { fwrite(kFormat, 1, sizeof kFormat, h); fclose(h); }
+    }
+    if (hasGame) Backup(copy, a);
+    const bool ok = CopySave(copy, b, game);
+    if (ok && beforePlay) Backup(copy, b);
+    fprintf(stderr, "[3ds] %s: save from %s put in the game%s\n", g.name.c_str(), copy.c_str(), ok ? "" : " (FAILED)");
+}
+
 // Whether this download has the 3DS games' program (AddPc found it).
 inline bool& ProgramHere() { static bool b = false; return b; }
 
