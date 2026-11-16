@@ -1716,10 +1716,15 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             }
             if (F.banner == 2)
             {
-                // (Game Options: the Continue Playing header's game. A on a game opens that
-                // selected game's menu instead; Game Options belongs to both.)
-                const int cg = Launcher::ContinueGame(games, selected);
-                if (cg >= 0) { selected = cg; F.banner = 0; F.popup = 0; follow = true; }
+                // (Game Options: the selected game's menu, however it was selected: a grid
+                // click/tap, the pointer on this header button, or the keyboard/gamepad.)
+                if (selected < 0 || selected >= (int)games.size()) selected = Launcher::FirstIn(view());
+                if (selected >= 0 && selected < (int)games.size())
+                {
+                    F.banner = 0;
+                    F.popup = 0;
+                    follow = true;
+                }
                 return;
             }
             bool direct = false; // (Continue, or Play in the game's menu: played at once)
