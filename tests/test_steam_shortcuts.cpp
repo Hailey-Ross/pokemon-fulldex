@@ -83,8 +83,8 @@ int main()
     // (Account 123 signed in last; account 456 has a newer shortcuts file but is not signed in.
     // The refresh must choose the signed-in account, not merely the newest file.)
     WriteText(steam / "config/loginusers.vdf",
-              "\"users\"\n{\n    \"76561197960265851\"\n    {\n        \"MostRecent\" \"1\"\n    }\n"
-              "    \"76561197960266184\"\n    {\n        \"MostRecent\" \"0\"\n    }\n}\n");
+              "\"users\"\n{\n    \"76561197960265851\"\n    {\n        \"AutoLogin\" \"1\"\n    }\n"
+              "    \"76561197960266184\"\n    {\n        \"AutoLogin\" \"0\"\n    }\n}\n");
     WriteText(steam / "userdata/456/config/shortcuts.vdf", "");
     const fs::path app = temp / "Fulldex.AppImage";
     WriteText(app, "fake appimage", true);

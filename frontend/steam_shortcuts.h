@@ -118,8 +118,9 @@ inline std::vector<Account> Accounts()
     return out;
 }
 
-// Steam's config/loginusers.vdf names the account signed in last ("MostRecent 1"). Its key is
-// the 64-bit SteamID; userdata folders use the account id (SteamID64 - the account base).
+// Steam's config/loginusers.vdf names the account signed in last ("MostRecent 1", or
+// "AutoLogin 1" on newer Steam). Its key is the 64-bit SteamID; userdata folders use the
+// account id (SteamID64 - the account base).
 inline bool MostRecentAccount(std::string& path, std::string& account)
 {
 #if defined(__linux__) && !defined(__ANDROID__)
@@ -142,7 +143,7 @@ inline bool MostRecentAccount(std::string& path, std::string& account)
             if (line.find('{', q2) != std::string::npos) { current = key; continue; }
             // (loginusers.vdf usually puts the account key and its "{" on separate lines.)
             if (line.find('"', q2 + 1) == std::string::npos) { current = key; continue; }
-            if (key != "MostRecent") continue;
+            if (key != "MostRecent" && key != "AutoLogin") continue;
             const size_t q3 = line.find('"', q2 + 1);
             const size_t q4 = q3 == std::string::npos ? std::string::npos : line.find('"', q3 + 1);
             if (q3 != std::string::npos && q4 != std::string::npos && line.substr(q3 + 1, q4 - q3 - 1) == "1")
