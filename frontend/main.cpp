@@ -7856,6 +7856,7 @@ int main(int argc, char** argv)
 #ifdef SSR_PHONE
     touchPadUsed = true;
 #endif
+    if (getenv("SSR_TEST_TOUCHPAD")) { touchPadUsed = true; touchPad.visible = true; } // (tests: the touch controls on a PC)
     // On a touch screen, the Pokedex's cover is pushed across as on the DS: a swipe to the left
     // from the right half of the closed cover opens it (A), and a swipe to the right from the left
     // half of the list closes it (B). (A quarter of the screen across, more across than down.)
