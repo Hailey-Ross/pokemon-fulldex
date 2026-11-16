@@ -1716,9 +1716,14 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             }
             if (F.banner == 2)
             {
-                // (Game Options: the menu of the game the banner offers.)
-                const int cg = Launcher::ContinueGame(games, selected);
-                if (cg >= 0) { selected = cg; F.banner = 0; F.popup = 0; follow = true; }
+                // (Game Options: the chosen game's menu, not the last played/Continue game.)
+                if (selected < 0 || selected >= (int)games.size()) selected = Launcher::FirstIn(view());
+                if (selected >= 0 && selected < (int)games.size())
+                {
+                    F.banner = 0;
+                    F.popup = 0;
+                    follow = true;
+                }
                 return;
             }
             bool direct = false; // (Continue, or Play in the game's menu: played at once)
