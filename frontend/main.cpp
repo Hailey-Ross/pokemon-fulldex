@@ -9574,6 +9574,7 @@ int main(int argc, char** argv)
                     memset(bag + (slots - 1) * 4, 0, 4);
                 }
                 *steps = (uint8_t)gives[kind];
+                if (uint8_t* type = companionProfile.repelType ? ram(base + companionProfile.repelType, 1) : nullptr) *type = (uint8_t)ids[kind];
                 say(std::string("USED A ") + names[kind] + ": " + std::to_string(gives[kind]) + " STEPS (" + std::to_string(left) + " LEFT)");
                 fdNav.open = false; swallowMenuButtons = true;
                 readCompanion(true);
