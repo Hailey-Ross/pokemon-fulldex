@@ -1278,6 +1278,8 @@ static void MoveSavesIn(const std::string& folder)
 // (name: another save of the game's folder, e.g. a hack's game's: Launcher::AdoptHackSaves.)
 static std::string SavePathFor(const Launcher::Game& g, const std::string& name)
 {
+    // (Omega Ruby / Alpha Sapphire: where their program keeps the copy, /switch/omega-nx/saves, n3ds.h.)
+    if (g.platform == Launcher::N3DS) { mkdir((g.folder + "/saves").c_str(), 0777); return g.folder + "/saves/" + name; }
     if (!FulldexFolder(g.folder)) return g.folder + "/" + name; // (another app's folder: beside the ROM, as it was)
     mkdir((g.folder + "/saves").c_str(), 0777);
     return g.folder + "/saves/" + name;

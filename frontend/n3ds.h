@@ -227,10 +227,22 @@ inline bool CopySave(const std::string& from, const std::vector<unsigned char>& 
     if (!ec) fs::last_write_time(t, when, ec);
     return true;
 }
+// The game's program keeps the same copy itself as it plays (omega-nx savefile.rs: written when the game saves,
+// taken in at its start when newer), in <FullDex>/saves unless OMEGA_NX_SAVE names the file: told the saves
+// folder FullDex uses, so the two keep one copy, a saves folder of the player's own included.
+inline void TellSave(const std::string& copy)
+{
+#ifdef _WIN32
+    _wputenv_s(L"OMEGA_NX_SAVE", std::filesystem::u8path(copy).wstring().c_str());
+#else
+    setenv("OMEGA_NX_SAVE", copy.c_str(), 1);
+#endif
+}
 inline void SyncSave(const Launcher::Game& g, const std::string& copy, bool beforePlay = false)
 {
     namespace fs = std::filesystem;
     if (g.platform != Launcher::N3DS || g.comingSoon || copy.empty() || IdOf(g).empty()) return;
+    if (beforePlay) TellSave(copy);
     const std::string game = GameSave(g);
     std::vector<unsigned char> a, b;
     const bool hasGame = ReadSave(game, a), hasCopy = ReadSave(copy, b);
