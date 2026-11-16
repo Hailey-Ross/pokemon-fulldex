@@ -37,5 +37,6 @@ __pycache__/
 .DS_Store
 # The Google sign-in client, mounted for builds; never commit it.
 fulldex-google-client.txt
-# GBA box art extracted from the official APK for local builds; it stays out of the repo.
+# The GBA games' box art (Nintendo's artwork): not distributed; gba/tools/embed_art.py
+# embeds it at build time if present.
 /gba/art/
