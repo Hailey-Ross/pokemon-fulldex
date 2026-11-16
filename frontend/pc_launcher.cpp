@@ -658,7 +658,7 @@ std::vector<Launcher::Game> FindGames(const Folders& fo, std::map<std::string, s
             fprintf(stderr, "[launcher] GBA games: %zu in %s\n", gbaSeen, fo.roms.c_str());
     }
 #endif
-#ifdef _WIN32
+#ifdef SSR_N3DS_PC
     // Omega Ruby and Alpha Sapphire: a dump (.3ds) with the ROMs, played by the 3ds folder's program.
     N3ds::AddPc(romDirs, fo.dir, games);
     for (Launcher::Game& g : games)
@@ -1551,7 +1551,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
     std::function<void()> savesRequestFn; // (savesRequest, below: what Manage Saves leaves to do)
     auto launchSelected = [&]() {
         if (games.empty() || selected < 0 || selected >= (int)games.size()) return;
-#ifdef _WIN32
+#ifdef SSR_N3DS_PC
         // Omega Ruby and Alpha Sapphire: their code is made once from the dump (n3ds.h), the list
         // staying open and saying how it goes; then they play.
         if (games[selected].platform == Launcher::N3DS && !games[selected].comingSoon)
@@ -3431,7 +3431,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 if (np.artVersion != artSeen) { artSeen = np.artVersion; MB.art = np.art; MB.artW = np.artW; MB.artH = np.artH; }
                 if (MB.action >= 0) { if (!fake) NowPlaying::Command(MB.action); MB.action = -1; }
             }
-#ifdef _WIN32
+#ifdef SSR_N3DS_PC
             if (N3ds::Busy())
             {
                 const std::string prep = N3ds::Status(); if (!prep.empty()) note = prep;
@@ -3654,7 +3654,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             if (ls.state == HubLink::State::Linked && ls.mine.any && ls.theirs.any && ls.theyCanTake && !ls.iAccepted && !autoAccepted) { HubLink::Accept(true); autoAccepted = true; }
         }
         const char* shotWait = getenv("SSR_LIST_SHOT_WAIT");
-#ifdef _WIN32
+#ifdef SSR_N3DS_PC
         const bool preparing = N3ds::P().running;
 #else
         const bool preparing = false;
@@ -4182,7 +4182,7 @@ bool Start(int& argc, char**& argv)
             const std::string error = PrepareLaunch(games[chosen]);
             if (!error.empty()) { fprintf(stderr, "[launcher] %s\n", error.c_str()); directGame = -1; continue; }
         }
-#ifdef _WIN32
+#ifdef SSR_N3DS_PC
         // Omega Ruby or Alpha Sapphire: its own program plays it (n3ds.h), then the list again.
         if (games[chosen].platform == Launcher::N3DS)
         {

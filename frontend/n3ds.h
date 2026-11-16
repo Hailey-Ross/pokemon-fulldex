@@ -8,6 +8,8 @@
 //   Windows: the program is in the download's 3ds\program folder. A dump (.3ds) found with the ROMs
 //     gets a folder of its own, 3ds\<title id>, a copy of the program, where the game's code is built
 //     once from the dump ("Pokemon ORAS.exe" --prepare, 5 to 15 minutes) and the game then plays.
+//   Linux (x86_64): the same, with the Linux program (pokemon-oras, title.so) in 3ds/program beside
+//     FullDex's own program (inside the AppImage too); each game's folder in FullDex's data folder.
 #pragma once
 #include <algorithm>
 #include <atomic>
@@ -29,7 +31,15 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
+#if defined(__linux__) && !defined(__ANDROID__) && !defined(__SWITCH__)
+#include <sys/wait.h>
+#include <unistd.h>
+#include <climits>
+#endif
 #include "launcher.h"
+#if defined(_WIN32) || (defined(__linux__) && !defined(__ANDROID__) && !defined(__SWITCH__))
+#define SSR_N3DS_PC 1 // (the 3DS games' own program beside FullDex: Windows and Linux)
+#endif
 
 namespace N3ds
 {
@@ -94,6 +104,9 @@ inline Launcher::Game Make(const Title& t, const std::string& rom, const std::st
     return g;
 }
 
+// Whether this download has the 3DS games' program (AddPc found it).
+inline bool& ProgramHere() { static bool b = false; return b; }
+
 // A real game takes the place of its COMING SOON tile; and once their day has come, the tiles of
 // games this program cannot play here go (a platform without the 3DS programs).
 inline void DropPlaceholders(std::vector<Launcher::Game>& games)
@@ -105,13 +118,20 @@ inline void DropPlaceholders(std::vector<Launcher::Game>& games)
         {
             bool real = false;
             for (const Launcher::Game& o : games) real |= !o.comingSoon && o.platform == Launcher::N3DS && o.code == g.code;
-#if defined(__APPLE__) || (defined(__linux__) && !defined(__ANDROID__))
-            // (Mac, iPhone, iPad and Linux (Steam Deck): still coming, so the tiles stay, saying Coming Soon with no countdown.)
-            if (real) continue;
-            g.soonAt = 0;
-#else
-            if (real || (g.soonAt > 0 && g.soonAt <= (long long)std::time(nullptr))) continue;
+            // (Mac, iPhone, iPad, and Linux without the program (ARM): still coming, so the tiles stay,
+            // saying Coming Soon with no countdown.)
+            bool stays = false;
+#if defined(__APPLE__)
+            stays = true;
+#elif defined(__linux__) && !defined(__ANDROID__)
+            stays = !ProgramHere();
 #endif
+            if (stays)
+            {
+                if (real) continue;
+                g.soonAt = 0;
+            }
+            else if (real || (g.soonAt > 0 && g.soonAt <= (long long)std::time(nullptr))) continue;
         }
         keep.push_back(std::move(g));
     }
@@ -213,17 +233,35 @@ inline bool RoomFor(const Launcher::Game& g, const std::string& appDir, double& 
 }
 #endif
 
+#ifdef SSR_N3DS_PC
 #ifdef _WIN32
 inline std::wstring W(const std::string& s) { return std::filesystem::u8path(s).wstring(); }
 inline std::string ProgramDir(const std::string& appDir) { return appDir + "/3ds/program"; }
 inline std::string Exe(const std::string& folder) { return folder + "/Pokemon ORAS.exe"; }
+inline const char* kTitleLib = "title.dll";
+#else
+inline std::filesystem::path W(const std::string& s) { return std::filesystem::path(s); }
+// (Linux: the program comes with FullDex's own, beside it, which in the AppImage cannot be written to;
+// the games' folders are in FullDex's data folder.)
+inline std::string ProgramDir(const std::string&)
+{
+    char b[PATH_MAX];
+    const ssize_t n = readlink("/proc/self/exe", b, sizeof b - 1);
+    if (n <= 0) return "3ds/program";
+    b[n] = 0;
+    return std::filesystem::path(b).parent_path().string() + "/3ds/program";
+}
+inline std::string Exe(const std::string& folder) { return folder + "/pokemon-oras"; }
+inline const char* kTitleLib = "title.so";
+#endif
 inline bool HaveProgram(const std::string& appDir) { std::error_code ec; return std::filesystem::is_regular_file(W(Exe(ProgramDir(appDir))), ec); }
-inline bool Prepared(const Launcher::Game& g) { std::error_code ec; return std::filesystem::is_regular_file(W(g.folder + "/title.dll"), ec); }
+inline bool Prepared(const Launcher::Game& g) { std::error_code ec; return std::filesystem::is_regular_file(W(g.folder + "/" + kTitleLib), ec); }
 
-// Windows: the dumps (.3ds) in the ROM folders, each its folder 3ds\<title id> beside FullDex.
+// Windows and Linux: the dumps (.3ds) in the ROM folders, each its folder 3ds/<title id> in FullDex's folder.
 inline void AddPc(const std::vector<std::string>& romDirs, const std::string& appDir, std::vector<Launcher::Game>& games)
 {
-    if (!HaveProgram(appDir)) return;
+    ProgramHere() = HaveProgram(appDir);
+    if (!ProgramHere()) return;
     for (const std::string& dir : romDirs)
     {
         std::error_code ec;
@@ -259,11 +297,22 @@ inline bool MakeFolder(const std::string& appDir, const Launcher::Game& g)
             const fs::path dest = to / fs::relative(it->path(), from, ec);
             if (ec) break;
             if (it->is_directory(ec)) fs::create_directories(dest, ec);
-            else if (!fs::exists(dest, ec)) fs::copy_file(it->path(), dest, ec);
+            else if (!fs::exists(dest, ec))
+            {
+                fs::copy_file(it->path(), dest, ec);
+#ifndef _WIN32
+                // (Linux: the program and its compiler keep their right to run.)
+                if (!ec) fs::permissions(dest, fs::status(it->path(), ec).permissions(), ec);
+#endif
+            }
         }
         if (ec) { fprintf(stderr, "[3ds] copying the program to %s: %s\n", g.folder.c_str(), ec.message().c_str()); return false; }
     }
+#ifdef _WIN32
     FILE* f = _wfopen(W(g.folder + "/rom.txt").c_str(), L"wb");
+#else
+    FILE* f = fopen((g.folder + "/rom.txt").c_str(), "wb");
+#endif
     if (!f) { fprintf(stderr, "[3ds] cannot write %s/rom.txt\n", g.folder.c_str()); return false; }
     fprintf(f, "%s\n", g.rom.c_str());
     fclose(f);
@@ -305,7 +354,63 @@ inline void StartPrepare(const std::string& appDir, const Launcher::Game& g)
             p.failed = true;
             p.error = why;
         };
+        auto take = [&](const std::string& l) {
+            fprintf(stderr, "[3ds] prepare: %s\n", l.c_str());
+            std::lock_guard<std::mutex> lk(p.m);
+            int a = 0, b = 0;
+            if (l.rfind("progress ", 0) == 0 && sscanf(l.c_str() + 9, "%d %d", &a, &b) == 2) { p.done = a; p.total = b; }
+            else if (l.rfind("step ", 0) == 0)
+            {
+                const std::string s = l.substr(5);
+                p.step = s == "unpack-compiler" ? "UNPACKING THE COMPILER" : s == "translate" ? "TRANSLATING THE GAME'S CODE"
+                       : s == "compile" ? "BUILDING THE GAME'S CODE" : s == "shaders" ? "FINDING THE SHADERS"
+                       : s == "compile-shaders" ? "PREPARING THE SHADERS" : s == "finish" ? "FINISHING" : "WORKING";
+            }
+            else if (l.rfind("error ", 0) == 0) { p.failed = true; p.error = l.substr(6); }
+        };
         if (!MakeFolder(appDir, g)) fail("COULDN'T MAKE ITS FOLDER");
+#ifndef _WIN32
+        else
+        {
+            // (Linux: its output read line by line, as on Windows.)
+            int fd[2];
+            if (pipe(fd) != 0) fail("COULDN'T START IT");
+            else
+            {
+                const std::string exe = Exe(g.folder), rom = g.rom, dir = g.folder;
+                const pid_t pid = fork();
+                if (pid == 0)
+                {
+                    dup2(fd[1], 1);
+                    dup2(fd[1], 2);
+                    close(fd[0]);
+                    close(fd[1]);
+                    if (chdir(dir.c_str()) != 0) _exit(127);
+                    execl(exe.c_str(), exe.c_str(), "--prepare", rom.c_str(), (char*)nullptr);
+                    _exit(127);
+                }
+                close(fd[1]);
+                if (pid < 0) { close(fd[0]); fail("COULDN'T START IT"); }
+                else
+                {
+                    std::string line;
+                    char buf[512];
+                    ssize_t got;
+                    while ((got = read(fd[0], buf, sizeof buf)) > 0)
+                        for (ssize_t i = 0; i < got; i++)
+                        {
+                            if (buf[i] == '\n') { if (!line.empty() && line.back() == '\r') line.pop_back(); take(line); line.clear(); }
+                            else line += buf[i];
+                        }
+                    if (!line.empty()) take(line);
+                    close(fd[0]);
+                    int st = 0;
+                    waitpid(pid, &st, 0);
+                    if (!(WIFEXITED(st) && WEXITSTATUS(st) == 0) && !p.failed) fail("IT STOPPED (SEE data/prepare.log IN ITS FOLDER)");
+                }
+            }
+        }
+#else
         else
         {
             SECURITY_ATTRIBUTES sa { sizeof sa, nullptr, TRUE };
@@ -328,20 +433,6 @@ inline void StartPrepare(const std::string& appDir, const Launcher::Game& g)
                 std::string line;
                 char buf[512];
                 DWORD got = 0;
-                auto take = [&](const std::string& l) {
-                    fprintf(stderr, "[3ds] prepare: %s\n", l.c_str());
-                    std::lock_guard<std::mutex> lk(p.m);
-                    int a = 0, b = 0;
-                    if (l.rfind("progress ", 0) == 0 && sscanf(l.c_str() + 9, "%d %d", &a, &b) == 2) { p.done = a; p.total = b; }
-                    else if (l.rfind("step ", 0) == 0)
-                    {
-                        const std::string s = l.substr(5);
-                        p.step = s == "unpack-compiler" ? "UNPACKING THE COMPILER" : s == "translate" ? "TRANSLATING THE GAME'S CODE"
-                               : s == "compile" ? "BUILDING THE GAME'S CODE" : s == "shaders" ? "FINDING THE SHADERS"
-                               : s == "compile-shaders" ? "PREPARING THE SHADERS" : s == "finish" ? "FINISHING" : "WORKING";
-                    }
-                    else if (l.rfind("error ", 0) == 0) { p.failed = true; p.error = l.substr(6); }
-                };
                 while (ReadFile(rd, buf, sizeof buf, &got, nullptr) && got > 0)
                     for (DWORD i = 0; i < got; i++)
                     {
@@ -358,6 +449,7 @@ inline void StartPrepare(const std::string& appDir, const Launcher::Game& g)
             }
             CloseHandle(rd);
         }
+#endif
         {
             std::lock_guard<std::mutex> l(p.m);
             p.finished = true;
@@ -390,6 +482,25 @@ inline bool Busy() { Prep& p = P(); std::lock_guard<std::mutex> l(p.m); return !
 inline int Play(const std::string& appDir, const Launcher::Game& g)
 {
     if (!MakeFolder(appDir, g)) return -1; // (rom.txt says where the dump is now)
+#ifndef _WIN32
+    for (;;)
+    {
+        const std::string exe = Exe(g.folder), dir = g.folder;
+        const pid_t pid = fork();
+        if (pid == 0)
+        {
+            if (chdir(dir.c_str()) != 0) _exit(127);
+            execl(exe.c_str(), exe.c_str(), (char*)nullptr);
+            _exit(127);
+        }
+        if (pid < 0) return -1;
+        int st = 0;
+        waitpid(pid, &st, 0);
+        const int code = WIFEXITED(st) ? WEXITSTATUS(st) : -1;
+        fprintf(stderr, "[3ds] %s ended (%d)\n", g.name.c_str(), code);
+        if (code != 3) return code;
+    }
+#else
     for (;;)
     {
         STARTUPINFOW si {};
@@ -405,6 +516,7 @@ inline int Play(const std::string& appDir, const Launcher::Game& g)
         fprintf(stderr, "[3ds] %s ended (%lu)\n", g.name.c_str(), (unsigned long)code);
         if (code != 3) return (int)code;
     }
+#endif
 }
 #endif
 }
