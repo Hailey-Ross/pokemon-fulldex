@@ -50,20 +50,23 @@ class H(BaseHTTPRequestHandler):
             query = q["q"][0]
             m = re.fullmatch(r"name = '([^']+)' and mimeType = '%s' and trashed = false" % re.escape(FOLDER_MIME), query)
             if m:
-                found = [{"id": i} for i, f in files.items() if f["name"] == m.group(1) and f.get("mimeType") == FOLDER_MIME]
+                found = [{"id": i} for i, f in files.items()
+                         if f["name"] == m.group(1) and f.get("mimeType") == FOLDER_MIME and not f.get("trashed")]
                 return self.reply(200, {"files": found})
             m = re.fullmatch(r"name = '([^']+)' and '([^']+)' in parents and trashed = false", query)
             assert m, query
             name, parent = m.groups()
             found = [{"id": i, "appProperties": f["appProperties"]} for i, f in files.items()
-                     if f["name"] == name and parent in f["parents"]]
+                     if f["name"] == name and parent in f["parents"] and not f.get("trashed")]
             for f in found:
                 if not f["appProperties"]:
                     del f["appProperties"]
             return self.reply(200, {"files": found})
         if u.path.startswith("/drive/v3/files/") and q.get("alt") == ["media"]:
             f = files.get(u.path.rsplit("/", 1)[1])
-            return self.reply(200, f["data"], "application/octet-stream") if f else self.reply(404, {"error": {"message": "File not found"}})
+            if not f or f.get("trashed"):
+                return self.reply(404, {"error": {"message": "File not found"}})
+            return self.reply(200, f["data"], "application/octet-stream")
         self.reply(404, {"error": {"message": "no such call " + self.path}})
 
     def multipart(self):
@@ -128,8 +131,22 @@ class H(BaseHTTPRequestHandler):
 
     def do_PATCH(self):
         u = urllib.parse.urlparse(self.path)
-        if not u.path.startswith("/upload/drive/v3/files/") or not self.authed():
-            return self.reply(404, {}) if not u.path.startswith("/upload/") else None
+        # To the bin (Drive's way of removing a save): the save and its description leave the list.
+        if u.path.startswith("/drive/v3/files/"):
+            if not self.authed():
+                return
+            fid = u.path.rsplit("/", 1)[1]
+            f = files.get(fid)
+            body = json.loads(self.body() or b"{}")
+            if not f:
+                return self.reply(404, {"error": {"message": "File not found"}})
+            assert body == {"trashed": True}, body
+            f["trashed"] = True
+            return self.reply(200, {"id": fid})
+        if not u.path.startswith("/upload/drive/v3/files/"):
+            return self.reply(404, {})
+        if not self.authed():
+            return
         f = files.get(u.path.rsplit("/", 1)[1])
         if not f:
             self.body()

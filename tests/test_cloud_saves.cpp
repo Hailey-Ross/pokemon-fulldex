@@ -259,6 +259,11 @@ int main()
         // Signed out from the Google account's settings: asks to sign in again.
         CHECK(!GoogleDriveBackend(TestClient(), "revoked")->Stat("black2.sav", exists, m, error));
         CHECK(error.find("SIGN IN AGAIN") != std::string::npos);
+        // Removing a save puts it in the Drive's bin, out of later searches; one not there is gone.
+        CHECK(drive->Remove("black2.sav", error));
+        exists = true;
+        CHECK(drive->Stat("black2.sav", exists, m, error) && !exists);
+        CHECK(drive->Remove("never-there.sav", error));
     }
 #endif
 
