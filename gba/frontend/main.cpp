@@ -6270,7 +6270,7 @@ std::vector<ListGame> Find(const std::string& roms, const std::string& saves)
         // (and its name, rather than the file's: RadicalRed.gba reads RADICALRED.)
         static const struct { const char* patch; const char* name; } kHackNames[] = {
             { "radicalred", "Radical Red" }, { "unbound", "Unbound" }, { "emeraldlegacy", "Emerald Legacy" },
-            { "inclement", "Inclement Emerald" }, { "monomyth", "Monomyth" }, { "emeraldrogue", "Emerald Rogue" },
+            { "inclement", "Inclement Emerald" }, { "monomyth", "Monomyth" }, { "gen3evolved", "Gen 3 Evolved" }, { "emeraldrogue", "Emerald Rogue" },
         };
         for (const auto& n : kHackNames)
             if (g.patch == n.patch) l.name = n.name;
