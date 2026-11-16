@@ -7088,7 +7088,8 @@ inline void DrawMusicSquare(Canvas& c, int x, int y, int sz, float u)
     Glass::DrawIcon(c, Glass::I_NEXT, cx + gap, cy, 6.5f * u, m.canNext ? ink : inkOff);
 }
 inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, int tab, int selected, int& scroll,
-                      const std::string& note, const std::string& hintText, bool follow, bool onTabs, bool settingsChosen)
+                      const std::string& note, const std::string& hintText, bool follow, bool onTabs, bool settingsChosen,
+                      int menuGame = -1)
 {
     // (The launcher's own font and Text Size while it draws; CleanFont's own after.)
     LookLoad();
@@ -7115,6 +7116,7 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
                     + (bg ? bg->rom + "#" + sig(*bg) : std::string()) + "/"
                     + std::to_string(onTabs) + std::to_string(settingsChosen) + "/" + std::to_string(cont) + "/" + ContinueRom()
                     + "/t" + Focus().pageTitle + "/h" + HubSig() + (Focus().page == SIDE_HUB ? std::to_string(Mover().open) + std::to_string(HubMode()) + "," + std::to_string(Focus().pact) + "," + std::to_string(Focus().rScroll) : std::string()) + "/p" + std::to_string(Focus().page) + "," + std::to_string(Focus().page >= 0 ? Focus().prow : 0) + std::to_string(Focus().page >= 0 && Focus().side < 0) + "/s" + std::to_string(Focus().onSort) + SortKey() + "/q" + SearchText() + "/t" + TabsSig()
+                    + "/b" + std::to_string(Focus().banner) + "/q" + std::to_string(Focus().popup) + "/m" + std::to_string(menuGame)
                     + (Focus().page == SIDE_ROMS ? "/r" + std::to_string(Focus().pact) + "," + std::to_string(RomList().size()) + ","
                        + std::to_string(std::count_if(RomList().begin(), RomList().end(), [](const Game& g) { return g.hidden; })) : std::string());
     if (Focus().page >= 0) key += "/scroll" + std::to_string(Focus().dScroll) + "," + std::to_string(Focus().rScroll) + "," + std::to_string(Focus().nScroll);
@@ -7630,20 +7632,33 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
 
     // The game's menu (A on a game), beside its card: a glass panel of rows as the sidebar's.
     Focus().popW = 0;
-    if (Focus().popup >= 0 && selected >= 0 && selected < (int)games.size())
+    const int mg = menuGame >= 0 && menuGame < (int)games.size() ? menuGame : selected;
+    if (Focus().popup >= 0 && mg >= 0 && mg < (int)games.size())
     {
-        const int k = v.SpotOf(selected);
+        const int k = v.SpotOf(mg);
         if (k >= 0)
         {
             static const int icons[] = { Glass::I_PLAY, Glass::I_POKEBALL, Glass::I_SPARKLE, Glass::I_WINDOW, Glass::I_SAVE, Glass::I_LAYERS, Glass::I_BACK, Glass::I_GLOBE };
-            const Game& g = games[selected];
-            const int cx = grid.horiz ? v.spots[k].x - scroll : v.spots[k].x, cyy = grid.horiz ? grid.top + v.spots[k].y : grid.top + v.spots[k].y - scroll;
+            const Game& g = games[mg];
             const int n = PopupCount(), rowH = (int)(44 * u), rg = (int)(4 * u), pad = (int)(8 * u), pw = (int)(250 * u);
             const int ph = n * rowH + (n - 1) * rg + 2 * pad;
-            int px = cx + grid.cw + (int)(12 * u);
-            if (px + pw > c.w - (int)(28 * u)) px = cx - (int)(12 * u) - pw;
+            int px, py;
+            if (Focus().banner == 2 && !PhoneLook())
+            {
+                // (The Game Options button opened it: the menu sits under that button, not the card.)
+                const int ox = sp.contX + sp.contW + (int)(10 * u);
+                px = ox;
+                py = sp.contY + sp.contH + (int)(12 * u);
+            }
+            else
+            {
+                const int cx = grid.horiz ? v.spots[k].x - scroll : v.spots[k].x, cyy = grid.horiz ? grid.top + v.spots[k].y : grid.top + v.spots[k].y - scroll;
+                px = cx + grid.cw + (int)(12 * u);
+                if (px + pw > c.w - (int)(28 * u)) px = cx - (int)(12 * u) - pw;
+                py = cyy;
+            }
             px = std::max((int)(12 * u), std::min(px, c.w - (int)(12 * u) - pw)); // (upright: no room beside the card, so over it, never off the screen)
-            const int py = std::max((int)(28 * u), std::min(cyy, c.h - (int)(82 * u) - ph));
+            py = std::max((int)(28 * u), std::min(py, c.h - (int)(82 * u) - ph));
             Focus().popX = px + pad; Focus().popY = py + pad; Focus().popW = pw - 2 * pad; Focus().popRow = rowH + rg;
             // (The rest of the screen dimmed, and the blurred background put back under the menu so
             // its glass frosts that, not the cards behind it.)
@@ -7977,12 +7992,12 @@ inline void DrawClassic(Canvas& c, const std::vector<Game>& games, int tab, int 
 // the sidebar's Settings chosen with the arrows (the classic list draws its own SETTINGS button).
 inline void Draw(Canvas& c, const std::vector<Game>& games, int tab, int selected, int& scroll, const std::string& note,
                  const std::string& hintText = std::string(), const Theme& th = Theme(), bool follow = true, bool onTabs = false,
-                 bool settingsChosen = false)
+                 bool settingsChosen = false, int menuGame = -1)
 {
     if (Glassy(c))
     {
         const View v = MakeView(c, games, tab);
-        DrawGlass(c, games, v, tab, selected, scroll, note, hintText, follow, onTabs, settingsChosen);
+        DrawGlass(c, games, v, tab, selected, scroll, note, hintText, follow, onTabs, settingsChosen, menuGame);
         return;
     }
     DrawClassic(c, games, tab, selected, scroll, note, hintText, th, follow, onTabs);
