@@ -1730,12 +1730,12 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             }
             if (F.banner == 2)
             {
-                // (Game Options: the selected game's menu, however it was selected: a grid
-                // click/tap, the pointer on this header button, or the keyboard/gamepad.)
+                // (Game Options: the selected game's menu, keeping the Game Options focus. The
+                // pointer, the grid selection, and the keyboard/gamepad all land here.)
                 if (selected < 0 || selected >= (int)games.size()) selected = Launcher::FirstIn(view());
                 if (selected >= 0 && selected < (int)games.size())
                 {
-                    F.banner = 0;
+                    F.banner = 2;
                     F.popup = 0;
                     follow = true;
                 }
@@ -3495,7 +3495,10 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 }
             }
 #endif
-            Launcher::Draw(canvas, games, tab, !Launcher::TilesOn() && (onSettings || onTabs || Launcher::Focus().side >= 0 || Launcher::Focus().banner) ? -1 : selected, scroll, note, (Launcher::Focus().popup >= 0 || Launcher::Focus().dialog || Launcher::Focus().page >= 0) ? (padIn ? btn(Controls::A) + ": CHOOSE    " + btn(Controls::B) + ": BACK" : std::string("ENTER: CHOOSE    ESC: BACK")) : hint, theme, follow, onTabs, onSettings);
+            const bool bannerOnly = !Launcher::TilesOn() && (onSettings || onTabs || Launcher::Focus().side >= 0 || Launcher::Focus().banner);
+            const int gridSelected = bannerOnly ? -1 : selected;
+            const int menuGame = Launcher::Focus().popup >= 0 ? selected : -1;
+            Launcher::Draw(canvas, games, tab, gridSelected, scroll, note, (Launcher::Focus().popup >= 0 || Launcher::Focus().dialog || Launcher::Focus().page >= 0) ? (padIn ? btn(Controls::A) + ": CHOOSE    " + btn(Controls::B) + ": BACK" : std::string("ENTER: CHOOSE    ESC: BACK")) : hint, theme, follow, onTabs, onSettings, menuGame);
         }
 #ifdef SSR_UPDATER
         if (updateMenu.open)
