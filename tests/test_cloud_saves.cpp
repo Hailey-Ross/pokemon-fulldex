@@ -8,6 +8,10 @@
 #include <filesystem>
 #include <string>
 #include <vector>
+#ifndef _WIN32
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
 
 namespace fs = std::filesystem;
 using namespace CloudSaves;
@@ -194,6 +198,25 @@ int main()
     }
     fs::create_directories(g_folder);
     Scenario("folder", MakeFolder, root + "-folder");
+
+#ifndef _WIN32
+    // (A save that is there but cannot be read is not an empty one: the cloud's is never written
+    // over it.)
+    if (geteuid() != 0)
+    {
+        const std::string dir = root + "-unreadable";
+        fs::remove_all(dir);
+        fs::create_directories(dir);
+        const std::string p = dir + "/black2.sav";
+        Write(p, Save('R'));
+        chmod(p.c_str(), 0);
+        Sync unreadable(FolderBackend(g_folder), dir + "/cloud-state.txt", "Windows PC");
+        CHECK(unreadable.BeforePlay(p).outcome == Outcome::Failed);
+        chmod(p.c_str(), 0644);
+        CHECK(Read(p) == Save('R'));
+        fs::remove_all(dir);
+    }
+#endif
 
     if (const char* dav = getenv("FULLDEX_TEST_WEBDAV"))
     {
