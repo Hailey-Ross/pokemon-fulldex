@@ -11,7 +11,7 @@ int main(int, char**)
     const std::string path = (std::filesystem::temp_directory_path() / ("fulldex-touch-test-" + std::to_string(SDL_GetPerformanceCounter()) + ".cfg")).string();
     TouchLayout::Profile profile;
     auto defaults = TouchPad::Defaults(1280, 720);
-    assert(defaults.size() == 11);
+    assert(defaults.size() == 12); // (NAV, beside L, made it 12)
     auto first = profile.Apply(defaults, 1280, 720);
     auto a = first[1];
     profile.Move(a, 1280, 720, 600, 300);
@@ -54,19 +54,20 @@ int main(int, char**)
         SDL_Event e{}; e.type = SDL_FINGERDOWN; e.tfinger.fingerId = 123; e.tfinger.x = x; e.tfinger.y = y; SDL_PushEvent(&e);
         e.type = SDL_FINGERUP; SDL_PushEvent(&e);
     };
+    // (the bar: PREV NEXT - + HIDE VISIBILITY RESET CANCEL SAVE, nine buttons)
     // Resize the selected D-pad, save, then check the persisted result.
-    std::thread save([&] { SDL_Delay(80); tap(3.5f / 7, .97f); SDL_Delay(40); tap(6.5f / 7, .97f); });
+    std::thread save([&] { SDL_Delay(80); tap(3.5f / 9, .97f); SDL_Delay(40); tap(8.5f / 9, .97f); });
     TouchLayout::Profile edited;
     assert(TouchLayout::Edit<Canvas>(renderer, edited, path, TouchPad::Defaults)); save.join();
     assert(std::fabs(edited.orientations[0].at("DPAD").size - 1.1f) < .01f);
     // RESET followed by CANCEL must keep both memory and the saved layout.
-    std::thread cancel([&] { SDL_Delay(80); tap(4.5f / 7, .97f); SDL_Delay(40); tap(5.5f / 7, .97f); });
+    std::thread cancel([&] { SDL_Delay(80); tap(6.5f / 9, .97f); SDL_Delay(40); tap(7.5f / 9, .97f); });
     assert(!TouchLayout::Edit<Canvas>(renderer, edited, path, TouchPad::Defaults)); cancel.join();
     assert(std::fabs(edited.orientations[0].at("DPAD").size - 1.1f) < .01f);
     TouchLayout::Profile persisted; persisted.Load(path);
     assert(std::fabs(persisted.orientations[0].at("DPAD").size - 1.1f) < .01f);
     // SAVE after RESET removes the customisation and still creates a readable profile.
-    std::thread reset([&] { SDL_Delay(80); tap(4.5f / 7, .97f); SDL_Delay(40); tap(6.5f / 7, .97f); });
+    std::thread reset([&] { SDL_Delay(80); tap(6.5f / 9, .97f); SDL_Delay(40); tap(8.5f / 9, .97f); });
     assert(TouchLayout::Edit<Canvas>(renderer, edited, path, TouchPad::Defaults)); reset.join();
     assert(edited.orientations[0].empty());
     SDL_DestroyRenderer(renderer); SDL_DestroyWindow(window); SDL_Quit(); std::remove(path.c_str());

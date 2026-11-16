@@ -19,7 +19,7 @@ int main(int argc, char** argv)
     old.Put(key, "clean");
     assert(RomHacks::CheckDs(path, "IRBO", old, true) == RomHacks::Kind::Modified);
     std::string value;
-    assert(old.Get(RomHacks::Cache::Key(path, "ds-v3"), value) && value == "modified");
+    assert(old.Get(RomHacks::Cache::Key(path, "ds-v4"), value) && value == "modified");
     assert(RomHacks::CheckDs(path + ".missing", "IRBO", old, true) == RomHacks::Kind::Unknown);
     const std::string saves = path.substr(0, path.find_last_of("/\\"));
     Launcher::BeginScan(saves);
