@@ -2,8 +2,9 @@
 
 The Guide is the pause menu's COMPANION tab: hints for the moments you'd otherwise
 open a walkthrough. It is written to spoil as little as possible: an entry starts as a
-title and a hint, and the answer waits behind **REVEAL ANSWER** (A or a tap). The list
-keeps which answers you have shown for the session.
+title and a hint, and A or a tap shows its answer in the preview beside the list (and
+hides it again). The list keeps which answers you have shown for the session. NEXT BOSS
+and HERE work the same way.
 
 Pokémon Black (IRBO) is the first game with the full set of sections; the other DS
 games keep their hand-written entries under one QUESTIONS heading.
@@ -12,15 +13,15 @@ games keep their hand-written entries under one QUESTIONS heading.
 
 - **NEXT BOSS** — the gym the save's badges point at next, or the Elite Four after the
   eighth badge. The hint gives the place, the highest level on their team and the level
-  of your strongest Pokémon; the answer (behind REVEAL) gives the badge and TM, then the
-  team: `Lv 18 HERDIER (NORMAL) ...`. The Striaton leader is the one whose type beats
+  of your strongest Pokémon; A or a tap on the row shows the answer in the preview: the
+  badge and TM, then the team `Lv 18 HERDIER (NORMAL) ...`. The Striaton leader is the one whose type beats
   your starter (Snivy → Chili, Tepig → Cress, Oshawott → Cilan); with no starter
   recognised, all three teams are shown. At eight badges the four Elite Four rooms are
   summarised by their aces; their full teams, and N's and Ghetsis's, are in GYMS.
 - **HERE** — the place you are in now, with the wild Pokémon the game's own encounter
-  tables list for it (grass, dark grass, shaking grass, water, fishing), capped to what
-  the preview fits with a pointer to LOCATION for the rest. A town says it has none and
-  points at the routes around it.
+  tables list for it, grouped by how they are met (`Grass: Roggenrola L10-13, Woobat
+  L10-13 · Rustling Grass: Drilbur ...`), capped to what the preview fits with a pointer
+  to LOCATION for the rest. A town says it has none and points at the routes around it.
 - **NEXT STEPS** — the main story by milestone: Nuvema → Striaton → Nacrene → Castelia
   → Nimbasa → Driftveil → Mistralton → Icirrus → Opelucid → Victory Road/League → the
   post-game.
@@ -68,7 +69,7 @@ games keep their hand-written entries under one QUESTIONS heading.
 
 - `SSR_TEST_PAGE=<frame>,28` opens the pause menu on the GUIDE page (28 is PAGE_CGUIDE
   in the PAGE_ list) at that frame, counted from the run's start.
-- `SSR_TEST_GUIDE=1` continues to the NEXT BOSS answer; `SSR_TEST_GUIDE=here` opens
-  HERE, and appending `1` (`here1`) shows its answer.
+- `SSR_TEST_GUIDE=1` selects NEXT BOSS with its answer shown; `SSR_TEST_GUIDE=here`
+  selects HERE hidden, and appending `1` (`here1`) shows its answer.
 - Pair with `--state-load <slot> --relative --frames <n> --shot-dir <dir> --shot-at <f>`
   for repeatable pictures of the Guide.

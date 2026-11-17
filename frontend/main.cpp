@@ -5710,22 +5710,37 @@ int main(int argc, char** argv)
             r.answer = "The game lists no wild POKeMON for " + place + ". Try the grass, dark grass, shaking grass and water of the routes around it.";
         else
         {
-            std::string list;
-            for (size_t i = 0; i < lines.size() && i < 12; i++) { if (i) list += "; "; list += lines[i]; }
-            if (lines.size() > 12) list += "; and " + std::to_string(lines.size() - 12) + " more";
-            r.answer = "The game's encounter tables for " + place + ": " + list;
-            // (The preview is a panel, not a page: keep the answer to what fits and point at LOCATION.)
-            if (r.answer.size() > 210)
+            // (EncounterLines gives a method's name and then its POKeMON: GRASS, then Roggenrola
+            // L10-13, Woobat L10-13, then the next method. Group them so the answer reads.)
+            std::string grouped, method, species;
+            auto flush = [&]() {
+                if (method.empty()) return;
+                if (!grouped.empty()) grouped += "  \xC2\xB7  ";
+                grouped += method + ": " + species;
+                method.clear();
+                species.clear();
+            };
+            for (const std::string& line : lines)
             {
-                size_t at = r.answer.rfind("; ", 210);
-                if (at == std::string::npos || at < 120) at = r.answer.rfind(' ', 210);
-                if (at == std::string::npos || at < 120) at = 210;
+                const bool isMethod = line.find(" L") == std::string::npos && line.find("LEVEL VARIES") == std::string::npos;
+                if (isMethod) { flush(); method = line; }
+                else { if (!species.empty()) species += ", "; species += line; }
+            }
+            flush();
+            r.answer = "The game's encounter tables for " + place + ": " + grouped;
+            // (The preview is a panel, not a page: keep the answer to what fits and point at LOCATION.)
+            if (r.answer.size() > 190)
+            {
+                size_t at = r.answer.rfind("  \xC2\xB7  ", 190);
+                if (at == std::string::npos || at < 100) at = r.answer.rfind(' ', 190);
+                if (at == std::string::npos || at < 100) at = 190;
                 r.answer = r.answer.substr(0, at) + " ... LOCATION has the full list.";
             }
         }
         return r;
     };
     int companionGuideChoice=0;bool companionGuideReveal=false;
+    bool companionNextBossShown=false, companionHereShown=false; // (GUIDE's computed answers)
     std::set<int> companionGuideShown; // (GUIDE: the answers the player chose to show)
     readCompanion();
     int companionMon=0, companionSpecies=1, companionPocket=-1, companionDexFilter=0, companionItem=0, companionDexType=0;
@@ -7186,14 +7201,14 @@ int main(int argc, char** argv)
                     {
                         section(guideText("NEXT BOSS").c_str(), Glass::I_TROPHY);
                         Menu::CompanionView::GuideAnswer a;
-                        a.text = guideText(nb.hint);
-                        a.shown = false;
+                        a.text = guideText(nb.answer);
+                        a.shown = companionNextBossShown;
                         menu.companion.guide.push_back(a);
-                        add(M_CGUIDE_NEXT, guideText(nb.title).c_str(), "", true);
+                        add(M_CGUIDE_NEXT, guideText(nb.title).c_str(), a.shown ? "Shown" : "", true);
                         MenuItem& it = menu.items.back();
                         it.kind = Menu::K_LINK;
                         it.preview = Menu::P_CGUIDE;
-                        it.icon = Glass::I_TROPHY;
+                        it.icon = a.shown ? Glass::I_SPARKLE : Glass::I_TROPHY;
                         it.choice = (int)menu.companion.guide.size() - 1;
                         it.desc = "Hint: " + guideText(nb.hint);
                     }
@@ -7206,14 +7221,14 @@ int main(int argc, char** argv)
                     {
                         section(guideText("HERE").c_str(), Glass::I_GLOBE);
                         Menu::CompanionView::GuideAnswer a;
-                        a.text = guideText(here.hint);
-                        a.shown = false;
+                        a.text = guideText(here.answer);
+                        a.shown = companionHereShown;
                         menu.companion.guide.push_back(a);
-                        add(M_CGUIDE_HERE, guideText(here.title).c_str(), "", true);
+                        add(M_CGUIDE_HERE, guideText(here.title).c_str(), a.shown ? "Shown" : "", true);
                         MenuItem& it = menu.items.back();
                         it.kind = Menu::K_LINK;
                         it.preview = Menu::P_CGUIDE;
-                        it.icon = Glass::I_GLOBE;
+                        it.icon = a.shown ? Glass::I_SPARKLE : Glass::I_GLOBE;
                         it.choice = (int)menu.companion.guide.size() - 1;
                         it.desc = "Hint: " + guideText(here.hint);
                     }
@@ -7248,23 +7263,7 @@ int main(int argc, char** argv)
                     it.desc = "Hint: " + guideText(companionGuide[i].hint);
                 }
             }
-            else if(menuPage == PAGE_CGUIDEENTRY && companionGuideChoice == -3)
-            {
-                // (HERE: the place and its wild list; the list waits behind REVEAL.)
-                const GuideHereInfo here = guideHere();
-                info(here.title);
-                info(companionGuideReveal ? here.answer : here.hint);
-                add(M_CGUIDE_REVEAL,companionGuideReveal?"HIDE ANSWER":"REVEAL ANSWER","");
-            }
-            else if(menuPage == PAGE_CGUIDEENTRY && companionGuideChoice < 0)
-            {
-                // (NEXT BOSS: the hint first, the team and reward behind REVEAL.)
-                const Companion::BlackBossInfo nb = guideNextBoss();
-                info(nb.title);
-                info(companionGuideReveal ? nb.answer : nb.hint);
-                add(M_CGUIDE_REVEAL,companionGuideReveal?"HIDE ANSWER":"REVEAL ANSWER","");
-            }
-            else if(menuPage == PAGE_CGUIDEENTRY && companionGuideChoice<(int)companionGuide.size())
+            else if(menuPage == PAGE_CGUIDEENTRY && companionGuideChoice >= 0 && companionGuideChoice<(int)companionGuide.size())
             {
                 const auto& entry=companionGuide[companionGuideChoice];
                 info(entry.title);
@@ -9900,7 +9899,15 @@ int main(int argc, char** argv)
             int hit = menu.Update(nav, dir);
             const int id = backTo >= 0 ? M_BACK : hit >= 0 && hit < (int)menuIds.size() ? menuIds[hit] : -1;
             if (backTo >= 0) hit = 0;
-            if(id>=M_GUIDE0 && id<M_GUIDE0+(int)companionGuide.size() && dir==0)
+            if((id==M_CGUIDE_NEXT || id==M_CGUIDE_HERE) && dir==0)
+            {
+                // (NEXT BOSS and HERE answer in the preview like the other Guide entries: A or a
+                // tap shows it and hides it again; no separate page.)
+                bool& shown = id==M_CGUIDE_NEXT ? companionNextBossShown : companionHereShown;
+                shown = !shown;
+                goPage(PAGE_CGUIDE,id);hit=-1;
+            }
+            else if(id>=M_GUIDE0 && id<M_GUIDE0+(int)companionGuide.size() && dir==0)
             {
                 // (GUIDE: the answer shown or hidden again, in the preview.)
                 const int i=id-M_GUIDE0;
@@ -10124,8 +10131,6 @@ int main(int argc, char** argv)
             case M_CBAG:companionReferenceReturn=false;goPage(PAGE_CBAG,M_CPOCKET);hit=-1;break;
             case M_CDEX:companionReferenceReturn=false;goPage(PAGE_CDEX,M_CDEX_FILTER);hit=-1;break;
             case M_CGUIDE:goPage(PAGE_CGUIDE,-1);hit=-1;break;
-            case M_CGUIDE_NEXT:companionGuideChoice=-2;companionGuideReveal=false;goPage(PAGE_CGUIDEENTRY,M_CGUIDE_NEXT);hit=-1;break;
-            case M_CGUIDE_HERE:companionGuideChoice=-3;companionGuideReveal=false;goPage(PAGE_CGUIDEENTRY,M_CGUIDE_HERE);hit=-1;break;
             case M_CGUIDE_REVEAL:companionGuideReveal=!companionGuideReveal;break;
             case M_CBATTLE:goPage(PAGE_CBATTLE,M_BACK);hit=-1;break;
             case M_CLOCATION:goPage(PAGE_CLOCATION,M_BACK);hit=-1;break;
@@ -10223,7 +10228,7 @@ int main(int argc, char** argv)
                 if(menuPage==PAGE_QUICK_ACTIONS){goPage(PAGE_MAIN,M_QUICK_ACTIONS);hit=-1;break;}
                 if(menuPage==PAGE_RUN_CONFIRM){goPage(PAGE_NUZLOCKE,M_RUN_RESET);hit=-1;break;}
                 if(menuPage==PAGE_NUZLOCKE){goPage(PAGE_COMPANION,M_NUZLOCKE);hit=-1;break;}
-                if(menuPage==PAGE_CGUIDEENTRY){ if (companionGuideChoice < 0) { goPage(PAGE_CGUIDE,companionGuideChoice == -3 ? M_CGUIDE_HERE : M_CGUIDE_NEXT); hit=-1; break; } goPage(PAGE_CGUIDE,M_GUIDE0+companionGuideChoice);hit=-1;break;}
+                if(menuPage==PAGE_CGUIDEENTRY){goPage(PAGE_CGUIDE,M_GUIDE0+companionGuideChoice);hit=-1;break;}
                 if(menuPage==PAGE_CGUIDE){goPage(PAGE_COMPANION,M_CGUIDE);hit=-1;break;}
                 if(menuPage==PAGE_CBATTLE){goPage(PAGE_COMPANION,M_CBATTLE);hit=-1;break;}
                 if(menuPage==PAGE_PLAYBACK){goPage(PAGE_MAIN,M_PLAYBACK);hit=-1;break;}
@@ -11578,7 +11583,7 @@ int main(int argc, char** argv)
             if(testPageAt>=0&&++testPageFrames==(uint32_t)testPageAt&&testPage>=0&&testPage<PAGE_COUNT)
             {readCompanion(true);menu.open=true;goPage(testPage,-1);fprintf(stderr,"[test] page %d at frame %u\n",testPage,frame);testPageAt=-1;
                 // (SSR_TEST_GUIDE=1: the GUIDE's NEXT BOSS page, its answer shown, for pictures.)
-                if(const char* g=getenv("SSR_TEST_GUIDE")){const bool here=!strncmp(g,"here",4);companionGuideChoice=here?-3:-2;companionGuideReveal=strchr(g,'1')!=nullptr;goPage(PAGE_CGUIDEENTRY,here?M_CGUIDE_HERE:M_CGUIDE_NEXT);}}
+                if(const char* g=getenv("SSR_TEST_GUIDE")){const bool here=!strncmp(g,"here",4);const bool shown=strchr(g,'1')!=nullptr;if(here)companionHereShown=shown;else companionNextBossShown=shown;goPage(PAGE_CGUIDE,here?M_CGUIDE_HERE:M_CGUIDE_NEXT);}}
         }
         // FLY (M_FLY): the check's answer within about 30 frames (as PokeDaisy waits), then the towns; the
         // flight's job (result 1: Gen 5's flight event, none when the game's own check said no).
