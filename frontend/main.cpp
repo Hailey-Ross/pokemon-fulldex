@@ -3157,6 +3157,14 @@ int main(int argc, char** argv)
         auto blue = [&](int x, int y) { int r, g, bl; rgb(x, y, r, g, bl); return bl > 150 && r < 110 && g > 90 && g < 200 && bl > r + 60; };
         auto red = [&](int x, int y) { int r, g, bl; rgb(x, y, r, g, bl); return r > 180 && g < 120 && bl < 120; };
         auto orange = [&](int x, int y) { int r, g, bl; rgb(x, y, r, g, bl); return r > 180 && g > 110 && g < 200 && bl < 110; };
+        // A button's outline: dark grey (65), or mid grey (178, then 138) for the few frames a press
+        // flashes the button white and then a pale tint. (Never the touch screen's background:
+        // white, or light green in grass.)
+        auto edge = [&](int x, int y) {
+            int r, g, bl;
+            rgb(x, y, r, g, bl);
+            return std::max({ r, g, bl }) - std::min({ r, g, bl }) < 16 && r < 200;
+        };
         // (Platinum's first battle has FIGHT alone: no Bag, no running, no party yet.)
         // (Platinum: which panel the battle drew last, when known. Its "Use next Pokemon?" is a
         // red bar on top like the first battle's FIGHT, with RUN below it in neither colour.)
@@ -3173,22 +3181,35 @@ int main(int argc, char** argv)
         // a button with the Mega Evolution symbol takes the rest of its row (x 177-246, y 153-191;
         // touched at x 176-247, y 152-191). It is CANCEL's blue, but its middle, where (216, 166)
         // was read, is the symbol (a sprite, in greys): the move list was not recognised and the
-        // whole touch screen was pasted over the battle instead (battle-menu). The gap of
-        // background between the two buttons tells this row from a whole CANCEL bar; for a few
-        // frames after a press the button flashes white, then pale blue, while the move list
-        // stays up.
+        // whole touch screen was pasted over the battle instead (battle-menu). For a few frames
+        // after a press the button flashes white, then pale blue, while the move list stays up.
+        // Between the two buttons are their outlines (edge), CANCEL's at x 173-174 and the
+        // button's at 177-178, round two pixels of the touch screen's background (x 175-176):
+        // those outlines tell this row from a whole CANCEL bar, blue there (or flashing white or
+        // pale blue, never grey). (The background itself did not: light green in grass, it is
+        // white in a building's battles, the Gyms' among them, the white the button flashes, so
+        // the move list went unrecognised there.)
         auto megaFace = [&](int x, int y) {
             int r, g, bl;
             rgb(x, y, r, g, bl);
             return blue(x, y) || (bl > 230 && g > 190 && r > 100);
         };
-        const bool megaButton = !pt.on && blue(40, 166) && blue(128, 166) && !megaFace(175, 166) &&
+        const bool megaButton = !pt.on && blue(40, 166) && blue(128, 166) && edge(174, 166) && edge(177, 166) &&
                                 megaFace(186, 166) && megaFace(238, 166);
         const bool moves = pt.dp ? dpShown && ptPanel == 3
                                  : !cmd && ptPanel != 4 && blue(40, 166) && blue(128, 166) && (blue(216, 166) || megaButton);
         battleMega = moves && megaButton;
+        // The Yes / No panel (battle-yesno, below): red above blue. It is read above the labels,
+        // whose letters can be where it was read before ("Switch Pokemon" has one at (128, 64): in
+        // the Switch battle style that question went unrecognised, and the whole touch screen was
+        // pasted over the battle). A press flashes its button white and then a pale tint for a few
+        // frames, in a grey outline, the other unchanged.
+        auto lit = [&](int x, int y) { int r, g, bl; rgb(x, y, r, g, bl); return r > 160 && g > 160 && bl > 160; };
+        const bool yes = red(128, 50) || red(128, 64), no = blue(128, 124) || blue(128, 136);
+        const bool yesNo = !pt.dp && !blue(128, 166) && !orange(40, 160) &&
+                           ((yes && no) || (yes && lit(128, 124) && edge(128, 112)) || (no && lit(128, 50) && edge(128, 40)));
         const bool idle = AutoFocus::Blank(screens[1].pixels) || (!blue(128, 166) && !red(128, 60));
-        battleUnknown = (cmd || moves || idle) ? 0 : battleUnknown + 1;
+        battleUnknown = (cmd || moves || idle || yesNo) ? 0 : battleUnknown + 1;
         // (Another of Platinum's panels, known for what it is: the touch screen shown at once.)
         if (ptPanel == 4 && !cmd && !moves && !AutoFocus::Blank(screens[1].pixels)) battleUnknown = std::max(battleUnknown, 20);
         // Only after the commands (FIGHT): after a move is chosen the battle goes on and
@@ -3535,18 +3556,92 @@ int main(int argc, char** argv)
             }
             sc.items.insert(sc.items.end(), shades.begin(), shades.end());
         }
-        else if (!pt.dp && red(128, 64) && blue(128, 136) && !blue(128, 166) && !orange(40, 160))
+        else if (yesNo)
         {
-            // The Yes / No panel ("Would you like to give a nickname?" after a catch): only the two
-            // buttons, at the right above the message bar, so the caught Pokemon and the message
-            // stay in sight (the whole touch screen pasted at the lower left covered them).
+            // The Yes / No panel ("Would you like to give a nickname?" after a catch, "Make it
+            // forget another move?", and in the Switch battle style "Will you switch your
+            // Pokemon?" before the other trainer's next comes out): only the two buttons, so the
+            // Pokemon and the message stay in sight (the whole touch screen pasted at the lower
+            // left covered them).
             sc.name = "battle-yesno";
             const float viewR = 128 + viewWidth / 2;
-            const float scale = viewWidth < 300 ? 0.4f : 0.5f, w = 244 * scale, h = 60 * scale, gap = 4;
-            const float x = viewR - w - 4, y1 = 144 - 2 * h - gap - 4;
-            put(6, 35, 244, 60, x, y1, scale);
-            put(6, 107, 244, 60, x, y1 + h + gap, scale);
-            for (size_t k = sc.items.size() - 2; k < sc.items.size(); k++) sc.items[k].border = true;
+            const float scale = viewWidth < 300 ? 0.4f : 0.5f, gap = 4;
+            // HeartGold and SoulSilver draw each button within x 8-247 (y 40-95 and 112-167),
+            // its outline rounded at the corners, and the game's cursor (red corners) inside
+            // that box too. Each is cut along it, the touch screen's background where the
+            // outline rounds off not drawn (cut wider, with a dark frame drawn round them, each
+            // had a band of the background round it: white in a building, light green in grass).
+            const bool fitted = edge(8, 64) && edge(247, 64) && edge(128, 40) && edge(128, 167) &&
+                                !edge(4, 64) && !edge(128, 37);
+            if (fitted)
+            {
+                // Laid out as the commands are (battle-cmd, and as Black and White lay out their
+                // own questions): in the band of the view below the battle (y 144-191, the message
+                // box's rows), so that nothing of the battle is covered (above the message box
+                // they covered the player's HP box). The two buttons are one above the other at
+                // the band's right end, made smaller as they are (the game's cursor and a press's
+                // flash with them), and the message box has the rest: its left part, closed with
+                // a mirrored copy of its left edge. The box goes to x 206 at most: in these
+                // questions the game draws two small boxes in the buttons' colours beyond that
+                // (x 210-226), and its lines end before them.
+                const float bandY = 144, bandH = 48, viewL = 128 - viewWidth / 2;
+                const float s = 20.5f / 56, bw = 240 * s, bh = 56 * s, rowGap = 2, pad = 3;
+                const int edgeW = 10;
+                const float room = viewWidth - (bw + 2 * pad) - edgeW;
+                // (The text's last column, its dark letters in the box's two lines. A line longer
+                // than the room beside the buttons, on a narrow view, has the box drawn smaller to
+                // fit rather than cut.)
+                const uint32_t* t = screens[0].pixels;
+                int textR = 0;
+                for (int y = 150; y < 187; y++)
+                    for (int x = 206; x > textR; x--)
+                    {
+                        const uint32_t c = t[y * 256 + x];
+                        if (std::max({ (c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF }) < 140)
+                        {
+                            textR = x;
+                            break;
+                        }
+                    }
+                const float need = (float)std::max(textR + 6, 120);
+                const float boxScale = need > room ? room / need : 1.0f;
+                const int boxW = (int)std::min(206.0f, need > room ? need : room);
+                const float boxY = bandY + bandH * (1 - boxScale) / 2;
+                // (The band's own colour round the box and the buttons, as round the commands.)
+                sc.items.push_back(FillRect(viewL, bandY, (int)std::ceil(viewWidth) + 1, (int)bandH, 0x202020));
+                sc.items.push_back({ 0, 0, 144, boxW, 48, viewL, boxY, boxScale, 0, 255, false });
+                // (On a wide view the box would end short of the buttons: a plain column of it,
+                // after the text and before those small boxes, is drawn wider to reach them.)
+                float boxR = viewL + boxW * boxScale;
+                if (boxScale == 1.0f && room > boxW + 0.5f && textR < 200)
+                {
+                    Element fill = { 0, 202, 144, 2, 48, boxR, boxY, 1.0f, 0, 255, false };
+                    fill.stretchX = (room - boxW) / 2;
+                    sc.items.push_back(fill);
+                    boxR = viewL + room;
+                }
+                Element boxEdge = { 0, 0, 144, edgeW, 48, boxR, boxY, boxScale, 0, 255, false };
+                boxEdge.flipX = true;
+                sc.items.push_back(boxEdge);
+                const float x = viewR - pad - bw, y1 = bandY + (bandH - 2 * bh - rowGap) / 2;
+                put(8, 40, 240, 56, x, y1, s);
+                put(8, 112, 240, 56, x, y1 + bh + rowGap, s);
+                for (size_t k = sc.items.size() - 2; k < sc.items.size(); k++)
+                {
+                    // (The background as left of the buttons. Only within 2 pixels of the cut:
+                    // the outline's light inner line, 2 pixels in, is the same white.)
+                    sc.items[k].keys[0] = b[64 * 256 + 4] & 0xFFFFFF;
+                    sc.items[k].keyTolerance = 24;
+                    sc.items[k].keyRing = 2;
+                }
+            }
+            else
+            {
+                const float w = 244 * scale, h = 60 * scale, x = viewR - w - 4, y1 = 144 - 2 * h - gap - 4;
+                put(6, 35, 244, 60, x, y1, scale);
+                put(6, 107, 244, 60, x, y1 + h + gap, scale);
+                for (size_t k = sc.items.size() - 2; k < sc.items.size(); k++) sc.items[k].border = true;
+            }
         }
         else if (viewWidth < 300 || battleUnknown >= 20)
         {
@@ -11877,7 +11972,12 @@ int main(int argc, char** argv)
             {
                 if (pendingName != picked.name) pending = 0;
                 pendingName = picked.name;
+                // (From a battle's Yes / No buttons back to the battle: soon after one is pressed.
+                // The battle stops reading the touch screen on the second frame of the button's
+                // flash, two frames before the buttons go; waiting the usual four, the cuts showed
+                // the touch screen's background where they had been: two white boxes.)
                 int need = shownName == "bottom" && fieldNow ? 1 :
+                    shownName == "battle-yesno" && pendingName == "battle" ? 2 :
                     shownName == "battle-menu" && (pendingName == "top" || pendingName == "battle") ? 40 :
                     (shownName == "starter" || shownName == "intro") && pendingName == "top" ? 16 : 4;
                 if (++pending >= need)
