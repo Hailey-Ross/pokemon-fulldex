@@ -20,11 +20,10 @@ if(NOT GBAW_MGBA_DIR)
         GIT_REPOSITORY https://github.com/mgba-emu/mgba.git
         GIT_TAG ${GBAW_MGBA_COMMIT}
         PATCH_COMMAND git apply "${GBAW_SRC}/patches/mgba-wide.patch"
-        UPDATE_DISCONNECTED ON)
-    FetchContent_GetProperties(gbaw_mgba)
-    if(NOT gbaw_mgba_POPULATED)
-        FetchContent_Populate(gbaw_mgba)
-    endif()
+        UPDATE_DISCONNECTED ON
+        # Fetched only: a folder with no CMakeLists.txt adds nothing, so mGBA is added below with our options.
+        SOURCE_SUBDIR gbaw-fetch-only)
+    FetchContent_MakeAvailable(gbaw_mgba)
     set(GBAW_MGBA_DIR "${gbaw_mgba_SOURCE_DIR}")
 endif()
 
