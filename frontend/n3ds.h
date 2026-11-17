@@ -37,6 +37,7 @@
 #include <climits>
 #endif
 #include "launcher.h"
+#include "runtime_kit.h"
 #if defined(_WIN32) || (defined(__linux__) && !defined(__ANDROID__) && !defined(__SWITCH__))
 #define SSR_N3DS_PC 1 // (the 3DS games' own program beside FullDex: Windows and Linux)
 #endif
@@ -507,26 +508,14 @@ inline bool MakeFolder(const std::string& appDir, const Launcher::Game& g)
     namespace fs = std::filesystem;
     std::error_code ec;
     fs::create_directories(W(g.folder), ec);
-    if (!fs::is_regular_file(W(Exe(g.folder)), ec))
+    const fs::path from = W(ProgramDir(appDir)), to = W(g.folder);
+    // An executable alone is not a complete kit. Retry missing tools after an interrupted
+    // copy or extraction, while preserving existing settings and prepared game files.
+    // A prepared game still works without the master kit, as before.
+    if (fs::is_directory(from, ec) || !fs::is_regular_file(W(Exe(g.folder)), ec))
     {
-        // (File by file: a recursive copy into a folder that is there already fails here, "File exists".)
-        ec.clear();
-        const fs::path from = W(ProgramDir(appDir)), to = W(g.folder);
-        for (fs::recursive_directory_iterator it(from, ec), end; !ec && it != end; it.increment(ec))
-        {
-            const fs::path dest = to / fs::relative(it->path(), from, ec);
-            if (ec) break;
-            if (it->is_directory(ec)) fs::create_directories(dest, ec);
-            else if (!fs::exists(dest, ec))
-            {
-                fs::copy_file(it->path(), dest, ec);
-#ifndef _WIN32
-                // (Linux: the program and its compiler keep their right to run.)
-                if (!ec) fs::permissions(dest, fs::status(it->path(), ec).permissions(), ec);
-#endif
-            }
-        }
-        if (ec) { fprintf(stderr, "[3ds] copying the program to %s: %s\n", g.folder.c_str(), ec.message().c_str()); return false; }
+        if (!RuntimeKit::CopyMissing(from, to, ec))
+        { fprintf(stderr, "[3ds] copying the program to %s: %s\n", g.folder.c_str(), ec.message().c_str()); return false; }
     }
 #ifdef _WIN32
     FILE* f = _wfopen(W(g.folder + "/rom.txt").c_str(), L"wb");
