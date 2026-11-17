@@ -74,6 +74,7 @@
 #include "companion_types.h"
 #include "companion_rom.h"
 #include "companion_guides.h"
+#include "companion_black_bosses.h" // (Pokemon Black's next gym/league teams)
 #include "companion_panel.h"
 #include "companion_battle.h"
 #include "optional_features.h"
@@ -5679,6 +5680,20 @@ int main(int argc, char** argv)
         }
     };
     const auto companionGuide=Companion::GuideFor(gameCode);
+    // (GUIDE's NEXT BOSS: the next gym, or the League, from the save's badges; the Striaton leader
+    // by the starter in the party.)
+    auto guideNextBoss = [&]() -> Companion::BlackBossInfo {
+        if (gameCode != "IRBO") return {};
+        int best = 0, starter = 0;
+        for (const auto& m : companionSnapshot.party)
+        {
+            best = std::max(best, m.level);
+            if (m.species >= 495 && m.species <= 497) starter = 1;
+            else if (m.species >= 498 && m.species <= 500) starter = 2;
+            else if (m.species >= 501 && m.species <= 503) starter = 3;
+        }
+        return Companion::BlackNextBoss(companionSnapshot.badges, best, starter);
+    };
     int companionGuideChoice=0;bool companionGuideReveal=false;
     std::set<int> companionGuideShown; // (GUIDE: the answers the player chose to show)
     readCompanion();
@@ -5701,7 +5716,7 @@ int main(int argc, char** argv)
         M_CSEARCH, M_SEARCH_LETTER, M_SEARCH_DELETE, M_SEARCH_SPACE, M_SEARCH_CLEAR, M_SEARCH_DONE,
         M_CDETAIL_TOGGLE, M_CINFO, M_BACKUPS, M_RESTORE_CONFIRM, M_LOAD_CONFIRM,
         M_MATCHUPS, M_TYPE1, M_TYPE2, M_SECOND_SCREEN,
-        M_COMPANION, M_CPARTY, M_CBAG, M_CDEX, M_CLOCATION, M_CMAP, M_CENCOUNTERS, M_REFERENCE, M_REFERENCE_KIND, M_REFERENCE_QUERY, M_CPOCKET, M_CDEX_FILTER, M_CDEX_TYPE, M_CBATTLE, M_CGUIDE, M_CGUIDE_REVEAL, M_NUZLOCKE, M_RUN_ENABLED, M_RUN_RESET, M_RUN_RESET_CONFIRM, M_QUICK_ACTIONS, M_OPEN_PC, M_FLY, M_HUB_SAVE, M_HUB_LOAD, M_HUB_CHEATS, M_HUB_FAST, M_HUB_SETTINGS, M_HUB_QUIT,
+        M_COMPANION, M_CPARTY, M_CBAG, M_CDEX, M_CLOCATION, M_CMAP, M_CENCOUNTERS, M_REFERENCE, M_REFERENCE_KIND, M_REFERENCE_QUERY, M_CPOCKET, M_CDEX_FILTER, M_CDEX_TYPE, M_CBATTLE, M_CGUIDE, M_CGUIDE_REVEAL, M_CGUIDE_NEXT, M_NUZLOCKE, M_RUN_ENABLED, M_RUN_RESET, M_RUN_RESET_CONFIRM, M_QUICK_ACTIONS, M_OPEN_PC, M_FLY, M_HUB_SAVE, M_HUB_LOAD, M_HUB_CHEATS, M_HUB_FAST, M_HUB_SETTINGS, M_HUB_QUIT,
         M_QUIT_YES, M_RESET_YES, // (QUIT GAME / RESET GAME asked first: PAGE_QUIT_CONFIRM)
         M_SHORTCUTS, // (CONTROLS: Fulldex's own four shortcuts, opening KEYS AND BUTTONS at them)
         M_EXTRAS, M_EXTRA0=92000, M_EXTRA_END=92006, M_PLAYBACK=93000, M_FAST_SPEED, M_SMART_FAST, M_SLOW_MOTION, M_REWIND_MB, M_REWIND, M_TURBO_A, M_SCREEN_FILTER, M_COMPANION_OVERLAY, M_PARTY_HUD, M_STATUS_BAR, M_LIVE_GLASS, M_FAST_BUTTON, M_ZOOM, M_ZOOM_TEXT,
@@ -7131,21 +7146,59 @@ int main(int argc, char** argv)
                     swap("Poke Ball", "Pok\xC3\xA9 Ball"); swap("Poke Mart", "Pok\xC3\xA9 Mart"); swap("S.s.", "S.S.");
                     return t;
                 };
-                section("QUESTIONS", Glass::I_CHEATS);
+                // (NEXT BOSS: the gym the save's badges point at next, or the League, with its team
+                // and your best level; the answer waits behind REVEAL like the other entries.)
+                if (gameCode == "IRBO")
+                {
+                    const Companion::BlackBossInfo nb = guideNextBoss();
+                    if (nb.any)
+                    {
+                        section(guideText("NEXT BOSS").c_str(), Glass::I_TROPHY);
+                        Menu::CompanionView::GuideAnswer a;
+                        a.text = guideText(nb.hint);
+                        a.shown = false;
+                        menu.companion.guide.push_back(a);
+                        add(M_CGUIDE_NEXT, guideText(nb.title).c_str(), "", true);
+                        MenuItem& it = menu.items.back();
+                        it.kind = Menu::K_LINK;
+                        it.preview = Menu::P_CGUIDE;
+                        it.icon = Glass::I_TROPHY;
+                        it.choice = (int)menu.companion.guide.size() - 1;
+                        it.desc = "Hint: " + guideText(nb.hint);
+                    }
+                }
+                // (The entries in their sections: NEXT STEPS, GYMS, WHERE IS, ...; the earlier games
+                // have them all under one QUESTIONS heading.)
+                const char* lastSection = nullptr;
                 for (size_t i = 0; i < companionGuide.size(); i++)
                 {
+                    const char* sec = companionGuide[i].section ? companionGuide[i].section : "QUESTIONS";
+                    if (!lastSection || strcmp(lastSection, sec))
+                    {
+                        section(guideText(sec).c_str(), Glass::I_CHEATS);
+                        lastSection = sec;
+                    }
                     Menu::CompanionView::GuideAnswer answer;
                     answer.text = guideText(companionGuide[i].answer);
                     answer.shown = companionGuideShown.count((int)i) > 0;
+                    const int answerAt = (int)menu.companion.guide.size(); // (NEXT BOSS is in it first)
                     menu.companion.guide.push_back(answer);
                     add(M_GUIDE0 + (int)i, guideText(companionGuide[i].title).c_str(), answer.shown ? "Shown" : "", true);
                     MenuItem& it = menu.items.back();
                     it.kind = Menu::K_LINK;
                     it.preview = Menu::P_CGUIDE;
                     it.icon = answer.shown ? Glass::I_SPARKLE : Glass::I_INFO; // (shown: a sparkle)
-                    it.choice = (int)i;
+                    it.choice = answerAt;
                     it.desc = "Hint: " + guideText(companionGuide[i].hint);
                 }
+            }
+            else if(menuPage == PAGE_CGUIDEENTRY && companionGuideChoice < 0)
+            {
+                // (NEXT BOSS: the hint first, the team and reward behind REVEAL.)
+                const Companion::BlackBossInfo nb = guideNextBoss();
+                info(nb.title);
+                info(companionGuideReveal ? nb.answer : nb.hint);
+                add(M_CGUIDE_REVEAL,companionGuideReveal?"HIDE ANSWER":"REVEAL ANSWER","");
             }
             else if(menuPage == PAGE_CGUIDEENTRY && companionGuideChoice<(int)companionGuide.size())
             {
@@ -10007,6 +10060,7 @@ int main(int argc, char** argv)
             case M_CBAG:companionReferenceReturn=false;goPage(PAGE_CBAG,M_CPOCKET);hit=-1;break;
             case M_CDEX:companionReferenceReturn=false;goPage(PAGE_CDEX,M_CDEX_FILTER);hit=-1;break;
             case M_CGUIDE:goPage(PAGE_CGUIDE,-1);hit=-1;break;
+            case M_CGUIDE_NEXT:companionGuideChoice=-2;companionGuideReveal=false;goPage(PAGE_CGUIDEENTRY,M_CGUIDE_NEXT);hit=-1;break;
             case M_CGUIDE_REVEAL:companionGuideReveal=!companionGuideReveal;break;
             case M_CBATTLE:goPage(PAGE_CBATTLE,M_BACK);hit=-1;break;
             case M_CLOCATION:goPage(PAGE_CLOCATION,M_BACK);hit=-1;break;
@@ -10104,7 +10158,7 @@ int main(int argc, char** argv)
                 if(menuPage==PAGE_QUICK_ACTIONS){goPage(PAGE_MAIN,M_QUICK_ACTIONS);hit=-1;break;}
                 if(menuPage==PAGE_RUN_CONFIRM){goPage(PAGE_NUZLOCKE,M_RUN_RESET);hit=-1;break;}
                 if(menuPage==PAGE_NUZLOCKE){goPage(PAGE_COMPANION,M_NUZLOCKE);hit=-1;break;}
-                if(menuPage==PAGE_CGUIDEENTRY){goPage(PAGE_CGUIDE,M_GUIDE0+companionGuideChoice);hit=-1;break;}
+                if(menuPage==PAGE_CGUIDEENTRY){ if (companionGuideChoice < 0) { goPage(PAGE_CGUIDE,M_CGUIDE_NEXT); hit=-1; break; } goPage(PAGE_CGUIDE,M_GUIDE0+companionGuideChoice);hit=-1;break;}
                 if(menuPage==PAGE_CGUIDE){goPage(PAGE_COMPANION,M_CGUIDE);hit=-1;break;}
                 if(menuPage==PAGE_CBATTLE){goPage(PAGE_COMPANION,M_CBATTLE);hit=-1;break;}
                 if(menuPage==PAGE_PLAYBACK){goPage(PAGE_MAIN,M_PLAYBACK);hit=-1;break;}
@@ -11457,7 +11511,9 @@ int main(int argc, char** argv)
             static int testPageAt=-2,testPage=0;static uint32_t testPageFrames=0;
             if(testPageAt==-2){testPageAt=-1;if(const char* t=getenv("SSR_TEST_PAGE"))sscanf(t,"%d,%d",&testPageAt,&testPage);if(const char* t=getenv("SSR_TEST_SPECIES"))companionSpecies=std::max(1,atoi(t));}
             if(testPageAt>=0&&++testPageFrames==(uint32_t)testPageAt&&testPage>=0&&testPage<PAGE_COUNT)
-            {readCompanion(true);menu.open=true;goPage(testPage,-1);fprintf(stderr,"[test] page %d at frame %u\n",testPage,frame);testPageAt=-1;}
+            {readCompanion(true);menu.open=true;goPage(testPage,-1);fprintf(stderr,"[test] page %d at frame %u\n",testPage,frame);testPageAt=-1;
+                // (SSR_TEST_GUIDE=1: the GUIDE's NEXT BOSS page, its answer shown, for pictures.)
+                if(const char* g=getenv("SSR_TEST_GUIDE")){companionGuideChoice=-2;companionGuideReveal=g[0]=='1';goPage(PAGE_CGUIDEENTRY,M_CGUIDE_NEXT);}}
         }
         // FLY (M_FLY): the check's answer within about 30 frames (as PokeDaisy waits), then the towns; the
         // flight's job (result 1: Gen 5's flight event, none when the game's own check said no).

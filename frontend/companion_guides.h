@@ -5,7 +5,9 @@
 #include <string>
 #include <vector>
 namespace Companion {
-struct GuideEntry {const char* title;const char* hint;const char* answer;};
+// section groups the entries on the Guide page (NEXT STEPS, GYMS, WHERE IS, ...); null: the
+// page's one QUESTIONS list, as the earlier games have it.
+struct GuideEntry {const char* title;const char* hint;const char* answer; const char* section = nullptr;};
 inline std::vector<GuideEntry> GuideFor(const std::string& code) {
     if(code=="IPKE")return {
         {"Why did the POKeMON on this route change?","Look at the clock.","The grass has a list for the morning (4 AM to 10 AM), the day (until 8 PM) and the night. At night the GOOD and SUPER ROD can also hook a night fish. The encounter list follows your DS clock."},
@@ -111,18 +113,90 @@ inline std::vector<GuideEntry> GuideFor(const std::string& code) {
         {"Rocks in the way","A field move.","Small cracked rocks break with ROCK SMASH, big round ones move with STRENGTH, rocky walls are climbed with ROCK CLIMB. WHERE IS has each HM."},
     };
     if(code=="IRBO")return {
-        {"Why did the POKeMON here change?","Look at the calendar.","Some places change their POKeMON with the seasons, and the seasons follow the month: January, May and September are spring, February, June and October summer, March, July and November autumn, April, August and December winter. The encounter list follows your DS clock."},
-        {"What about the dark grass and the grass that shakes?","They're not the plain grass.","Dark grass, grass that shakes and water that ripples each hold POKeMON of their own, often stronger or rarer than the plain grass around them."},
-        {"Which STRIATON CITY leader will I battle?","It depends on your first POKeMON.","The one whose type beats your first POKeMON's: CHILI (fire) if you picked SNIVY, CRESS (water) if you picked TEPIG, CILAN (grass) if you picked OSHAWOTT. The leader depends on your starter choice."},
-        {"HM01 CUT","STRIATON CITY.","Someone hands it to you in STRIATON CITY."},
-        {"HM02 FLY","DRIFTVEIL CITY.","Someone hands it to you in DRIFTVEIL CITY."},
-        {"HM03 SURF","TWIST MOUNTAIN.","Someone hands it to you in TWIST MOUNTAIN."},
-        {"HM04 STRENGTH","NIMBASA CITY.","Someone in NIMBASA CITY gives it to you."},
-        {"HM05 WATERFALL","ROUTE 18.","It's an item ball on ROUTE 18."},
-        {"HM06 DIVE","UNDELLA TOWN.","Someone in UNDELLA TOWN gives it to you."},
-        {"BICYCLE","NIMBASA CITY.","Someone hands it to you in NIMBASA CITY."},
-        {"DOWSING MCHN","NACRENE CITY.","Someone hands it to you in NACRENE CITY."},
-        {"SUPER ROD","NUVEMA TOWN.","Someone in NUVEMA TOWN gives it to you."},
+        // NEXT STEPS: the main story's beats, in the order the game moves through them.
+        {"Where do I start?","NUVEMA TOWN.","In your room BIANCA and CHEREN choose their POKeMON with you: SNIVY, TEPIG or OSHAWOTT. See PROF. JUNIPER in her lab for the POKeDEX and XTRANSCEIVER, then take ROUTE 1 to ACCUMULA TOWN and ROUTE 2 to STRIATON CITY.","NEXT STEPS"},
+        {"What happens in STRIATON CITY?","The gym, then the DREAMYARD.","Beat the gym leader (CHILI, CRESS or CILAN), then go with BIANCA and CHEREN to the DREAMYARD. A TEAM PLASMA grunt takes the dream mist; once that is settled FENNEL gives you the C-GEAR and HM01 CUT. CUT clears the tree on ROUTE 3.","NEXT STEPS"},
+        {"Where next after STRIATON?","ROUTE 3 and NACRENE CITY.","CUT the tree on ROUTE 3, deal with TEAM PLASMA at the WELLSPRING CAVE OF DREAMS, then reach NACRENE CITY. The museum is the gym; after LENORA, TEAM PLASMA steals a DRAGON SKULL and PINWHEEL FOREST is next.","NEXT STEPS"},
+        {"After LENORA?","PINWHEEL FOREST, then CASTELIA CITY.","Follow TEAM PLASMA through PINWHEEL FOREST and get the DRAGON SKULL back, then cross SKYARROW BRIDGE to CASTELIA CITY. BURGH's gym is there; after it, BIANCA's MUNNA is taken and TEAM PLASMA's hideout under the city is the next stop.","NEXT STEPS"},
+        {"After BURGH?","ROUTE 4 to NIMBASA CITY.","Cross the desert to NIMBASA CITY. The gym leader is ELESA; after her, ROUTE 5 and the DRAWBRIDGE lead to DRIFTVEIL CITY.","NEXT STEPS"},
+        {"After ELESA?","ROUTE 5 and DRIFTVEIL CITY.","The DRAWBRIDGE lowers after ELESA. In DRIFTVEIL, CLAY's gym comes first; then TEAM PLASMA's COLD STORAGE, ROUTE 6 and CHARGESTONE CAVE.","NEXT STEPS"},
+        {"After CLAY?","CHARGESTONE CAVE to MISTRALTON CITY.","Clay opens the way to ROUTE 6. N and TEAM PLASMA are in CHARGESTONE CAVE; beyond it are MISTRALTON CITY, SKYLA's gym, CELESTIAL TOWER and ROUTE 7.","NEXT STEPS"},
+        {"After SKYLA?","TWIST MOUNTAIN to ICIRRUS CITY.","ROUTE 7 and TWIST MOUNTAIN lead to ICIRRUS CITY. Beat BRYCEN, then the story moves to DRAGONSPIRAL TOWER and RELIC CASTLE.","NEXT STEPS"},
+        {"After BRYCEN?","DRAGONSPIRAL TOWER, RELIC CASTLE, OPELUCID CITY.","TEAM PLASMA wakes the legendary at DRAGONSPIRAL TOWER; go to RELIC CASTLE, then beat OPELUCID's gym (DRAYDEN in BLACK). The LEGEND BADGE opens ROUTE 10.","NEXT STEPS"},
+        {"How do I finish the story?","VICTORY ROAD, the LEAGUE, N's CASTLE.","ROUTE 10 leads to VICTORY ROAD and the POKeMON LEAGUE. Beat the ELITE FOUR, then N at his castle; GHETSIS is the last battle. Bring a team around Lv 50 and plenty of healing.","NEXT STEPS"},
+        {"What is there after the League?","The eastern half of UNOVA.","The National Dex, the sages, ROUTES 11-15, BLACK CITY, the Battle Subway and the remaining legendaries. See POST-GAME.","NEXT STEPS"},
+
+        // GYMS: the type to bring and the reward; NEXT BOSS has the exact teams.
+        {"STRIATON GYM: which leader?","It depends on your starter.","CHILI (FIRE) faces SNIVY, CRESS (WATER) faces TEPIG and CILAN (GRASS) faces OSHAWOTT. Each leads with LILLIPUP (Lv 12), then their monkey (Lv 14). Reward: TRIO BADGE and TM83 WORK UP. NEXT BOSS has the teams.","GYMS"},
+        {"NACRENE GYM: LENORA","FIGHTING moves.","HERDIER (Lv 18) then WATCHOG (Lv 20). WATCHOG's RETALIATE is stronger after a faint, so finish it quickly; a FIGHTING-type such as TIMBURR helps. Reward: BASIC BADGE and TM67 RETALIATE.","GYMS"},
+        {"CASTELIA GYM: BURGH","FIRE, FLYING or ROCK.","WHIRLIPEDE (Lv 21), DWEBBLE (Lv 21), LEAVANNY (Lv 23). Reward: INSECT BADGE and TM76 STRUGGLE BUG.","GYMS"},
+        {"NIMBASA GYM: ELESA","GROUND, ROCK or ICE.","EMOLGA (Lv 25) twice, then ZEBSTRIKA (Lv 27). EMOLGA is ELECTRIC and FLYING, so GROUND misses it: use ROCK or ICE for the EMOLGA, GROUND for ZEBSTRIKA. Reward: BOLT BADGE and TM72 VOLT SWITCH.","GYMS"},
+        {"DRIFTVEIL GYM: CLAY","WATER or GRASS.","KROKOROK (Lv 29), PALPITOAD (Lv 29), EXCADRILL (Lv 31). Reward: QUAKE BADGE and TM78 BULLDOZE.","GYMS"},
+        {"MISTRALTON GYM: SKYLA","ELECTRIC, ROCK or ICE.","SWOOBAT (Lv 33), UNFEZANT (Lv 33), SWANNA (Lv 35). Reward: JET BADGE and TM62 ACROBATICS.","GYMS"},
+        {"ICIRRUS GYM: BRYCEN","FIRE, FIGHTING, ROCK or STEEL.","VANILLISH (Lv 37), CRYOGONAL (Lv 37), BEARTIC (Lv 39). Reward: FREEZE BADGE and TM79 FROST BREATH.","GYMS"},
+        {"OPELUCID GYM: DRAYDEN","ICE or DRAGON.","FRAXURE (Lv 41), DRUDDIGON (Lv 41), HAXORUS (Lv 43). DRAYDEN leads in BLACK (IRIS in WHITE). Reward: LEGEND BADGE and TM82 DRAGON TAIL.","GYMS"},
+        {"What are the ELITE FOUR's types?","GHOST, DARK, FIGHTING, PSYCHIC.","SHAUNTAL (GHOST), GRIMSLEY (DARK), MARSHAL (FIGHTING) and CAITLIN (PSYCHIC); you may take them in any order. NEXT BOSS has their teams; N and GHETSIS follow.","GYMS"},
+        {"How do I beat GHETSIS?","A prepared team, not a gimmick.","His HYDREIGON is Lv 54 and hits hard: a FIGHTING or ICE move for it, and answers to COFAGRIGUS, BOUFFALANT, SEISMITOAD, BISHARP and EELEKTROSS. Heal between the ELITE FOUR and him.","GYMS"},
+
+        // WHERE IS: the moves and items that unlock the map, and the event one.
+        {"HM01 CUT","STRIATON CITY.","FENNEL gives it to you in STRIATON CITY once the DREAMYARD business is done (she gives the C-GEAR at the same time).","WHERE IS"},
+        {"HM02 FLY","DRIFTVEIL CITY.","A woman in DRIFTVEIL CITY gives it to you once you have CLAY's badge.","WHERE IS"},
+        {"HM03 SURF","TWIST MOUNTAIN.","A worker in TWIST MOUNTAIN gives it to you after SKYLA's badge.","WHERE IS"},
+        {"HM04 STRENGTH","NIMBASA CITY.","A man in NIMBASA CITY gives it to you after ELESA's badge.","WHERE IS"},
+        {"HM05 WATERFALL","ROUTE 18.","An item ball on ROUTE 18, in the south-east of UNOVA after the League.","WHERE IS"},
+        {"HM06 DIVE","UNDELLA TOWN.","A swimmer in UNDELLA TOWN gives it to you after the League.","WHERE IS"},
+        {"C-GEAR","STRIATON CITY.","FENNEL gives it to you after the DREAMYARD, together with HM01 CUT.","WHERE IS"},
+        {"XTRANSCEIVER","NUVEMA TOWN.","PROF. JUNIPER gives it to you at the start, in her lab.","WHERE IS"},
+        {"BICYCLE","NIMBASA CITY.","A man in NIMBASA CITY lends you one after ELESA's badge.","WHERE IS"},
+        {"DOWSING MCHN","NACRENE CITY.","Someone in NACRENE CITY gives it to you after LENORA's badge.","WHERE IS"},
+        {"SUPER ROD","NUVEMA TOWN.","A fisherman in NUVEMA TOWN gives it to you after the National Dex.","WHERE IS"},
+        {"LIBERTY PASS","A Wi-Fi event.","The event item for LIBERTY GARDEN and VICTINI. The distributions have ended, so it needs an event save or a trade.","WHERE IS"},
+        {"TMs","Anywhere.","TMs are reusable in BLACK and WHITE: use one as many times as you like. HMs stay until the Move Deleter removes them.","WHERE IS"},
+
+        // EVOLUTIONS: the ways that are not simply levelling up.
+        {"BOLDORE and GURDURR","They need a trade.","BOLDORE evolves into GIGALITH and GURDURR into CONKELDURR only when traded. Their first forms are ROGGENROLA (Lv 25) and TIMBURR (Lv 25).","EVOLUTIONS"},
+        {"KARRABLAST and SHELMET","Trade them for each other.","KARRABLAST evolves into ESCAVALIER and SHELMET into ACCELGOR, each when traded for the other.","EVOLUTIONS"},
+        {"The elemental monkeys","A stone each.","PANSAGE + LEAF STONE = SIMISAGE; PANSEAR + FIRE STONE = SIMISEAR; PANPOUR + WATER STONE = SIMIPOUR.","EVOLUTIONS"},
+        {"MUNNA","A MOON STONE.","MUNNA evolves into MUSHARNA with a MOON STONE.","EVOLUTIONS"},
+        {"LITWICK","A DUSK STONE.","LITWICK evolves into LAMPENT at Lv 41, then into CHANDELURE with a DUSK STONE.","EVOLUTIONS"},
+        {"TYNAMO","A THUNDER STONE.","TYNAMO evolves into EELEKTRIK at Lv 39, then into EELEKTROSS with a THUNDER STONE.","EVOLUTIONS"},
+        {"Friendship","Walk with them.","WOOBAT evolves into SWOOBAT and SWADLOON into LEAVANNY with high friendship. Keep them in the party and give them the SOOTHE BELL.","EVOLUTIONS"},
+        {"Late level-ups","Some take a long time.","DEINO -> ZWEILOUS at Lv 50 -> HYDREIGON at Lv 64; LARVESTA -> VOLCARONA at Lv 59; MIENFOO -> MIENSHAO at Lv 50; PAWNIARD -> BISHARP at Lv 52; RUFFLET -> BRAVIARY and VULLABY -> MANDIBUZZ at Lv 54.","EVOLUTIONS"},
+
+        // LEGENDARIES: where each one waits, and what it needs.
+        {"RESHIRAM (BLACK)","N's CASTLE.","At the end of the story N summons it; catch it before GHETSIS. If your party and boxes are full, it waits at DRAGONSPIRAL TOWER afterwards.","LEGENDARIES"},
+        {"ZEKROM (WHITE)","N's CASTLE.","WHITE's legendary. BLACK players need a trade to get it.","LEGENDARIES"},
+        {"KYUREM","GIANT CHASM.","After the League, the cave in GIANT CHASM opens; KYUREM is Lv 75.","LEGENDARIES"},
+        {"VICTINI","LIBERTY GARDEN.","Needs the LIBERTY PASS event item. It waits inside the lighthouse on LIBERTY GARDEN, Lv 15.","LEGENDARIES"},
+        {"COBALION","MISTRALTON CAVE.","After the League, in the GUIDANCE CHAMBER inside MISTRALTON CAVE, Lv 42.","LEGENDARIES"},
+        {"TERRAKION","VICTORY ROAD.","After the League, in the TRIAL CHAMBER in VICTORY ROAD, Lv 42.","LEGENDARIES"},
+        {"VIRIZION","PINWHEEL FOREST.","After the League, in the RUMINATION FIELD in PINWHEEL FOREST, Lv 42.","LEGENDARIES"},
+        {"TORNADUS (BLACK)","It roams UNOVA.","After the League it roams UNOVA; track it on the POKeDEX's map. THUNDURUS roams in WHITE.","LEGENDARIES"},
+        {"LANDORUS","ABUNDANT SHRINE.","Bring both TORNADUS and THUNDURUS in the party to the ABUNDANT SHRINE, Lv 70.","LEGENDARIES"},
+        {"VOLCARONA","RELIC CASTLE.","At the bottom of the RELIC CASTLE after the League, Lv 70.","LEGENDARIES"},
+        {"KELDEO, MELOETTA, GENESECT","Event only.","These three were event distributions; there is no in-game location.","LEGENDARIES"},
+
+        // POST-GAME: what the ending opens.
+        {"What unlocks after the League?","The National Dex and eastern UNOVA.","The NATIONAL DEX, ROUTES 11-15, UNDELLA TOWN, LACUNOSA TOWN and BLACK CITY; the sages' epilogue, KYUREM, the musketeers and the Battle Subway.","POST-GAME"},
+        {"BLACK CITY","East of UNOVA.","BLACK's city; its population and shops grow as you bring people in through the ENTRA LINK. WHITE has WHITE FOREST instead.","POST-GAME"},
+        {"Battle Subway","NIMBASA CITY.","Single, Double, Multi and Super lines; BP buys items and TMs. The toughest repeatable challenge.","POST-GAME"},
+        {"CYNTHIA","UNDELLA TOWN.","She stays in a villa in UNDELLA TOWN after the League; talk to her for a battle.","POST-GAME"},
+        {"Rematches","The LEAGUE.","The ELITE FOUR and ALDER can be fought again with stronger teams.","POST-GAME"},
+        {"RELIC CASTLE and VOLCARONA","DESERT RESORT.","The castle's lower floors open after the League; VOLCARONA waits at the bottom.","POST-GAME"},
+        {"Sages","Across UNOVA.","The six sages are part of the epilogue; look for them around UNOVA after the League.","POST-GAME"},
+
+        // TIPS.
+        {"Why did the POKeMON here change?","Look at the calendar.","Some places change their POKeMON with the seasons, and the seasons follow the month: January, May and September are spring, February, June and October summer, March, July and November autumn, April, August and December winter. The encounter list follows your DS clock.","TIPS"},
+        {"What about the dark grass and the grass that shakes?","They're not the plain grass.","Dark grass, grass that shakes and water that ripples each hold POKeMON of their own, often stronger or rarer than the plain grass around them.","TIPS"},
+        {"AUDINO","SHAKING GRASS.","Shaking grass holds AUDINO, which gives a lot of EXP; it is the fastest way to level a team.","TIPS"},
+        {"Critical captures","A lucky throw.","A thrown ball can critical-capture. The more species you have caught, the better the odds.","TIPS"},
+        {"Repels","They keep the weak away.","A REPEL keeps wild POKeMON weaker than your first POKeMON away for a number of steps; SUPER REPEL and MAX REPEL last longer.","TIPS"},
+        {"BLACK or WHITE?","Version differences.","BLACK has RESHIRAM, DRAYDEN, BLACK CITY and TORNADUS; WHITE has ZEKROM, IRIS, WHITE FOREST and THUNDURUS.","TIPS"},
+        {"DEERLING and SAWSBUCK","Their look follows the season.","DEERLING and SAWSBUCK change form with the season; the season follows your DS month.","TIPS"},
+        {"Dream World","Offline now.","The Dream World and its event distributions are no longer online.","TIPS"},
+        {"Training spots","AUDINO and the Battle Subway.","There is no Vs Seeker in BLACK and WHITE: shaking grass AUDINO is the repeatable EXP, and the Battle Subway in NIMBASA is the repeatable challenge.","TIPS"},
+        {"Triple and Rotation battles","Special battles.","Triple battles use three POKeMON at once (the middle one can be hit by all); Rotation battles turn one of three to the front. Moves that hit all adjacent foes are stronger there.","TIPS"},
+        {"Hidden items","DOWSING MCHN.","Hidden items show only with the DOWSING MCHN; use it in towns and routes.","TIPS"},
     };
     return {};
 }
