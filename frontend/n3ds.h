@@ -517,7 +517,7 @@ inline bool MakeFolder(const std::string& appDir, const Launcher::Game& g)
     // (its marker matches the kit), nothing is walked: a start stays as quick as it was.
     const std::string stamp = RuntimeKit::Stamp(W(Exe(ProgramDir(appDir))));
     const bool exeThere = fs::is_regular_file(W(Exe(g.folder)), ec);
-    if (!exeThere || (!stamp.empty() && !RuntimeKit::Marked(to, stamp)))
+    if (!exeThere || (fs::is_directory(from, ec) && (stamp.empty() || !RuntimeKit::Marked(to, stamp))))
     {
         if (!RuntimeKit::CopyMissing(from, to, ec))
         { fprintf(stderr, "[3ds] copying the program to %s: %s\n", g.folder.c_str(), ec.message().c_str()); return false; }
