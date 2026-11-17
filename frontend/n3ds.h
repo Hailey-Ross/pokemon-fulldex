@@ -92,6 +92,49 @@ inline std::string DumpTitle(const std::string& path)
     return hex;
 }
 
+// Whether a dump is encrypted, as a console's cartridge is (#155): 1 encrypted, 0 not, -1 not a .3ds dump at
+// all. The first partition's NCCH header has a flag for "no encryption" (byte 0x18F, bit 2), which tools
+// that decrypt a dump (GodMode9) set.
+inline int DumpCrypt(const std::string& path)
+{
+#ifdef _WIN32
+    FILE* f = _wfopen(std::filesystem::u8path(path).wstring().c_str(), L"rb");
+#else
+    FILE* f = fopen(path.c_str(), "rb");
+#endif
+    if (!f) return -1;
+    unsigned char h[0x200] = {}, n[0x200] = {};
+    bool ok = fread(h, 1, sizeof h, f) == sizeof h && memcmp(h + 0x100, "NCSD", 4) == 0;
+    const long at = ok ? (long)((uint32_t)h[0x120] | (uint32_t)h[0x121] << 8 | (uint32_t)h[0x122] << 16 | (uint32_t)h[0x123] << 24) * 0x200 : 0;
+    ok = ok && at > 0 && fseek(f, at, SEEK_SET) == 0 && fread(n, 1, sizeof n, f) == sizeof n && memcmp(n + 0x100, "NCCH", 4) == 0;
+    fclose(f);
+    if (!ok) return -1;
+    return (n[0x18F] & 4) ? 0 : 1;
+}
+// Why a 3DS file with the ROMs is not in the list (#155), said once on the list: the one that matters most (an
+// Omega Ruby or Alpha Sapphire that cannot be played before another game, or a file that is no dump).
+inline std::string& SkipNote() { static std::string s; return s; }
+inline int& SkipRank() { static int r = 0; return r; }
+inline void Skip(const std::string& path, const std::string& why, int rank = 1)
+{
+    const std::string name = path.substr(path.find_last_of("/\\") + 1); // (as it is: the list's notes set the case)
+    fprintf(stderr, "[3ds] not listed: %s: %s\n", path.c_str(), why.c_str());
+    if (rank > SkipRank()) { SkipNote() = name + ": " + why; SkipRank() = rank; }
+}
+// (A 3DS file among the ROMs: its title if FullDex plays it, else nullptr and why not said.)
+inline const Title* Check(const std::string& path)
+{
+    if (EndsWith(path, ".cia")) { Skip(path, "A .CIA IS NOT PLAYED: THE 3DS GAMES NEED A .3DS DUMP OF THE CARTRIDGE", 2); return nullptr; }
+    if (EndsWith(path, ".cci")) { Skip(path, "RENAME IT TO .3DS", 2); return nullptr; }
+    if (!EndsWith(path, ".3ds")) return nullptr;
+    const int crypt = DumpCrypt(path);
+    if (crypt < 0) { Skip(path, "NOT A 3DS CARTRIDGE DUMP"); return nullptr; }
+    const Title* t = ById(DumpTitle(path));
+    if (!t) { Skip(path, "NOT OMEGA RUBY OR ALPHA SAPPHIRE, THE 3DS GAMES FULLDEX PLAYS"); return nullptr; }
+    if (crypt == 1) { Skip(path, "ENCRYPTED: DECRYPT IT FIRST (GODMODE9 ON YOUR 3DS)", 3); return nullptr; }
+    return t;
+}
+
 inline Launcher::Game Make(const Title& t, const std::string& rom, const std::string& folder)
 {
     Launcher::Game g;
@@ -102,6 +145,137 @@ inline Launcher::Game Make(const Title& t, const std::string& rom, const std::st
     g.name = t.name;
     g.known = true;
     return g;
+}
+
+// The save. The game keeps it in its own folder (data/user/savedata/<title id>/main, 472 KB); FullDex keeps
+// a copy with the other games' saves (omegaruby.sav, alphasapphire.sav), which Manage Saves, a saves folder
+// of the player's own and cloud saves use. SyncSave makes the two the same: whichever was written last
+// wins (a game played, or a save brought in by Import Save or cloud saves), the one it replaces backed up first.
+// (beforePlay: a backup of the save the game is about to start with, as the DS games make.)
+inline const size_t kSaveSize = 0x76000;
+inline std::string SaveName(const std::string& code) { return code == "ECLA" ? "alphasapphire.sav" : "omegaruby.sav"; }
+inline std::string GameSave(const Launcher::Game& g) { return g.folder + "/data/user/savedata/" + IdOf(g) + "/main"; }
+inline bool ReadSave(const std::string& p, std::vector<unsigned char>& d)
+{
+    std::error_code ec;
+    const std::filesystem::path f = std::filesystem::u8path(p);
+    if (!std::filesystem::is_regular_file(f, ec) || std::filesystem::file_size(f, ec) != kSaveSize || ec) return false;
+#ifdef _WIN32
+    FILE* h = _wfopen(f.wstring().c_str(), L"rb");
+#else
+    FILE* h = fopen(p.c_str(), "rb");
+#endif
+    if (!h) return false;
+    d.resize(kSaveSize);
+    const bool ok = fread(d.data(), 1, kSaveSize, h) == kSaveSize;
+    fclose(h);
+    return ok;
+}
+// A copy of a save in the backups folder beside the saves folder's copy (backups/omegaruby-20261116-112000.sav,
+// as the DS games' are, so Restore A Backup lists it), unless the newest is the same; the newest 10 kept.
+inline void Backup(const std::string& copy, const std::vector<unsigned char>& d)
+{
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    const fs::path dir = fs::u8path(copy).parent_path() / "backups";
+    const std::string stem = fs::u8path(copy).stem().u8string();
+    fs::create_directories(dir, ec);
+    std::vector<fs::path> old;
+    for (fs::directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec))
+    {
+        const std::string n = it->path().filename().u8string();
+        if (n.size() == stem.size() + 20 && n.compare(0, stem.size() + 1, stem + "-") == 0 && EndsWith(n, ".sav")) old.push_back(it->path());
+    }
+    std::sort(old.begin(), old.end());
+    std::vector<unsigned char> last;
+    if (!old.empty() && ReadSave(old.back().u8string(), last) && last == d) return;
+    const time_t now = time(nullptr);
+    char when[32];
+    strftime(when, sizeof when, "%Y%m%d-%H%M%S", localtime(&now));
+    const fs::path b = dir / fs::u8path(stem + "-" + when + ".sav");
+#ifdef _WIN32
+    FILE* h = _wfopen(b.wstring().c_str(), L"wb");
+#else
+    FILE* h = fopen(b.u8string().c_str(), "wb");
+#endif
+    if (!h) return;
+    const bool ok = fwrite(d.data(), 1, d.size(), h) == d.size();
+    fclose(h);
+    if (!ok) { fs::remove(b, ec); return; }
+    old.push_back(b);
+    while (old.size() > 10) { fs::remove(old.front(), ec); old.erase(old.begin()); }
+}
+// (from over to: written beside it first, then put in its place and given from's time.)
+inline bool CopySave(const std::string& from, const std::vector<unsigned char>& d, const std::string& to)
+{
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    const fs::path t = fs::u8path(to), tmp = fs::u8path(to + ".new");
+    fs::create_directories(t.parent_path(), ec);
+#ifdef _WIN32
+    FILE* h = _wfopen(tmp.wstring().c_str(), L"wb");
+#else
+    FILE* h = fopen((to + ".new").c_str(), "wb");
+#endif
+    if (!h) return false;
+    const bool ok = fwrite(d.data(), 1, d.size(), h) == d.size();
+    if (fclose(h) != 0 || !ok) { fs::remove(tmp, ec); return false; }
+    ec.clear();
+    fs::rename(tmp, t, ec);
+    if (ec) { fs::remove(tmp, ec); return false; }
+    const auto when = fs::last_write_time(fs::u8path(from), ec);
+    if (!ec) fs::last_write_time(t, when, ec);
+    return true;
+}
+// The game's program keeps the same copy itself as it plays (omega-nx savefile.rs: written when the game saves,
+// taken in at its start when newer), in <FullDex>/saves unless OMEGA_NX_SAVE names the file: told the saves
+// folder FullDex uses, so the two keep one copy, a saves folder of the player's own included.
+inline void TellSave(const std::string& copy)
+{
+#ifdef _WIN32
+    _wputenv_s(L"OMEGA_NX_SAVE", std::filesystem::u8path(copy).wstring().c_str());
+#else
+    setenv("OMEGA_NX_SAVE", copy.c_str(), 1);
+#endif
+}
+inline void SyncSave(const Launcher::Game& g, const std::string& copy, bool beforePlay = false)
+{
+    namespace fs = std::filesystem;
+    if (g.platform != Launcher::N3DS || g.comingSoon || copy.empty() || IdOf(g).empty()) return;
+    if (beforePlay) TellSave(copy);
+    const std::string game = GameSave(g);
+    std::vector<unsigned char> a, b;
+    const bool hasGame = ReadSave(game, a), hasCopy = ReadSave(copy, b);
+    if (beforePlay && hasGame && hasCopy && a == b) Backup(copy, a);
+    if ((!hasGame && !hasCopy) || (hasGame && hasCopy && a == b)) return;
+    std::error_code ec;
+    const auto tg = hasGame ? fs::last_write_time(fs::u8path(game), ec) : fs::file_time_type::min();
+    const auto tc = hasCopy ? fs::last_write_time(fs::u8path(copy), ec) : fs::file_time_type::min();
+    if (hasGame && (!hasCopy || tg >= tc))
+    {
+        if (hasCopy) Backup(copy, b);
+        const bool ok = CopySave(game, a, copy);
+        if (ok && beforePlay) Backup(copy, a);
+        fprintf(stderr, "[3ds] %s: save copied to %s%s\n", g.name.c_str(), copy.c_str(), ok ? "" : " (FAILED)");
+        return;
+    }
+    // (Into the game: its save folder made as the game would make it, the first time.)
+    const std::string fmt = g.folder + "/data/user/savedata/" + IdOf(g) + ".format";
+    if (!IsFile(fmt))
+    {
+        fs::create_directories(fs::u8path(g.folder + "/data/user/savedata/" + IdOf(g)), ec);
+        static const unsigned char kFormat[16] = { 0, 0, 4, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0 };
+#ifdef _WIN32
+        FILE* h = _wfopen(fs::u8path(fmt).wstring().c_str(), L"wb");
+#else
+        FILE* h = fopen(fmt.c_str(), "wb");
+#endif
+        if (h) { fwrite(kFormat, 1, sizeof kFormat, h); fclose(h); }
+    }
+    if (hasGame) Backup(copy, a);
+    const bool ok = CopySave(copy, b, game);
+    if (ok && beforePlay) Backup(copy, b);
+    fprintf(stderr, "[3ds] %s: save from %s put in the game%s\n", g.name.c_str(), copy.c_str(), ok ? "" : " (FAILED)");
 }
 
 // Whether this download has the 3DS games' program (AddPc found it).
@@ -193,6 +367,7 @@ inline void AddSwitch(std::vector<Launcher::Game>& games, const std::string& roo
 // is copied there the first time it is chosen (GameActivity.threeDsAdd).
 inline void AddAndroid(const std::vector<std::string>& romDirs, const std::string& appDir, std::vector<Launcher::Game>& games)
 {
+    SkipNote().clear(); SkipRank() = 0;
     auto have = [&](const Title& t) {
         for (const Launcher::Game& o : games) if (o.platform == Launcher::N3DS && o.code == t.code) return true;
         return false;
@@ -209,8 +384,8 @@ inline void AddAndroid(const std::vector<std::string>& romDirs, const std::strin
         while (dirent* e = readdir(d))
         {
             const std::string path = dir + "/" + e->d_name;
-            if (!EndsWith(path, ".3ds") || !IsFile(path)) continue;
-            const Title* t = ById(DumpTitle(path));
+            if (!IsFile(path)) continue;
+            const Title* t = Check(path);
             if (!t || have(*t)) continue;
             games.push_back(Make(*t, path, appDir + "/3ds/" + t->id));
             fprintf(stderr, "[3ds] %s: %s\n", t->name, path.c_str());
@@ -261,7 +436,7 @@ inline bool Prepared(const Launcher::Game& g) { std::error_code ec; return std::
 inline void AddPc(const std::vector<std::string>& romDirs, const std::string& appDir, std::vector<Launcher::Game>& games)
 {
     ProgramHere() = HaveProgram(appDir);
-    if (!ProgramHere()) return;
+    SkipNote().clear(); SkipRank() = 0;
     for (const std::string& dir : romDirs)
     {
         std::error_code ec;
@@ -269,9 +444,15 @@ inline void AddPc(const std::vector<std::string>& romDirs, const std::string& ap
         {
             if (!it->is_regular_file(ec)) continue;
             const std::string path = it->path().u8string();
-            if (!EndsWith(path, ".3ds")) continue;
-            const Title* t = ById(DumpTitle(path));
+            const Title* t = Check(path);
             if (!t) continue;
+            if (!ProgramHere())
+            {
+#if defined(_WIN32) || defined(__x86_64__)
+                Skip(path, "THE 3DS FOLDER FROM THE FULLDEX DOWNLOAD IS MISSING BESIDE THE PROGRAM", 3);
+#endif
+                continue;
+            }
             bool dup = false;
             for (const Launcher::Game& o : games) dup |= o.platform == Launcher::N3DS && o.code == t->code;
             if (dup) continue;
@@ -320,10 +501,18 @@ inline bool MakeFolder(const std::string& appDir, const Launcher::Game& g)
 }
 
 // Making the game's code: one at a time, on a thread of its own, the launcher showing how it goes.
+// (A thread let go of when the program ends, still making a game's code or long finished: a joinable
+// std::thread destroyed at exit ends the program with "terminate called", a crash on quitting.)
+struct LooseThread : std::thread
+{
+    using std::thread::thread;
+    using std::thread::operator=;
+    ~LooseThread() { if (joinable()) detach(); }
+};
 struct Prep
 {
     std::mutex m;
-    std::thread th;
+    LooseThread th;
     std::atomic<bool> running { false };
     bool finished = false, failed = false, told = true;
     int done = 0, total = 0;

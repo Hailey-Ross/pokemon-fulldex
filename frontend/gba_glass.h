@@ -108,4 +108,21 @@ void Tap(Page& page, int x, int y, Input& out, int& slider, int& pick);
 // The page drawn at w x h (ARGB, alpha as the DS menu's canvas). changed: false when it is the
 // same picture as the last call's.
 const uint32_t* Draw(const Page& page, int w, int h, bool& changed);
+
+// FULLDEX NAV (fulldex_nav.h), the DS games' quick menu, over the running GBA game: the watch with its nine apps
+// (Fly, Party, Open PC, Repel, Encounters, Reset, Map, Pokedex, Bag, in that order), drawn as the DS games draw it.
+struct Nav
+{
+    int sel = 0, count = 0, style = 0; // (style: NAV STYLE, 0 MODERN, 1 CLASSIC, 2 SIMPLE, 3 WHEEL)
+    bool centre = false;    // (the touch controls are up: WHEEL in the middle, the others at the right between R and A)
+    bool dim[9] = {};       // (an app that can't be used here, faded)
+    std::string label[9];   // (an app's word in place of its name: RESET's "A again")
+    std::string hint;
+};
+// The watch at the window's size (w x h ARGB, see-through but for it); changed: drawn again since the last.
+const uint32_t* NavDraw(const Nav& nav, int w, int h, bool& changed);
+// The app at x, y (0 to 8); -1 off the watch, -2 on it but not on an app.
+int NavHit(const Nav& nav, int w, int h, int x, int y);
+// ENCOUNTERS shown on the picture while playing: the count alone, in its corner.
+const uint32_t* NavCount(int count, int w, int h, bool& changed);
 }

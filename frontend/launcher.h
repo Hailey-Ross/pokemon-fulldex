@@ -1,4 +1,9 @@
 #pragma once
+// FullDex's version, shown on the About page and written to the log (releases from 1.6 on are numbered,
+// tagged vMAJOR.MINOR.PATCH). A build can set its own with -DFULLDEX_VERSION="...".
+#ifndef FULLDEX_VERSION
+#define FULLDEX_VERSION "1.6"
+#endif
 #include <pthread.h>
 #include <functional>
 // The game picker of the all-games download (one program for every game): finds the players'
@@ -309,8 +314,13 @@ struct GlassFocus { int side = -1; int banner = 0; int popup = -1; int popX = 0,
                     // (The settings drawn as a page: its title; where its list and preview go, for the menu.)
                     std::string pageTitle; int sX = 0, sY = 0, sW = 0, sH = 0, sListW = 0, sPvX = 0, sListH = 0, sPvY = 0, pdY = 0, dScroll = 0, dMax = 0; };
 inline GlassFocus& Focus() { static GlassFocus f; return f; }
-#ifdef __ANDROID__
-inline int PopupCount() { return 8; } // (Android: Add To Phone Home Screen as well)
+// The game menu's platform-launcher item (Add To Steam, or Add To Desktop when Steam is not
+// found): the game list supplies the label because only it knows what is available.
+inline std::function<std::string(const Game&)>& PlatformEntryLabel() { static std::function<std::string(const Game&)> f; return f; }
+// Whether the launcher itself is in Steam ("IN STEAM") or not, for the settings row.
+inline std::function<std::string()>& PlatformLauncherState() { static std::function<std::string()> f; return f; }
+#if defined(__ANDROID__) || (!defined(SSR_PHONE) && !defined(__SWITCH__))
+inline int PopupCount() { return 8; } // (Android's phone home, or the desktop's Steam/Desktop entry)
 #else
 inline int PopupCount() { return 7; }
 #endif
@@ -325,6 +335,17 @@ inline std::string PopupLabel(const Game& g, int i)
     if (g.platform == N3DS && i == 3) return "Use Game Code From PC";
     if (g.platform == N3DS && i == 4) return g.built ? "Game Code Built" : "Build For Best Speed (25 Min)";
 #endif
+    if (i == 7)
+    {
+#if defined(__ANDROID__)
+        return n[7];
+#elif !defined(SSR_PHONE) && !defined(__SWITCH__)
+        if (PlatformEntryLabel()) return PlatformEntryLabel()(g);
+        return "Add To Desktop";
+#else
+        return n[7];
+#endif
+    }
     return i == 1 ? (g.favourite ? "Remove From Home" : "Add To Home") : i >= 0 && i < 8 ? n[i] : "";
 }
 // The pause menu's keyboard page (Menu::keyGrid) for Rename: BACK, four rows of keys (capitals, small
@@ -2649,6 +2670,7 @@ struct HubState
     CloudSaves::Settings set;
     int busy = 0;                           // 0 nothing, 1 signing in, 2 syncing
     std::string code, url, msg;             // signing in: the code and where to type it; the last word
+    bool needSignIn = false;                // the cloud says the Google sign-in is no longer good
     std::map<std::string, CloudSaves::Result> results; // by the save's path
     std::map<std::string, std::string> synced;          // the saves in the cloud (cloud-state.txt): name, as last synced
     std::atomic<int> version{ 0 };
@@ -4483,6 +4505,7 @@ inline std::vector<std::string> HubActions(int row)
         if (h.busy == 1) return { "Cancel" };
         if (h.busy) return {};
         if (!HubOnLocked(h)) return { "Sign In With Google" };
+        if (h.needSignIn) return { "Sign In With Google", "Sign Out" };
         return { "Sync All Now", "Sign Out" };
     }
     if (!HubOnLocked(h) || h.busy || row - HUB_FIRST >= (int)games.size()) return {};
@@ -4499,6 +4522,7 @@ inline void HubSyncJob(std::vector<std::string> paths, int resolve)
     { std::lock_guard<std::mutex> l(h.m); s = h.set; dir = h.dir; }
     std::unique_ptr<CloudSaves::Sync> sync = CloudSaves::FromSettings(s, dir + "/cloud-state.txt", HubDevice());
     int up = 0, down = 0, both = 0, failed = 0;
+    std::string firstError;
     for (const std::string& p : paths)
     {
         if (h.stop) break;
@@ -4514,16 +4538,24 @@ inline void HubSyncJob(std::vector<std::string> paths, int resolve)
         down += r.outcome == CloudSaves::Outcome::Pulled;
         both += r.outcome == CloudSaves::Outcome::Conflict;
         failed += r.outcome == CloudSaves::Outcome::Failed;
+        if (r.outcome == CloudSaves::Outcome::Failed && firstError.empty()) firstError = r.message;
         { std::lock_guard<std::mutex> l(h.m); h.results[p] = r; }
         h.version++;
     }
     std::lock_guard<std::mutex> l(h.m);
     h.busy = 0;
     HubReadState(h);
-    if (!sync) h.msg = "Cloud saves are not set up.";
-    else if (failed) h.msg = "Could not reach " + std::string(HubProvider(s.provider)) + ". The saves here are kept, and sync next time.";
+    if (!sync) { h.needSignIn = false; h.msg = "Cloud saves are not set up."; }
+    else if (failed)
+    {
+        h.needSignIn = firstError.find("SIGN IN AGAIN") != std::string::npos;
+        h.msg = "Could not reach " + std::string(HubProvider(s.provider)) +
+                (firstError.empty() ? std::string() : ": " + SettingSentence(firstError)) +
+                ". The saves here are kept, and sync next time.";
+    }
     else
     {
+        h.needSignIn = false;
         h.msg = "Synced.";
         if (up) h.msg += " " + std::to_string(up) + " sent up.";
         if (down) h.msg += " " + std::to_string(down) + " brought down.";
@@ -4545,7 +4577,12 @@ inline void HubSignInJob(std::vector<std::string> paths)
     if (client.id.empty()) { done("This build of Fulldex has no Google sign-in built in."); return; }
     CloudSaves::SignIn in;
     std::string err, refresh;
-    if (!CloudSaves::GoogleSignInStart(client, in, err)) { done("Could not reach Google. Check the internet connection and try again."); return; }
+    if (!CloudSaves::GoogleSignInStart(client, in, err))
+    {
+        done(err.empty() ? "Could not reach Google. Check the internet connection and try again."
+                         : "Could not sign in to Google: " + SettingSentence(err) + ".");
+        return;
+    }
     {
         std::lock_guard<std::mutex> l(h.m);
         h.code = in.userCode; h.url = in.verificationUrl; h.msg.clear();
@@ -4565,6 +4602,7 @@ inline void HubSignInJob(std::vector<std::string> paths)
                 h.set.googleRefreshToken = refresh;
                 if (h.set.deviceName.empty()) h.set.deviceName = HubDevice();
                 CloudSaves::SaveSettings(h.dir + "/cloud.ini", h.set);
+                h.needSignIn = false;
                 h.busy = 2; h.code.clear(); h.url.clear(); h.msg = "Signed in. Syncing your saves...";
                 h.version++;
             }
@@ -4573,7 +4611,13 @@ inline void HubSignInJob(std::vector<std::string> paths)
         }
         if (st == CloudSaves::SignInState::SlowDown) in.interval += 5;
         else if (st == CloudSaves::SignInState::Denied) { done("Sign-in was turned down on the phone."); return; }
-        else if (st != CloudSaves::SignInState::Waiting) { done(st == CloudSaves::SignInState::Expired ? "The code ran out. Choose Sign In again for a new one." : "Sign-in did not work. Try again."); return; }
+        else if (st != CloudSaves::SignInState::Waiting)
+        {
+            if (st == CloudSaves::SignInState::Expired) done("The code ran out. Choose Sign In again for a new one.");
+            else if (err.empty()) done("Sign-in did not work. Try again.");
+            else done("Sign-in did not work: " + SettingSentence(err) + ".");
+            return;
+        }
     }
     done(h.cancel ? "Sign-in cancelled." : "The code ran out. Choose Sign In again for a new one.");
 }
@@ -4610,6 +4654,7 @@ inline std::string HubDo(int row, int act)
         h.set.googleRefreshToken.clear();
         const bool ok = CloudSaves::SaveSettings(h.dir + "/cloud.ini", h.set);
         h.results.clear();
+        h.needSignIn = false;
         h.msg = ok ? "Signed out. Your saves stay here, and in your Drive." : "Could not save the cloud settings.";
         h.version++;
         return "";
@@ -6681,6 +6726,10 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
             case CloudSaves::Outcome::Pushed: para("This save was sent up to the cloud.", text, 14 * u); break;
             case CloudSaves::Outcome::Pulled: para("A newer save from " + cloudDev + " was brought down. The one that was here is in the backups.", text, 14 * u); break;
             case CloudSaves::Outcome::NothingYet: para("There is no save for this game yet, here or in the cloud.", hint, 14 * u); break;
+            case CloudSaves::Outcome::Failed:
+                para((r->message.empty() ? std::string("Could not reach the cloud.") : SettingSentence(r->message)) +
+                     " The save here is kept, and syncs next time.", hint, 14 * u);
+                break;
             default: para("Could not reach the cloud. The save here is kept, and syncs next time.", hint, 14 * u); break;
             }
             GT(c, ix, y + 8 * u, "Save File", 12 * u, hint, true);
@@ -6744,7 +6793,7 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
         const int cx = L + pad, cy = top + lhA - pad - ch, cw = lw - 2 * pad;
         if (cy >= top + pad + 5 * (rowH + rg)) { // (not on a short screen: it would be drawn over the rows)
         Glass::Round(c, cx, cy, cw, ch, 12 * u, SettingsArt::Row, 0x3DFFFFFF, 1.0f * u);
-        GT(c, cx + (int)(14 * u), cy + 24 * u, "Fulldex", 20 * u, text, true);
+        GT(c, cx + (int)(14 * u), cy + 24 * u, (std::string("FullDex ") + FULLDEX_VERSION).c_str(), 20 * u, text, true);
         GT(c, cx + (int)(14 * u), cy + 48 * u, PlatformLabel(), 14 * u, hint, true);
         int ly = cy + (int)(70 * u);
         for (const std::string& l : lines) { GT(c, cx + (int)(14 * u), ly, l, 13 * u, hint, false); ly += (int)(18 * u); }
@@ -6845,9 +6894,9 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
     else if (F.prow == 1)
     {
         heading("Credits And Acknowledgements");
-        static const char* const creditUrl[14] = { "https://github.com/ClickingMaster/ssrecomp", "https://github.com/melonDS-emu/melonDS", "https://mgba.io",
+        static const char* const creditUrl[18] = { "https://github.com/ClickingMaster/ssrecomp", "https://github.com/melonDS-emu/melonDS", "https://mgba.io",
             "https://github.com/lidor30/pokedaisy", "https://github.com/fuddlesworth/pokebw2", "https://gbatemp.net/threads/deadskullzjrs-nds-cheat-databases.488711/",
-            "https://github.com/ITotalJustice/sphaira", "", "", "", "", "", "", "" };
+            "https://github.com/ITotalJustice/sphaira", "", "", "", "", "", "", "", "", "", "", "" };
         static const char* credits[][2] = {
             { "ssrecomp by ClickingMaster", "The single-screen and widescreen view Fulldex grew from" },
             { "melonDS", "The DS emulation" },
@@ -6863,11 +6912,15 @@ inline void DrawPage(Canvas& c, const GlassSpots& sp, bool solid, float u)
             { "meltingmagnetz", "Help with the Pok\xC3\xA9" "dex" },
             { "Jeezer", "The tidy folders idea" },
             { "a1ex", "Battle labels in other languages (PR #171)" },
+            { "OzWookiee", "Cloud saves and Hub fixes, Steam shortcuts (PRs #192, #197, #198)" },
+            { "Saiborg23", "Generation 3 Evolved widescreen (PR #184)" },
+            { "elripalda", "RecompLauncher support (PR #182)" },
             { "Everyone who reported bugs and helped test", "Thank you" } };
+        const int nCredits = (int)(sizeof credits / sizeof credits[0]);
         const int gap = (int)(12 * u), cw = (pw - 2 * ip - gap) / 2, ch = (int)(62 * u);
         std::vector<Blk> bl;
-        for (int r = 0; r < 7; r++)
-            bl.push_back({ ch + (int)(10 * u), [&, r]() { for (int k = 0; k < 2; k++) { card(px + ip + k * (cw + gap), y, cw, ch, credits[r * 2 + k][0], credits[r * 2 + k][1]); if (*creditUrl[r * 2 + k]) link(px + ip + k * (cw + gap), y, cw, ch, creditUrl[r * 2 + k]); } y += ch + (int)(10 * u); } });
+        for (int r = 0; r < (nCredits + 1) / 2; r++)
+            bl.push_back({ ch + (int)(10 * u), [&, r]() { for (int k = 0; k < 2 && r * 2 + k < nCredits; k++) { card(px + ip + k * (cw + gap), y, cw, ch, credits[r * 2 + k][0], credits[r * 2 + k][1]); if (*creditUrl[r * 2 + k]) link(px + ip + k * (cw + gap), y, cw, ch, creditUrl[r * 2 + k]); } y += ch + (int)(10 * u); } });
         runBlocks(bl, ch + (int)(10 * u));
     }
     else if (F.prow == 2)
@@ -7039,7 +7092,8 @@ inline void DrawMusicSquare(Canvas& c, int x, int y, int sz, float u)
     Glass::DrawIcon(c, Glass::I_NEXT, cx + gap, cy, 6.5f * u, m.canNext ? ink : inkOff);
 }
 inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, int tab, int selected, int& scroll,
-                      const std::string& note, const std::string& hintText, bool follow, bool onTabs, bool settingsChosen)
+                      const std::string& note, const std::string& hintText, bool follow, bool onTabs, bool settingsChosen,
+                      int menuGame = -1)
 {
     // (The launcher's own font and Text Size while it draws; CleanFont's own after.)
     LookLoad();
@@ -7066,6 +7120,7 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
                     + (bg ? bg->rom + "#" + sig(*bg) : std::string()) + "/"
                     + std::to_string(onTabs) + std::to_string(settingsChosen) + "/" + std::to_string(cont) + "/" + ContinueRom()
                     + "/t" + Focus().pageTitle + "/h" + HubSig() + (Focus().page == SIDE_HUB ? std::to_string(Mover().open) + std::to_string(HubMode()) + "," + std::to_string(Focus().pact) + "," + std::to_string(Focus().rScroll) : std::string()) + "/p" + std::to_string(Focus().page) + "," + std::to_string(Focus().page >= 0 ? Focus().prow : 0) + std::to_string(Focus().page >= 0 && Focus().side < 0) + "/s" + std::to_string(Focus().onSort) + SortKey() + "/q" + SearchText() + "/t" + TabsSig()
+                    + "/b" + std::to_string(Focus().banner) + "/q" + std::to_string(Focus().popup) + "/m" + std::to_string(menuGame)
                     + (Focus().page == SIDE_ROMS ? "/r" + std::to_string(Focus().pact) + "," + std::to_string(RomList().size()) + ","
                        + std::to_string(std::count_if(RomList().begin(), RomList().end(), [](const Game& g) { return g.hidden; })) : std::string());
     if (Focus().page >= 0) key += "/scroll" + std::to_string(Focus().dScroll) + "," + std::to_string(Focus().rScroll) + "," + std::to_string(Focus().nScroll);
@@ -7581,20 +7636,34 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
 
     // The game's menu (A on a game), beside its card: a glass panel of rows as the sidebar's.
     Focus().popW = 0;
-    if (Focus().popup >= 0 && selected >= 0 && selected < (int)games.size())
+    const int mg = menuGame >= 0 && menuGame < (int)games.size() ? menuGame : selected;
+    if (Focus().popup >= 0 && mg >= 0 && mg < (int)games.size())
     {
-        const int k = v.SpotOf(selected);
-        if (k >= 0)
+        const int k = v.SpotOf(mg);
+        // (from the Game Options button the menu sits under it, so the game need not be in the list shown)
+        if (k >= 0 || (Focus().banner == 2 && !PhoneLook()))
         {
-            static const int icons[] = { Glass::I_PLAY, Glass::I_POKEBALL, Glass::I_SPARKLE, Glass::I_WINDOW, Glass::I_SAVE, Glass::I_LAYERS, Glass::I_BACK, Glass::I_EXPAND };
-            const Game& g = games[selected];
-            const int cx = grid.horiz ? v.spots[k].x - scroll : v.spots[k].x, cyy = grid.horiz ? grid.top + v.spots[k].y : grid.top + v.spots[k].y - scroll;
+            static const int icons[] = { Glass::I_PLAY, Glass::I_POKEBALL, Glass::I_SPARKLE, Glass::I_WINDOW, Glass::I_SAVE, Glass::I_LAYERS, Glass::I_BACK, Glass::I_GLOBE };
+            const Game& g = games[mg];
             const int n = PopupCount(), rowH = (int)(44 * u), rg = (int)(4 * u), pad = (int)(8 * u), pw = (int)(250 * u);
             const int ph = n * rowH + (n - 1) * rg + 2 * pad;
-            int px = cx + grid.cw + (int)(12 * u);
-            if (px + pw > c.w - (int)(28 * u)) px = cx - (int)(12 * u) - pw;
+            int px, py;
+            if (Focus().banner == 2 && !PhoneLook())
+            {
+                // (The Game Options button opened it: the menu sits under that button, not the card.)
+                const int ox = sp.contX + sp.contW + (int)(10 * u);
+                px = ox;
+                py = sp.contY + sp.contH + (int)(12 * u);
+            }
+            else
+            {
+                const int cx = grid.horiz ? v.spots[k].x - scroll : v.spots[k].x, cyy = grid.horiz ? grid.top + v.spots[k].y : grid.top + v.spots[k].y - scroll;
+                px = cx + grid.cw + (int)(12 * u);
+                if (px + pw > c.w - (int)(28 * u)) px = cx - (int)(12 * u) - pw;
+                py = cyy;
+            }
             px = std::max((int)(12 * u), std::min(px, c.w - (int)(12 * u) - pw)); // (upright: no room beside the card, so over it, never off the screen)
-            const int py = std::max((int)(28 * u), std::min(cyy, c.h - (int)(82 * u) - ph));
+            py = std::max((int)(28 * u), std::min(py, c.h - (int)(82 * u) - ph));
             Focus().popX = px + pad; Focus().popY = py + pad; Focus().popW = pw - 2 * pad; Focus().popRow = rowH + rg;
             // (The rest of the screen dimmed, and the blurred background put back under the menu so
             // its glass frosts that, not the cards behind it.)
@@ -7928,12 +7997,12 @@ inline void DrawClassic(Canvas& c, const std::vector<Game>& games, int tab, int 
 // the sidebar's Settings chosen with the arrows (the classic list draws its own SETTINGS button).
 inline void Draw(Canvas& c, const std::vector<Game>& games, int tab, int selected, int& scroll, const std::string& note,
                  const std::string& hintText = std::string(), const Theme& th = Theme(), bool follow = true, bool onTabs = false,
-                 bool settingsChosen = false)
+                 bool settingsChosen = false, int menuGame = -1)
 {
     if (Glassy(c))
     {
         const View v = MakeView(c, games, tab);
-        DrawGlass(c, games, v, tab, selected, scroll, note, hintText, follow, onTabs, settingsChosen);
+        DrawGlass(c, games, v, tab, selected, scroll, note, hintText, follow, onTabs, settingsChosen, menuGame);
         return;
     }
     DrawClassic(c, games, tab, selected, scroll, note, hintText, th, follow, onTabs);
@@ -8090,6 +8159,11 @@ inline std::vector<Setting> SettingsList()
 #elif !defined(__APPLE__)
     l.push_back({ "!shortcuts", "DESKTOP SHORTCUTS", { { "", "CREATE" } }, "",
                   "PUTS A SHORTCUT FOR EACH GAME IN THIS LIST ON YOUR DESKTOP AND IN YOUR APPS MENU WITH ITS PICTURE. IT STARTS THAT GAME STRAIGHT AWAY. ON THE STEAM DECK THEY ALSO SHOW UP IN ADD A NON-STEAM GAME. CREATE AGAIN AFTER ADDING GAMES OR MOVING THIS FOLDER." });
+    const std::string steamLauncher = PlatformLauncherState() ? PlatformLauncherState()() : "NOT IN STEAM";
+    l.push_back({ "!steam_launcher", "STEAM LAUNCHER", { { "", steamLauncher } }, "",
+                  "ADDS FULLDEX ITSELF TO YOUR STEAM LIBRARY, NOT THE GAMES. QUIT STEAM FIRST, THEN CHOOSE THIS (THE MESSAGE SAYS HOW TO REOPEN IT). WHEN IT IS ALREADY IN STEAM, CHOOSE THIS TO TAKE IT OUT. WHEN STEAM IS NOT INSTALLED, A GAME'S MENU OFFERS ADD TO DESKTOP INSTEAD." });
+    l.push_back({ "!steam_refresh", "STEAM ACCOUNT", { { "", "REFRESH" } }, "",
+                  "FINDS THE STEAM ACCOUNT SIGNED IN LAST AND ITS shortcuts.vdf AGAIN (AFTER SWITCHING ACCOUNTS OR MOVING STEAM) AND SAVES THEM IN settings.cfg AS steam_account AND steam_shortcuts. THE VALUE SHOWS THE ACCOUNT FOUND." });
 #endif
 #endif
 #endif
@@ -8510,7 +8584,7 @@ inline int SettingIcon(const Setting& s, int group)
         { "screen_filter", Glass::I_SPARKLE }, { "gba_lcd", Glass::I_SPARKLE }, { "battle_buttons", Glass::I_PAD }, { "show_fps", Glass::I_GAUGE }, { "fps60", Glass::I_FAST }, { "wide", Glass::I_RATIO },
         { "wide_map", Glass::I_GLOBE }, { "wide_lines", Glass::I_LAYERS }, { "busy_detail", Glass::I_GAUGE }, { "ff_low_res", Glass::I_FAST },
         { "wide_gpu", Glass::I_CHIP }, { "volume", Glass::I_SPEAKER }, { "start_button", Glass::I_PAD }, { "buttons", Glass::I_PAD },
-        { "pad_touch", Glass::I_PAD }, { "!keys", Glass::I_PAD }, { "!shortcuts", Glass::I_WINDOW }, { "!forwarders", Glass::I_WINDOW },
+        { "pad_touch", Glass::I_PAD }, { "!keys", Glass::I_PAD }, { "!shortcuts", Glass::I_WINDOW }, { "!steam_launcher", Glass::I_GLOBE }, { "!steam_refresh", Glass::I_GLOBE }, { "!forwarders", Glass::I_WINDOW },
         { "list_lang", Glass::I_GLOBE }, { "ra", Glass::I_TROPHY }, { "!ra_login", Glass::I_PEOPLE }, { "!updates", Glass::I_LOAD }, { "!releases", Glass::I_GLOBE } };
     for (const auto& o : own)
         if (!strcmp(s.key, o.first)) return o.second;
@@ -8655,4 +8729,36 @@ inline void BuildSettingsMenu(Menu& m, std::vector<int>& map, const SettingsPage
     m.selected = onBack ? 0 : std::max(0, std::min((int)m.items.size() - 1, p.selected + 1));
 }
 
+}
+
+// Lines of a settings file set (key=value) or, for an empty value, taken out; the others kept.
+// (The launcher and the Steam writer both keep settings in settings.cfg.)
+inline void SetConfigValues(const std::string& cfg, const std::vector<std::pair<std::string, std::string>>& values)
+{
+    std::vector<std::string> lines;
+    if (FILE* f = fopen(cfg.c_str(), "r"))
+    {
+        char line[1024];
+        while (fgets(line, sizeof line, f))
+        {
+            std::string l = line;
+            while (!l.empty() && (l.back() == '\n' || l.back() == '\r')) l.pop_back();
+            bool set = false;
+            for (const auto& kv : values) set |= l.size() > kv.first.size() && !l.compare(0, kv.first.size(), kv.first) && l[kv.first.size()] == '=';
+            if (!set) lines.push_back(l);
+        }
+        fclose(f);
+    }
+    for (const auto& kv : values)
+        if (!kv.second.empty()) lines.push_back(kv.first + "=" + kv.second);
+    const std::string tmp = cfg + ".tmp";
+    if (FILE* f = fopen(tmp.c_str(), "w"))
+    {
+        bool ok = true;
+        for (const std::string& l : lines) if (fprintf(f, "%s\n", l.c_str()) < 0) ok = false;
+        ok = fclose(f) == 0 && ok;
+        std::error_code ec;
+        if (ok) std::filesystem::rename(tmp, cfg, ec);
+        if (!ok || ec) fprintf(stderr, "[launcher] settings could not be saved: %s\n", cfg.c_str());
+    }
 }

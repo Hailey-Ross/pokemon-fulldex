@@ -1,0 +1,51 @@
+{
+    "$schema": "https://recomplauncher.com/schema/recomplauncher.json",
+    "format": 1,
+    "name": "Pokémon Fulldex",
+    "game": {
+        "kind": "iso",
+        "label": "Your own Pokémon ROM: a Nintendo DS (.nds) or Game Boy Advance (.gba) file of a game from the supported list in the README."
+    },
+    "start": {
+        "program": [
+            "Pokemon Fulldex.exe"
+        ],
+        "args": [
+            "--rom",
+            "{game}"
+        ]
+    },
+    "folders": {
+        "roms": [
+            {
+                "path": "{install}/roms"
+            }
+        ],
+        "saves": [
+            {
+                "path": "{install}/saves"
+            }
+        ]
+    },
+    "saves": [
+        "{install}/saves"
+    ],
+    "actions": [
+        {
+            "id": "roms",
+            "label": "ROMs",
+            "help": "Your DS and GBA ROM files. Put them here, then pick the game in the list.",
+            "open": "roms"
+        },
+        {
+            "id": "saves",
+            "label": "Saves",
+            "help": "Your save files, one per game.",
+            "open": "saves"
+        }
+    ],
+    "requires": [
+        "start",
+        "files.flag"
+    ]
+}

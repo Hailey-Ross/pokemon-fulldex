@@ -11,7 +11,7 @@ namespace CloudAuto
 {
 namespace
 {
-std::unique_ptr<CloudSaves::Sync> g_sync;
+std::shared_ptr<CloudSaves::Sync> g_sync;
 std::string g_save;
 std::thread g_job;
 std::atomic<bool> g_busy{ false };
@@ -40,9 +40,12 @@ std::string Upper(std::string s)
 void Send()
 {
     if (g_job.joinable()) g_job.join();
+    auto sync = g_sync; // (held by the thread, so Finish may let go while it still runs)
+    if (!sync) return;
+    const std::string save = g_save;
     g_busy = true;
-    g_job = std::thread([] {
-        const CloudSaves::Result r = g_sync->AfterPlay(g_save);
+    g_job = std::thread([sync, save] {
+        const CloudSaves::Result r = sync->AfterPlay(save);
         fprintf(stderr, "[cloud] after a save: %s\n", r.message.c_str());
         g_busy = false;
     });
@@ -56,15 +59,27 @@ bool Wait(int seconds)
     if (g_job.joinable()) g_job.join();
     return true;
 }
+bool HasFile(const std::string& path)
+{
+    if (FILE* f = fopen(path.c_str(), "rb")) { fclose(f); return true; }
+    return false;
+}
 }
 
 std::string Start(const std::string& configDir, const std::string& savePath)
 {
-    if (!Wait(5)) return "";
+    if (!Wait(5)) { fprintf(stderr, "[cloud] still busy: this start is not synced\n"); return ""; }
     g_pending = false;
-    CloudSaves::Settings s = CloudSaves::LoadSettings(configDir + "/cloud.ini");
-    g_sync = CloudSaves::FromSettings(s, configDir + "/cloud-state.txt", s.deviceName.empty() ? Device() : s.deviceName);
-    if (!g_sync) return "";
+    // (The launcher's Hub writes cloud.ini into the settings folder beside the program (FOLDERS);
+    // the standalone game, the Switch and older layouts keep it in the program's own folder.)
+    const std::string cloudDir = HasFile(configDir + "/settings/cloud.ini") ? configDir + "/settings" : configDir;
+    CloudSaves::Settings s = CloudSaves::LoadSettings(cloudDir + "/cloud.ini");
+    g_sync = CloudSaves::FromSettings(s, cloudDir + "/cloud-state.txt", s.deviceName.empty() ? Device() : s.deviceName);
+    if (!g_sync)
+    {
+        fprintf(stderr, "[cloud] off (no cloud.ini in %s or its settings folder)\n", configDir.c_str());
+        return "";
+    }
     g_save = savePath;
     const CloudSaves::Result r = g_sync->BeforePlay(savePath);
     fprintf(stderr, "[cloud] before play: %s\n", r.message.c_str());

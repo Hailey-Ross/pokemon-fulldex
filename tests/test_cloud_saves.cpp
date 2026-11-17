@@ -8,6 +8,10 @@
 #include <filesystem>
 #include <string>
 #include <vector>
+#ifndef _WIN32
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
 
 namespace fs = std::filesystem;
 using namespace CloudSaves;
@@ -195,6 +199,25 @@ int main()
     fs::create_directories(g_folder);
     Scenario("folder", MakeFolder, root + "-folder");
 
+#ifndef _WIN32
+    // (A save that is there but cannot be read is not an empty one: the cloud's is never written
+    // over it.)
+    if (geteuid() != 0)
+    {
+        const std::string dir = root + "-unreadable";
+        fs::remove_all(dir);
+        fs::create_directories(dir);
+        const std::string p = dir + "/black2.sav";
+        Write(p, Save('R'));
+        chmod(p.c_str(), 0);
+        Sync unreadable(FolderBackend(g_folder), dir + "/cloud-state.txt", "Windows PC");
+        CHECK(unreadable.BeforePlay(p).outcome == Outcome::Failed);
+        chmod(p.c_str(), 0644);
+        CHECK(Read(p) == Save('R'));
+        fs::remove_all(dir);
+    }
+#endif
+
     if (const char* dav = getenv("FULLDEX_TEST_WEBDAV"))
     {
         g_dav = dav;
@@ -236,6 +259,11 @@ int main()
         // Signed out from the Google account's settings: asks to sign in again.
         CHECK(!GoogleDriveBackend(TestClient(), "revoked")->Stat("black2.sav", exists, m, error));
         CHECK(error.find("SIGN IN AGAIN") != std::string::npos);
+        // Removing a save puts it in the Drive's bin, out of later searches; one not there is gone.
+        CHECK(drive->Remove("black2.sav", error));
+        exists = true;
+        CHECK(drive->Stat("black2.sav", exists, m, error) && !exists);
+        CHECK(drive->Remove("never-there.sav", error));
     }
 #endif
 

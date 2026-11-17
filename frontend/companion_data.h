@@ -198,6 +198,7 @@ struct Profile
     uint32_t pointer=0,body=0,party=0,bag=0,dex=0,location=0,trainer=0,repel=0;
     int maxSpecies=493;
     std::vector<int> pockets;
+    uint32_t repelType=0; // (where the game keeps which Repel it was, for its "use another?" when it runs out; 0 not known)
     // (pointer 0: a version whose addresses in memory are not known (White, Black 2, White 2, other
     // revisions): its save found by looking for it (FindSave); no live position or battle.)
     bool hgss=false;
@@ -232,9 +233,13 @@ inline Profile ProfileFor(const std::string& code, int revision)
     else if(family=="IRB" || family=="IRA")
         p={true,true,0,0,0x18E00,0x18400,0x21600,0x19500,0x19400,0x21B31,649,{310,83,109,48,64}};
     // (Black 2 and White 2: PKHeX's SAV5B2W2: the Pokedex at 0x21400, the money and badges at
-    // 0x21100; the Repel's steps not known, so not read.)
+    // 0x21100; the encounter block at 0x21900: +0x2C the swarm, +0x2D the Repel's steps, +0x2E the
+    // Repel used (its item number, Project Pokemon's B2W2 save structure).)
     else if(family=="IRE" || family=="IRD")
-        p={true,true,0,0,0x18E00,0x18400,0x21400,0x19500,0x19400,0,649,{310,83,109,48,64}};
+    {
+        p={true,true,0,0,0x18E00,0x18400,0x21400,0x19500,0x19400,0x2192D,649,{310,83,109,48,64}};
+        p.repelType=0x2192E;
+    }
     p.hgss=family=="IPK" || family=="IPG";
     p.misc=family=="IRE" || family=="IRD" ? 0x21100 : 0x21200;
     // (Black 2's found in savestates: the player's map and position at [[0x021410F4]+0x1C]+0x114;

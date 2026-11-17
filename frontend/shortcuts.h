@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <set>
 #include <string>
 #include <vector>
@@ -148,6 +149,15 @@ inline std::wstring Wide(const std::string& s)
     for (wchar_t& c : w)
         if (c == L'/') c = L'\\';
     return w;
+}
+inline std::string Narrow(const std::wstring& w)
+{
+    if (w.empty()) return std::string();
+    const int n = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(), nullptr, 0, nullptr, nullptr);
+    if (n <= 0) return std::string();
+    std::string s((size_t)n, '\0');
+    WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(), &s[0], n, nullptr, nullptr);
+    return s;
 }
 
 // An .ico holding the picture as PNGs at 256, 48, 32 and 16 pixels.
@@ -465,5 +475,132 @@ inline int Make(const std::string& dir, const std::vector<Launcher::Game>& games
     where = hasDesk ? "ON YOUR DESKTOP AND IN YOUR APPS" : "IN YOUR APPS MENU";
 #endif
     return made;
+}
+
+// ---------------------------------------------------------------------------------------------
+// One game's desktop shortcut (the game menu's platform entry falls back to these when Steam
+// is not available).
+
+#if !defined(_WIN32) && !defined(__APPLE__)
+inline std::string LinuxAppsDir()
+{
+    const char* home = getenv("HOME");
+    const std::string h = home ? home : "";
+    const char* xdg = getenv("XDG_DATA_HOME");
+    return (xdg && *xdg ? std::string(xdg) : h + "/.local/share") + "/applications";
+}
+inline std::string LinuxDesktopDir()
+{
+    const char* home = getenv("HOME");
+    const std::string h = home ? home : "";
+    std::string desk = h + "/Desktop";
+    if (FILE* f = fopen((h + "/.config/user-dirs.dirs").c_str(), "r"))
+    {
+        char line[1024];
+        while (fgets(line, sizeof line, f))
+        {
+            std::string l = line;
+            if (l.compare(0, 16, "XDG_DESKTOP_DIR=") != 0) continue;
+            l = l.substr(16);
+            while (!l.empty() && (l.back() == '\n' || l.back() == '\r' || l.back() == '"')) l.pop_back();
+            if (!l.empty() && l[0] == '"') l = l.substr(1);
+            if (l.compare(0, 5, "$HOME") == 0) l = h + l.substr(5);
+            desk = l;
+        }
+        fclose(f);
+    }
+    return desk;
+}
+// The same id Make() gives this ROM's files: <code>-<crc of the ROM path>.
+inline std::string LinuxShortcutId(const Launcher::Game& g)
+{
+    char suffix[16];
+    snprintf(suffix, sizeof suffix, "%08x", Crc32((const uint8_t*)g.rom.data(), g.rom.size()));
+    return g.code + "-" + suffix;
+}
+inline std::string Lower(std::string s)
+{
+    for (char& c : s) c = (char)tolower((unsigned char)c);
+    return s;
+}
+#endif
+
+inline bool Exists(const std::string& dir, const Launcher::Game& g)
+{
+    (void)dir;
+#ifdef _WIN32
+    PWSTR desktop = nullptr;
+    if (FAILED(SHGetKnownFolderPath(FOLDERID_Desktop, 0, nullptr, &desktop))) return false;
+    const std::wstring desk = desktop;
+    CoTaskMemFree(desktop);
+    const std::wstring lnk = desk + L"\\" + Wide(Title(g)) + L".lnk";
+    return GetFileAttributesW(lnk.c_str()) != INVALID_FILE_ATTRIBUTES;
+#elif defined(__APPLE__)
+    const char* home = getenv("HOME");
+    if (!home || !*home) return false;
+    const std::string h = home;
+    std::error_code ec;
+    return std::filesystem::exists(std::filesystem::u8path(h + "/Applications/" + Title(g) + ".app"), ec) ||
+           std::filesystem::exists(std::filesystem::u8path(h + "/Desktop/" + Title(g) + ".app"), ec);
+#else
+    (void)dir;
+    const std::string file = "pokemon-ds-wide-" + Lower(LinuxShortcutId(g)) + ".desktop";
+    std::error_code ec;
+    return std::filesystem::exists(std::filesystem::u8path(LinuxAppsDir() + "/" + file), ec) ||
+           std::filesystem::exists(std::filesystem::u8path(LinuxDesktopDir() + "/" + file), ec);
+#endif
+}
+
+inline bool Remove(const std::string& dir, const Launcher::Game& g, std::string& where)
+{
+#ifdef _WIN32
+    PWSTR desktop = nullptr;
+    if (FAILED(SHGetKnownFolderPath(FOLDERID_Desktop, 0, nullptr, &desktop))) { where = "NO DESKTOP FOLDER"; return false; }
+    const std::wstring desk = desktop;
+    CoTaskMemFree(desktop);
+    DeleteFileW((desk + L"\\" + Wide(Title(g)) + L".lnk").c_str());
+    DeleteFileW(Wide(dir + "/shortcut-icons/" + g.code + ".ico").c_str());
+    where = "FROM YOUR DESKTOP";
+#elif defined(__APPLE__)
+    const char* home = getenv("HOME");
+    if (!home || !*home) { where = "NO HOME FOLDER"; return false; }
+    const std::string h = home;
+    std::error_code ec;
+    std::filesystem::remove_all(std::filesystem::u8path(h + "/Applications/" + Title(g) + ".app"), ec);
+    std::filesystem::remove_all(std::filesystem::u8path(h + "/Desktop/" + Title(g) + ".app"), ec);
+    where = "FROM YOUR APPS AND DESKTOP";
+#else
+    const std::string id = LinuxShortcutId(g);
+    const std::string file = "pokemon-ds-wide-" + Lower(id) + ".desktop";
+    std::error_code ec;
+    std::filesystem::remove(std::filesystem::u8path(LinuxAppsDir() + "/" + file), ec);
+    std::filesystem::remove(std::filesystem::u8path(LinuxDesktopDir() + "/" + file), ec);
+    std::filesystem::remove(std::filesystem::u8path(dir + "/shortcut-icons/" + id + ".png"), ec);
+    where = "FROM YOUR APPS MENU AND DESKTOP";
+#endif
+    return true;
+}
+
+// The program's own path (the AppImage when running from one).
+inline std::string ExecutablePath()
+{
+#ifdef _WIN32
+    wchar_t exe[32768];
+    const DWORD n = GetModuleFileNameW(nullptr, exe, 32768);
+    if (n == 0 || n >= 32768) return std::string();
+    return Narrow(std::wstring(exe, n));
+#elif defined(__APPLE__)
+    char exe[4096];
+    uint32_t size = sizeof exe;
+    if (_NSGetExecutablePath(exe, &size) != 0) return std::string();
+    return exe;
+#else
+    if (const char* appImage = getenv("APPIMAGE"); appImage && *appImage) return appImage;
+    char exe[4096];
+    const ssize_t n = readlink("/proc/self/exe", exe, sizeof exe - 1);
+    if (n <= 0) return std::string();
+    exe[n] = 0;
+    return exe;
+#endif
 }
 }

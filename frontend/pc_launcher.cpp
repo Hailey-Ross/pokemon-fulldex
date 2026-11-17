@@ -84,6 +84,7 @@ static void ListWindowSize(SDL_Window* w, int* ww, int* wh) { SDL_GetWindowSize(
 #endif
 #if !defined(SSR_PHONE) && !defined(__SWITCH__)
 #include "shortcuts.h"
+#include "steam_shortcuts.h"
 #endif
 #ifdef SSR_UPDATER
 #include "updater.h"
@@ -108,7 +109,7 @@ namespace
 {
 std::vector<std::string> g_args;
 std::vector<char*> g_argv;
-bool g_canChange = false, g_change = false;
+bool g_canChange = false, g_change = false, g_direct = false; // (g_direct: started for one game, #196)
 std::string g_name;
 
 bool Exists(const std::string& path)
@@ -166,36 +167,6 @@ bool ConfigFullscreen(const std::string& cfg, int& w, int& h)
 }
 
 // F11 in the list: the game then starts the same way (the settings file says so).
-// Lines of the settings file set (key=value) or, for an empty value, taken out; the others kept.
-void SetConfigValues(const std::string& cfg, const std::vector<std::pair<std::string, std::string>>& values)
-{
-    std::vector<std::string> lines;
-    if (FILE* f = fopen(cfg.c_str(), "r"))
-    {
-        char line[1024];
-        while (fgets(line, sizeof line, f))
-        {
-            std::string l = line;
-            while (!l.empty() && (l.back() == '\n' || l.back() == '\r')) l.pop_back();
-            bool set = false;
-            for (const auto& kv : values) set |= l.size() > kv.first.size() && !l.compare(0, kv.first.size(), kv.first) && l[kv.first.size()] == '=';
-            if (!set) lines.push_back(l);
-        }
-        fclose(f);
-    }
-    for (const auto& kv : values)
-        if (!kv.second.empty()) lines.push_back(kv.first + "=" + kv.second);
-    const std::string tmp = cfg + ".tmp";
-    if (FILE* f = fopen(tmp.c_str(), "w"))
-    {
-        bool ok = true;
-        for (const std::string& l : lines) if (fprintf(f, "%s\n", l.c_str()) < 0) ok = false;
-        ok = fclose(f) == 0 && ok;
-        std::error_code ec;
-        if (ok) std::filesystem::rename(tmp, cfg, ec);
-        if (!ok || ec) fprintf(stderr, "[launcher] settings could not be saved: %s\n", cfg.c_str());
-    }
-}
 
 void SetConfigFullscreen(const std::string& cfg, bool on)
 {
@@ -613,7 +584,7 @@ std::vector<Launcher::Game> FindGames(const Folders& fo, std::map<std::string, s
         const size_t before = games.size();
         Launcher::AddPatchedHacks(romDirs, HacksFolder(fo), fo.saves, games, false);
         for (size_t i = before; i < games.size(); i++) artFor(games[i]);
-        Launcher::AdoptHackSaves(games, [](const Launcher::Game& g, const std::string& name) { return g.folder + "/" + name; });
+        Launcher::AdoptHackSaves(games, [&fo](const Launcher::Game&, const std::string& name) { return fo.saves + "/" + name; });
     }
     Launcher::EndScan();
 #ifdef SSR_GBA
@@ -669,6 +640,14 @@ std::vector<Launcher::Game> FindGames(const Folders& fo, std::map<std::string, s
     for (Launcher::Game& g : games)
         if (g.platform == Launcher::N3DS) g.built = JavaBoolStringArg("threeDsBuilt", N3ds::IdOf(g));
 #endif
+    // (Their saves: the copy in the saves folder and the game's own kept the same, n3ds.h.)
+    for (Launcher::Game& g : games)
+        if (g.platform == Launcher::N3DS)
+        {
+            g.saveName = N3ds::SaveName(g.code);
+            N3ds::SyncSave(g, fo.saves + "/" + g.saveName);
+            g.hasSave = N3ds::IsFile(fo.saves + "/" + g.saveName);
+        }
     Launcher::AddComingSoon(games);
     N3ds::DropPlaceholders(games);
     for (Launcher::Game& g : games)
@@ -866,6 +845,13 @@ static void FillUpdateStatus()
 
 int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool& fullscreen, int winW, int winH)
 {
+#if !defined(SSR_PHONE) && !defined(__SWITCH__)
+    // The Steam account/shortcuts path is found once at load and kept in settings.cfg; the
+    // game menu's label is drawn every frame and must not touch Steam's folders there.
+    SteamShortcuts::Initialize(fo.cfg);
+    Launcher::PlatformEntryLabel() = [dir = fo.dir](const Launcher::Game& g) { return SteamShortcuts::PlatformEntryLabel(dir, g); };
+    Launcher::PlatformLauncherState() = [] { return SteamShortcuts::HasLauncher() ? "IN STEAM" : "NOT IN STEAM"; };
+#endif
 #ifdef __ANDROID__
     JavaVoid("showLauncherOrientation");
     SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight Portrait PortraitUpsideDown");
@@ -966,11 +952,14 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
     // the chosen game is; a key, button or tap that chooses a game makes it follow again.
     bool follow = true;
     std::string note;
+    bool noteKeep = false; // (a menu action's message survives the pointer-up that follows it)
     if (Launcher::ConfigValue(fo.cfg, "folders_moved") == "1")
     {
         note = "FOLDERS TIDIED: SAVES, STATES, CHEATS AND SETTINGS EACH HAVE ONE. SETTINGS TO UNDO.";
         SetConfigValues(fo.cfg, { { "folders_moved", "shown" } });
     }
+    // (A 3DS file with the ROMs that is not listed: why, #155.)
+    if (note.empty() && !N3ds::SkipNote().empty()) note = N3ds::SkipNote();
     if (getenv("SSR_TEST_FOLDERS_SWITCH")) note = SwitchFolders(fo, games); // (tests: the FOLDERS option chosen once)
     if (const char* own = getenv("SSR_TEST_OWN_FOLDER")) // (tests: "kind|folder", as if chosen in the picker)
     {
@@ -1179,6 +1168,8 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
         const int gi = atoi(sv);
         if (gi >= 0 && gi < (int)games.size())
         {
+            Launcher::ConfirmHack(games, (size_t)gi, fo.settings,
+                                  [&fo](const Launcher::Game&, const std::string& name) { return fo.saves + "/" + name; });
             Launcher::OpenSaves(games[gi], fo.saves + "/" + games[gi].saveName);
             if (const char* k = strchr(sv, ',')) Launcher::Focus().pact = atoi(k + 1);
             if (const char* all = getenv("SSR_LIST_SAVESDO"))
@@ -1462,6 +1453,19 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             return;
         }
 #endif
+#if !defined(SSR_PHONE) && !defined(__SWITCH__) && !defined(__APPLE__)
+        // STEAM LAUNCHER: add or take out Fulldex itself; the value says what happened.
+        if (key && !strcmp(key, "!steam_launcher"))
+        {
+            page.items[page.selected].values[0].second = SteamShortcuts::LauncherDo();
+            return;
+        }
+        if (key && !strcmp(key, "!steam_refresh"))
+        {
+            page.items[page.selected].values[0].second = SteamShortcuts::RefreshAccount(fo.cfg);
+            return;
+        }
+#endif
 #if !defined(__ANDROID__) && !defined(SSR_IOS)
         // SAVES FOLDER: a folder of the player's own (copied into, nothing replaced), used from the next start; again: back beside the ROMs.
         if (key && !strcmp(key, "!saves_folder"))
@@ -1582,6 +1586,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 note = "ADDING " + name + " TO FULLDEX (ONE TIME, ABOUT 2 GB): IT STARTS WHEN READY";
                 return;
             }
+            N3ds::SyncSave(g, fo.saves + "/" + g.saveName, true); // (a save brought in since the list was made)
             JavaStringArg("threeDsPlay", N3ds::IdOf(g));
             note = "STARTING " + name;
             return;
@@ -1591,7 +1596,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
         {
             // (A ROM not yet checked is, now: a hack plays with a save of its own.)
             Launcher::ConfirmHack(games, (size_t)selected, fo.settings,
-                                  [](const Launcher::Game& g, const std::string& name) { return g.folder + "/" + name; });
+                                  [&fo](const Launcher::Game&, const std::string& name) { return fo.saves + "/" + name; });
             if (Launcher::SavesPlayCheck(games[selected], fo.saves + "/" + games[selected].saveName)) return; // (a save with a problem: says so first)
             note = PrepareLaunch(games[selected]);
             if (!note.empty()) { fprintf(stderr, "[launcher] launch blocked: %s: %s\n", games[selected].rom.c_str(), note.c_str()); return; }
@@ -1725,9 +1730,16 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             }
             if (F.banner == 2)
             {
-                // (Game Options: the menu of the game the banner offers.)
-                const int cg = Launcher::ContinueGame(games, selected);
-                if (cg >= 0) { selected = cg; F.banner = 0; F.popup = 0; follow = true; }
+                // (Game Options: the selected game's menu, keeping the Game Options focus. The
+                // pointer, the grid selection, and the keyboard/gamepad all land here.)
+                // (nothing chosen in the list, as on an empty Home: the game the banner shows, else the first one)
+                if (selected < 0 || selected >= (int)games.size()) { const int cg = Launcher::ContinueGame(games, selected); selected = cg >= 0 ? cg : Launcher::FirstIn(view()); }
+                if (selected >= 0 && selected < (int)games.size())
+                {
+                    F.banner = 2;
+                    F.popup = 0;
+                    follow = true;
+                }
                 return;
             }
             bool direct = false; // (Continue, or Play in the game's menu: played at once)
@@ -1784,15 +1796,30 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                     return;
                 }
 #endif
+#if !defined(SSR_PHONE) && !defined(__SWITCH__)
+                // The platform-launcher entry: Add To Steam, or Add To Desktop when Steam is
+                // not found (Android's phone home shortcut is above).
+                if (item == 7 && valid)
+                {
+                    note = SteamShortcuts::PlatformEntryDo(fo.dir, games[selected]);
+                    noteKeep = true;
+                    return;
+                }
+#endif
                 if (item == 3 && valid) { F.dialog = 4; F.drow = 0; return; }
                 if (item == 4 && valid && games[selected].platform == Launcher::N3DS)
                 {
-                    note = "3DS SAVES ARE KEPT IN THE GAME'S OWN FOLDER";
+                    // (Its save as the game last left it, then the page.)
+                    N3ds::SyncSave(games[selected], fo.saves + "/" + games[selected].saveName);
+                    Launcher::OpenSaves(games[selected], fo.saves + "/" + games[selected].saveName);
                     return;
                 }
                 if (item == 4 && valid)
                 {
-                    // Manage Saves: the game's saves on a page of their own (saves_page.h).
+                    // Manage Saves: the game's saves on a page of their own (saves_page.h). A DS ROM not yet
+                    // checked is, first, so that a hack shows its own save, not its game's.
+                    Launcher::ConfirmHack(games, (size_t)selected, fo.settings,
+                                          [&fo](const Launcher::Game&, const std::string& name) { return fo.saves + "/" + name; });
                     Launcher::OpenSaves(games[selected], fo.saves + "/" + games[selected].saveName);
                     return;
                 }
@@ -3097,7 +3124,8 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 {
                     selected = i;
                     onSettings = onTabs = false; Launcher::Focus() = Launcher::GlassFocus{};
-                    note.clear();
+                    if (!noteKeep) note.clear();
+                    noteKeep = false;
                     // Pointer selection leaves the list under the finger; controller movement
                     // follows its chosen card. A partial card must not jump at touch-down.
                     if (e.type == SDL_MOUSEBUTTONDOWN) follow = false;
@@ -3453,6 +3481,10 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                     // (Built, or code from a PC taken: the tile and menu say so.)
                     for (Launcher::Game& g : games)
                         if (g.platform == Launcher::N3DS && !busy3ds) g.built = JavaBoolStringArg("threeDsBuilt", N3ds::IdOf(g));
+                    // (Back from a game: its save copied to the saves folder.)
+                    if (!busy3ds)
+                        for (const Launcher::Game& g : games)
+                            if (g.platform == Launcher::N3DS) N3ds::SyncSave(g, fo.saves + "/" + g.saveName);
                     // (The first Play's copy done: the game starts.)
                     std::string& autoPlay = N3dsAutoPlay();
                     if (!autoPlay.empty() && !busy3ds)
@@ -3464,7 +3496,10 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 }
             }
 #endif
-            Launcher::Draw(canvas, games, tab, !Launcher::TilesOn() && (onSettings || onTabs || Launcher::Focus().side >= 0 || Launcher::Focus().banner) ? -1 : selected, scroll, note, (Launcher::Focus().popup >= 0 || Launcher::Focus().dialog || Launcher::Focus().page >= 0) ? (padIn ? btn(Controls::A) + ": CHOOSE    " + btn(Controls::B) + ": BACK" : std::string("ENTER: CHOOSE    ESC: BACK")) : hint, theme, follow, onTabs, onSettings);
+            const bool bannerOnly = !Launcher::TilesOn() && (onSettings || onTabs || Launcher::Focus().side >= 0 || Launcher::Focus().banner);
+            const int gridSelected = bannerOnly ? -1 : selected;
+            const int menuGame = Launcher::Focus().popup >= 0 ? selected : -1;
+            Launcher::Draw(canvas, games, tab, gridSelected, scroll, note, (Launcher::Focus().popup >= 0 || Launcher::Focus().dialog || Launcher::Focus().page >= 0) ? (padIn ? btn(Controls::A) + ": CHOOSE    " + btn(Controls::B) + ": BACK" : std::string("ENTER: CHOOSE    ESC: BACK")) : hint, theme, follow, onTabs, onSettings, menuGame);
         }
 #ifdef SSR_UPDATER
         if (updateMenu.open)
@@ -3607,10 +3642,10 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             loggedPresent = true;
         }
 #endif
-        // (SSR_LIST_KEYS=lrud...: those arrow presses, once, before the first picture, for the navigation tests.)
+        // (SSR_LIST_KEYS=lrud...: those arrow presses (a: A), once, before the first picture, for the navigation tests.)
         static int keysAge = -1;
         if (keysAge >= 0) keysAge++;
-        if (const char* tk = getenv("SSR_LIST_KEYS")) { static bool keysDone = false; if (!keysDone) { keysDone = true; keysAge = 0; for (const char* q = tk; *q; q++) move(*q == 'l' ? 1 : *q == 'r' ? 2 : *q == 'u' ? 3 : 4); } }
+        if (const char* tk = getenv("SSR_LIST_KEYS")) { static bool keysDone = false; if (!keysDone) { keysDone = true; keysAge = 0; for (const char* q = tk; *q; q++) { if (*q == 'a') choose(); else move(*q == 'l' ? 1 : *q == 'r' ? 2 : *q == 'u' ? 3 : 4); } } }
         // (SSR_LIST_CHOOSE=a game code: that game chosen once as a player would, its menu's Play: a 3DS
         // game not prepared yet starts preparing, and SSR_LIST_SHOT waits until that has ended.)
         if (const char* tc = getenv("SSR_LIST_CHOOSE"))
@@ -3798,6 +3833,9 @@ void ResolveFolders(Folders& fo, bool atStart)
     if (!fo.states.empty()) FolderSet::MakeDirs(fo.states);
     FolderSet::States() = fo.states;
     FolderSet::CheatsDir() = fo.cheats;
+    // (Cloud saves: the Hub syncs the save the game reads, in the saves folder, not the one beside
+    // the settings. Refreshed here so a change of saves folder is followed.)
+    Launcher::PlatformSavePath() = [saves = fo.saves](const Launcher::Game& g) { return saves + "/" + g.saveName; };
     fprintf(stderr, "[folders] %s: saves %s, states %s, cheats %s, settings %s\n", layout.empty() ? "classic (for now)" : layout.c_str(),
             fo.saves.c_str(), fo.states.empty() ? "(beside the saves)" : fo.states.c_str(),
             fo.cheats.empty() ? "(beside the saves folder)" : fo.cheats.c_str(), fo.settings.c_str());
@@ -3964,6 +4002,8 @@ bool Start(int& argc, char**& argv)
         direct = argv[2];
         for (char& c : direct) c = (char)toupper((unsigned char)c);
     }
+    else if (argc == 2 && argv[1] && (N3ds::EndsWith(argv[1], ".3ds") || N3ds::EndsWith(argv[1], ".cci") || N3ds::EndsWith(argv[1], ".cia")))
+        directRom = argv[1]; // (a 3DS dump opened with FullDex, "Open With" or a Steam shortcut: the 3DS game, never the DS one)
     else if (argc >= 2)
     {
 #ifdef SSR_GBA
@@ -4088,6 +4128,7 @@ bool Start(int& argc, char**& argv)
         rename(logPath.c_str(), prev.c_str());
     }
     if (freopen(logPath.c_str(), "w", stderr)) setvbuf(stderr, nullptr, _IOLBF, 0);
+    fprintf(stderr, "[launcher] FullDex %s\n", FULLDEX_VERSION);
     fprintf(stderr, "[launcher] folder %s\n", fo.dir.c_str());
     if (fo.saves != fo.dir + "/saves") fprintf(stderr, "[launcher] saves folder %s\n", fo.saves.c_str()); // (SAVES FOLDER, or the phone's ROM folder)
     ResolveFolders(fo, true);
@@ -4148,9 +4189,39 @@ bool Start(int& argc, char**& argv)
         if (directGame < 0 && copiedDirectGba && IsGbaRomName(directRom))
             for (size_t i = 0; i < games.size() && directGame < 0; i++)
                 if (sameRom(games[i].rom, copy) && Playable(fo, games[i])) directGame = (int)i;
+#ifdef SSR_N3DS_PC
+        // (A 3DS dump from anywhere: the 3DS game, as if it were with the ROMs; one that cannot be played says why.)
+        if (directGame < 0 && (N3ds::EndsWith(directRom, ".3ds") || N3ds::EndsWith(directRom, ".cci") || N3ds::EndsWith(directRom, ".cia")))
+        {
+            if (const N3ds::Title* t = N3ds::Check(directRom))
+            {
+                for (size_t i = 0; i < games.size() && directGame < 0; i++)
+                    if (games[i].platform == Launcher::N3DS && games[i].code == t->code) directGame = (int)i;
+                if (directGame < 0 && N3ds::ProgramHere())
+                {
+                    games.push_back(N3ds::Make(*t, directRom, fo.dir + "/3ds/" + t->id));
+                    games.back().saveName = N3ds::SaveName(t->code);
+                    games.back().built = N3ds::Prepared(games.back());
+                    directGame = (int)games.size() - 1;
+                }
+                else if (directGame < 0)
+                    N3ds::Skip(directRom, "THE 3DS FOLDER FROM THE FULLDEX DOWNLOAD IS MISSING BESIDE THE PROGRAM", 3);
+            }
+        }
+        else
+#endif
         if (directGame < 0) directGame = DirectRom::Ds(directRom, fo.saves, fo.art, games);
         if (directGame >= 0 && !Playable(fo, games[directGame])) directGame = -1;
         if (directGame < 0) fprintf(stderr, "[launcher] --rom %s: not in the list\n", directRom.c_str());
+#ifdef SSR_N3DS_PC
+        // (A 3DS game whose code is not made yet: the list, with it being made, rather than a game that cannot start.)
+        if (directGame >= 0 && games[directGame].platform == Launcher::N3DS && !N3ds::Prepared(games[directGame]))
+        {
+            chosen = directGame;
+            directGame = -1;
+            if (!N3ds::Busy()) N3ds::StartPrepare(fo.dir, games[chosen]);
+        }
+#endif
     }
 #ifdef SSR_UPDATER
     // (At launch, as the list opens: a popup if a new version is out, never installed unasked.)
@@ -4174,10 +4245,15 @@ bool Start(int& argc, char**& argv)
         }
 #endif
         if (chosen < 0) return false;
+#ifndef __ANDROID__
+        // (#196: a game started directly (a Steam or desktop shortcut, --rom, --game) ends the program when it is
+        // quit, back to Steam or the desktop, rather than opening the list.)
+        g_direct = directGame >= 0;
+#endif
         if (directGame >= 0 && games[chosen].platform != Launcher::N3DS)
         {
             Launcher::ConfirmHack(games, (size_t)chosen, fo.settings,
-                                  [](const Launcher::Game& g, const std::string& name) { return g.folder + "/" + name; });
+                                  [&fo](const Launcher::Game&, const std::string& name) { return fo.saves + "/" + name; });
             if (Launcher::SavesPlayCheck(games[chosen], fo.saves + "/" + games[chosen].saveName)) { directGame = -1; continue; }
             const std::string error = PrepareLaunch(games[chosen]);
             if (!error.empty()) { fprintf(stderr, "[launcher] %s\n", error.c_str()); directGame = -1; continue; }
@@ -4194,9 +4270,11 @@ bool Start(int& argc, char**& argv)
             }
             DiscordPresence::Playing(Launcher::TitleCase(games[chosen].name));
             const auto start = std::chrono::steady_clock::now();
+            N3ds::SyncSave(games[chosen], fo.saves + "/" + games[chosen].saveName, true); // (a save brought in since the list was made)
             N3ds::Play(fo.dir, games[chosen]);
             PlayTime::Add(fo.settings, (long long)std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start).count());
             DiscordPresence::InLauncher();
+            if (g_direct) return false;
             directGame = -1;
             games = FindGames(fo, artCache);
             chosen = 0;
@@ -4242,6 +4320,7 @@ bool Start(int& argc, char**& argv)
             PlayTime::Add(fo.settings, (long long)std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - gbaStart).count());
             CloudAuto::Saved();
             CloudAuto::Finish();
+            if (g_direct) return false;
             directGame = -1;
             games = FindGames(fo, artCache);
             chosen = 0;
@@ -4254,7 +4333,7 @@ bool Start(int& argc, char**& argv)
     }
     g_canChange = true;
     Launcher::ConfirmHack(games, (size_t)chosen, fo.settings,
-                          [](const Launcher::Game& g, const std::string& name) { return g.folder + "/" + name; });
+                          [&fo](const Launcher::Game&, const std::string& name) { return fo.saves + "/" + name; });
     const Launcher::Game& game = games[chosen];
     LibraryHistory recent;recent.Load(fo.settings+"/fulldex-library.txt");if(Launcher::ConfigValue(fo.cfg,"extra_library_history")=="1")recent.Played(game.rom);
     if (const Launcher::KnownGame* k = Launcher::Known(game.code)) g_name = game.hack ? Launcher::TitleCase(game.name) : k->name;
@@ -4267,7 +4346,7 @@ bool Start(int& argc, char**& argv)
     fprintf(stderr, "[launcher] %s (game code %s), save %s/%s\n", game.rom.c_str(), game.code.c_str(), fo.saves.c_str(),
         game.saveName.c_str());
     g_args = { argc > 0 && argv[0] ? argv[0] : "pokemon-ds-wide", game.rom, "--save", fo.saves + "/" + game.saveName,
-               "--config", fo.cfg };
+               "--config", fo.cfg, "--cloud-dir", fo.settings };
     if (!fo.states.empty()) { g_args.push_back("--states"); g_args.push_back(fo.states); } // (FOLDERS)
     if (!fo.cheats.empty()) { g_args.push_back("--cheats"); g_args.push_back(fo.cheats); }
     if (game.hack) g_args.push_back("--rom-hack"); // (says once that widescreen is tried on it)
@@ -4326,7 +4405,14 @@ void ChangeGame() { g_change = true; }
 void Finish()
 {
     DiscordPresence::Stop();
-    if (!g_change) return;
+#ifdef SSR_IOS
+    // iOS lets no app start a program (execl fails), and SDL keeps the app open with nothing on
+    // the screen when main ends: that was the black screen after QUIT. The app closes instead,
+    // and opens on the list the next time it is tapped.
+    fflush(stderr);
+    exit(0);
+#endif
+    if (!g_change || g_direct) return; // (#196: a game started directly: the program ends with it)
     fflush(stderr);
     // The program again, without arguments: the list.
 #if defined(__ANDROID__)

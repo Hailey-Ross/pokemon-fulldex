@@ -717,6 +717,7 @@ struct Options
     std::set<uint32_t> traceFuncsAt;     // frames at which to list the functions that just ran
     std::string symbols = "gen/symbols.txt";
     std::string config;          // settings file
+    std::string cloudDir;        // where cloud.ini is (the launcher's settings folder)
     std::string stateLoad;       // snapshot to resume from
     std::string stateSave;       // snapshot to write
     uint32_t stateSaveAt = 0;    // frame at which to write it
@@ -806,6 +807,7 @@ static bool ParseArgs(int argc, char** argv, Options& o)
         else if (a == "--no-save") o.noSave = true;
         else if (a == "--layout") { o.layout = next(); o.layoutGiven = true; }
         else if (a == "--config") o.config = next();
+        else if (a == "--cloud-dir") o.cloudDir = next(); // (the launcher's settings folder: cloud.ini)
         else if (a == "--audio-stats") o.audioStats = true;
         else if (a == "--shot-layers") o.shotLayers = true;
         else if (a == "--count-changes") o.countChanges = true;
@@ -1732,7 +1734,7 @@ struct Settings : OptionalFeatures
     // the message box's band in Black and White, the corner panel in Black 2 (Bw1Layouts::BUTTONS_*).
     int battleButtons = 1;
     bool encountersShown = false; // ENCOUNTERS ON SCREEN (FULLDEX NAV's count on the picture)
-    int navStyle = 0; // NAV STYLE (FULLDEX NAV): 0 MODERN, 1 CLASSIC, 2 SIMPLE, 3 WHEEL
+    int navStyle = 0; // NAV STYLE (FULLDEX NAV): 0 MODERN, 1 CLASSIC, 2 SIMPLE, 3 WHEEL, 4 OFF (#181: L3 as before)
     // The PC all-games program: the window's size when it last closed (0: 1280x720, a wide view).
     int windowW = 0, windowH = 0;
     Controls::Bindings controls; // CONTROLS (controls.h): map_key_* and map_pad_* lines
@@ -1829,7 +1831,7 @@ struct Settings : OptionalFeatures
             else if (k == "ra_token") ra.token = v;
             else if (k == "battle_buttons") battleButtons = v == "corner" ? 0 : v == "panel" ? 2 : v == "classic" ? 3 : v == "sunmoon" ? 4 : 1;
             else if (k == "encounters_shown") encountersShown = v == "1";
-            else if (k == "nav_style") navStyle = v == "classic" ? 1 : v == "simple" ? 2 : v == "wheel" ? 3 : 0;
+            else if (k == "nav_style") navStyle = v == "classic" ? 1 : v == "simple" ? 2 : v == "wheel" ? 3 : v == "off" ? 4 : 0;
             else if (k == "window")
             {
                 const size_t x = v.find('x');
@@ -1898,7 +1900,7 @@ struct Settings : OptionalFeatures
         f << "start_button=" << (startMenu ? "menu" : "ds") << "\n";
         f << "battle_buttons=" << (battleButtons == 0 ? "corner" : battleButtons == 2 ? "panel" : battleButtons == 3 ? "classic" : battleButtons == 4 ? "sunmoon" : "strip") << "\n";
         f << "encounters_shown=" << (encountersShown ? 1 : 0) << "\n";
-        f << "nav_style=" << (navStyle == 1 ? "classic" : navStyle == 2 ? "simple" : navStyle == 3 ? "wheel" : "modern") << "\n";
+        f << "nav_style=" << (navStyle == 1 ? "classic" : navStyle == 2 ? "simple" : navStyle == 3 ? "wheel" : navStyle == 4 ? "off" : "modern") << "\n";
         controls.Save(f);
         f << "both_versions=" << (bothVersions ? 1 : 0) << "\n";
         f << "ra=" << (ra.on ? 1 : 0) << "\n";
@@ -2103,9 +2105,14 @@ int main(int argc, char** argv)
     const bool countPlay = !opt.noSave && !opt.headless && !opt.lockstep;
     if (!opt.noSave && !opt.headless && !opt.lockstep)
     {
-        const std::string& at = opt.config.empty() ? opt.save : opt.config;
-        const size_t cs = at.find_last_of("/\\");
-        cloudNote = CloudAuto::Start(cs == std::string::npos ? std::string(".") : at.substr(0, cs), opt.save);
+        std::string cloudDir = opt.cloudDir; // (the launcher gives the folder its Hub writes cloud.ini in)
+        if (cloudDir.empty())
+        {
+            const std::string& at = opt.config.empty() ? opt.save : opt.config;
+            const size_t cs = at.find_last_of("/\\");
+            cloudDir = cs == std::string::npos ? std::string(".") : at.substr(0, cs);
+        }
+        cloudNote = CloudAuto::Start(cloudDir, opt.save);
     }
     std::vector<uint8_t> sav = ReadFile(opt.save);
     fprintf(stderr, "ROM %s: %zu bytes; save %s: %zu bytes\n", opt.rom.c_str(), rom.size(), opt.save.c_str(), sav.size());
@@ -2469,6 +2476,7 @@ int main(int argc, char** argv)
     // DS clock. Set where the renderer is created; the frame loop reads them.
     bool syncToDisplay = false;
     int refreshesPerFrame = 1;
+    bool swapPaced = false; // (Linux, 120 Hz and up: the driver holds each picture refreshesPerFrame refreshes)
     double refreshPeriod = 1001.0 / 60000.0;
     double screenPace = 0; // Android: seconds a picture when the frames keep the screen's rate (0: the DS's own)
     SDL_Renderer* renderer = nullptr;
@@ -2577,7 +2585,7 @@ int main(int argc, char** argv)
         h = cfg.windowW >= 320 && cfg.windowH >= 240 ? cfg.windowH : 720;
         static std::string gameTitle;
         gameTitle = PcLauncher::GameName();
-        if (!gameTitle.empty()) windowTitle = gameTitle.c_str();
+        windowTitle = gameTitle.empty() ? "FullDex" : gameTitle.c_str(); // (not "Pokemon SoulSilver", the old program's)
 #endif
         window = SDL_CreateWindow(windowTitle, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
             w, h,
@@ -2712,6 +2720,18 @@ int main(int argc, char** argv)
             if (SDL_GetRendererInfo(renderer, &info) == 0)
                 fprintf(stderr, "SDL renderer %s, video driver %s\n", info.name, SDL_GetCurrentVideoDriver());
         }
+#if !defined(_WIN32) && !defined(__APPLE__) && !defined(__ANDROID__) && !defined(__SWITCH__)
+        // Linux at 120 Hz or more (a Steam Deck docked at 120, #173): the driver holds each picture
+        // for refreshesPerFrame refreshes (swap interval 2 at 120 Hz), counted from the refresh it was
+        // shown on. Timing it here from when Present came back lost a whole refresh whenever the
+        // compositor handed it back late: three refreshes a picture, 40 a second. A 60 Hz screen is as
+        // before. SSR_SWAP_PACE=0 keeps the old way.
+        if (syncToDisplay && refreshesPerFrame > 1 && !(getenv("SSR_SWAP_PACE") && getenv("SSR_SWAP_PACE")[0] == '0'))
+        {
+            swapPaced = SDL_GL_SetSwapInterval(refreshesPerFrame) == 0;
+            fprintf(stderr, "[display] swap interval %d: %s\n", refreshesPerFrame, swapPaced ? "the driver paces the pictures" : SDL_GetError());
+        }
+#endif
 #ifdef __SWITCH__
         // The OpenGL ES swapchain starts uninitialised (often white). Show black at once so
         // opening a ROM does not sit on a white screen until the first pipelined present
@@ -6191,7 +6211,7 @@ int main(int argc, char** argv)
                        own ? "The battle menu's FIGHT, POKEMON, BAG and RUN: this game's own, or as Sun and Moon have them." : "Where the on-screen battle buttons go in Black, White, Black 2 and White 2.",
                        "Sun and Moon: FIGHT across the top, POKEMON, BAG and RUN below it.", art);
             }
-            picker(M_NAVSTYLE, "NAV STYLE", Glass::I_GRID, Menu::P_NONE, { "MODERN", "CLASSIC", "SIMPLE", "WHEEL" }, std::clamp(cfg.navStyle, 0, 3),
+            picker(M_NAVSTYLE, "NAV STYLE", Glass::I_GRID, Menu::P_NONE, { "MODERN", "CLASSIC", "SIMPLE", "WHEEL", "OFF" }, std::clamp(cfg.navStyle, 0, 4),
                    "FullDex Nav, opened with L3 or N: a watch with a graphite case and a glass face, the first one (a red watch), a plain glass card, or a wheel of its apps alone.",
                    "Its apps are the same in both.");
             toggle(M_ENCSHOWN, "ENCOUNTERS ON SCREEN", Glass::I_INFO, Menu::P_NONE, cfg.encountersShown,
@@ -7843,6 +7863,7 @@ int main(int argc, char** argv)
 #ifdef SSR_PHONE
     touchPadUsed = true;
 #endif
+    if (getenv("SSR_TEST_TOUCHPAD")) { touchPadUsed = true; touchPad.visible = true; } // (tests: the touch controls on a PC)
     // On a touch screen, the Pokedex's cover is pushed across as on the DS: a swipe to the left
     // from the right half of the closed cover opens it (A), and a swipe to the right from the left
     // half of the list closes it (B). (A quarter of the screen across, more across than down.)
@@ -7876,6 +7897,7 @@ int main(int argc, char** argv)
     // FULLDEX NAV (fulldex_nav.h): the quick menu, opened with L3 or N; its encounter counter is kept
     // beside the save (<save>.counter).
     FdNav::State fdNav;
+    int fdNavReturn = -1, fdNavLastPage = -1; // (a page opened from FULLDEX NAV: Back from it goes back to the watch)
     fdNav.countFile = opt.noSave ? std::string() : opt.save + ".counter";
     fdNav.LoadCount();
     bool fdNavToggle = false, fdNavBattleWas = false, fdNavMouseWas = false;
@@ -8479,7 +8501,7 @@ int main(int argc, char** argv)
         // Waiting after Present on the DS's 59.8 a second instead is what walked past a
         // 59.94 Hz screen. Present itself then blocks only for the last couple of milliseconds
         // and returns on the refresh, which is when the next frame's work starts.
-        if (pace && syncToDisplay)
+        if (pace && syncToDisplay && !swapPaced)
         {
             const uint64_t now = SDL_GetPerformanceCounter();
             if (now < nextTick)
@@ -9460,7 +9482,7 @@ int main(int argc, char** argv)
         static uint32_t testNavFrames = 0; // (counted from the run's start, as SSR_TEST_PAGE)
         ++testNavFrames;
         if (testNavAt >= 0 && testNavFrames == (uint32_t)testNavAt) { fdNav.open = true; readCompanion(true); fdNav.sel = std::clamp(testNavSel, 0, FdNav::APPS - 1); }
-        if (!menu.open && pressed(PAD_LS)) fdNavToggle = true;
+        if (!menu.open && pressed(PAD_LS) && cfg.navStyle != 4) fdNavToggle = true; // (OFF: the left stick as before, below)
         if (menu.open) { fdNav.open = false; fdNavToggle = false; }
         const uint32_t fdNavKeys = PadKeys(ps, cfg.byLabel) | kbKeysHeld, fdNavDown = fdNavKeys & ~fdNavKeysWas;
         fdNavKeysWas = fdNavKeys;
@@ -9472,6 +9494,14 @@ int main(int argc, char** argv)
             if (fdNav.open) readCompanion(true);
             if (!fdNav.open) swallowMenuButtons = true;
         }
+        // (Back from a page FULLDEX NAV opened (to the companion or the menu) closes the menu and opens the watch again.)
+        if (fdNavReturn >= 0)
+        {
+            if (!menu.open) fdNavReturn = -1;
+            else if (fdNavLastPage == fdNavReturn && (menuPage == PAGE_COMPANION || menuPage == PAGE_MAIN))
+            { menu.open = false; fdNav.open = true; swallowMenuButtons = true; fdNavReturn = -1; }
+        }
+        fdNavLastPage = menu.open ? menuPage : -1;
         int fdNavUse = -1;
         if (fdNav.open && testNavUse && testNavAt >= 0 && testNavFrames == (uint32_t)testNavAt + 10) fdNavUse = fdNav.sel;
         if (fdNav.open)
@@ -9501,7 +9531,7 @@ int main(int argc, char** argv)
             if (down(KEY_B)) { fdNav.open = false; swallowMenuButtons = true; }
             if (mouseDown && !fdNavMouseWas)
             {
-                const FdNav::Geo g = FdNav::Layout(outW, outH, touchPadUsed && touchPad.visible, cfg.navStyle);
+                const FdNav::Geo g = FdNav::Place(outW, outH, touchPadUsed && touchPad.visible, cfg.navStyle == 4 ? 0 : cfg.navStyle);
                 const int h = FdNav::Hit(g, mouseX, mouseY);
                 if (h >= 0) { sel = h; fdNavUse = h; }
                 else if (h == -1) { fdNav.open = false; swallowMenuButtons = true; }
@@ -9561,6 +9591,7 @@ int main(int argc, char** argv)
                     memset(bag + (slots - 1) * 4, 0, 4);
                 }
                 *steps = (uint8_t)gives[kind];
+                if (uint8_t* type = companionProfile.repelType ? ram(base + companionProfile.repelType, 1) : nullptr) *type = (uint8_t)ids[kind];
                 say(std::string("USED A ") + names[kind] + ": " + std::to_string(gives[kind]) + " STEPS (" + std::to_string(left) + " LEFT)");
                 fdNav.open = false; swallowMenuButtons = true;
                 readCompanion(true);
@@ -9581,6 +9612,7 @@ int main(int argc, char** argv)
                 else if (fdNavUse == FdNav::MAP) goPage(PAGE_CLOCATION, M_BACK);
                 else if (fdNavUse == FdNav::DEX) goPage(PAGE_CDEX, M_CDEX_FILTER);
                 else goPage(PAGE_CBAG, M_CPOCKET);
+                fdNavReturn = fdNavLastPage = menuPage;
                 break;
             }
         }
@@ -10145,7 +10177,7 @@ int main(int argc, char** argv)
                 else cfg.battleButtons = (cfg.battleButtons + (dir < 0 ? 4 : 1)) % 5; // CORNER, STRIP, PANEL, CLASSIC, SUN AND MOON
                 bw1.battleButtons = cfg.battleButtons;
                 break;
-            case M_NAVSTYLE: cfg.navStyle = (std::clamp(cfg.navStyle, 0, 3) + (dir < 0 ? 3 : 1)) % 4; cfg.Save(opt.config); break;
+            case M_NAVSTYLE: cfg.navStyle = (std::clamp(cfg.navStyle, 0, 4) + (dir < 0 ? 4 : 1)) % 5; cfg.Save(opt.config); break;
             case M_FPS60:
                 cfg.fps60 = !cfg.fps60;
                 nds->GPU.GPU3D.InterpolationEnabled = cfg.fps60;
@@ -10414,7 +10446,9 @@ int main(int argc, char** argv)
             const bool padTouchNow = cfg.padTouch || athlonNow || touchOnlyNow;
             const bool companionVisible = (cfg.companionOverlay && companionSnapshot.ready) ||
                 (DsDisplayState::Mode(secondScreenState) == 4 && (secondScreenState & DsDisplayState::Ready));
-            (void)companionVisible; // (L3 is FULLDEX NAV's now; the companion's tabs are tapped, or opened from the Nav)
+            // (L3 is FULLDEX NAV's, unless NAV STYLE is OFF (#181): then, as before, the companion's next tab.)
+            if (cfg.navStyle == 4 && companionVisible && pressed(PAD_LS))
+                CompanionTabs::Next(liveTab, liveTabBeforeBattle);
             // (SWAP SCREENS given a button of its own in CONTROLS works without the touch cursor.)
             if (!padTouchNow && cfg.controls.pad[Controls::SWAP] >= 0 && pressed(PAD_RS)) focus.manualFlip = !focus.manualFlip;
             // (ZOOM: a click of the right stick steps it, the right stick looks around; not while the stick is the
@@ -10431,7 +10465,8 @@ int main(int argc, char** argv)
                 if (pressed(PAD_RS)) focus.manualFlip = !focus.manualFlip;
 #ifndef __SWITCH__
                 // (Not on the Switch: a left stick pressed while walking would change the view.)
-                // (L3: FULLDEX NAV, above.)
+                // (L3: FULLDEX NAV, above; with NAV STYLE OFF the next screen layout, as before.)
+                if (cfg.navStyle == 4 && !companionVisible && pressed(PAD_LS)) layout = LayoutNext(layout);
 #endif
                 if (fabsf(ps.rx) > 0.2f) curDX += ps.rx;
                 if (fabsf(ps.ry) > 0.2f) curDY += ps.ry;
@@ -12240,7 +12275,7 @@ int main(int argc, char** argv)
         // FULLDEX NAV, or its counter on the picture.
         if (fdNav.open && !menu.open)
         {
-            const FdNav::Geo g = FdNav::Layout(outW, outH, touchPadUsed && touchPad.visible, cfg.navStyle);
+            const FdNav::Geo g = FdNav::Place(outW, outH, touchPadUsed && touchPad.visible, cfg.navStyle == 4 ? 0 : cfg.navStyle);
             const bool canAct = pokeActions.Supported() && !opt.lockstep;
             bool dim[FdNav::APPS] = {};
             dim[FdNav::FLY] = !canAct || !flyGame.Supported();

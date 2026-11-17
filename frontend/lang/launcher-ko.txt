@@ -592,6 +592,7 @@ Save to it from the game's menu	게임 메뉴에서 저장하세요
 Choose a slot to play from it, or delete it. Save to the slots from the game's menu.	슬롯을 골라 플레이하거나 삭제하세요. 저장은 게임 메뉴에서 합니다.
 Fulldex backs up this save every time the game starts and before anything here changes it. Your ROM is never changed.	Fulldex는 게임을 시작할 때마다, 그리고 여기서 바꾸기 전에 이 저장을 백업합니다. ROM은 절대 바뀌지 않습니다.
 The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.	GBA 게임은 상태 저장이 하나씩이며 게임 메뉴에서 저장하고 불러옵니다. 슬롯은 DS 게임용입니다.
+Omega Ruby and Alpha Sapphire have no save states: they save from the game's own menu. Save state slots are for the DS games.	오메가루비와 알파사파이어는 상태 저장이 없으며 게임 메뉴에서 저장합니다. 슬롯은 DS 게임용입니다.
 Keep This One	이것을 유지
 Choose A File...	파일 선택...
 Restore Backup	백업 복원

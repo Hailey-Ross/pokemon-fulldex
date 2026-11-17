@@ -3,6 +3,8 @@
 # Build output
 /build/
 /build-*/
+# The Google sign-in client for cloud saves (an id, then its secret): never commit.
+fulldex-google-client.txt
 # The Android build: downloaded NDK and SDL2, the signing key, and the APK, which
 # contains the game (tools/android/skeleton.apk does not, and is kept).
 /android/
@@ -33,3 +35,5 @@ __pycache__/
 /gen.new/
 /dist/
 .DS_Store
+# The Google sign-in client, mounted for builds; never commit it.
+fulldex-google-client.txt

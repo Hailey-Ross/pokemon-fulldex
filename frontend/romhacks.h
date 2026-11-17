@@ -1410,7 +1410,7 @@ inline Kind CheckDs(const std::string& rom, const std::string& code, Cache& cach
         if (code == c.code) mine.push_back(&c);
     if (mine.empty()) return Kind::Unknown;
     // (A new key: verdicts kept by earlier checks are not trusted.)
-    const std::string key = Cache::Key(rom, "ds-v3");
+    const std::string key = Cache::Key(rom, "ds-v4"); // (v4: a full read matching no release is a hack)
     uint32_t biggest = 0;
     for (const Clean* c : mine) biggest = std::max(biggest, c->size);
     uint64_t size = 0;
@@ -1446,6 +1446,9 @@ inline Kind CheckDs(const std::string& rom, const std::string& code, Cache& cach
                     if (size <= c->size &&
                         (crc == c->crc || CrcPadded(crc, 0xFF, c->size - size) == c->crc || CrcPadded(crc, 0x00, c->size - size) == c->crc))
                         kind = Kind::Clean;
+            // (Read whole and none of the releases: a hack, as a trimmed Renegade Platinum. It was left
+            // "unknown" and so played, listed and synced as its game, with its game's save.)
+            if (read == size && kind != Kind::Clean) kind = Kind::Modified;
         }
     }
     fprintf(stderr, "[romhacks] %s: %s (fingerprint %08X, revision %u)\n", rom.c_str(), KindName(kind), (unsigned)fp, (unsigned)rev);

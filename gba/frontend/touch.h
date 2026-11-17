@@ -1,5 +1,5 @@
 // On-screen controls for phones and tablets: a D-pad, A and B, L and R, START and SELECT, and
-// buttons for the pause menu and fast forward, drawn over the game (frontend/ui.h's Canvas) and
+// buttons for the pause menu, fast forward and FULLDEX NAV, drawn over the game (frontend/ui.h's Canvas) and
 // pressed with any number of fingers. Shown while the last input was a touch.
 #pragma once
 #include <cmath>
@@ -18,13 +18,13 @@ namespace Touch
 {
 
 // The first ten are the GBA's keys, in mGBA's order (main.cpp's GbaKey).
-enum Button { A, B, SELECT, START, RIGHT, LEFT, UP, DOWN, R, L, MENU, FAST, COUNT };
+enum Button { A, B, SELECT, START, RIGHT, LEFT, UP, DOWN, R, L, MENU, FAST, NAV, COUNT };
 
 struct Layout
 {
     int padX = 0, padY = 0, padR = 0; // the D-pad's middle and size
     int aX = 0, aY = 0, bX = 0, bY = 0, abR = 0, bR = 0;
-    SDL_Rect l{}, r{}, start{}, select{}, menu{}, fast{};
+    SDL_Rect l{}, r{}, start{}, select{}, menu{}, fast{}, nav{};
     // (From the touch controls editor: what is taken off (a bit for each Button; the D-pad on its
     // own) and how much they show, in percent.)
     uint32_t hidden = 0;
@@ -51,6 +51,7 @@ inline Layout Make(int w, int h)
     t.start = { w / 2 + 10, h - 24, 60, 18 };
     t.menu = { w / 2 - 52, 4, 48, 18 };
     t.fast = { w / 2 + 4, 4, 48, 18 };
+    t.nav = { 6 + 88 + 8, 34, 48, 30 }; // (FULLDEX NAV's watch, beside L as in the DS games)
     return t;
 }
 
@@ -63,6 +64,7 @@ inline std::vector<TouchLayout::Control> Geometry(const Layout& t)
     };
     auto rect = [&](const char* key, const SDL_Rect& r) { c.push_back({key, key, r.x + r.w / 2.0f, r.y + r.h / 2.0f, r.w / 2.0f, r.h / 2.0f, false}); };
     rect("L", t.l); rect("R", t.r); rect("SELECT", t.select); rect("START", t.start); rect("MENU", t.menu); rect(">>", t.fast);
+    rect("NAV", t.nav); // (last, so a layout saved before it keeps the others where they were)
     return c;
 }
 inline std::vector<TouchLayout::Control> Defaults(int w, int h)
@@ -75,17 +77,17 @@ inline std::vector<TouchLayout::Control> Defaults(int w, int h)
 inline void Apply(Layout& t, const TouchLayout::Profile& profile, int w, int h)
 {
     auto controls = profile.Apply(Geometry(t), w, h);
-    static const Button which[] = { A, B, L, R, SELECT, START, MENU, FAST }; // (controls 1 to 8)
+    static const Button which[] = { A, B, L, R, SELECT, START, MENU, FAST, NAV }; // (controls 1 to 9)
     t.hidden = 0;
     t.padHidden = controls[0].hidden;
-    for (int i = 0; i < 8; ++i)
+    for (int i = 0; i < 9; ++i)
         if (controls[i + 1].hidden) t.hidden |= 1u << which[i];
     t.visible = profile.visible;
     t.padX = (int)controls[0].x; t.padY = (int)controls[0].y; t.padR = (int)controls[0].rx;
     t.aX = (int)controls[1].x; t.aY = (int)controls[1].y; t.abR = (int)controls[1].rx;
     t.bX = (int)controls[2].x; t.bY = (int)controls[2].y; t.bR = (int)controls[2].rx;
-    SDL_Rect* rects[] = { &t.l, &t.r, &t.select, &t.start, &t.menu, &t.fast };
-    for (int i = 0; i < 6; ++i)
+    SDL_Rect* rects[] = { &t.l, &t.r, &t.select, &t.start, &t.menu, &t.fast, &t.nav };
+    for (int i = 0; i < 7; ++i)
     {
         const auto& c = controls[i + 3];
         *rects[i] = { (int)(c.x - c.rx), (int)(c.y - c.ry), (int)(c.rx * 2), (int)(c.ry * 2) };
@@ -117,6 +119,7 @@ inline uint32_t Hit(const Layout& t, float x, float y)
     if (inRect(t.select)) m |= 1u << SELECT;
     if (inRect(t.menu)) m |= 1u << MENU;
     if (inRect(t.fast)) m |= 1u << FAST;
+    if (inRect(t.nav)) m |= 1u << NAV;
     return m & ~t.hidden;
 }
 
@@ -130,7 +133,7 @@ inline void Circle(Canvas& c, int cx, int cy, int r, uint32_t argb)
 }
 
 // Drawn see-through over the game; a pressed button is brighter.
-inline void Draw(Canvas& c, const Layout& t, uint32_t held, bool fastOn)
+inline void Draw(Canvas& c, const Layout& t, uint32_t held, bool fastOn, bool navOn = false)
 {
     // (Every alpha scaled by the visibility chosen in the touch controls editor.)
     auto fade = [&](uint32_t argb) { return ((argb >> 24) * (uint32_t)t.visible / 100) << 24 | (argb & 0xFFFFFFu); };
@@ -162,6 +165,7 @@ inline void Draw(Canvas& c, const Layout& t, uint32_t held, bool fastOn)
     if (shown(START)) button(t.start, "START", col(START));
     if (shown(MENU)) button(t.menu, "MENU", col(MENU));
     if (shown(FAST)) button(t.fast, ">>", fastOn ? on : col(FAST));
+    if (shown(NAV)) button(t.nav, "NAV", navOn ? on : col(NAV));
 }
 
 }

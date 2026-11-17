@@ -420,6 +420,8 @@ void Put(Save& s, const pksm::PKX& pk, int box, int slot)
         s.d->sav->fixParty();
     }
     else s.d->sav->pkm(pk, (u8)box, (u8)slot, true);
+    // (#185: in the game's Pokedex, seen and caught, as a trade in the game does.)
+    if (!pk.egg()) s.d->sav->dex(pk);
     s.d->changed = true;
 }
 void Take(Save& s, int box, int slot)
@@ -504,6 +506,7 @@ bool Evolve(Save& save, int box, int slot, std::string& error)
     auto pk = save.d->At(box, slot);
     Evolve(*pk, *EvolutionFor(*pk, *save.d->sav), save.Generation());
     save.d->sav->pkm(*pk, (u8)box, (u8)slot, false);
+    save.d->sav->dex(*pk); // (the evolved form, in the Pokedex too)
     save.d->changed = true;
     return true;
 }

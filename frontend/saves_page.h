@@ -20,6 +20,7 @@ struct SavesState
 {
     std::string rom, name, save, cloudKey; // the game's ROM and name, its save, that save as cloud saves name it
     bool ds = true;
+    size_t want = 0;        // the save's size when not a DS or GBA game's (Omega Ruby / Alpha Sapphire: 472 KB)
     std::string deleted;    // the slot deleted last (kept as <slot>.deleted until Undo Delete)
     std::string request;    // for the platform: "#folder:<dir>", "#play:<state>", "#replay" ("" nothing)
     std::string msg;        // what the last thing done here came to
@@ -59,7 +60,7 @@ inline std::string SvBackupWhen(const std::string& l)
 
 // Whether a save looks right for the game: the size it uses (DS Pokemon: 512 KB; GBA: 128 KB, and
 // 16 bytes more with a clock), and not blank. (What is in it is the game's to check.)
-inline SaveHealth SaveHealthOfData(const std::vector<unsigned char>& d, bool ds, bool exists)
+inline SaveHealth SaveHealthOfData(const std::vector<unsigned char>& d, bool ds, bool exists, size_t own = 0)
 {
     SaveHealth h;
     if (d.empty())
@@ -68,8 +69,8 @@ inline SaveHealth SaveHealthOfData(const std::vector<unsigned char>& d, bool ds,
         else h.label = "No Save Yet";
         return h;
     }
-    const size_t want = ds ? 524288 : 131072;
-    if (d.size() != want && !(!ds && d.size() == want + 16))
+    const size_t want = own ? own : ds ? 524288 : 131072;
+    if (d.size() != want && !(!ds && !own && d.size() == want + 16))
     {
         h.state = 2; h.label = "Problem";
         h.why = "It is " + SvKB((long long)d.size()) + ", but this game's saves are " + SvKB((long long)want) + ".";
@@ -81,19 +82,19 @@ inline SaveHealth SaveHealthOfData(const std::vector<unsigned char>& d, bool ds,
     h.state = 1; h.label = "Healthy"; h.why = "It is the size this game uses, with a game saved in it.";
     return h;
 }
-inline SaveHealth SaveHealthOf(const std::string& save, bool ds) { return SaveHealthOfData(SaveBackups::Read(save), ds, SvExists(save)); }
+inline SaveHealth SaveHealthOf(const std::string& save, bool ds, size_t own = 0) { return SaveHealthOfData(SaveBackups::Read(save), ds, SvExists(save), own); }
 inline const SaveHealth& SavesHealth()
 {
     SavesState& s = Saves();
     const long long at = SvTime(s.save) ^ SvSize(s.save);
-    if (at != s.healthAt) { s.healthAt = at; s.health = SaveHealthOf(s.save, s.ds); }
+    if (at != s.healthAt) { s.healthAt = at; s.health = SaveHealthOf(s.save, s.ds, s.want); }
     return s.health;
 }
 // The newest backup that looks right ("" none), and when it was made.
 inline std::string SavesBestBackup(std::string& when)
 {
     for (const SaveBackups::Entry& e : SaveBackups::List(Saves().save))
-        if (SaveHealthOf(e.path, Saves().ds).state == 1) { when = SvBackupWhen(e.label); return e.path; }
+        if (SaveHealthOf(e.path, Saves().ds, Saves().want).state == 1) { when = SvBackupWhen(e.label); return e.path; }
     return "";
 }
 // A copy of the save in the backups folder, named as the game names its own (so Restore A Backup
@@ -177,7 +178,7 @@ inline void SavesFor(const Game& g, const std::string& save)
 {
     SavesState& s = Saves();
     if (s.rom != g.rom || s.save != save) { s.deleted.clear(); for (long long& t : s.thumbAt) t = -1; s.healthAt = -2; }
-    s.rom = g.rom; s.name = ShortName(g); s.save = save; s.cloudKey = HubSavePath(g); s.ds = g.platform == DS;
+    s.rom = g.rom; s.name = ShortName(g); s.save = save; s.cloudKey = HubSavePath(g); s.ds = g.platform == DS; s.want = g.platform == N3DS ? 0x76000 : 0;
 }
 // Manage Saves chosen in a game's menu: its page.
 inline void OpenSaves(const Game& g, const std::string& save)
@@ -276,7 +277,7 @@ inline bool SavesEnter(int row)
         std::vector<std::string> items, paths;
         for (size_t k = 0; k < list.size() && k < 6; k++)
         {
-            const SaveHealth bh = SaveHealthOf(list[k].path, s.ds);
+            const SaveHealth bh = SaveHealthOf(list[k].path, s.ds, s.want);
             items.push_back("Restore " + SvBackupWhen(list[k].label) + (bh.state == 2 ? "  (problem)" : ""));
             paths.push_back("#restore:" + list[k].path);
         }
@@ -387,7 +388,7 @@ inline void SavesPick(const std::string& pick)
         const std::string b = pick.substr(9);
         std::string when;
         for (const SaveBackups::Entry& e : SaveBackups::List(s.save)) if (e.path == b) when = SvBackupWhen(e.label);
-        const SaveHealth bh = SaveHealthOf(b, s.ds);
+        const SaveHealth bh = SaveHealthOf(b, s.ds, s.want);
         SavesDialog(18, "Go Back To " + when + "?", (bh.state == 2 ? "This backup has a problem too: " + bh.why + " " : std::string()) +
                     "Your save as it is now is kept as a .before-restore copy" + (SavesCloudOn() ? ", and the restored one goes up to the cloud." : "."),
                     { "Restore Backup", "Cancel" }, { "#dorestore:" + b, "#close" }, 1);
@@ -413,7 +414,7 @@ inline void SavesPick(const std::string& pick)
         std::vector<unsigned char> d = SaveBackups::Read(f);
         const size_t want = s.ds ? 524288 : 131072;
         if (s.ds && d.size() == want + 122) d.resize(want); // (DeSmuME's .dsv: the save, then its own footer)
-        const SaveHealth ih = SaveHealthOfData(d, s.ds, true);
+        const SaveHealth ih = SaveHealthOfData(d, s.ds, true, s.want);
         if (ih.state != 1) { close(); SavesSay("Not imported: " + SvFile(f) + ". " + (ih.why.empty() ? std::string("It cannot be read.") : ih.why)); return; }
         SavesDialog(18, "Import " + SvFile(f) + "?", "It replaces " + s.name + "'s save. Yours is backed up first, so Restore A Backup can bring it back" +
                     std::string(SavesCloudOn() ? ", and the new one goes up to the cloud." : "."), { "Import Save", "Cancel" }, { "#doimport:" + f, "#close" }, 1);
@@ -662,7 +663,8 @@ inline void DrawSavesPage(Canvas& c, bool solid, float u, int L, int R, int top,
     if (!s.ds)
     {
         s.cw = 0;
-        for (const std::string& line : WrapLines("The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.", 13 * u, dw - 2 * ip, false))
+        for (const std::string& line : WrapLines(s.want ? "Omega Ruby and Alpha Sapphire have no save states: they save from the game's own menu. Save state slots are for the DS games."
+                                                        : "The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.", 13 * u, dw - 2 * ip, false))
         { GT(c, dx + ip, y + 8 * u, line, 13 * u, hint, false); y += (int)(20 * u); }
     }
     else
