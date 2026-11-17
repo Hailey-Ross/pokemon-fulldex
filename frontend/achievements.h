@@ -112,6 +112,7 @@ bool PopMessage(std::string& message);
 struct Unlock
 {
     std::string title, badge;
+    std::string name;  // the title as RetroAchievements writes it (any case), for FullDex's own card
     uint32_t points = 0;
     float rarity = 0; // the share of players who have it, in percent (0: not known)
     bool mastery = false;

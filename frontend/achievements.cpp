@@ -239,6 +239,7 @@ void RC_CCONV Event(const rc_client_event_t* e, rc_client_t*)
             // (The in-game banner, not a text toast: the badge, title, points and rarity.)
             Unlock u;
             u.title = Shown(e->achievement->title, 60);
+            u.name = e->achievement->title ? e->achievement->title : "";
             u.badge = e->achievement->badge_name;
             u.points = e->achievement->points;
             u.rarity = e->achievement->rarity;
@@ -253,7 +254,7 @@ void RC_CCONV Event(const rc_client_event_t* e, rc_client_t*)
         Unlock u;
         u.mastery = true;
         // (The banner's header says GAME MASTERED; its title is the game's own name.)
-        if (const rc_client_game_t* g = rc_client_get_game_info(g_client)) u.game = Shown(g->title, 40);
+        if (const rc_client_game_t* g = rc_client_get_game_info(g_client)) { u.game = Shown(g->title, 40); u.name = g->title ? g->title : ""; }
         u.title = u.game.empty() ? "THIS GAME" : u.game;
         rc_client_user_game_summary_t s;
         rc_client_get_user_game_summary(g_client, &s);

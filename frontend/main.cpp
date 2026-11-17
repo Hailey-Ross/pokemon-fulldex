@@ -1707,6 +1707,8 @@ struct Settings : OptionalFeatures
     bool ultraNoticeSeen = false;
     // FAST FORWARD SOUND: off plays silence while fast forwarding (GitHub #45).
     bool ffMute = false;
+    // ACHIEVEMENT BANNER: CLASSIC is the first unlock card (#213), in the pixel font; else FullDex's own.
+    bool raClassicBanner = false;
     // QUIET GAME MUSIC: while the player's own music app plays (now_playing.h), the game's music is off.
     bool musicQuiet = false;
     std::string gbaLcd; // Empty keeps the GBA player's existing LCD preference.
@@ -1793,6 +1795,7 @@ struct Settings : OptionalFeatures
             else if (k == "ultrawide_notice") ultraNoticeSeen = v == "1";
             else if (k == "aspect") aspect = v == "16:9" ? 1 : v == "16:10" ? 2 : v == "3:2" ? 3 : v == "4:3" ? 4 : 0;
             else if (k == "ff_mute") ffMute = v == "1";
+            else if (k == "ra_banner") raClassicBanner = v == "classic";
             else if (k == "music_quiet") musicQuiet = v == "1";
             // (The game list's look, GAME LIST: kept here so saving does not drop them; COLOUR is the
             // pause menu's colour too.)
@@ -1895,6 +1898,7 @@ struct Settings : OptionalFeatures
         f << "ultrawide_notice=" << (ultraNoticeSeen ? 1 : 0) << "\n";
         f << "aspect=" << (aspect == 1 ? "16:9" : aspect == 2 ? "16:10" : aspect == 3 ? "3:2" : aspect == 4 ? "4:3" : "auto") << "\n";
         f << "ff_mute=" << (ffMute ? 1 : 0) << "\n";
+        f << "ra_banner=" << (raClassicBanner ? "classic" : "fulldex") << "\n";
         f << "music_quiet=" << (musicQuiet ? 1 : 0) << "\n";
         if (!listColour.empty()) f << "list_colour=" << listColour << "\n";
         if (!listSort.empty()) f << "list_sort=" << listSort << "\n";
@@ -5796,7 +5800,7 @@ int main(int argc, char** argv)
         M_WIDELINES, M_AUTODETAIL, M_WIDEGPU, M_GPU3D, M_SHOWFPS, M_BUTTONS, M_PADTOUCH, M_EMULATION,
         M_CONTROLS, M_TOUCHLAYOUT, M_STARTBTN, M_FAST, M_FFLOWRES, M_SAVESTATE, M_LOADSTATE, M_RESET, M_QUIT,
         M_DISPLAY, M_LANGUAGE, M_SOUND, M_GRAPHICS, M_CONTROLMENU, M_BACK, M_CHEATS, M_NOTHING,
-        M_VOLUME, M_MUSIC, M_EFFECTS, M_MUSICQUIET, M_SONGNAMES, M_FFMUTE, M_ASPECT, M_RA, M_RA_ON, M_RA_ACCOUNT, M_RA_GAME, M_RA_LOGIN, M_RA_TYPED, M_RA_CANCEL, M_BOTHVER,
+        M_VOLUME, M_MUSIC, M_EFFECTS, M_MUSICQUIET, M_SONGNAMES, M_FFMUTE, M_ASPECT, M_RA, M_RA_ON, M_RA_ACCOUNT, M_RA_GAME, M_RA_LOGIN, M_RA_TYPED, M_RA_CANCEL, M_RA_BANNER, M_BOTHVER,
         M_RA_LIST, M_ACH_POINTS, M_ACH_STATUS, M_ACH_RARITY,
         M_CSEARCH, M_SEARCH_LETTER, M_SEARCH_DELETE, M_SEARCH_SPACE, M_SEARCH_CLEAR, M_SEARCH_DONE,
         M_CDETAIL_TOGGLE, M_CINFO, M_BACKUPS, M_RESTORE_CONFIRM, M_LOAD_CONFIRM,
@@ -7619,6 +7623,8 @@ int main(int argc, char** argv)
                 section("STATUS", Glass::I_TROPHY);
                 toggle(M_RA_ON, "RETROACHIEVEMENTS", Glass::I_TROPHY, Menu::P_NONE, cfg.ra.on,
                        "Earn achievements from retroachievements.org as you play.", "Needs an internet connection and a free account there.");
+                picker(M_RA_BANNER, "UNLOCK BANNER", Glass::I_TROPHY, Menu::P_NONE, { "FULLDEX", "CLASSIC" }, cfg.raClassicBanner ? 1 : 0,
+                       "How an achievement shows as you earn it: FullDex's own card, or the classic one in the pixel font.", "Both show the badge, the points and how rare it is.");
                 section("ACCOUNT", Glass::I_PEOPLE);
                 add(M_RA_ACCOUNT, "USER", Achievements::AccountLine(), true);
                 menu.items.back().kind = Menu::K_PLAIN;
@@ -10470,6 +10476,9 @@ int main(int argc, char** argv)
             case M_FFMUTE:
                 cfg.ffMute = !cfg.ffMute;
                 break;
+            case M_RA_BANNER:
+                cfg.raClassicBanner = !cfg.raClassicBanner;
+                break;
 #if !defined(__SWITCH__) && !defined(SSR_PHONE)
             case M_FFLOWRES:
                 cfg.ffLowRes = !cfg.ffLowRes;
@@ -12522,6 +12531,7 @@ int main(int argc, char** argv)
                     if (!strncmp(t, "mastery", 7)) { u.mastery = true; u.title = "POKEMON TEST"; u.game = u.title; u.gamePoints = 900; u.gamePointsTotal = 1000; }
                     else u.title = t;
                 }
+                u.name = u.mastery ? std::string("Pok\xC3\xA9mon HeartGold Version") : u.title;
                 celebrateNext.push_back(std::move(u));
             }
             if (!celebrateOn && Achievements::PopUnlock(celebrateNow)) { celebrateOn = true; celebrateStart = SDL_GetTicks(); }
@@ -12538,6 +12548,61 @@ int main(int argc, char** argv)
                 if (elapsed < 220) alpha = elapsed * 255 / 220;
                 else if (elapsed > total - 500) alpha = (total - elapsed) * 255 / 500;
                 const int lift = elapsed < 220 ? (int)((220 - elapsed) * 18 / 220) : 0;
+                const bool classic = cfg.raClassicBanner || getenv("SSR_TEST_CLASSIC") || !Menu::UseClean();
+                if (!classic)
+                {
+                    // (FullDex's own card: the menus' glass and lettering, the badge large at its left.
+                    // CLASSIC, under RetroAchievements, keeps the first one, in the pixel font.)
+                    const float k = std::max(0.5f, outH / 720.0f);
+                    using SettingsArt::W; using SettingsArt::T;
+                    auto K = [&](float v) { return (int)std::lround(v * k); };
+                    const uint32_t fade = alpha;
+                    auto A = [&](uint32_t rgb, uint32_t a = 255) { return ((a * fade / 255) << 24) | (rgb & 0xFFFFFFu); };
+                    const uint32_t accent = celebrateNow.mastery ? 0xFFD75Eu : 0x8CC8FFu;
+                    const int bs = K(76), pad = K(16);
+                    const std::string head = celebrateNow.mastery ? "GAME MASTERED" : "ACHIEVEMENT UNLOCKED";
+                    const std::string nm = celebrateNow.name.empty() ? celebrateNow.title : celebrateNow.name;
+                    char rare[48] = "";
+                    if (!celebrateNow.mastery && celebrateNow.rarity > 0.0f)
+                        snprintf(rare, sizeof rare, "  \xC2\xB7  %.1f%% of players", celebrateNow.rarity);
+                    const std::string info = celebrateNow.mastery
+                        ? std::to_string(celebrateNow.gamePoints) + " of " + std::to_string(celebrateNow.gamePointsTotal) + " points"
+                        : std::to_string(celebrateNow.points) + (celebrateNow.points == 1 ? " point" : " points") + rare;
+                    const int fHead = K(16), fName = K(26), fInfo = K(18);
+                    const int textMax = std::max({ W(head, fHead, true), W(nm, fName, true, false), W(info, fInfo, false, false) });
+                    const int cw = std::min(outW - K(32), pad + bs + K(16) + textMax + pad + K(8)), ch = bs + 2 * pad;
+                    const int cx = (outW - cw) / 2, cy = outH - ch - K(28) + lift * outH / 240;
+                    Glass::Round(canvas, cx, cy, cw, ch, 20 * k, A(0x1E222B, 0xEB), A(0xFFFFFF, 0x3D), std::max(1.0f, k));
+                    const int bx = cx + pad, by = cy + pad;
+                    Glass::Round(canvas, bx, by, bs, bs, 14 * k, A(0x0E1219));
+                    std::vector<uint32_t> badge;
+                    int bw = 0, bh = 0;
+                    if (!celebrateNow.mastery && !celebrateNow.badge.empty() &&
+                        Achievements::Badge(celebrateNow.badge, false, badge, bw, bh) && bw > 0 && bh > 0)
+                    {
+                        for (int yy = 0; yy < bs; yy++)
+                            for (int xx = 0; xx < bs; xx++)
+                            {
+                                if (by + yy < 0 || by + yy >= canvas.h || bx + xx < 0 || bx + xx >= canvas.w) continue;
+                                const uint32_t s = badge[(size_t)(yy * bh / bs) * bw + (xx * bw / bs)];
+                                const int cover = (int)((s >> 24) * fade / 255);
+                                uint32_t& d = canvas.px[(size_t)(by + yy) * canvas.w + bx + xx];
+                                if (cover > 0) d = Glass::Over(d, s, cover);
+                            }
+                    }
+                    else Glass::DrawIcon(canvas, Glass::I_TROPHY, bx + bs * 0.5f, by + bs * 0.5f, bs * 0.32f, A(accent));
+                    const int tx = bx + bs + K(16), textW = cx + cw - pad - tx;
+                    auto fit = [&](std::string t, int px, bool bold, bool title) {
+                        if (W(t, px, bold, title) <= textW) return t;
+                        while (!t.empty() && W(t + "...", px, bold, title) > textW) t.pop_back();
+                        return t + "...";
+                    };
+                    T(canvas, tx, by + K(19), fit(head, fHead, true, true), fHead, A(accent), true);
+                    T(canvas, tx, by + K(49), fit(nm, fName, true, false), fName, A(0xF2F5F9), true, false);
+                    T(canvas, tx, by + K(70), fit(info, fInfo, false, false), fInfo, A(0xB9C3CF), false, false);
+                }
+                else
+                {
                 const int sc = outH / 240 < 1 ? 1 : outH / 240;
                 const int small = std::max(1, sc - 1), bs = 16 * sc;
                 std::string rarity;
@@ -12584,6 +12649,7 @@ int main(int argc, char** argv)
                 canvas.Text(tx, cy + 3 * sc, fit(line1, small), small, (fade << 24) | (celebrateNow.mastery ? 0xFFD75Eu : 0x8CC8FFu));
                 canvas.Text(tx, cy + 12 * sc, fit(celebrateNow.title, sc), sc, (fade << 24) | 0xFFFFFFu);
                 canvas.Text(tx, cy + 24 * sc, fit(line3, small), small, (fade << 24) | 0xB9C9DDu);
+                }
                 overlayUsed = true;
             }
         }
