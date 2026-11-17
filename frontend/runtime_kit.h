@@ -2,34 +2,8 @@
 #include <filesystem>
 #include <system_error>
 
-#include <fstream>
-#include <string>
-
 namespace RuntimeKit
 {
-// The kit as it is now: its program's size and time. A copy that finished writes it to the game's
-// folder (.fulldex-kit); a missing or different one (a copy cut short, FullDex updated) copies
-// the missing files again. Walking the whole kit at every start cost a second or two.
-inline std::string Stamp(const std::filesystem::path& kitExe)
-{
-    std::error_code ec;
-    const auto size = std::filesystem::file_size(kitExe, ec);
-    if (ec) return {};
-    const auto time = std::filesystem::last_write_time(kitExe, ec);
-    if (ec) return {};
-    return std::to_string(size) + " " + std::to_string((long long)time.time_since_epoch().count());
-}
-inline bool Marked(const std::filesystem::path& folder, const std::string& stamp)
-{
-    std::ifstream in(folder / ".fulldex-kit", std::ios::binary);
-    std::string had((std::istreambuf_iterator<char>(in)), {});
-    return in.good() || in.eof() ? had == stamp : false;
-}
-inline void Mark(const std::filesystem::path& folder, const std::string& stamp)
-{
-    std::ofstream out(folder / ".fulldex-kit", std::ios::binary | std::ios::trunc);
-    out << stamp;
-}
 inline std::filesystem::path NativePath(const std::filesystem::path& input, std::error_code& ec)
 {
 #ifdef _WIN32

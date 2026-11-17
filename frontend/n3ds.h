@@ -511,17 +511,13 @@ inline bool MakeFolder(const std::string& appDir, const Launcher::Game& g)
     std::error_code ec;
     fs::create_directories(W(g.folder), ec);
     const fs::path from = W(ProgramDir(appDir)), to = W(g.folder);
-    // An executable alone is not a complete kit: the missing files are copied again after a copy
-    // that was cut short, or when the kit changed (an update), keeping the game's own files and
-    // settings. A prepared game still works without the master kit, as before. Known complete
-    // (its marker matches the kit), nothing is walked: a start stays as quick as it was.
-    const std::string stamp = RuntimeKit::Stamp(W(Exe(ProgramDir(appDir))));
-    const bool exeThere = fs::is_regular_file(W(Exe(g.folder)), ec);
-    if (!exeThere || (fs::is_directory(from, ec) && (stamp.empty() || !RuntimeKit::Marked(to, stamp))))
+    // An executable alone is not a complete kit. Retry missing tools after an interrupted
+    // copy or extraction, while preserving existing settings and prepared game files.
+    // A prepared game still works without the master kit, as before.
+    if (fs::is_directory(from, ec) || !fs::is_regular_file(W(Exe(g.folder)), ec))
     {
         if (!RuntimeKit::CopyMissing(from, to, ec))
         { fprintf(stderr, "[3ds] copying the program to %s: %s\n", g.folder.c_str(), ec.message().c_str()); return false; }
-        if (!stamp.empty()) RuntimeKit::Mark(to, stamp);
     }
 #ifdef _WIN32
     FILE* f = _wfopen(W(g.folder + "/rom.txt").c_str(), L"wb");
