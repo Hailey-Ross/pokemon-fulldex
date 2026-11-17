@@ -103,8 +103,22 @@ bool Busy();               // a login or the game's set is on its way
 bool LoginForToken(const std::string& user, const std::string& password, const std::string& product,
                    std::string& outUser, std::string& outToken, std::string& error);
 
-// Messages for the player (an unlock, a login that failed, ...), in the menus' font.
+// Messages for the player (a login that failed, an error, ...), in the menus' font.
 bool PopMessage(std::string& message);
+
+// An unlock for the in-game celebration: the achievement's title, its badge (a name for Badge),
+// its points and how rare it is; or the whole game mastered, with the game's title and points.
+// Queued by the rcheevos events and taken one at a time as the banners show.
+struct Unlock
+{
+    std::string title, badge;
+    uint32_t points = 0;
+    float rarity = 0; // the share of players who have it, in percent (0: not known)
+    bool mastery = false;
+    std::string game;                              // mastery: the game's title
+    uint32_t gamePoints = 0, gamePointsTotal = 0;  // mastery: points earned of all
+};
+bool PopUnlock(Unlock& unlock);
 
 void Stop();
 
