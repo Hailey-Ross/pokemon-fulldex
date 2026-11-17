@@ -94,7 +94,9 @@ inline std::string DumpTitle(const std::string& path)
 
 // Whether a dump is encrypted, as a console's cartridge is (#155): 1 encrypted, 0 not, -1 not a .3ds dump at
 // all. The first partition's NCCH header has a flag for "no encryption" (byte 0x18F, bit 2), which tools
-// that decrypt a dump (GodMode9) set.
+// that decrypt a dump (GodMode9) usually set. Some decrypted dumps leave it clear: their exheader (the bytes
+// after the NCCH header) is plaintext, so the program ID in it is the one in the NCCH header. An encrypted
+// one's exheader is ciphertext, and the two do not match.
 inline int DumpCrypt(const std::string& path)
 {
 #ifdef _WIN32
@@ -103,13 +105,17 @@ inline int DumpCrypt(const std::string& path)
     FILE* f = fopen(path.c_str(), "rb");
 #endif
     if (!f) return -1;
-    unsigned char h[0x200] = {}, n[0x200] = {};
+    unsigned char h[0x200] = {}, n[0x200] = {}, ex[0x208] = {};
     bool ok = fread(h, 1, sizeof h, f) == sizeof h && memcmp(h + 0x100, "NCSD", 4) == 0;
     const long at = ok ? (long)((uint32_t)h[0x120] | (uint32_t)h[0x121] << 8 | (uint32_t)h[0x122] << 16 | (uint32_t)h[0x123] << 24) * 0x200 : 0;
     ok = ok && at > 0 && fseek(f, at, SEEK_SET) == 0 && fread(n, 1, sizeof n, f) == sizeof n && memcmp(n + 0x100, "NCCH", 4) == 0;
+    // (The exheader of an NCCH marked encrypted, read to see whether it is plaintext after all.)
+    const bool plain = ok && !(n[0x18F] & 4) &&
+        fseek(f, at + 0x200, SEEK_SET) == 0 && fread(ex, 1, sizeof ex, f) == sizeof ex &&
+        memcmp(ex + 0x200, n + 0x118, 8) == 0;
     fclose(f);
     if (!ok) return -1;
-    return (n[0x18F] & 4) ? 0 : 1;
+    return (n[0x18F] & 4) || plain ? 0 : 1;
 }
 // Why a 3DS file with the ROMs is not in the list (#155), said once on the list: the one that matters most (an
 // Omega Ruby or Alpha Sapphire that cannot be played before another game, or a file that is no dump).
