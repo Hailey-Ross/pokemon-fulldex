@@ -7760,6 +7760,14 @@ int main(int argc, char** argv)
         toast = msg;
         toastUntil = frame + 120;
     };
+    // Achievement celebrations: the unlock banners, one at a time, about four seconds each.
+    // (achievements.cpp queues them; the test hook makes one for the pictures.)
+    Achievements::Unlock celebrateNow;
+    std::deque<Achievements::Unlock> celebrateNext;
+    bool celebrateOn = false;
+    uint32_t celebrateStart = 0;
+    const bool testUnlock = getenv("SSR_TEST_UNLOCK") != nullptr;
+    bool testUnlockDone = false;
     // CONTROLS choosing a key or button: done (or left as it was), or the action's cleared
     // (CLEAR BINDING: only Fulldex's own shortcuts, Controls::Clearable).
     auto captureEnd = [&]() {
@@ -12356,6 +12364,86 @@ int main(int argc, char** argv)
             canvas.Fill(tx, ty, tw, 13 * sc, ((0xC0 * fade / 255) << 24));
             canvas.Text(tx + 4 * sc, ty + 3 * sc, toast, sc, (fade << 24) | 0xFFFFFF);
             overlayUsed = true;
+        }
+        // (An achievement's celebration: its badge, title, points and rarity; or the game mastered.
+        // One at a time, sliding up from the bottom, fading in and out.)
+        {
+            if (testUnlock && !testUnlockDone && frame > 30)
+            {
+                testUnlockDone = true;
+                Achievements::Unlock u;
+                u.title = "TEST ACHIEVEMENT";
+                u.points = 50;
+                u.rarity = 12.3f;
+                if (const char* t = getenv("SSR_TEST_UNLOCK"); t && *t)
+                {
+                    if (!strncmp(t, "mastery", 7)) { u.mastery = true; u.title = "POKEMON TEST"; u.game = u.title; u.gamePoints = 900; u.gamePointsTotal = 1000; }
+                    else u.title = t;
+                }
+                celebrateNext.push_back(std::move(u));
+            }
+            if (!celebrateOn && Achievements::PopUnlock(celebrateNow)) { celebrateOn = true; celebrateStart = SDL_GetTicks(); }
+            if (!celebrateOn && !celebrateNext.empty())
+            {
+                celebrateNow = std::move(celebrateNext.front()); celebrateNext.pop_front();
+                celebrateOn = true; celebrateStart = SDL_GetTicks();
+            }
+            const uint32_t total = 4300, elapsed = celebrateOn ? SDL_GetTicks() - celebrateStart : 0;
+            if (celebrateOn && elapsed >= total) celebrateOn = false;
+            if (celebrateOn && !menu.open)
+            {
+                uint32_t alpha = 255;
+                if (elapsed < 220) alpha = elapsed * 255 / 220;
+                else if (elapsed > total - 500) alpha = (total - elapsed) * 255 / 500;
+                const int lift = elapsed < 220 ? (int)((220 - elapsed) * 18 / 220) : 0;
+                const int sc = outH / 240 < 1 ? 1 : outH / 240;
+                const int small = std::max(1, sc - 1), bs = 16 * sc;
+                std::string rarity;
+                if (celebrateNow.rarity > 0.0f)
+                {
+                    char pct[32];
+                    snprintf(pct, sizeof pct, "%.1f%%", celebrateNow.rarity);
+                    rarity = std::string("  \xC2\xB7  ") + pct + " OF PLAYERS";
+                }
+                const std::string line1 = celebrateNow.mastery ? "GAME MASTERED" : "ACHIEVEMENT UNLOCKED";
+                // (Mastery: the game's name is the title, so its line is the points alone.)
+                const std::string line3 = celebrateNow.mastery
+                    ? std::to_string(celebrateNow.gamePoints) + " OF " + std::to_string(celebrateNow.gamePointsTotal) + " POINTS"
+                    : std::to_string(celebrateNow.points) + " POINTS" + rarity;
+                const int lineW = std::max(Canvas::TextWidth(line1, small), Canvas::TextWidth(line3, small));
+                const int cw = std::min(outW - 8 * sc, bs + 12 * sc + std::max(Canvas::TextWidth(celebrateNow.title, sc), lineW));
+                const int ch = 34 * sc;
+                const int cx = (outW - cw) / 2, cy = outH - ch - 12 * sc + lift;
+                const uint32_t fade = alpha;
+                Glass::Round(canvas, cx, cy, cw, ch, 7 * sc, (fade << 24) | 0x141F30u, ((fade * 0x70 / 255) << 24) | 0xFFFFFFu, std::max(1.0f, (float)sc * 0.8f));
+                const int bx = cx + 4 * sc, by = cy + (ch - bs) / 2;
+                Glass::Round(canvas, bx, by, bs, bs, 4 * sc, (fade << 24) | 0x0A111Cu);
+                std::vector<uint32_t> badge;
+                int bw = 0, bh = 0;
+                if (!celebrateNow.mastery && !celebrateNow.badge.empty() &&
+                    Achievements::Badge(celebrateNow.badge, false, badge, bw, bh) && bw > 0 && bh > 0)
+                {
+                    for (int yy = 0; yy < bs; yy++)
+                        for (int xx = 0; xx < bs; xx++)
+                        {
+                            const uint32_t s = badge[(size_t)(yy * bh / bs) * bw + (xx * bw / bs)];
+                            const int cover = (int)((s >> 24) * fade / 255);
+                            uint32_t& d = canvas.px[(size_t)(by + yy) * canvas.w + bx + xx];
+                            if (cover > 0) d = Glass::Over(d, s, cover);
+                        }
+                }
+                else Glass::DrawIcon(canvas, Glass::I_TROPHY, bx + bs * 0.5f, by + bs * 0.5f, bs * 0.3f, (fade << 24) | 0xFFFFFFu);
+                const int tx = bx + bs + 3 * sc, textW = cw - (tx - cx) - 3 * sc;
+                auto fit = [&](std::string t, int scale) {
+                    if (Canvas::TextWidth(t, scale) <= textW) return t;
+                    while (!t.empty() && Canvas::TextWidth(t + "..", scale) > textW) t.pop_back();
+                    return t + "..";
+                };
+                canvas.Text(tx, cy + 3 * sc, fit(line1, small), small, (fade << 24) | (celebrateNow.mastery ? 0xFFD75Eu : 0x8CC8FFu));
+                canvas.Text(tx, cy + 12 * sc, fit(celebrateNow.title, sc), sc, (fade << 24) | 0xFFFFFFu);
+                canvas.Text(tx, cy + 24 * sc, fit(line3, small), small, (fade << 24) | 0xB9C9DDu);
+                overlayUsed = true;
+            }
         }
         // The live companion: COMPANION WINDOW (beside the game), else HUD; STATUS BAR (ui_settings.h),
         // in its own layer (liveCanvas), drawn again only when what it shows changes.
