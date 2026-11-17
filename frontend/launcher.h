@@ -1290,6 +1290,8 @@ inline void SyncGbaSettings(const std::string& cfg, const std::string& dataDir)
     set.push_back({ "fast_button", ConfigValue(cfg, "fast_button") == "toggle" ? "toggle" : "hold" });
     const std::string fast = ConfigValue(cfg, "fast_lock");
     if (fast == "0" || fast == "1") set.push_back({ "fast_lock", fast });
+    set.push_back({ "auto_state", ConfigValue(cfg, "auto_state") == "1" ? "1" : "0" });
+    set.push_back({ "auto_resume", ConfigValue(cfg, "auto_resume") == "1" ? "1" : "0" });
     const std::string vol = ConfigValue(cfg, "volume");
     set.push_back({ "volume", vol.empty() ? "100" : vol });
 #ifndef __SWITCH__

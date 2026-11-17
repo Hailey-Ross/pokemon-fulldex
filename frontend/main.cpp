@@ -83,6 +83,8 @@
 #include "ds_zoom.h"
 #include <bitset>
 #include "state_slots.h"
+#include "auto_state.h"
+#include "CRC32.h"
 #include "rewind_history.h"
 #include "screen_effect.h"
 #include "state_preview.h"
@@ -1686,6 +1688,7 @@ struct Settings : OptionalFeatures
     bool zoom = true, zoomText = true; // ZOOM AND LOOK AROUND, AUTO ZOOM IN (ds_zoom.h)
     bool fastButtonToggle = false;
     bool fastLock = false; // pause-menu FAST FORWARD, retained for the next launch
+    bool autoState = false, autoResume = false;
     int screenFilter=0;
     bool companionOverlay=false,partyHud=false;
     // STATUS BAR: a slim strip at the top while you play: the area, Poke Balls, the time, the battery.
@@ -1808,6 +1811,8 @@ struct Settings : OptionalFeatures
             else if (k == "ff_low_res") ffLowRes = v == "1";
             else if (k == "fast_button") fastButtonToggle = v == "toggle";
             else if (k == "fast_lock") fastLock = v == "1";
+            else if (k == "auto_state") autoState = v == "1";
+            else if (k == "auto_resume") autoResume = v == "1";
             else if (k == "fast_speed") fastSpeed = std::clamp(atoi(v.c_str()),2,8);
             else if (k == "slow_divisor") slowDivisor = v=="4"?4:v=="2"?2:1;
             else if (k == "rewind_mb") rewindMb = v=="128"?128:v=="64"?64:0;
@@ -1877,6 +1882,8 @@ struct Settings : OptionalFeatures
         f << "ff_low_res=" << (ffLowRes ? 1 : 0) << "\n";
         f << "fast_button=" << (fastButtonToggle ? "toggle" : "hold") << "\n";
         f << "fast_lock=" << (fastLock ? 1 : 0) << "\n";
+        f << "auto_state=" << (autoState ? 1 : 0) << "\n";
+        f << "auto_resume=" << (autoResume ? 1 : 0) << "\n";
         f << "fast_speed=" << fastSpeed << "\n";
         f << "slow_divisor=" << slowDivisor << "\n";
         f << "rewind_mb=" << rewindMb << "\n";
@@ -2191,6 +2198,9 @@ int main(int argc, char** argv)
     }
     // (RETROACHIEVEMENTS finds the game's set by the ROM's fingerprint: taken while the ROM is here.)
     const std::string romFingerprint = !opt.headless && !opt.lockstep ? Achievements::Fingerprint(rom) : std::string();
+    // States must not cross into a changed dump/hack sharing the same save basename.
+    const size_t autoRomBytes = rom.size();
+    const uint32_t autoRomCrc = !opt.headless && !opt.lockstep ? CRC32(rom.data(), (int)rom.size()) : 0;
     // The cartridge has its own copy now; Black 2's ROM is about 300 MB, which counts on the Switch.
     const int companionRevision=rom.size()>0x1E?rom[0x1E]:-1;
     const Companion::Profile companionProfile=Companion::ProfileFor(gameCode,companionRevision);
@@ -2315,6 +2325,11 @@ int main(int argc, char** argv)
     const std::string quickState = FolderSet::StateOf(opt.save); // (FOLDERS: in the states folder, or beside the save)
     std::string pendingState = quickState;
     const std::string undoLoadState = quickState + ".undo-load";
+    const std::string autoStatePath = AutoState::Path(quickState, autoRomCrc, autoRomBytes);
+    const bool autoStateAllowed = !opt.headless && !opt.lockstep && !opt.noSave;
+    bool autoStateBlocked = false;
+    std::string autoStateNote;
+    AutoState::Timer autoStateTimer;
     RewindHistory rewindHistory;
     ScreenEffect screenEffect;
     StatePreview statePreview;
@@ -2389,6 +2404,45 @@ int main(int argc, char** argv)
 #endif
     for (const std::string& kv : opt.sets) cfg.Apply(kv);
     if (!opt.sets.empty() || opt.keepSettings) cfg.readOnly = true;
+    if (autoStateAllowed && cfg.autoResume && opt.stateLoad.empty() && AutoState::Present(autoStatePath))
+    {
+        std::vector<u8> keep;
+        if (const u8* cur = nds->GetNDSSave(); cur && nds->GetNDSSaveLength())
+            keep.assign(cur, cur + nds->GetNDSSaveLength());
+        Savestate before;
+        if (!nds->DoSavestate(&before) || before.Error)
+        {
+            autoStateBlocked = true;
+            autoStateNote = "AUTO RESUME SKIPPED - COULD NOT KEEP RECOVERY STATE";
+        }
+        else
+        {
+            before.Finish();
+            bool touched = false;
+            const uint32_t oldFrame = frame;
+            const bool loaded = ReadSnapshot(*nds, autoStatePath, &frame, &touched);
+            if (!loaded)
+            {
+                frame = oldFrame;
+                if (touched)
+                {
+                    Savestate recovery(before.Buffer(), before.Length(), false);
+                    if (recovery.Error || !nds->DoSavestate(&recovery) || recovery.Error)
+                    {
+                        fprintf(stderr, "[auto-state] invalid state and recovery failed; stopping without saving\n");
+                        return 1;
+                    }
+                }
+                // Keep the damaged state for investigation; don't rotate over it on exit.
+                autoStateBlocked = true;
+                autoStateNote = "INVALID AUTO STATE - STARTING NORMALLY; AUTO SAVE PAUSED";
+            }
+            else autoStateNote = "AUTO STATE RESUMED - IN-GAME SAVE KEPT";
+            if (!keep.empty()) nds->SetNDSSave(keep.data(), (u32)keep.size());
+            rc_reset(); pk_nds_call_reset(); Achievements::Reset(); SetClock(*nds, false);
+        }
+        fprintf(stderr, "[auto-state] %s\n", autoStateNote.c_str());
+    }
     exclusives.on = cfg.bothVersions && exclusives.Supported();
 #ifdef __SWITCH__
     // (No CPU BOOST any more: the system kept taking its boost mode away and the game dropped
@@ -5809,7 +5863,7 @@ int main(int argc, char** argv)
         M_QUIT_YES, M_RESET_YES, // (QUIT GAME / RESET GAME asked first: PAGE_QUIT_CONFIRM)
         M_SHORTCUTS, // (CONTROLS: Fulldex's own four shortcuts, opening KEYS AND BUTTONS at them)
         M_EXTRAS, M_EXTRA0=92000, M_EXTRA_END=92006, M_PLAYBACK=93000, M_FAST_SPEED, M_SMART_FAST, M_SLOW_MOTION, M_REWIND_MB, M_REWIND, M_TURBO_A, M_SCREEN_FILTER, M_COMPANION_OVERLAY, M_PARTY_HUD, M_STATUS_BAR, M_LIVE_GLASS, M_FAST_BUTTON, M_ZOOM, M_ZOOM_TEXT,
-        M_STATES, M_SLOT_SAVE, M_SLOT_LOAD, M_SLOT_PREVIOUS, M_UNDO_LOAD,
+        M_STATES, M_SLOT_SAVE, M_SLOT_LOAD, M_SLOT_PREVIOUS, M_UNDO_LOAD, M_AUTO_STATE, M_AUTO_RESUME,
         M_KEY0=94000, M_KEY_LAYER=94900, M_KEY_SPACE, M_KEY_DEL, M_KEY_DONE, M_KEY_SYMBOLS, // (the keyboard's keys, Menu::keyGrid: SEARCH, the log in)
         M_FLY0=96000, M_CPARTY0=80000, M_CDEX0=81000, M_CITEM0=83000, M_RRESULT0=86000, M_SLOT0=90000, M_GUIDE0=91000,
         M_BACKUP0 = 70000,
@@ -6510,6 +6564,12 @@ int main(int argc, char** argv)
             picker(M_SLOW_MOTION, "SLOW MOTION", Glass::I_GAUGE, Menu::P_NONE, { "OFF", "1/2", "1/4" }, cfg.slowDivisor == 4 ? 2 : cfg.slowDivisor == 2 ? 1 : 0,
                    "Run the game at half or a quarter of its speed.", "Handy for tricky timing.");
             section("ASSIST", Glass::I_REWIND);
+            toggle(M_AUTO_STATE, "AUTO SAVE STATE", Glass::I_SAVE, Menu::P_NONE, cfg.autoState,
+                   "Keep a separate DS state every minute, when backgrounded and on exit. Manual slots stay as they are.",
+                   "Off by default. This does not replace saving in the game.");
+            toggle(M_AUTO_RESUME, "RESUME ON START", Glass::I_LOAD, Menu::P_NONE, cfg.autoResume,
+                   "Start this DS ROM from its automatic state when available. Your in-game save is kept.",
+                   "Turn off to start normally. Changed ROMs use separate automatic states.");
             toggle(M_TURBO_A, "TURBO A", Glass::I_PAD, Menu::P_NONE, cfg.turboA,
                    "Holding A presses it again and again.", "Speeds through text and repeated choices.");
             picker(M_REWIND_MB, "REWIND MEMORY", Glass::I_REWIND, Menu::P_NONE, { "OFF", "64 MB", "128 MB" }, cfg.rewindMb == 128 ? 2 : cfg.rewindMb == 64 ? 1 : 0,
@@ -7923,6 +7983,19 @@ int main(int argc, char** argv)
         say(saved?"STATE SAVED":"SAVE STATE FAILED - PREVIOUS STATE KEPT");
     };
     auto saveQuick = [&]() {saveAt(quickState);};
+    auto saveAutomatic = [&]() {
+        if (!autoStateAllowed || !cfg.autoState || autoStateBlocked || !frame) return;
+        const bool saved = StateSlots::Save(autoStatePath, [&](const std::string& temporary) {
+            return WriteSnapshot(*nds, temporary, frame);
+        });
+        autoStateTimer.Saved(SDL_GetTicks());
+        fprintf(stderr, "[auto-state] %s frame=%u\n", saved ? "saved" : "failed; prior state kept", frame);
+        if (!saved)
+        {
+            autoStateBlocked = true;
+            say("AUTO STATE FAILED - PREVIOUS STATE KEPT");
+        }
+    };
     auto resetGame = [&]() {
         rewindHistory.Clear();
         pk_nds_call_reset();flyCheckJob=flyJob=0;
@@ -9121,6 +9194,7 @@ int main(int argc, char** argv)
                 else if (ev.type == SDL_APP_WILLENTERBACKGROUND || ev.type == SDL_APP_TERMINATING)
                 {
                     // A phone may close the app at any time once it is in the background.
+                    saveAutomatic();
                     if (!opt.noSave) FlushSave(opt.save);
                     cfg.Save(opt.config);
                 }
@@ -10107,6 +10181,8 @@ int main(int argc, char** argv)
             case M_PLAYBACK:goPage(PAGE_PLAYBACK,M_FAST_SPEED);hit=-1;break;
             case M_FAST_BUTTON:
                 cfg.fastButtonToggle = !cfg.fastButtonToggle; cfg.Save(opt.config); fastButton.Block(); break;
+            case M_AUTO_STATE:cfg.autoState=!cfg.autoState;cfg.Save(opt.config);break;
+            case M_AUTO_RESUME:cfg.autoResume=!cfg.autoResume;cfg.Save(opt.config);break;
             case M_FAST_SPEED:
             {
                 static const int speeds[]={2,3,4,8};int i=0;while(i<3&&speeds[i]<cfg.fastSpeed)i++;
@@ -13315,6 +13391,8 @@ int main(int argc, char** argv)
         }
 
         const bool cloudDirty = !opt.noSave && frame % 120 == 0 && Host::SaveIsDirty;
+        if (!autoStateNote.empty()) { say(autoStateNote); autoStateNote.clear(); }
+        if (autoStateTimer.Due(SDL_GetTicks(), autoStateAllowed && cfg.autoState && !autoStateBlocked, paused)) saveAutomatic();
         if (!opt.noSave && frame % 120 == 0 && !FlushSave(opt.save))
             say("SAVE FAILED - CHECK DISK SPACE AND SAVE FOLDER");
         // (Cloud saves: the save just written goes up a little later; what happened at the start is said.)
@@ -13342,6 +13420,7 @@ int main(int argc, char** argv)
         fflush(stderr);
     };
     exitStep("saving");
+    saveAutomatic();
     if (!opt.noSave && !FlushSave(opt.save) && !opt.headless)
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "FullDex save failed",
             "Your latest progress could not be written reliably. Check disk space and save-folder permissions. Keep the save and .tmp files for recovery.", window);

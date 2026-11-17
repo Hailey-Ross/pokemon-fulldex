@@ -27,9 +27,11 @@
 #include "art.h"
 #include "fast_forward_button.h"
 #include "fast_forward_audio.h"
+#include "state_file.h"
 #ifdef GBAW_EMBEDDED
 #include "embed.h"
 #include "gba_glass.h" // (the pause menu as the DS games draw it; Fulldex's frontend folder)
+#include "auto_state.h"
 #include "gba_dex.h"       // (POKEDEX: the game's own Pokedex data and pictures, read from its ROM)
 #include "gba_companion.h" // (COMPANION: the party, bag and place, read from the paused game)
 #include "gba_guides.h"    // (COMPANION's GUIDE)
@@ -243,6 +245,10 @@ const std::vector<Setting>& SettingsList()
         // (FAST FORWARD on or off, in CONTROLS: the pause menu's tiles are the DS games' eight.)
         { "fast_lock", "FAST FORWARD", { { "0", "OFF" }, { "1", "ON" } }, "0",
           "FAST FORWARD ON OR OFF UNTIL IT IS CHANGED AGAIN, AS THE FAST FORWARD BUTTON TOGGLES IT." },
+        { "auto_state", "AUTO SAVE STATE", { { "0", "OFF" }, { "1", "ON" } }, "0",
+          "KEEP A SEPARATE STATE EVERY MINUTE, WHEN BACKGROUNDED AND ON EXIT. MANUAL SLOTS STAY AS THEY ARE. KEEP SAVING IN THE GAME TOO." },
+        { "auto_resume", "RESUME ON START", { { "0", "OFF" }, { "1", "ON" } }, "0",
+          "RESUME THIS ROM'S AUTOMATIC STATE ON THE NEXT START, KEEPING ITS NORMAL SAVE. TURN OFF TO START NORMALLY." },
 #endif
         { "fast_button", "FAST FORWARD BUTTON", { { "hold", "HOLD" }, { "toggle", "TOGGLE" } }, "hold",
           "HOLD: RELEASE TO STOP. TOGGLE: PRESS ONCE TO START AND AGAIN TO STOP. FOR THE KEYBOARD AND A CONTROLLER; THE >> BUTTON ON THE SCREEN IS ALWAYS A TAP ON, A TAP OFF." },
@@ -327,7 +333,7 @@ struct Settings
         const std::string v = Get(key);
         std::string hk, hv;
         if (!strcmp(key, "scaling")) { hk = "smooth"; hv = v == "smooth" ? "1" : "0"; }
-        else if (!strcmp(key, "show_fps") || !strcmp(key, "volume") || !strcmp(key, "buttons") || !strcmp(key, "ff_mute") || !strcmp(key, "fast_lock") || !strcmp(key, "fast_button")) { hk = key; hv = v; }
+        else if (!strcmp(key, "show_fps") || !strcmp(key, "volume") || !strcmp(key, "buttons") || !strcmp(key, "ff_mute") || !strcmp(key, "fast_lock") || !strcmp(key, "fast_button") || !strcmp(key, "auto_state") || !strcmp(key, "auto_resume")) { hk = key; hv = v; }
         else if (!strcmp(key, "lcd")) { hk = "gba_lcd"; hv = v; }
         else if (!strcmp(key, "widescreen")) { hk = "aspect"; hv = v == "off" ? "3:2" : v; }
         else if (!strcmp(key, "fullscreen")) { hk = key; hv = v; }
@@ -1192,6 +1198,11 @@ struct App
         else if (g.forced && !ownShape) Toast("ROM HACK: GLITCHY SIDES? TRY ASPECT RATIO 3:2", 6000);
 #ifdef GBAW_EMBEDDED
         // The ROM RetroAchievements knows is the one sold (sold), not the widescreen patch.
+        autoStatePath = AutoState::Path(states + "/" + g.key + ".ss", doCrc32(rom.data(), rom.size()), rom.size());
+        autoStateBlocked = false;
+        autoStatePlayed = false;
+        autoStateTimer = {};
+        if (!ResumeAutomatic()) { Stop(); return false; }
         if (wantRa)
         {
             const std::vector<uint8_t>& id = sold.empty() ? rom : sold; // (the ROM as sold: before the widescreen patch)
@@ -1205,6 +1216,7 @@ struct App
     {
         if (!core) return;
 #ifdef GBAW_EMBEDDED
+        SaveAutomatic();
         if (raReady && ra->end) ra->end(ra->ud);
         raReady = false;
         if (typing) SDL_StopTextInput();
@@ -1307,6 +1319,11 @@ struct App
     // Ten states a game, as the DS games have (SAVE and LOAD in the pause menu each open the
     // slots). The first is the one state there was before: <game>.ss; the others <game>.2.ss ...
     static constexpr int StateSlots = 10;
+#ifdef GBAW_EMBEDDED
+    std::string autoStatePath;
+    bool autoStateBlocked = false, autoStatePlayed = false;
+    AutoState::Timer autoStateTimer;
+#endif
     std::vector<uint32_t> slotThumb[StateSlots]; // (the slots' pictures while SAVE or LOAD is open)
     int slotThumbW[StateSlots] = {}, slotThumbH[StateSlots] = {};
     std::string StatePath(int slot = 0) const { return states + "/" + game.key + (slot > 0 ? "." + std::to_string(slot + 1) : std::string()) + ".ss"; }
@@ -1324,14 +1341,19 @@ struct App
     }
     void SaveState(int slot = 0)
     {
-        struct VFile* vf = VFileOpen(StatePath(slot).c_str(), O_CREAT | O_TRUNC | O_RDWR);
-        const bool ok = vf && mCoreSaveStateNamed(core, vf, SAVESTATE_RTC);
-        if (vf) vf->close(vf);
+        const bool ok = GbaStateFile::Save(StatePath(slot), [&](const std::string& pending) {
+            struct VFile* vf = VFileOpen(pending.c_str(), O_CREAT | O_TRUNC | O_RDWR);
+            if (!vf) return false;
+            const bool wrote = mCoreSaveStateNamed(core, vf, SAVESTATE_RTC);
+            const bool closed = vf->close(vf);
+            return wrote && closed;
+        });
+        if (!ok) fprintf(stderr, "[state] could not replace %s; previous slot and pending file kept\n", StatePath(slot).c_str());
 #ifdef GBAW_EMBEDDED
         // (Its picture for the slot's card: the game as it was on the screen when the menu opened.)
         if (ok && !glassShot.empty() && glassShotW > 0) GbaGlass::SaveSlotPicture(StatePath(slot), glassShot.data(), glassShotW, glassShotH);
 #endif
-        Toast(ok ? "STATE SAVED" : "COULDN'T SAVE THE STATE");
+        Toast(ok ? "STATE SAVED" : "STATE SAVE FAILED - PREVIOUS SLOT KEPT");
     }
     void LoadState(int slot = 0)
     {
@@ -1352,6 +1374,59 @@ struct App
         if (ok && raReady && ra->reset) ra->reset(ra->ud);
 #endif
     }
+
+#ifdef GBAW_EMBEDDED
+    void SaveAutomatic()
+    {
+        if (!core || !autoStatePlayed || autoStateBlocked || autoStatePath.empty() || set.Get("auto_state") != "1") return;
+        const bool saved = GbaStateFile::Save(autoStatePath, [&](const std::string& pending) {
+            VFile* vf = VFileOpen(pending.c_str(), O_CREAT | O_TRUNC | O_RDWR);
+            if (!vf) return false;
+            const bool wrote = mCoreSaveStateNamed(core, vf, SAVESTATE_RTC);
+            const bool closed = vf->close(vf);
+            return wrote && closed;
+        });
+        autoStateTimer.Saved(SDL_GetTicks());
+        fprintf(stderr, "[auto-state gba] %s frame=%llu\n", saved ? "saved" : "failed; previous state kept", gameFrames);
+        if (!saved) { autoStateBlocked = true; Toast("AUTO STATE FAILED - PREVIOUS STATE KEPT"); }
+    }
+    bool ResumeAutomatic()
+    {
+        if (set.Get("auto_resume") != "1" || !AutoState::Present(autoStatePath)) return true;
+        // Keep a recovery state before a loader can mutate the current console.
+        VFile* before = VFileMemChunk(nullptr, 0);
+        if (!before || !mCoreSaveStateNamed(core, before, SAVESTATE_RTC))
+        {
+            if (before) before->close(before);
+            autoStateBlocked = true;
+            Toast("AUTO RESUME SKIPPED - COULD NOT KEEP RECOVERY STATE");
+            return true;
+        }
+        VFile* state = VFileOpen(autoStatePath.c_str(), O_RDONLY);
+        // RTC only: leave the normal SRAM/flash save as it is, as manual LoadState does.
+        const bool loaded = state && mCoreLoadStateNamed(core, state, SAVESTATE_RTC);
+        if (state) state->close(state);
+        if (!loaded)
+        {
+            autoStateBlocked = true;
+            const bool recovered = before->seek(before, 0, SEEK_SET) == 0 && mCoreLoadStateNamed(core, before, SAVESTATE_RTC);
+            before->close(before);
+            fprintf(stderr, "[auto-state gba] invalid automatic state; recovery %s\n", recovered ? "succeeded" : "failed");
+            Toast("INVALID AUTO STATE - STARTING NORMALLY; AUTO SAVE PAUSED");
+            return recovered;
+        }
+        before->close(before);
+        autoStatePlayed = true;
+        camera.Reset();
+        if (ZoomOn()) { pk_wide_jump(core, frame240.data()); zoomShown = false; }
+#ifdef GBAW_CHEATS
+        cheats.Reset();
+#endif
+        fprintf(stderr, "[auto-state gba] resumed; normal save kept\n");
+        Toast("AUTO STATE RESUMED - IN-GAME SAVE KEPT");
+        return true;
+    }
+#endif
 
     // How many columns the picture gets on each side: the window's shape, or WIDESCREEN.
     int WantedExtra() const
@@ -1577,6 +1652,9 @@ struct App
         Sound(sound, ff);
         fpsFrames++;
         gameFrames++;
+#ifdef GBAW_EMBEDDED
+        autoStatePlayed = true;
+#endif
     }
 
     // -----------------------------------------------------------------------------------------
@@ -1763,10 +1841,13 @@ struct App
         {
             static const char* const display[] = { "widescreen", "fullscreen", "scaling", "hd_filter", "lcd", "colour", "zoom", "zoom_text", "day_night", "follower", "nav_style", "show_fps" };
             static const char* const sound[] = { "volume", "ff_mute" };
-            static const char* const controls[] = { "gba_start", "buttons", "fast_lock", "ff_speed", "fast_button" };
+            static const char* const controls[] = { "gba_start", "buttons", "fast_lock", "ff_speed", "fast_button", "auto_state", "auto_resume" };
             static const char* const gameplay[] = { "instant_text", "reusable_tms", "run_indoors", "wild_encounters", "shiny_odds", "battle_speed", "text_speed", "bike_speed", "surf_speed", "fly_on", "flight_clouds" };
             const char* const* keys = pausePage == P_DISPLAY ? display : pausePage == P_SOUND ? sound : pausePage == P_GAMEPLAY ? gameplay : controls;
-            const int count = pausePage == P_DISPLAY ? 11 : pausePage == P_SOUND ? 2 : pausePage == P_GAMEPLAY ? 11 : 5;
+            const int count = pausePage == P_DISPLAY ? sizeof(display) / sizeof(*display)
+                            : pausePage == P_SOUND ? sizeof(sound) / sizeof(*sound)
+                            : pausePage == P_GAMEPLAY ? sizeof(gameplay) / sizeof(*gameplay)
+                            : sizeof(controls) / sizeof(*controls);
             pageSettings.clear();
             for (int i = 0; i < count; i++)
                 for (const Setting& s : SettingsList())
@@ -3913,6 +3994,7 @@ struct App
             { "widescreen", IC_RATIO }, { "fullscreen", IC_FULLSCREEN }, { "scaling", IC_EXPAND }, { "hd_filter", IC_SPARKLE },
             { "lcd", IC_GRID }, { "colour", IC_MONITOR }, { "zoom", IC_EXPAND }, { "zoom_text", IC_EXPAND }, { "show_fps", IC_GAUGE }, { "volume", IC_SPEAKER }, { "ff_mute", IC_FAST },
             { "gba_start", IC_PAD }, { "buttons", IC_PAD }, { "ff_speed", IC_FAST }, { "fast_button", IC_FAST }, { "fast_lock", IC_FAST },
+            { "auto_state", IC_SAVE }, { "auto_resume", IC_LOAD },
             { "instant_text", IC_INFO }, { "reusable_tms", IC_CHIP }, { "run_indoors", IC_FAST }, { "wild_encounters", IC_GLOBE }, { "shiny_odds", IC_SPARKLE }, { "battle_speed", IC_FAST }, { "text_speed", IC_FAST }, { "bike_speed", IC_FAST }, { "surf_speed", IC_FAST }, { "day_night", IC_SPARKLE }, { "follower", IC_POKEBALL }, { "nav_style", IC_GRID } };
         icon = IC_GEAR;
         for (const auto& i : icons)
@@ -5563,6 +5645,12 @@ struct App
         {
             switch (e.type)
             {
+#ifdef GBAW_EMBEDDED
+            case SDL_APP_WILLENTERBACKGROUND:
+            case SDL_APP_TERMINATING:
+                SaveAutomatic();
+                break;
+#endif
             case SDL_QUIT:
                 quit = true;
                 break;
@@ -6106,6 +6194,7 @@ struct App
                 due = 0;
 #ifdef GBAW_EMBEDDED
             if (raReady && ra && ra->pump) ra->pump(ra->ud, paused || screen != PLAY);
+            if (autoStateTimer.Due(SDL_GetTicks(), core && screen == PLAY && !autoStateBlocked && set.Get("auto_state") == "1", paused)) SaveAutomatic();
             if (raReady && ra && ra->pop)
             {
                 char msg[128] = {};
