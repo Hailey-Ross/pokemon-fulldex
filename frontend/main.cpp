@@ -6106,11 +6106,16 @@ int main(int argc, char** argv)
             settingsPage(Glass::I_GEAR);
             menu.tallRows = true;
             auto link = [&](int id, const char* label, int icon, const std::string& value, const char* sub, const char* desc) {
-                add(id, label, value, true);
+                // (A page to open, not a value to change: the setting as it is now goes into the
+                // line under the name, and the row's right side is only the chevron. The preview
+                // says "Opens ..." so the row does not read as a picker.)
+                std::string line = sub;
+                if (!value.empty()) line += std::string(" \xC2\xB7 ") + value;
+                add(id, label, "", true);
                 MenuItem& it = menu.items.back();
                 it.kind = Menu::K_LINK;
                 it.icon = icon;
-                it.sub = sub;
+                it.sub = line;
                 it.desc = desc;
             };
             static const char* const layouts[] = { "WIDESCREEN", "BIG + SMALL", "BIG TOP", "BIG BOTTOM", "SIDE BY SIDE", "STACKED", "TOP ONLY", "BOTTOM ONLY" };
@@ -6120,7 +6125,7 @@ int main(int argc, char** argv)
             const int lc = -1; // (the Switch has its own layouts, under DISPLAY)
 #endif
             link(M_DISPLAY, "DISPLAY", Glass::I_MONITOR, lc >= 0 && lc < 8 ? layouts[lc] : "", "Screen layout, language, overlays",
-                 "How the two screens are shown, the language, the shape of the picture and what shows over the game: battle buttons, FPS, the companion window and party HUD.");
+                 "Opens the Display settings: how the two screens are shown, the language, the shape of the picture and what shows over the game: battle buttons, FPS, the companion window and party HUD.");
 #ifdef __SWITCH__
             static const char* const res[] = { "192", "288", "384", "540", "720", "1080", "1440", "2160" };
 #else
@@ -6128,15 +6133,15 @@ int main(int argc, char** argv)
 #endif
             const int ri = detailIndex();
             link(M_GRAPHICS, "GRAPHICS", Glass::I_SPARKLE, std::string(ri >= 0 && ri < 8 ? res[ri] : "") + "  \xC2\xB7  " + (cfg.fps60 ? "60 FPS" : "30 FPS"),
-                 "Frame rate, widescreen, 3D resolution", "How the game is drawn: its frame rate, the widescreen world, how sharp the 3D is and what does the work.");
+                 "Frame rate, widescreen, 3D resolution", "Opens the Graphics settings: how the game is drawn: its frame rate, the widescreen world, how sharp the 3D is and what does the work.");
             link(M_PLAYBACK, "PLAYBACK", Glass::I_FAST, fastLock ? "FAST FORWARD ON" : std::to_string(cfg.fastSpeed) + "X", "Fast forward, rewind, reset",
-                 "Fast forward and its speed, slow motion, turbo A, rewind, and resetting the game.");
+                 "Opens the Playback settings: fast forward and its speed, slow motion, turbo A, rewind, and resetting the game.");
             link(M_SOUND, "SOUND", Glass::I_SPEAKER, cfg.volume == 0 ? std::string("OFF") : std::to_string(cfg.volume) + "%", "Volume, music, your own music",
-                 "The game's volume, its music and sound effects each on their own, and how it plays alongside your own music.");
+                 "Opens the Sound settings: the game's volume, its music and sound effects each on their own, and how it plays alongside your own music.");
             std::string padName = pads.Current() ? Controls::KindName(Controls::KindOf(pads.Current())) : "KEYBOARD";
             if (padName.size() > 11 && padName.compare(padName.size() - 11, 11, " CONTROLLER") == 0) padName.resize(padName.size() - 11);
             link(M_CONTROLMENU, "CONTROLS", Glass::I_PAD, padName, "Keys and buttons, shortcuts, touch",
-                 "Your keys and controller buttons, Fulldex's shortcuts, the START button and the touch controls.");
+                 "Opens the Controls settings: your keys and controller buttons, Fulldex's shortcuts, the START button and the touch controls.");
         }
         else if (menuPage == PAGE_HUB_QUIT)
         {
@@ -8855,6 +8860,20 @@ int main(int argc, char** argv)
                 if ((ev.type == SDL_MOUSEBUTTONUP && ev.button.which != SDL_TOUCH_MOUSEID) ||
                     (ev.type == SDL_WINDOWEVENT && ev.window.event == SDL_WINDOWEVENT_FOCUS_LOST)) pointerHeld = false;
 #endif
+                // (The mouse wheel scrolls an open page as a finger's drag does: a settings page by
+                // pixels, a plain list by rows. Tiles all fit the screen and a dialog does not scroll.)
+                if (ev.type == SDL_MOUSEWHEEL && menu.open && menu.style != 2 && !menu.keyGrid && !menu.slotGrid && menu.columns == 0)
+                {
+                    int steps = ev.wheel.y;
+                    if (ev.wheel.direction == SDL_MOUSEWHEEL_FLIPPED) steps = -steps;
+                    if (steps)
+                    {
+                        menu.freeScroll = true;
+                        if (menu.style == 1) menu.scrollPx = std::max(0, menu.scrollPx - steps * std::max(30, menu.rowH * 2));
+                        else menu.scroll = std::max(0, menu.scroll - steps);
+                        continue;
+                    }
+                }
                 if (ev.type == SDL_CONTROLLERBUTTONDOWN && ev.cbutton.button < PAD_COUNT)
                 {
                     int b = ev.cbutton.button;
@@ -8940,8 +8959,7 @@ int main(int argc, char** argv)
                         // settings page anywhere across its rows (on a heading or between rows
                         // too, not only on a row), and a plain list (cheats, the companion's
                         // lists) anywhere in its box. Let go without moving, it is a tap.
-                        const bool settingsRows = menu.style == 1 && !menu.keyGrid && !menu.slotGrid &&
-                            !(item >= 0 && menu.items[item].kind == Menu::K_BACK) && x >= menu.rowX && x < menu.rowX + menu.rowW;
+                        const bool settingsRows = menu.style == 1 && !menu.keyGrid && !menu.slotGrid;
                         const bool plainList = menu.style == 0 && menu.columns == 0 && menu.drawnLineH > 0 && item != -2;
                         if (settingsRows || plainList)
                         {
@@ -12856,9 +12874,15 @@ int main(int argc, char** argv)
             // (The tiles: B goes back to the game, there being no RESUME tile.)
             if (menuPage == PAGE_MAIN)
                 hint = touchPadUsed && touchPad.visible ? "TAP: CHOOSE   OUTSIDE: RESUME" : btn(Controls::A) + ": SELECT   " + btn(Controls::B) + ": RESUME";
-            // (Settings pages explain the chosen row in their preview: the hint is the buttons only.)
+            // (Settings pages explain the chosen row in their preview: the hint is the buttons only.
+            // The Settings hub's rows are pages to open; the others' are values, changed with
+            // Left/Right, and their links opened with A.)
             if (menu.style == 1)
-                hint = touchPadUsed && touchPad.visible ? "TAP: CHOOSE   OUTSIDE: BACK" : btn(Controls::A) + ": SELECT   " + btn(Controls::B) + ": BACK";
+                hint = menuPage == PAGE_HUB_SETTINGS
+                    ? (touchPadUsed && touchPad.visible ? "TAP: OPEN   OUTSIDE: BACK"
+                                                        : btn(Controls::A) + ": OPEN   " + btn(Controls::B) + ": BACK")
+                    : (touchPadUsed && touchPad.visible ? "TAP: CHANGE   OUTSIDE: BACK"
+                                                        : "LEFT / RIGHT: CHANGE   " + btn(Controls::A) + ": OPEN   " + btn(Controls::B) + ": BACK");
             const bool wideMenu=menuPage==PAGE_CENCOUNTERS || menuPage==PAGE_FLY || menuPage==PAGE_REFERENCE || menuPage==PAGE_RSEARCH || menuPage==PAGE_RDETAIL || menuPage==PAGE_CITEM || menuPage==PAGE_EXTRAS || menuPage==PAGE_QUICK_ACTIONS || menuPage==PAGE_NUZLOCKE || menuPage==PAGE_RUN_CONFIRM || menuPage==PAGE_CGUIDE || menuPage==PAGE_CGUIDEENTRY || menuPage==PAGE_CBATTLE || menuPage==PAGE_STATES || menuPage==PAGE_SLOT || (menuPage>=PAGE_COMPANION&&menuPage<=PAGE_CLOCATION) || menuPage==PAGE_MATCHUPS || menuPage==PAGE_CHEATS || menuPage==PAGE_CDETAIL || menuPage==PAGE_CINFO || menuPage==PAGE_CSEARCH || menuPage==PAGE_BACKUPS || menuPage==PAGE_RESTORE_CONFIRM || menuPage==PAGE_LOAD_CONFIRM || menuPage==PAGE_QUIT_CONFIRM;
             if (menuPage == PAGE_CONTROLS) // (BUTTONS' preview: the controller connected)
             {
