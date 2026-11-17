@@ -16,18 +16,29 @@ Implemented:
 - Launcher settings (the glass page): the first touch on a group row opens it; a pill changes
   the value directly (Off then On, and On then Off); a chevron steps; a preview card selects
   its choice; the row name only selects; a drag scrolls; A opens links/groups only.
+- A row's parts are registered before its pixels are cached: an unchanged row used to skip
+  its controls, so its first touch only focused it (the "first touch just highlights the
+  row" report). Parts are now there whether the row was redrawn or copied.
 - Android defines `SSR_PHONE`, so the phone touch hints are actually compiled in.
 
 Verified:
 - Android: tapping the On pill sets the toggle; tapping the row name only selects; an
   upward swipe scrolls the Cheats list.
 - Android: every control in Settings -> Display (toggles, pickers, sliders, links, group rows).
+- Android, a clean install (Pixel 3): the first-run folder flow and empty list, then Settings
+  -> Graphics (pills both ways, preview cards, chevrons), Optional Features (On then Off),
+  Updates, the header Back and drag scrolling.
 - Steam Deck: pad Left/Right changes the focused toggle; A on a toggle does nothing.
 - Windows: build produced and pushed to the test box.
 
-Still to do: the launcher's other surfaces (tabs, sidebar, banner, grid, game menu, tab
-options, ROMs, hub, about, music bar), the pause tile page, the visual last-input mode
-(focus ring vs hover), the simultaneous-input matrix, and the shared gesture classifier.
+A tap is judged against the list as it is drawn at that moment: after a page's Back the list
+auto-scrolls to the row you came from, so a position read from an older picture can be a row
+off. The hit test follows the drawn rows (`rowY`), not the scroll state.
+
+Still to do: verify the launcher's other surfaces (tabs, sidebar, banner, grid, game menu,
+tab options, ROMs, hub, about, music bar) under both styles; the visual last-input mode
+(focus ring vs hover); the simultaneous-input matrix on each device; and folding the two
+gesture classifiers into one.
 
 
 ## Goals

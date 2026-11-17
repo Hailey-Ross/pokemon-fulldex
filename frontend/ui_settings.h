@@ -1916,6 +1916,25 @@ inline void Menu::DrawSettings(Canvas& c, const std::string& title, const std::s
             T(c, listX + KR(50), y + headH * 2 / 3 + KR(1), it.label, KR(22), GlassText, true);
             continue;
         }
+        {
+            // (The row as the pointer sees it: its name focuses only; links open; Off/On pills and
+            // the chevrons are the controls. The pad reaches the same changes with Left/Right.
+            // These are registered before the row's pixels: a row copied from the cache still
+            // needs its parts, or its controls answer only once it has been drawn again.)
+            const bool opens = it.kind == K_LINK || it.kind == K_FOLDER || it.kind == K_SLOT || it.kind == K_KEY;
+            parts.push_back({listX, y, std::max(0, ctlX - listX), rowH,
+                             it.kind == K_BACK ? UiInput::Intent::Back : opens ? UiInput::Intent::Open : UiInput::Intent::Focus, i, 0});
+            if (it.kind == K_TOGGLE)
+            {
+                parts.push_back({ctlX, y, ctlW / 2, rowH, UiInput::Intent::Set, i, 0});
+                parts.push_back({ctlX + ctlW / 2, y, ctlW - ctlW / 2, rowH, UiInput::Intent::Set, i, 1});
+            }
+            else if (it.kind == K_PICKER)
+            {
+                parts.push_back({ctlX, y, ctlW / 2, rowH, UiInput::Intent::Step, i, -1});
+                parts.push_back({ctlX + ctlW / 2, y, ctlW - ctlW / 2, rowH, UiInput::Intent::Step, i, 1});
+            }
+        }
         // (Each row is drawn once and copied after, while it stays the same: its words, its place, and
         // whether it or the row above is the chosen one (that one's glow shows through it).
         // Drawing every row each press cost the Switch about 60 ms.)
@@ -2084,23 +2103,6 @@ inline void Menu::DrawSettings(Canvas& c, const std::string& title, const std::s
             }
         };
         drawRow();
-        {
-            // (The row as the pointer sees it: its name focuses only; links open; Off/On pills and
-            // the chevrons are the controls. The pad reaches the same changes with Left/Right.)
-            const bool opens = it.kind == K_LINK || it.kind == K_FOLDER || it.kind == K_SLOT || it.kind == K_KEY;
-            parts.push_back({listX, y, std::max(0, ctlX - listX), rowH,
-                             it.kind == K_BACK ? UiInput::Intent::Back : opens ? UiInput::Intent::Open : UiInput::Intent::Focus, i, 0});
-            if (it.kind == K_TOGGLE)
-            {
-                parts.push_back({ctlX, y, ctlW / 2, rowH, UiInput::Intent::Set, i, 0});
-                parts.push_back({ctlX + ctlW / 2, y, ctlW - ctlW / 2, rowH, UiInput::Intent::Set, i, 1});
-            }
-            else if (it.kind == K_PICKER)
-            {
-                parts.push_back({ctlX, y, ctlW / 2, rowH, UiInput::Intent::Step, i, -1});
-                parts.push_back({ctlX + ctlW / 2, y, ctlW - ctlW / 2, rowH, UiInput::Intent::Step, i, 1});
-            }
-        }
         if (!selHere && cx1 > cx0 && cy1 > cy0)
         {
             rc.key = rk; rc.x = cx0; rc.y = cy0; rc.w = cx1 - cx0; rc.h = cy1 - cy0;
