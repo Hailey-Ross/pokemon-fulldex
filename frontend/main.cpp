@@ -2561,6 +2561,7 @@ int main(int argc, char** argv)
     bool syncToDisplay = false;
     int refreshesPerFrame = 1;
     bool swapPaced = false; // (Linux, 120 Hz and up: the driver holds each picture refreshesPerFrame refreshes)
+    int swapQuick = 0;      // (pictures in a row the driver handed back at once: it said it paces them, but does not)
     double refreshPeriod = 1001.0 / 60000.0;
     double screenPace = 0; // Android: seconds a picture when the frames keep the screen's rate (0: the DS's own)
     SDL_Renderer* renderer = nullptr;
@@ -8813,6 +8814,18 @@ int main(int argc, char** argv)
             // returns at once must not be treated as a refresh, or the next picture is asked
             // for 2 ms early every frame and the game runs away faster than the screen.
             const double blocked = lastShownAt ? (double)(returned - lastShownAt) / perfFreq : 0;
+            // (#211: a driver can accept the swap interval and then ignore it, NVIDIA PRIME offload
+            // on X11: every picture comes back at once and the game ran 3.5 times too fast. Twelve
+            // in a row and FullDex paces them itself, as when the swap interval is refused.)
+            if (swapPaced)
+            {
+                swapQuick = blocked > 0.0005 ? 0 : swapQuick + 1;
+                if (swapQuick >= 12)
+                {
+                    swapPaced = false;
+                    fprintf(stderr, "[display] the driver took the swap interval but does not hold the pictures: FullDex paces them itself\n");
+                }
+            }
             if (lastRefresh && blocked > 0.0005)
             {
                 const double observed = (double)(returned - lastRefresh) / perfFreq;
