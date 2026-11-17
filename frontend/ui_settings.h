@@ -1921,8 +1921,10 @@ inline void Menu::DrawSettings(Canvas& c, const std::string& title, const std::s
             // the chevrons are the controls. The pad reaches the same changes with Left/Right.
             // These are registered before the row's pixels: a row copied from the cache still
             // needs its parts, or its controls answer only once it has been drawn again.)
+            // (A row that opens something is a button across its whole width: the label, the value
+            // and the chevron all open it. A value row's name only focuses; its controls change it.)
             const bool opens = it.kind == K_LINK || it.kind == K_FOLDER || it.kind == K_SLOT || it.kind == K_KEY;
-            parts.push_back({listX, y, std::max(0, ctlX - listX), rowH,
+            parts.push_back({listX, y, opens ? listW : std::max(0, ctlX - listX), rowH,
                              it.kind == K_BACK ? UiInput::Intent::Back : opens ? UiInput::Intent::Open : UiInput::Intent::Focus, i, 0});
             if (it.kind == K_TOGGLE)
             {

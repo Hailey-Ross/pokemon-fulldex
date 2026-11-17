@@ -8852,6 +8852,20 @@ int main(int argc, char** argv)
                 if ((ev.type == SDL_MOUSEBUTTONUP && ev.button.which != SDL_TOUCH_MOUSEID) ||
                     (ev.type == SDL_WINDOWEVENT && ev.window.event == SDL_WINDOWEVENT_FOCUS_LOST)) pointerHeld = false;
 #endif
+                // (The mouse wheel scrolls an open page as a finger's drag does: a settings page by
+                // pixels, a plain list by rows. Tiles all fit the screen and a dialog does not scroll.)
+                if (ev.type == SDL_MOUSEWHEEL && menu.open && menu.style != 2 && !menu.keyGrid && !menu.slotGrid && menu.columns == 0)
+                {
+                    int steps = ev.wheel.y;
+                    if (ev.wheel.direction == SDL_MOUSEWHEEL_FLIPPED) steps = -steps;
+                    if (steps)
+                    {
+                        menu.freeScroll = true;
+                        if (menu.style == 1) menu.scrollPx = std::max(0, menu.scrollPx - steps * std::max(30, menu.rowH * 2));
+                        else menu.scroll = std::max(0, menu.scroll - steps);
+                        continue;
+                    }
+                }
                 if (ev.type == SDL_CONTROLLERBUTTONDOWN && ev.cbutton.button < PAD_COUNT)
                 {
                     int b = ev.cbutton.button;

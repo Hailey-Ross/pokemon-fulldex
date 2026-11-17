@@ -103,6 +103,8 @@ One routine for the pause menu and the launcher:
 - move beyond `max(12px, 1/60 of the short screen side)`: drag → `Scroll`, no tap.
 - release without movement: `Tap` → the part's intent.
 - pointer presses on a control do not block a drag: dragging anywhere scrolls.
+- the wheel scrolls the open page too: a settings page by pixels, a plain list by rows. It
+  leaves the chosen row where it is (the next pad press brings it back into view).
 
 ## Widget catalogue
 
