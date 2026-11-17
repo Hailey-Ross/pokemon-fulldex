@@ -289,7 +289,9 @@ struct Menu
         };
         std::vector<DexEntry> dex;
         // (GUIDE's answers, P_CGUIDE: each shown once chosen with Enter or a tap.)
-        struct GuideAnswer { std::string text; bool shown = false; std::string tail; }; // tail: where the rest is (HERE)
+        // (scroll: the first line shown in the preview; scrollMax: the last one it can start at, set
+        // by the preview as it draws, so Left/Right in the Guide knows where the answer ends.)
+        struct GuideAnswer { std::string text; bool shown = false; int scroll = 0; mutable int scrollMax = 0; };
         std::vector<GuideAnswer> guide;
         bool dexMoves = false;
         // (BATTLE INFO, in a battle: the foe (P_CBFOE: its types, ability, item, HP and what hits it

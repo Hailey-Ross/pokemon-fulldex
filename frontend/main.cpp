@@ -5728,16 +5728,12 @@ int main(int argc, char** argv)
                 return s;
             };
             std::string out;
-            int count = 0;
-            bool more = false;
             for (const std::string& line : lines)
             {
-                if (++count > 18) { more = true; break; }
                 const bool isMethod = line.find(" L") == std::string::npos && line.find("LEVEL VARIES") == std::string::npos;
                 if (!out.empty()) out += "\n";
                 out += isMethod ? titleWords(line) : ("- " + line);
             }
-            if (more) out += "\n... LOCATION has the rest.";
             r.answer = out;
         }
         return r;
@@ -7226,7 +7222,6 @@ int main(int argc, char** argv)
                         Menu::CompanionView::GuideAnswer a;
                         a.text = guideText(here.answer);
                         a.shown = companionHereShown;
-                        a.tail = "See LOCATION."; // (when the panel cannot fit the whole table)
                         menu.companion.guide.push_back(a);
                         add(M_CGUIDE_HERE, guideText(here.title).c_str(), a.shown ? "Shown" : "", true);
                         MenuItem& it = menu.items.back();
@@ -9899,6 +9894,22 @@ int main(int argc, char** argv)
                 menu.open = false;
                 swallowMenuButtons = true;
             }
+            // (GUIDE: a shown answer longer than the preview scrolls with Left/Right; Up/Down still
+            // move between the guide's rows. The preview fills scrollMax as it draws.)
+            if (menuPage == PAGE_CGUIDE && (nav.left || nav.right) && menu.selected >= 0 && menu.selected < (int)menu.items.size())
+            {
+                const MenuItem& it = menu.items[menu.selected];
+                if (it.preview == Menu::P_CGUIDE && it.choice >= 0 && it.choice < (int)menu.companion.guide.size())
+                {
+                    auto& a = menu.companion.guide[it.choice];
+                    if (a.shown && a.scrollMax > 0)
+                    {
+                        const int step = a.scrollMax > 8 ? 3 : 1;
+                        a.scroll = std::clamp(a.scroll + (nav.right ? step : -step), 0, a.scrollMax);
+                        nav.left = nav.right = false;
+                    }
+                }
+            }
             int dir = 0;
             int hit = menu.Update(nav, dir);
             const int id = backTo >= 0 ? M_BACK : hit >= 0 && hit < (int)menuIds.size() ? menuIds[hit] : -1;
@@ -11587,7 +11598,8 @@ int main(int argc, char** argv)
             if(testPageAt>=0&&++testPageFrames==(uint32_t)testPageAt&&testPage>=0&&testPage<PAGE_COUNT)
             {readCompanion(true);menu.open=true;goPage(testPage,-1);fprintf(stderr,"[test] page %d at frame %u\n",testPage,frame);testPageAt=-1;
                 // (SSR_TEST_GUIDE=1: the GUIDE's NEXT BOSS page, its answer shown, for pictures.)
-                if(const char* g=getenv("SSR_TEST_GUIDE")){const bool here=!strncmp(g,"here",4);const bool shown=strchr(g,'1')!=nullptr;if(here)companionHereShown=shown;else companionNextBossShown=shown;goPage(PAGE_CGUIDE,here?M_CGUIDE_HERE:M_CGUIDE_NEXT);}}
+                if(const char* g=getenv("SSR_TEST_GUIDE")){const bool here=!strncmp(g,"here",4);const bool shown=strchr(g,'1')!=nullptr;if(here)companionHereShown=shown;else companionNextBossShown=shown;goPage(PAGE_CGUIDE,here?M_CGUIDE_HERE:M_CGUIDE_NEXT);
+                    if(const char* s=getenv("SSR_TEST_GUIDE_SCROLL")){const int n=atoi(s);if(menu.selected>=0&&menu.selected<(int)menu.items.size()){const MenuItem& it=menu.items[menu.selected];if(it.preview==Menu::P_CGUIDE&&it.choice>=0&&it.choice<(int)menu.companion.guide.size())menu.companion.guide[it.choice].scroll=std::max(0,n);}}}}
         }
         // FLY (M_FLY): the check's answer within about 30 frames (as PokeDaisy waits), then the towns; the
         // flight's job (result 1: Gen 5's flight event, none when the game's own check said no).
@@ -12901,6 +12913,22 @@ int main(int argc, char** argv)
             // (Settings pages explain the chosen row in their preview: the hint is the buttons only.)
             if (menu.style == 1)
                 hint = touchPadUsed && touchPad.visible ? "TAP: CHOOSE   OUTSIDE: BACK" : btn(Controls::A) + ": SELECT   " + btn(Controls::B) + ": BACK";
+            if (menuPage == PAGE_CGUIDE)
+            {
+                // (A shown answer longer than its window scrolls: Left/Right, or the pad's L/R
+                // alongside a finger's tap to show it.)
+                bool scrollable = false;
+                if (menu.selected >= 0 && menu.selected < (int)menu.items.size())
+                {
+                    const MenuItem& it = menu.items[menu.selected];
+                    scrollable = it.preview == Menu::P_CGUIDE && it.choice >= 0 && it.choice < (int)menu.companion.guide.size() &&
+                                 menu.companion.guide[it.choice].shown && menu.companion.guide[it.choice].scrollMax > 0;
+                }
+                hint = touchPadUsed && touchPad.visible
+                    ? (scrollable ? "TAP: SHOW/HIDE   (PAD L/R: SCROLL)" : "TAP: SHOW/HIDE   OUTSIDE: BACK")
+                    : (scrollable ? "LEFT / RIGHT: SCROLL   " + btn(Controls::A) + ": SHOW/HIDE   " + btn(Controls::B) + ": BACK"
+                                  : btn(Controls::A) + ": SHOW/HIDE   " + btn(Controls::B) + ": BACK");
+            }
             const bool wideMenu=menuPage==PAGE_CENCOUNTERS || menuPage==PAGE_FLY || menuPage==PAGE_REFERENCE || menuPage==PAGE_RSEARCH || menuPage==PAGE_RDETAIL || menuPage==PAGE_CITEM || menuPage==PAGE_EXTRAS || menuPage==PAGE_QUICK_ACTIONS || menuPage==PAGE_NUZLOCKE || menuPage==PAGE_RUN_CONFIRM || menuPage==PAGE_CGUIDE || menuPage==PAGE_CGUIDEENTRY || menuPage==PAGE_CBATTLE || menuPage==PAGE_STATES || menuPage==PAGE_SLOT || (menuPage>=PAGE_COMPANION&&menuPage<=PAGE_CLOCATION) || menuPage==PAGE_MATCHUPS || menuPage==PAGE_CHEATS || menuPage==PAGE_CDETAIL || menuPage==PAGE_CINFO || menuPage==PAGE_CSEARCH || menuPage==PAGE_BACKUPS || menuPage==PAGE_RESTORE_CONFIRM || menuPage==PAGE_LOAD_CONFIRM || menuPage==PAGE_QUIT_CONFIRM;
             if (menuPage == PAGE_CONTROLS) // (BUTTONS' preview: the controller connected)
             {
