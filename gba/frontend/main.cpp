@@ -5741,7 +5741,12 @@ struct App
                 break;
             case SDL_WINDOWEVENT:
                 if (e.window.event == SDL_WINDOWEVENT_FOCUS_LOST)
-                { std::fill(std::begin(key), std::end(key), false); fastInputFocused = false; fastButton.Block(); fingers.clear(); touchHeld = 0; }
+                {
+                    std::fill(std::begin(key), std::end(key), false); fastInputFocused = false; fastButton.Block(); fingers.clear(); touchHeld = 0;
+#ifdef GBAW_EMBEDDED
+                    GbaGlass::CancelTouch();
+#endif
+                }
                 else if (e.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) fastInputFocused = true;
                 break;
             default:
@@ -5800,6 +5805,18 @@ struct App
         }
         fingers.clear();
         touchHeld = 0;
+#ifdef GBAW_EMBEDDED
+        if (screen == PLAY && paused && fromFinger)
+        {
+            GbaGlass::Input gi;
+            const auto phase = f.type == SDL_FINGERDOWN ? GbaGlass::TOUCH_DOWN :
+                               f.type == SDL_FINGERUP ? GbaGlass::TOUCH_UP : GbaGlass::TOUCH_MOVE;
+            GbaGlass::Touch(glass, phase, f.fingerId, (int)(f.x * ow), (int)(f.y * oh), gi, glassSlider, glassPick);
+            glassSel = glass.selected;
+            in.left |= gi.left; in.right |= gi.right; in.accept |= gi.accept; in.back |= gi.back;
+            return;
+        }
+#endif
         if (f.type != SDL_FINGERDOWN) return;
         if (backRect.Has(x, y))
         {

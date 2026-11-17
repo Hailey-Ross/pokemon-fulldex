@@ -3,6 +3,7 @@
 #pragma once
 #include "gba_glass.h"
 #include "state_slots.h"
+#include "menu_drag.h"
 
 namespace GbaGlass
 {
@@ -19,6 +20,8 @@ namespace
 {
 struct State
 {
+    MenuDrag drag;
+    int64_t finger = 0;
     Canvas canvas;
     Menu menu;
     std::vector<uint32_t> shot; // the paused game, w x h
@@ -96,6 +99,7 @@ void Sync(const Page& p)
     const std::string pk = std::to_string(p.style) + "|" + p.title;
     if (pk != s.pageKey)
     {
+        s.drag.active = false;
         s.pageKey = pk;
         m.scroll = 0;
         m.scrollPx = 0;
@@ -146,6 +150,7 @@ bool LoadSlotPicture(const std::string& statePath, std::vector<uint32_t>& argb, 
 
 void Frame(const uint32_t* argb, int w, int h)
 {
+    S().drag.active = false; // a newly opened pause menu starts a new gesture
     State& s = S();
     if (!argb || w <= 0 || h <= 0)
     {
@@ -184,6 +189,45 @@ void Tap(Page& page, int x, int y, Input& out, int& slider, int& pick)
     m.pickWanted = -1;
     page.selected = m.selected;
     out.up = mi.up; out.down = mi.down; out.left = mi.left; out.right = mi.right; out.accept = mi.accept; out.back = mi.back;
+}
+
+void CancelTouch() { S().drag.active = false; }
+
+void Touch(Page& page, TouchPhase phase, int64_t finger, int x, int y, Input& out, int& slider, int& pick)
+{
+    Sync(page);
+    State& s = S();
+    Menu& m = s.menu;
+    slider = pick = -1;
+    if (s.drag.active)
+    {
+        if (finger != s.finger) return;
+        const int threshold = std::max(12, s.canvas.h / 60);
+        if (m.style == 1)
+        {
+            if (s.drag.Move(y, threshold, m.scrollPx)) m.freeScroll = true;
+        }
+        else
+        {
+            int pixels = 0;
+            if (s.drag.Move(y, threshold, pixels) && m.drawnLineH > 0)
+            {
+                m.scroll = std::max(0, pixels / m.drawnLineH);
+                m.freeScroll = true;
+            }
+        }
+        if (phase == TOUCH_UP && s.drag.End()) Tap(page, x, y, out, slider, pick);
+        return;
+    }
+    if (phase != TOUCH_DOWN) return;
+    const bool settingsRows = m.style == 1 && !m.keyGrid && !m.slotGrid;
+    const bool plainList = m.style == 0 && m.columns == 0 && m.drawnLineH > 0 && m.ItemAt(x, y) != -2;
+    if (settingsRows || plainList)
+    {
+        s.drag.Begin(y, m.style == 1 ? m.scrollPx : m.scroll * m.drawnLineH);
+        s.finger = finger;
+    }
+    else Tap(page, x, y, out, slider, pick);
 }
 
 const uint32_t* Draw(const Page& page, int w, int h, bool& changed)
