@@ -190,6 +190,10 @@ One routine for the pause menu and the launcher:
 - Pointer hover: a subtle surface/edge, no ring.
 - Pressed: a filled/raised state; release without movement commits.
 - Active value: the filled pill, the selected preview card, the slider knob.
+- A row that opens a page is a page, not a value: its right side is a chevron (no current value
+  in the value column, which reads as a picker). A summary of what is set inside, when useful,
+  goes in the line under the name, and the preview says "Opens the ... settings: ...". The
+  page's hint says OPEN, not SELECT.
 - Disabled: dimmed; pointer no-op; pad skips the row.
 - Chevrons dim at the first/last choice.
 - No hover on touch; no focus ring in pointer-only use until the pad is used.
