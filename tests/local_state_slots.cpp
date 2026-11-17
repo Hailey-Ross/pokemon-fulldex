@@ -17,7 +17,8 @@ int main()
     assert(read(path)=="SECOND STATE"&&read(path+".previous")=="FIRST STATE");
     assert(!StateSlots::Save(path,[&](const std::string& p){write(p,"FAILED");return false;}));
     assert(read(path)=="SECOND STATE"&&read(path+".previous")=="FIRST STATE");
-    assert(!StateSlots::Save(path,[&](const std::string& p){return write(p,"THIRD STATE");})); // Interrupted pending file retained.
+    assert(StateSlots::Save(path,[&](const std::string& p){return write(p,"THIRD STATE");})); // The interrupted write is kept aside and the slot saves again.
+    assert(read(path+".pending.failed")=="FAILED"&&read(path)=="THIRD STATE"&&read(path+".previous")=="SECOND STATE");
     assert(StateSlots::Date(path)!="EMPTY" && StateSlots::Date(path+".missing")=="EMPTY");
     assert(!StateSlots::PreviewCurrent(path));
     assert(write(path+".bmp","SYNTHETIC PREVIEW"));

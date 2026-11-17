@@ -12,7 +12,17 @@ inline bool Save(const std::string& path, const std::function<bool(const std::st
     namespace fs = std::filesystem;
     const auto target = fs::u8path(path), pending = fs::u8path(path + ".pending"), previous = fs::u8path(path + ".previous");
     std::error_code ec;
-    if (fs::exists(pending, ec) || ec) return false;
+    // An interrupted write is kept as .pending.failed for recovery, and the slot saves again
+    // (refusing left it unsaveable until the file was deleted by hand).
+    if (fs::exists(pending, ec))
+    {
+        const auto failed = fs::u8path(path + ".pending.failed");
+        fs::remove(failed, ec);
+        ec.clear();
+        fs::rename(pending, failed, ec);
+        if (ec) return false;
+    }
+    else if (ec) return false;
     const bool had = fs::exists(target, ec);
     if (ec || (had && !fs::is_regular_file(target, ec)) || ec) return false;
     if (!write(pending.u8string())) return false;

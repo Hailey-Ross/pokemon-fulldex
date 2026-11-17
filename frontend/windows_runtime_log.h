@@ -66,10 +66,26 @@ inline bool Run(const std::wstring& exe, const std::wstring& folder, DWORD& code
     wr.value = nullptr;
     char buffer[4096];
     DWORD got = 0;
+    // (At most 4 MiB a session in the log: a long session's output could fill it. Read on to the
+    // end all the same, or the game would stop once the pipe was full.)
+    constexpr size_t cap = 4u << 20;
+    size_t written = 0;
+    bool cut = false;
     while (ReadFile(rd.value, buffer, sizeof buffer, &got, nullptr) && got)
     {
-        std::fwrite(buffer, 1, got, log);
-        std::fflush(log);
+        if (written < cap)
+        {
+            const size_t n = got < cap - written ? got : cap - written;
+            std::fwrite(buffer, 1, n, log);
+            std::fflush(log);
+            written += n;
+        }
+        else if (!cut)
+        {
+            std::fprintf(log, "\n[3ds] the game's output past 4 MiB is left out of this log\n");
+            std::fflush(log);
+            cut = true;
+        }
     }
     if (WaitForSingleObject(process.value, INFINITE) != WAIT_OBJECT_0) return fail("runtime wait");
     if (!GetExitCodeProcess(process.value, &code)) return fail("runtime exit code");

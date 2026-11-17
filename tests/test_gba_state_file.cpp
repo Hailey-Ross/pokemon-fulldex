@@ -47,10 +47,12 @@ int main(int argc, char** argv) {
         assert(app.toast != "STATE SAVED");
         assert(fs::exists(fs::u8path(slot + ".pending")));
         const int before = writes;
-        app.SaveState(); // Do not clobber a pending write left for recovery.
-        assert(writes == before);
+        app.SaveState(); // A pending write left behind is kept as .pending.failed, and saving goes on.
+        assert(writes == before + 1);
+        assert(fs::exists(fs::u8path(slot + ".pending.failed")));
         assert(Read(slot) == "last good state");
         fs::remove(fs::u8path(slot + ".pending"));
+        fs::remove(fs::u8path(slot + ".pending.failed"));
     }
     failure = 0;
     app.SaveState();

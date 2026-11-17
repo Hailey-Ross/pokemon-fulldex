@@ -2200,7 +2200,18 @@ int main(int argc, char** argv)
     const std::string romFingerprint = !opt.headless && !opt.lockstep ? Achievements::Fingerprint(rom) : std::string();
     // States must not cross into a changed dump/hack sharing the same save basename.
     const size_t autoRomBytes = rom.size();
-    const uint32_t autoRomCrc = !opt.headless && !opt.lockstep ? CRC32(rom.data(), (int)rom.size()) : 0;
+    // (Its identity: RetroAchievements' fingerprint, which covers the game's code, and 4 KB of every
+    // 256 KB of the rest, so a changed dump or hack gets its own; reading every byte of a 512 MB ROM
+    // at every start cost about a second on the Switch, the feature on or off.)
+    uint32_t autoRomCrc = 0;
+    if (!opt.headless && !opt.lockstep)
+    {
+        std::vector<u8> probe(romFingerprint.begin(), romFingerprint.end());
+        for (size_t at = 0; at < rom.size(); at += 256 * 1024)
+            probe.insert(probe.end(), rom.begin() + at, rom.begin() + std::min(rom.size(), at + 4096));
+        if (rom.size() > 4096) probe.insert(probe.end(), rom.end() - 4096, rom.end());
+        autoRomCrc = CRC32(probe.data(), (int)probe.size());
+    }
     // The cartridge has its own copy now; Black 2's ROM is about 300 MB, which counts on the Switch.
     const int companionRevision=rom.size()>0x1E?rom[0x1E]:-1;
     const Companion::Profile companionProfile=Companion::ProfileFor(gameCode,companionRevision);
