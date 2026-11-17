@@ -4,7 +4,25 @@ Design for Fulldex's UI across touch, mouse, keyboard and gamepad — including 
 inputs active at once on the same device (e.g. an Android phone with a Bluetooth controller
 and a touchscreen).
 
-Status: design. Not implemented yet. This document is the reference for the refactor.
+Status: **milestone 1 implemented and verified** (game pause settings).
+
+Implemented:
+- `frontend/ui_input.h`: `Mode`, `Intent`, `Part`, `Gesture`.
+- Game pause settings: parts/intents registered at draw (row name = focus; Off/On pills =
+  set; chevrons = step; preview cards = set; links/Back = open/back). The pointer hit-tests
+  the parts; the pad keeps row focus + Left/Right; A now only opens links/Back/slots/keys.
+  Chevrons dim at the first/last choice. A drag anywhere on the settings page scrolls.
+- Android defines `SSR_PHONE`, so the phone touch hints are actually compiled in.
+
+Verified:
+- Android: tapping the On pill sets the toggle; tapping the row name only selects; an
+  upward swipe scrolls the Cheats list.
+- Steam Deck: pad Left/Right changes the focused toggle; A on a toggle does nothing.
+- Windows: build produced and pushed to the test box.
+
+Still to do: the launcher's own settings page, the pause tile page, the visual last-input
+mode (focus ring vs hover), the simultaneous-input matrix, and the remaining menus.
+
 
 ## Goals
 
