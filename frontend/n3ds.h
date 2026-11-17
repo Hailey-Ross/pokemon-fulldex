@@ -30,6 +30,7 @@
 #include <dirent.h>
 #ifdef _WIN32
 #include <windows.h>
+#include "windows_runtime_log.h"
 #endif
 #if defined(__linux__) && !defined(__ANDROID__) && !defined(__SWITCH__)
 #include <sys/wait.h>
@@ -38,6 +39,7 @@
 #endif
 #include "launcher.h"
 #include "runtime_kit.h"
+#include "runtime_diagnostics.h"
 #if defined(_WIN32) || (defined(__linux__) && !defined(__ANDROID__) && !defined(__SWITCH__))
 #define SSR_N3DS_PC 1 // (the 3DS games' own program beside FullDex: Windows and Linux)
 #endif
@@ -706,6 +708,7 @@ inline int Play(const std::string& appDir, const Launcher::Game& g)
     for (;;)
     {
         const std::string exe = Exe(g.folder), dir = g.folder;
+        const auto runtimeLog = RuntimeDiagnostics::Before(g.folder);
         const pid_t pid = fork();
         if (pid == 0)
         {
@@ -716,6 +719,7 @@ inline int Play(const std::string& appDir, const Launcher::Game& g)
         if (pid < 0) return -1;
         int st = 0;
         waitpid(pid, &st, 0);
+        RuntimeDiagnostics::AppendChanged(g.folder, runtimeLog);
         const int code = WIFEXITED(st) ? WEXITSTATUS(st) : -1;
         fprintf(stderr, "[3ds] %s ended (%d)\n", g.name.c_str(), code);
         if (code != 3) return code;
@@ -723,16 +727,10 @@ inline int Play(const std::string& appDir, const Launcher::Game& g)
 #else
     for (;;)
     {
-        STARTUPINFOW si {};
-        si.cb = sizeof si;
-        PROCESS_INFORMATION pi {};
-        std::wstring cmd = L"\"" + W(Exe(g.folder)) + L"\"";
-        if (!CreateProcessW(nullptr, cmd.data(), nullptr, nullptr, FALSE, 0, nullptr, W(g.folder).c_str(), &si, &pi)) return -1;
-        WaitForSingleObject(pi.hProcess, INFINITE);
+        const auto runtimeLog = RuntimeDiagnostics::Before(g.folder);
         DWORD code = 0;
-        GetExitCodeProcess(pi.hProcess, &code);
-        CloseHandle(pi.hProcess);
-        CloseHandle(pi.hThread);
+        if (!WindowsRuntimeLog::Run(W(Exe(g.folder)), W(g.folder), code)) return -1;
+        RuntimeDiagnostics::AppendChanged(g.folder, runtimeLog);
         fprintf(stderr, "[3ds] %s ended (%lu)\n", g.name.c_str(), (unsigned long)code);
         if (code != 3) return (int)code;
     }
