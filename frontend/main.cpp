@@ -1592,7 +1592,7 @@ static PadState RemapPad(const PadState& p, const Controls::Bindings& b, bool by
         if (in < 0) continue;
         used[in] = true;
         if (a == Controls::FAST) o.rt = in == Controls::IN_RT ? p.rt : on(in) ? 1.0f : 0.0f;
-        else if (a == Controls::SAVE || a == Controls::LOAD) {} // (a press, beside this)
+        else if (a == Controls::SAVE || a == Controls::LOAD || a == Controls::RESET) {} // physical press shortcuts
         else
         {
             const int dest = Controls::DefaultPad(a, byLabel);
@@ -5897,7 +5897,7 @@ int main(int argc, char** argv)
     bool captureReleased = false;
     bool navHoldOff = false; // (the button just given: ignored by the menu until let go)
     PadState physPad, prevPhysPad; // the controller as it is, before RemapPad
-    bool saveEdge = false, loadEdge = false; // (SAVE STATE / LOAD STATE: the button just pressed)
+    bool saveEdge = false, loadEdge = false, resetEdge = false; // physical shortcut presses
     const int ctlRow0 = ctlHasKeyboard ? 1 : 0; // the first action's row
     const int ctlRowReset = ctlRow0 + Controls::COUNT, ctlRowBack = ctlRowReset + 1;
     // KEYS AND BUTTONS as a settings page: what each row is (an action, 0 and up, or KR_*), as the
@@ -5962,7 +5962,7 @@ int main(int argc, char** argv)
             {
                 menu.listShare = 0.5f;
                 static const char* const shortName[Controls::COUNT] = { "A", "B", "X", "Y", "L", "R", "START", "SELECT", "UP", "DOWN", "LEFT", "RIGHT",
-                                                                        "MENU", "FAST", "SWAP", "SAVE", "LOAD" };
+                                                                        "MENU", "FAST", "SWAP", "SAVE", "LOAD", "RESET" };
                 menu.padLabels.assign(Controls::IN_COUNT, std::string());
                 for (int a = 0; a < Controls::COUNT; a++)
                 {
@@ -9230,6 +9230,7 @@ int main(int argc, char** argv)
                     else if (act == Controls::SWAP) focus.manualFlip = !focus.manualFlip;
                     else if (act == Controls::SAVE) saveQuick();
                     else if (act == Controls::LOAD) loadQuick();
+                    else if (act == Controls::RESET) { resetGame(); say("GAME RESET"); }
                     else if (act >= 0) {} // (a DS button, or fast forward: read as held, below)
                     else if (k == SDLK_TAB) layout = LayoutNext(layout);
                     else if (k == SDLK_F2) focus.mode = (focus.mode + 1) % 3;
@@ -9592,8 +9593,10 @@ int main(int argc, char** argv)
         {
             const int saveIn = cfg.controls.Pad(Controls::SAVE, cfg.byLabel);
             const int loadIn = cfg.controls.Pad(Controls::LOAD, cfg.byLabel);
+            const int resetIn = cfg.controls.Pad(Controls::RESET, cfg.byLabel);
             saveEdge = !menu.open && InputHeld(physPad, saveIn) && !InputHeld(prevPhysPad, saveIn);
             loadEdge = !menu.open && InputHeld(physPad, loadIn) && !InputHeld(prevPhysPad, loadIn);
+            resetEdge = fastInputFocused && !menu.open && InputHeld(physPad, resetIn) && !InputHeld(prevPhysPad, resetIn);
         }
         prevPhysPad = physPad;
         if (navHoldOff)
@@ -10586,6 +10589,7 @@ int main(int argc, char** argv)
             static long testQuickFrames = 0;
             if (saveEdge || (testQuickSave >= 0 && ++testQuickFrames == testQuickSave)) saveQuick();
             if (loadEdge) loadQuick();
+            if (resetEdge) { resetGame(); say("GAME RESET"); }
             PadState toGame = ps;
             if (cfg.startMenu && ctrlStart) toGame.btn[PAD_START] = touchStart; // (START is the menu's)
             if (fdNav.open) toGame = PadState(); // (FULLDEX NAV's buttons are its own)

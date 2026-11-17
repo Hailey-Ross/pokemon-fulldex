@@ -97,6 +97,8 @@ opens the pause menu; **QUIT** there goes back to the list.
 as a DS; hold its right trigger to fast forward. On the keyboard: arrow keys,
 X/Z for A/B, S/A for X/Y, Q/W for L/R, Enter for START, Backspace for SELECT,
 the mouse for the touch screen, Left Shift to fast forward, F5 to save a state and F8 to load it.
+For DS games, **CONTROLS > KEYS AND BUTTONS > RESET GAME** can assign a reset key or controller
+button. It starts unassigned and restarts immediately; progress since your last in-game save is lost.
 The `README.txt` inside has the full list. **CONTROLS > KEYS AND BUTTONS** in the pause menu (or on
 the game list's settings page) changes any of them, including fast forward, swapping the screens,
 save state and load state, on the keyboard and on a controller (the game list follows the ones you change).
