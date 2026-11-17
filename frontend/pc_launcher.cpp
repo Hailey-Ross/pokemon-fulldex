@@ -2992,9 +2992,16 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                     if (e.type == SDL_MOUSEBUTTONUP)
                     {
                         pressed = false;
-                        // (A section of the sidebar: the settings close and it opens, no Back first.)
+                        // (A section of the sidebar: the settings close and it opens, no Back first.
+                        // Settings itself takes a step back: a group to the groups, the groups out.)
                         const int sd = Launcher::SideAt(canvas, mx, my);
-                        if (sd >= 0 && sd != Launcher::SIDE_SETTINGS)
+                        if (sd == Launcher::SIDE_SETTINGS)
+                        {
+                            onBack = false;
+                            if (!page.Back()) toggleGuide();
+                            break;
+                        }
+                        if (sd >= 0)
                         {
                             guide = false; onBack = false; Launcher::Focus().side = -1;
                             if (!Launcher::OpenSide(sd)) note = std::string(Launcher::SideName(sd)) + ": COMING SOON";
