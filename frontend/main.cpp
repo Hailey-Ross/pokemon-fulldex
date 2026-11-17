@@ -1694,6 +1694,9 @@ struct Settings : OptionalFeatures
     // blurred every few frames. Off (dark glass): no read back, which cost frames (4 ms a read on a PC,
     // more on the Switch and phones).
     bool liveGlass=false;
+    // UI SIZE: the menus and overlays larger than the screen's lines alone make them (ui.h,
+    // UiScaleFor): "auto" (larger under 720 lines: a handheld's small screen) or a percentage.
+    std::string uiSize="auto";
     // VOLUME: the game's sound and music, 0 (off) to 100 in tens.
     int volume = 100;
     // MUSIC and SOUND EFFECTS: each on its own, 0 to 100 in tens (frontend/game_music.h).
@@ -1704,6 +1707,8 @@ struct Settings : OptionalFeatures
     bool ultraNoticeSeen = false;
     // FAST FORWARD SOUND: off plays silence while fast forwarding (GitHub #45).
     bool ffMute = false;
+    // ACHIEVEMENT BANNER: CLASSIC is the first unlock card (#213), in the pixel font; else FullDex's own.
+    bool raClassicBanner = false;
     // QUIET GAME MUSIC: while the player's own music app plays (now_playing.h), the game's music is off.
     bool musicQuiet = false;
     std::string gbaLcd; // Empty keeps the GBA player's existing LCD preference.
@@ -1790,6 +1795,7 @@ struct Settings : OptionalFeatures
             else if (k == "ultrawide_notice") ultraNoticeSeen = v == "1";
             else if (k == "aspect") aspect = v == "16:9" ? 1 : v == "16:10" ? 2 : v == "3:2" ? 3 : v == "4:3" ? 4 : 0;
             else if (k == "ff_mute") ffMute = v == "1";
+            else if (k == "ra_banner") raClassicBanner = v == "classic";
             else if (k == "music_quiet") musicQuiet = v == "1";
             // (The game list's look, GAME LIST: kept here so saving does not drop them; COLOUR is the
             // pause menu's colour too.)
@@ -1809,6 +1815,7 @@ struct Settings : OptionalFeatures
             else if (k == "party_hud") partyHud=v=="1";
             else if (k == "status_bar") statusBar=v=="1";
             else if (k == "live_glass") liveGlass=v=="1";
+            else if (k == "ui_size") uiSize=v;
             else if (k == "screen_filter") screenFilter=std::clamp(atoi(v.c_str()),0,2);
             else if (k == "smart_fast") smartFast = v=="1";
             else if (k == "zoom") zoom = v=="1";
@@ -1877,6 +1884,7 @@ struct Settings : OptionalFeatures
         f << "party_hud=" << partyHud << "\n";
         f << "status_bar=" << statusBar << "\n";
         f << "live_glass=" << liveGlass << "\n";
+        f << "ui_size=" << uiSize << "\n";
         f << "screen_filter=" << screenFilter << "\n";
         if (!gbaLcd.empty()) f << "gba_lcd=" << gbaLcd << "\n";
         SaveExtras(f);
@@ -1890,6 +1898,7 @@ struct Settings : OptionalFeatures
         f << "ultrawide_notice=" << (ultraNoticeSeen ? 1 : 0) << "\n";
         f << "aspect=" << (aspect == 1 ? "16:9" : aspect == 2 ? "16:10" : aspect == 3 ? "3:2" : aspect == 4 ? "4:3" : "auto") << "\n";
         f << "ff_mute=" << (ffMute ? 1 : 0) << "\n";
+        f << "ra_banner=" << (raClassicBanner ? "classic" : "fulldex") << "\n";
         f << "music_quiet=" << (musicQuiet ? 1 : 0) << "\n";
         if (!listColour.empty()) f << "list_colour=" << listColour << "\n";
         if (!listSort.empty()) f << "list_sort=" << listSort << "\n";
@@ -3152,6 +3161,14 @@ int main(int argc, char** argv)
         auto blue = [&](int x, int y) { int r, g, bl; rgb(x, y, r, g, bl); return bl > 150 && r < 110 && g > 90 && g < 200 && bl > r + 60; };
         auto red = [&](int x, int y) { int r, g, bl; rgb(x, y, r, g, bl); return r > 180 && g < 120 && bl < 120; };
         auto orange = [&](int x, int y) { int r, g, bl; rgb(x, y, r, g, bl); return r > 180 && g > 110 && g < 200 && bl < 110; };
+        // A button's outline: dark grey (65), or mid grey (178, then 138) for the few frames a press
+        // flashes the button white and then a pale tint. (Never the touch screen's background:
+        // white, or light green in grass.)
+        auto edge = [&](int x, int y) {
+            int r, g, bl;
+            rgb(x, y, r, g, bl);
+            return std::max({ r, g, bl }) - std::min({ r, g, bl }) < 16 && r < 200;
+        };
         // (Platinum's first battle has FIGHT alone: no Bag, no running, no party yet.)
         // (Platinum: which panel the battle drew last, when known. Its "Use next Pokemon?" is a
         // red bar on top like the first battle's FIGHT, with RUN below it in neither colour.)
@@ -3168,22 +3185,35 @@ int main(int argc, char** argv)
         // a button with the Mega Evolution symbol takes the rest of its row (x 177-246, y 153-191;
         // touched at x 176-247, y 152-191). It is CANCEL's blue, but its middle, where (216, 166)
         // was read, is the symbol (a sprite, in greys): the move list was not recognised and the
-        // whole touch screen was pasted over the battle instead (battle-menu). The gap of
-        // background between the two buttons tells this row from a whole CANCEL bar; for a few
-        // frames after a press the button flashes white, then pale blue, while the move list
-        // stays up.
+        // whole touch screen was pasted over the battle instead (battle-menu). For a few frames
+        // after a press the button flashes white, then pale blue, while the move list stays up.
+        // Between the two buttons are their outlines (edge), CANCEL's at x 173-174 and the
+        // button's at 177-178, round two pixels of the touch screen's background (x 175-176):
+        // those outlines tell this row from a whole CANCEL bar, blue there (or flashing white or
+        // pale blue, never grey). (The background itself did not: light green in grass, it is
+        // white in a building's battles, the Gyms' among them, the white the button flashes, so
+        // the move list went unrecognised there.)
         auto megaFace = [&](int x, int y) {
             int r, g, bl;
             rgb(x, y, r, g, bl);
             return blue(x, y) || (bl > 230 && g > 190 && r > 100);
         };
-        const bool megaButton = !pt.on && blue(40, 166) && blue(128, 166) && !megaFace(175, 166) &&
+        const bool megaButton = !pt.on && blue(40, 166) && blue(128, 166) && edge(174, 166) && edge(177, 166) &&
                                 megaFace(186, 166) && megaFace(238, 166);
         const bool moves = pt.dp ? dpShown && ptPanel == 3
                                  : !cmd && ptPanel != 4 && blue(40, 166) && blue(128, 166) && (blue(216, 166) || megaButton);
         battleMega = moves && megaButton;
+        // The Yes / No panel (battle-yesno, below): red above blue. It is read above the labels,
+        // whose letters can be where it was read before ("Switch Pokemon" has one at (128, 64): in
+        // the Switch battle style that question went unrecognised, and the whole touch screen was
+        // pasted over the battle). A press flashes its button white and then a pale tint for a few
+        // frames, in a grey outline, the other unchanged.
+        auto lit = [&](int x, int y) { int r, g, bl; rgb(x, y, r, g, bl); return r > 160 && g > 160 && bl > 160; };
+        const bool yes = red(128, 50) || red(128, 64), no = blue(128, 124) || blue(128, 136);
+        const bool yesNo = !pt.dp && !blue(128, 166) && !orange(40, 160) &&
+                           ((yes && no) || (yes && lit(128, 124) && edge(128, 112)) || (no && lit(128, 50) && edge(128, 40)));
         const bool idle = AutoFocus::Blank(screens[1].pixels) || (!blue(128, 166) && !red(128, 60));
-        battleUnknown = (cmd || moves || idle) ? 0 : battleUnknown + 1;
+        battleUnknown = (cmd || moves || idle || yesNo) ? 0 : battleUnknown + 1;
         // (Another of Platinum's panels, known for what it is: the touch screen shown at once.)
         if (ptPanel == 4 && !cmd && !moves && !AutoFocus::Blank(screens[1].pixels)) battleUnknown = std::max(battleUnknown, 20);
         // Only after the commands (FIGHT): after a move is chosen the battle goes on and
@@ -3530,18 +3560,92 @@ int main(int argc, char** argv)
             }
             sc.items.insert(sc.items.end(), shades.begin(), shades.end());
         }
-        else if (!pt.dp && red(128, 64) && blue(128, 136) && !blue(128, 166) && !orange(40, 160))
+        else if (yesNo)
         {
-            // The Yes / No panel ("Would you like to give a nickname?" after a catch): only the two
-            // buttons, at the right above the message bar, so the caught Pokemon and the message
-            // stay in sight (the whole touch screen pasted at the lower left covered them).
+            // The Yes / No panel ("Would you like to give a nickname?" after a catch, "Make it
+            // forget another move?", and in the Switch battle style "Will you switch your
+            // Pokemon?" before the other trainer's next comes out): only the two buttons, so the
+            // Pokemon and the message stay in sight (the whole touch screen pasted at the lower
+            // left covered them).
             sc.name = "battle-yesno";
             const float viewR = 128 + viewWidth / 2;
-            const float scale = viewWidth < 300 ? 0.4f : 0.5f, w = 244 * scale, h = 60 * scale, gap = 4;
-            const float x = viewR - w - 4, y1 = 144 - 2 * h - gap - 4;
-            put(6, 35, 244, 60, x, y1, scale);
-            put(6, 107, 244, 60, x, y1 + h + gap, scale);
-            for (size_t k = sc.items.size() - 2; k < sc.items.size(); k++) sc.items[k].border = true;
+            const float scale = viewWidth < 300 ? 0.4f : 0.5f, gap = 4;
+            // HeartGold and SoulSilver draw each button within x 8-247 (y 40-95 and 112-167),
+            // its outline rounded at the corners, and the game's cursor (red corners) inside
+            // that box too. Each is cut along it, the touch screen's background where the
+            // outline rounds off not drawn (cut wider, with a dark frame drawn round them, each
+            // had a band of the background round it: white in a building, light green in grass).
+            const bool fitted = edge(8, 64) && edge(247, 64) && edge(128, 40) && edge(128, 167) &&
+                                !edge(4, 64) && !edge(128, 37);
+            if (fitted)
+            {
+                // Laid out as the commands are (battle-cmd, and as Black and White lay out their
+                // own questions): in the band of the view below the battle (y 144-191, the message
+                // box's rows), so that nothing of the battle is covered (above the message box
+                // they covered the player's HP box). The two buttons are one above the other at
+                // the band's right end, made smaller as they are (the game's cursor and a press's
+                // flash with them), and the message box has the rest: its left part, closed with
+                // a mirrored copy of its left edge. The box goes to x 206 at most: in these
+                // questions the game draws two small boxes in the buttons' colours beyond that
+                // (x 210-226), and its lines end before them.
+                const float bandY = 144, bandH = 48, viewL = 128 - viewWidth / 2;
+                const float s = 20.5f / 56, bw = 240 * s, bh = 56 * s, rowGap = 2, pad = 3;
+                const int edgeW = 10;
+                const float room = viewWidth - (bw + 2 * pad) - edgeW;
+                // (The text's last column, its dark letters in the box's two lines. A line longer
+                // than the room beside the buttons, on a narrow view, has the box drawn smaller to
+                // fit rather than cut.)
+                const uint32_t* t = screens[0].pixels;
+                int textR = 0;
+                for (int y = 150; y < 187; y++)
+                    for (int x = 206; x > textR; x--)
+                    {
+                        const uint32_t c = t[y * 256 + x];
+                        if (std::max({ (c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF }) < 140)
+                        {
+                            textR = x;
+                            break;
+                        }
+                    }
+                const float need = (float)std::max(textR + 6, 120);
+                const float boxScale = need > room ? room / need : 1.0f;
+                const int boxW = (int)std::min(206.0f, need > room ? need : room);
+                const float boxY = bandY + bandH * (1 - boxScale) / 2;
+                // (The band's own colour round the box and the buttons, as round the commands.)
+                sc.items.push_back(FillRect(viewL, bandY, (int)std::ceil(viewWidth) + 1, (int)bandH, 0x202020));
+                sc.items.push_back({ 0, 0, 144, boxW, 48, viewL, boxY, boxScale, 0, 255, false });
+                // (On a wide view the box would end short of the buttons: a plain column of it,
+                // after the text and before those small boxes, is drawn wider to reach them.)
+                float boxR = viewL + boxW * boxScale;
+                if (boxScale == 1.0f && room > boxW + 0.5f && textR < 200)
+                {
+                    Element fill = { 0, 202, 144, 2, 48, boxR, boxY, 1.0f, 0, 255, false };
+                    fill.stretchX = (room - boxW) / 2;
+                    sc.items.push_back(fill);
+                    boxR = viewL + room;
+                }
+                Element boxEdge = { 0, 0, 144, edgeW, 48, boxR, boxY, boxScale, 0, 255, false };
+                boxEdge.flipX = true;
+                sc.items.push_back(boxEdge);
+                const float x = viewR - pad - bw, y1 = bandY + (bandH - 2 * bh - rowGap) / 2;
+                put(8, 40, 240, 56, x, y1, s);
+                put(8, 112, 240, 56, x, y1 + bh + rowGap, s);
+                for (size_t k = sc.items.size() - 2; k < sc.items.size(); k++)
+                {
+                    // (The background as left of the buttons. Only within 2 pixels of the cut:
+                    // the outline's light inner line, 2 pixels in, is the same white.)
+                    sc.items[k].keys[0] = b[64 * 256 + 4] & 0xFFFFFF;
+                    sc.items[k].keyTolerance = 24;
+                    sc.items[k].keyRing = 2;
+                }
+            }
+            else
+            {
+                const float w = 244 * scale, h = 60 * scale, x = viewR - w - 4, y1 = 144 - 2 * h - gap - 4;
+                put(6, 35, 244, 60, x, y1, scale);
+                put(6, 107, 244, 60, x, y1 + h + gap, scale);
+                for (size_t k = sc.items.size() - 2; k < sc.items.size(); k++) sc.items[k].border = true;
+            }
         }
         else if (viewWidth < 300 || battleUnknown >= 20)
         {
@@ -5696,11 +5800,11 @@ int main(int argc, char** argv)
         M_WIDELINES, M_AUTODETAIL, M_WIDEGPU, M_GPU3D, M_SHOWFPS, M_BUTTONS, M_PADTOUCH, M_EMULATION,
         M_CONTROLS, M_TOUCHLAYOUT, M_STARTBTN, M_FAST, M_FFLOWRES, M_SAVESTATE, M_LOADSTATE, M_RESET, M_QUIT,
         M_DISPLAY, M_LANGUAGE, M_SOUND, M_GRAPHICS, M_CONTROLMENU, M_BACK, M_CHEATS, M_NOTHING,
-        M_VOLUME, M_MUSIC, M_EFFECTS, M_MUSICQUIET, M_SONGNAMES, M_FFMUTE, M_ASPECT, M_RA, M_RA_ON, M_RA_ACCOUNT, M_RA_GAME, M_RA_LOGIN, M_RA_TYPED, M_RA_CANCEL, M_BOTHVER,
+        M_VOLUME, M_MUSIC, M_EFFECTS, M_MUSICQUIET, M_SONGNAMES, M_FFMUTE, M_ASPECT, M_RA, M_RA_ON, M_RA_ACCOUNT, M_RA_GAME, M_RA_LOGIN, M_RA_TYPED, M_RA_CANCEL, M_RA_BANNER, M_BOTHVER,
         M_RA_LIST, M_ACH_POINTS, M_ACH_STATUS, M_ACH_RARITY,
         M_CSEARCH, M_SEARCH_LETTER, M_SEARCH_DELETE, M_SEARCH_SPACE, M_SEARCH_CLEAR, M_SEARCH_DONE,
         M_CDETAIL_TOGGLE, M_CINFO, M_BACKUPS, M_RESTORE_CONFIRM, M_LOAD_CONFIRM,
-        M_MATCHUPS, M_TYPE1, M_TYPE2, M_SECOND_SCREEN,
+        M_MATCHUPS, M_TYPE1, M_TYPE2, M_SECOND_SCREEN, M_UISIZE,
         M_COMPANION, M_CPARTY, M_CBAG, M_CDEX, M_CLOCATION, M_CMAP, M_CENCOUNTERS, M_REFERENCE, M_REFERENCE_KIND, M_REFERENCE_QUERY, M_CPOCKET, M_CDEX_FILTER, M_CDEX_TYPE, M_CBATTLE, M_CGUIDE, M_CGUIDE_REVEAL, M_NUZLOCKE, M_RUN_ENABLED, M_RUN_RESET, M_RUN_RESET_CONFIRM, M_QUICK_ACTIONS, M_OPEN_PC, M_FLY, M_HUB_SAVE, M_HUB_LOAD, M_HUB_CHEATS, M_HUB_FAST, M_HUB_SETTINGS, M_HUB_QUIT,
         M_QUIT_YES, M_RESET_YES, // (QUIT GAME / RESET GAME asked first: PAGE_QUIT_CONFIRM)
         M_SHORTCUTS, // (CONTROLS: Fulldex's own four shortcuts, opening KEYS AND BUTTONS at them)
@@ -5715,6 +5819,16 @@ int main(int argc, char** argv)
         M_CFOLDER0 = 50000  // (M_CFOLDER0 + i: folder i of the cheat database)
     };
     enum { PAGE_MAIN, PAGE_KEYS, PAGE_DISPLAY, PAGE_GRAPHICS, PAGE_CONTROLS, PAGE_CHEATS, PAGE_RA, PAGE_SOUND, PAGE_RA_LIST, PAGE_RA_DETAIL, PAGE_CSEARCH, PAGE_CDETAIL, PAGE_CINFO, PAGE_BACKUPS, PAGE_RESTORE_CONFIRM, PAGE_LOAD_CONFIRM, PAGE_MATCHUPS, PAGE_COMPANION, PAGE_CPARTY, PAGE_CMON, PAGE_CBAG, PAGE_CDEX, PAGE_CDEXDETAIL, PAGE_CLOCATION, PAGE_PLAYBACK, PAGE_STATES, PAGE_SLOT, PAGE_CBATTLE, PAGE_CGUIDE, PAGE_CGUIDEENTRY, PAGE_NUZLOCKE, PAGE_RUN_CONFIRM, PAGE_QUICK_ACTIONS, PAGE_EXTRAS, PAGE_CITEM, PAGE_REFERENCE, PAGE_RSEARCH, PAGE_RDETAIL, PAGE_CMAP, PAGE_CENCOUNTERS, PAGE_HUB_SAVE, PAGE_HUB_LOAD, PAGE_HUB_CHEATS, PAGE_HUB_SETTINGS, PAGE_HUB_QUIT, PAGE_QUIT_CONFIRM, PAGE_SLOT_REPLACE, PAGE_FLY, PAGE_COUNT };
+    // UI SIZE's values (Settings::uiSize, ui.h UiScaleFor), in the picker's order; and the height
+    // of the display the window is on, which "auto" goes by (not the window's own: a small window on
+    // a large screen keeps the menus as they were).
+    static const char* const kUiSizes[] = { "auto", "100", "125", "150", "175", "200" };
+    auto uiSizeAt = [&]() { for (int i = 0; i < 6; i++) if (cfg.uiSize == kUiSizes[i]) return i; return 0; };
+    auto screenLines = [&]() {
+        SDL_DisplayMode dm{};
+        const int d = window ? SDL_GetWindowDisplayIndex(window) : 0;
+        return SDL_GetDesktopDisplayMode(d < 0 ? 0 : d, &dm) == 0 ? dm.h : 0;
+    };
     int companionType1 = 0, companionType2 = CompanionTypes::None;
     // ACHIEVEMENTS (RETROACHIEVEMENTS' list): read from the set as the page opens.
     std::vector<Achievements::Row> achList;
@@ -6106,11 +6220,16 @@ int main(int argc, char** argv)
             settingsPage(Glass::I_GEAR);
             menu.tallRows = true;
             auto link = [&](int id, const char* label, int icon, const std::string& value, const char* sub, const char* desc) {
-                add(id, label, value, true);
+                // (A page to open, not a value to change: the setting as it is now goes into the
+                // line under the name, and the row's right side is only the chevron. The preview
+                // says "Opens ..." so the row does not read as a picker.)
+                std::string line = sub;
+                if (!value.empty()) line += std::string(" \xC2\xB7 ") + value;
+                add(id, label, "", true);
                 MenuItem& it = menu.items.back();
                 it.kind = Menu::K_LINK;
                 it.icon = icon;
-                it.sub = sub;
+                it.sub = line;
                 it.desc = desc;
             };
             static const char* const layouts[] = { "WIDESCREEN", "BIG + SMALL", "BIG TOP", "BIG BOTTOM", "SIDE BY SIDE", "STACKED", "TOP ONLY", "BOTTOM ONLY" };
@@ -6120,7 +6239,7 @@ int main(int argc, char** argv)
             const int lc = -1; // (the Switch has its own layouts, under DISPLAY)
 #endif
             link(M_DISPLAY, "DISPLAY", Glass::I_MONITOR, lc >= 0 && lc < 8 ? layouts[lc] : "", "Screen layout, language, overlays",
-                 "How the two screens are shown, the language, the shape of the picture and what shows over the game: battle buttons, FPS, the companion window and party HUD.");
+                 "Opens the Display settings: how the two screens are shown, the language, the shape of the picture and what shows over the game: battle buttons, FPS, the companion window and party HUD.");
 #ifdef __SWITCH__
             static const char* const res[] = { "192", "288", "384", "540", "720", "1080", "1440", "2160" };
 #else
@@ -6128,15 +6247,15 @@ int main(int argc, char** argv)
 #endif
             const int ri = detailIndex();
             link(M_GRAPHICS, "GRAPHICS", Glass::I_SPARKLE, std::string(ri >= 0 && ri < 8 ? res[ri] : "") + "  \xC2\xB7  " + (cfg.fps60 ? "60 FPS" : "30 FPS"),
-                 "Frame rate, widescreen, 3D resolution", "How the game is drawn: its frame rate, the widescreen world, how sharp the 3D is and what does the work.");
+                 "Frame rate, widescreen, 3D resolution", "Opens the Graphics settings: how the game is drawn: its frame rate, the widescreen world, how sharp the 3D is and what does the work.");
             link(M_PLAYBACK, "PLAYBACK", Glass::I_FAST, fastLock ? "FAST FORWARD ON" : std::to_string(cfg.fastSpeed) + "X", "Fast forward, rewind, reset",
-                 "Fast forward and its speed, slow motion, turbo A, rewind, and resetting the game.");
+                 "Opens the Playback settings: fast forward and its speed, slow motion, turbo A, rewind, and resetting the game.");
             link(M_SOUND, "SOUND", Glass::I_SPEAKER, cfg.volume == 0 ? std::string("OFF") : std::to_string(cfg.volume) + "%", "Volume, music, your own music",
-                 "The game's volume, its music and sound effects each on their own, and how it plays alongside your own music.");
+                 "Opens the Sound settings: the game's volume, its music and sound effects each on their own, and how it plays alongside your own music.");
             std::string padName = pads.Current() ? Controls::KindName(Controls::KindOf(pads.Current())) : "KEYBOARD";
             if (padName.size() > 11 && padName.compare(padName.size() - 11, 11, " CONTROLLER") == 0) padName.resize(padName.size() - 11);
             link(M_CONTROLMENU, "CONTROLS", Glass::I_PAD, padName, "Keys and buttons, shortcuts, touch",
-                 "Your keys and controller buttons, Fulldex's shortcuts, the START button and the touch controls.");
+                 "Opens the Controls settings: your keys and controller buttons, Fulldex's shortcuts, the START button and the touch controls.");
         }
         else if (menuPage == PAGE_HUB_QUIT)
         {
@@ -6181,6 +6300,10 @@ int main(int argc, char** argv)
             picker(M_ASPECT, "ASPECT RATIO", Glass::I_RATIO, Menu::P_ASPECT, { "AUTO", "16:9", "16:10", "3:2", "4:3" }, std::clamp(cfg.aspect, 0, 4),
                    "The shape of the picture. Auto fills the screen; the others keep their shape.",
                    "Narrower than your screen: bars at the sides.");
+            // UI SIZE (ui.h, UiScaleFor): the menus and overlays, larger on a small screen.
+            picker(M_UISIZE, "UI SIZE", Glass::I_EXPAND, Menu::P_NONE, { "AUTO", "1X", "1.25X", "1.5X", "1.75X", "2X" }, uiSizeAt(),
+                   "How large the menus and the overlays over the game are. Auto: 1.5x on a handheld's screen under 720 lines; 1x on larger ones, phones and the Switch.",
+                   "The game list follows the next time it opens.");
 #ifndef __SWITCH__
             // (The Switch always shows the one wide screen these layouts are built around.)
             // One setting: LARGE SCREEN only ever changed HYBRID (layout.h, Layout::swapped), so its
@@ -7500,6 +7623,8 @@ int main(int argc, char** argv)
                 section("STATUS", Glass::I_TROPHY);
                 toggle(M_RA_ON, "RETROACHIEVEMENTS", Glass::I_TROPHY, Menu::P_NONE, cfg.ra.on,
                        "Earn achievements from retroachievements.org as you play.", "Needs an internet connection and a free account there.");
+                picker(M_RA_BANNER, "UNLOCK BANNER", Glass::I_TROPHY, Menu::P_NONE, { "FULLDEX", "CLASSIC" }, cfg.raClassicBanner ? 1 : 0,
+                       "How an achievement shows as you earn it: FullDex's own card, or the classic one in the pixel font.", "Both show the badge, the points and how rare it is.");
                 section("ACCOUNT", Glass::I_PEOPLE);
                 add(M_RA_ACCOUNT, "USER", Achievements::AccountLine(), true);
                 menu.items.back().kind = Menu::K_PLAIN;
@@ -7760,6 +7885,14 @@ int main(int argc, char** argv)
         toast = msg;
         toastUntil = frame + 120;
     };
+    // Achievement celebrations: the unlock banners, one at a time, about four seconds each.
+    // (achievements.cpp queues them; the test hook makes one for the pictures.)
+    Achievements::Unlock celebrateNow;
+    std::deque<Achievements::Unlock> celebrateNext;
+    bool celebrateOn = false;
+    uint32_t celebrateStart = 0;
+    const bool testUnlock = getenv("SSR_TEST_UNLOCK") != nullptr;
+    bool testUnlockDone = false;
     // CONTROLS choosing a key or button: done (or left as it was), or the action's cleared
     // (CLEAR BINDING: only Fulldex's own shortcuts, Controls::Clearable).
     auto captureEnd = [&]() {
@@ -8847,6 +8980,20 @@ int main(int argc, char** argv)
                 if ((ev.type == SDL_MOUSEBUTTONUP && ev.button.which != SDL_TOUCH_MOUSEID) ||
                     (ev.type == SDL_WINDOWEVENT && ev.window.event == SDL_WINDOWEVENT_FOCUS_LOST)) pointerHeld = false;
 #endif
+                // (The mouse wheel scrolls an open page as a finger's drag does: a settings page by
+                // pixels, a plain list by rows. Tiles all fit the screen and a dialog does not scroll.)
+                if (ev.type == SDL_MOUSEWHEEL && menu.open && menu.style != 2 && !menu.keyGrid && !menu.slotGrid && menu.columns == 0)
+                {
+                    int steps = ev.wheel.y;
+                    if (ev.wheel.direction == SDL_MOUSEWHEEL_FLIPPED) steps = -steps;
+                    if (steps)
+                    {
+                        menu.freeScroll = true;
+                        if (menu.style == 1) menu.scrollPx = std::max(0, menu.scrollPx - steps * std::max(30, menu.rowH * 2));
+                        else menu.scroll = std::max(0, menu.scroll - steps);
+                        continue;
+                    }
+                }
                 if (ev.type == SDL_CONTROLLERBUTTONDOWN && ev.cbutton.button < PAD_COUNT)
                 {
                     int b = ev.cbutton.button;
@@ -8932,8 +9079,7 @@ int main(int argc, char** argv)
                         // settings page anywhere across its rows (on a heading or between rows
                         // too, not only on a row), and a plain list (cheats, the companion's
                         // lists) anywhere in its box. Let go without moving, it is a tap.
-                        const bool settingsRows = menu.style == 1 && !menu.keyGrid && !menu.slotGrid &&
-                            !(item >= 0 && menu.items[item].kind == Menu::K_BACK) && x >= menu.rowX && x < menu.rowX + menu.rowW;
+                        const bool settingsRows = menu.style == 1 && !menu.keyGrid && !menu.slotGrid;
                         const bool plainList = menu.style == 0 && menu.columns == 0 && menu.drawnLineH > 0 && item != -2;
                         if (settingsRows || plainList)
                         {
@@ -9148,6 +9294,7 @@ int main(int argc, char** argv)
             }
             SDL_GetMouseState(&mouseX, &mouseY);
             SDL_GetRendererOutputSize(renderer, &outW, &outH);
+            UiScale() = UiScaleFor(cfg.uiSize, screenLines());
             // SDL mouse positions are window points; layout, cursor and touch use output pixels.
             // Refresh each frame for resize and movement between Retina/external displays.
             int windowW = 0, windowH = 0;
@@ -10171,6 +10318,10 @@ int main(int argc, char** argv)
             case M_ASPECT:
                 cfg.aspect = (cfg.aspect + (dir < 0 ? 4 : 1)) % 5;
                 break;
+            case M_UISIZE:
+                cfg.uiSize = kUiSizes[(uiSizeAt() + (dir < 0 ? 5 : 1)) % 6];
+                UiScale() = UiScaleFor(cfg.uiSize, screenLines());
+                break;
             case M_BATTLEBUTTONS:
                 // (Platinum, SoulSilver and HeartGold: their own strip, or SUN AND MOON's command buttons.)
                 if (pt.on || !funcWatchOn) cfg.battleButtons = cfg.battleButtons == 4 ? 1 : 4;
@@ -10324,6 +10475,9 @@ int main(int argc, char** argv)
                 break;
             case M_FFMUTE:
                 cfg.ffMute = !cfg.ffMute;
+                break;
+            case M_RA_BANNER:
+                cfg.raClassicBanner = !cfg.raClassicBanner;
                 break;
 #if !defined(__SWITCH__) && !defined(SSR_PHONE)
             case M_FFLOWRES:
@@ -11827,7 +11981,12 @@ int main(int argc, char** argv)
             {
                 if (pendingName != picked.name) pending = 0;
                 pendingName = picked.name;
+                // (From a battle's Yes / No buttons back to the battle: soon after one is pressed.
+                // The battle stops reading the touch screen on the second frame of the button's
+                // flash, two frames before the buttons go; waiting the usual four, the cuts showed
+                // the touch screen's background where they had been: two white boxes.)
                 int need = shownName == "bottom" && fieldNow ? 1 :
+                    shownName == "battle-yesno" && pendingName == "battle" ? 2 :
                     shownName == "battle-menu" && (pendingName == "top" || pendingName == "battle") ? 40 :
                     (shownName == "starter" || shownName == "intro") && pendingName == "top" ? 16 : 4;
                 if (++pending >= need)
@@ -12224,7 +12383,7 @@ int main(int argc, char** argv)
                     if (c >> 24) canvas.Fill(ox + px, oy + py, 1, 1, c);
                 }
             }
-            const int tsc = std::max(1, outH / 360);
+            const int tsc = std::max(1, (int)(outH * UiScale() / 360));
             const std::string label = std::string(pads.Empty() ? Controls::KeyName(cfg.controls.Key(Controls::Y))
                 : Controls::InputName(cfg.controls.Pad(Controls::Y, cfg.byLabel), Controls::StyleOf(pads.Current())))
                 + ": RUN " + (shoesOn ? "ON" : "OFF");
@@ -12357,6 +12516,143 @@ int main(int argc, char** argv)
             canvas.Text(tx + 4 * sc, ty + 3 * sc, toast, sc, (fade << 24) | 0xFFFFFF);
             overlayUsed = true;
         }
+        // (An achievement's celebration: its badge, title, points and rarity; or the game mastered.
+        // One at a time, sliding up from the bottom, fading in and out.)
+        {
+            if (testUnlock && !testUnlockDone && frame > 30)
+            {
+                testUnlockDone = true;
+                Achievements::Unlock u;
+                u.title = "TEST ACHIEVEMENT";
+                u.points = 50;
+                u.rarity = 12.3f;
+                if (const char* t = getenv("SSR_TEST_UNLOCK"); t && *t)
+                {
+                    if (!strncmp(t, "mastery", 7)) { u.mastery = true; u.title = "POKEMON TEST"; u.game = u.title; u.gamePoints = 900; u.gamePointsTotal = 1000; }
+                    else u.title = t;
+                }
+                u.name = u.mastery ? std::string("Pok\xC3\xA9mon HeartGold Version") : u.title;
+                celebrateNext.push_back(std::move(u));
+            }
+            if (!celebrateOn && Achievements::PopUnlock(celebrateNow)) { celebrateOn = true; celebrateStart = SDL_GetTicks(); }
+            if (!celebrateOn && !celebrateNext.empty())
+            {
+                celebrateNow = std::move(celebrateNext.front()); celebrateNext.pop_front();
+                celebrateOn = true; celebrateStart = SDL_GetTicks();
+            }
+            const uint32_t total = 4300, elapsed = celebrateOn ? SDL_GetTicks() - celebrateStart : 0;
+            if (celebrateOn && elapsed >= total) celebrateOn = false;
+            if (celebrateOn && !menu.open)
+            {
+                uint32_t alpha = 255;
+                if (elapsed < 220) alpha = elapsed * 255 / 220;
+                else if (elapsed > total - 500) alpha = (total - elapsed) * 255 / 500;
+                const int lift = elapsed < 220 ? (int)((220 - elapsed) * 18 / 220) : 0;
+                const bool classic = cfg.raClassicBanner || getenv("SSR_TEST_CLASSIC") || !Menu::UseClean();
+                if (!classic)
+                {
+                    // (FullDex's own card: the menus' glass and lettering, the badge large at its left.
+                    // CLASSIC, under RetroAchievements, keeps the first one, in the pixel font.)
+                    const float k = std::max(0.5f, outH / 720.0f);
+                    using SettingsArt::W; using SettingsArt::T;
+                    auto K = [&](float v) { return (int)std::lround(v * k); };
+                    const uint32_t fade = alpha;
+                    auto A = [&](uint32_t rgb, uint32_t a = 255) { return ((a * fade / 255) << 24) | (rgb & 0xFFFFFFu); };
+                    const uint32_t accent = celebrateNow.mastery ? 0xFFD75Eu : 0x8CC8FFu;
+                    const int bs = K(76), pad = K(16);
+                    const std::string head = celebrateNow.mastery ? "GAME MASTERED" : "ACHIEVEMENT UNLOCKED";
+                    const std::string nm = celebrateNow.name.empty() ? celebrateNow.title : celebrateNow.name;
+                    char rare[48] = "";
+                    if (!celebrateNow.mastery && celebrateNow.rarity > 0.0f)
+                        snprintf(rare, sizeof rare, "  \xC2\xB7  %.1f%% of players", celebrateNow.rarity);
+                    const std::string info = celebrateNow.mastery
+                        ? std::to_string(celebrateNow.gamePoints) + " of " + std::to_string(celebrateNow.gamePointsTotal) + " points"
+                        : std::to_string(celebrateNow.points) + (celebrateNow.points == 1 ? " point" : " points") + rare;
+                    const int fHead = K(16), fName = K(26), fInfo = K(18);
+                    const int textMax = std::max({ W(head, fHead, true), W(nm, fName, true, false), W(info, fInfo, false, false) });
+                    const int cw = std::min(outW - K(32), pad + bs + K(16) + textMax + pad + K(8)), ch = bs + 2 * pad;
+                    const int cx = (outW - cw) / 2, cy = outH - ch - K(28) + lift * outH / 240;
+                    Glass::Round(canvas, cx, cy, cw, ch, 20 * k, A(0x1E222B, 0xEB), A(0xFFFFFF, 0x3D), std::max(1.0f, k));
+                    const int bx = cx + pad, by = cy + pad;
+                    Glass::Round(canvas, bx, by, bs, bs, 14 * k, A(0x0E1219));
+                    std::vector<uint32_t> badge;
+                    int bw = 0, bh = 0;
+                    if (!celebrateNow.mastery && !celebrateNow.badge.empty() &&
+                        Achievements::Badge(celebrateNow.badge, false, badge, bw, bh) && bw > 0 && bh > 0)
+                    {
+                        for (int yy = 0; yy < bs; yy++)
+                            for (int xx = 0; xx < bs; xx++)
+                            {
+                                if (by + yy < 0 || by + yy >= canvas.h || bx + xx < 0 || bx + xx >= canvas.w) continue;
+                                const uint32_t s = badge[(size_t)(yy * bh / bs) * bw + (xx * bw / bs)];
+                                const int cover = (int)((s >> 24) * fade / 255);
+                                uint32_t& d = canvas.px[(size_t)(by + yy) * canvas.w + bx + xx];
+                                if (cover > 0) d = Glass::Over(d, s, cover);
+                            }
+                    }
+                    else Glass::DrawIcon(canvas, Glass::I_TROPHY, bx + bs * 0.5f, by + bs * 0.5f, bs * 0.32f, A(accent));
+                    const int tx = bx + bs + K(16), textW = cx + cw - pad - tx;
+                    auto fit = [&](std::string t, int px, bool bold, bool title) {
+                        if (W(t, px, bold, title) <= textW) return t;
+                        while (!t.empty() && W(t + "...", px, bold, title) > textW) t.pop_back();
+                        return t + "...";
+                    };
+                    T(canvas, tx, by + K(19), fit(head, fHead, true, true), fHead, A(accent), true);
+                    T(canvas, tx, by + K(49), fit(nm, fName, true, false), fName, A(0xF2F5F9), true, false);
+                    T(canvas, tx, by + K(70), fit(info, fInfo, false, false), fInfo, A(0xB9C3CF), false, false);
+                }
+                else
+                {
+                const int sc = outH / 240 < 1 ? 1 : outH / 240;
+                const int small = std::max(1, sc - 1), bs = 16 * sc;
+                std::string rarity;
+                if (celebrateNow.rarity > 0.0f)
+                {
+                    char pct[32];
+                    snprintf(pct, sizeof pct, "%.1f%%", celebrateNow.rarity);
+                    rarity = std::string("  \xC2\xB7  ") + pct + " OF PLAYERS";
+                }
+                const std::string line1 = celebrateNow.mastery ? "GAME MASTERED" : "ACHIEVEMENT UNLOCKED";
+                // (Mastery: the game's name is the title, so its line is the points alone.)
+                const std::string line3 = celebrateNow.mastery
+                    ? std::to_string(celebrateNow.gamePoints) + " OF " + std::to_string(celebrateNow.gamePointsTotal) + " POINTS"
+                    : std::to_string(celebrateNow.points) + " POINTS" + rarity;
+                const int lineW = std::max(Canvas::TextWidth(line1, small), Canvas::TextWidth(line3, small));
+                const int cw = std::min(outW - 8 * sc, bs + 12 * sc + std::max(Canvas::TextWidth(celebrateNow.title, sc), lineW));
+                const int ch = 34 * sc;
+                const int cx = (outW - cw) / 2, cy = outH - ch - 12 * sc + lift;
+                const uint32_t fade = alpha;
+                Glass::Round(canvas, cx, cy, cw, ch, 7 * sc, (fade << 24) | 0x141F30u, ((fade * 0x70 / 255) << 24) | 0xFFFFFFu, std::max(1.0f, (float)sc * 0.8f));
+                const int bx = cx + 4 * sc, by = cy + (ch - bs) / 2;
+                Glass::Round(canvas, bx, by, bs, bs, 4 * sc, (fade << 24) | 0x0A111Cu);
+                std::vector<uint32_t> badge;
+                int bw = 0, bh = 0;
+                if (!celebrateNow.mastery && !celebrateNow.badge.empty() &&
+                    Achievements::Badge(celebrateNow.badge, false, badge, bw, bh) && bw > 0 && bh > 0)
+                {
+                    for (int yy = 0; yy < bs; yy++)
+                        for (int xx = 0; xx < bs; xx++)
+                        {
+                            const uint32_t s = badge[(size_t)(yy * bh / bs) * bw + (xx * bw / bs)];
+                            const int cover = (int)((s >> 24) * fade / 255);
+                            uint32_t& d = canvas.px[(size_t)(by + yy) * canvas.w + bx + xx];
+                            if (cover > 0) d = Glass::Over(d, s, cover);
+                        }
+                }
+                else Glass::DrawIcon(canvas, Glass::I_TROPHY, bx + bs * 0.5f, by + bs * 0.5f, bs * 0.3f, (fade << 24) | 0xFFFFFFu);
+                const int tx = bx + bs + 3 * sc, textW = cw - (tx - cx) - 3 * sc;
+                auto fit = [&](std::string t, int scale) {
+                    if (Canvas::TextWidth(t, scale) <= textW) return t;
+                    while (!t.empty() && Canvas::TextWidth(t + "..", scale) > textW) t.pop_back();
+                    return t + "..";
+                };
+                canvas.Text(tx, cy + 3 * sc, fit(line1, small), small, (fade << 24) | (celebrateNow.mastery ? 0xFFD75Eu : 0x8CC8FFu));
+                canvas.Text(tx, cy + 12 * sc, fit(celebrateNow.title, sc), sc, (fade << 24) | 0xFFFFFFu);
+                canvas.Text(tx, cy + 24 * sc, fit(line3, small), small, (fade << 24) | 0xB9C9DDu);
+                }
+                overlayUsed = true;
+            }
+        }
         // The live companion: COMPANION WINDOW (beside the game), else HUD; STATUS BAR (ui_settings.h),
         // in its own layer (liveCanvas), drawn again only when what it shows changes.
         // (FROSTED GLASS off: no piece is glass to frost, so nothing is read back; dark glass instead.)
@@ -12432,7 +12728,7 @@ int main(int argc, char** argv)
                 liveStale.clear();
                 panelsNew = true;
             }
-            float hk = std::max(0.42f, std::min(outW, outH) / 720.0f);
+            float hk = std::max(0.42f, std::min(outW, outH) / 720.0f * UiScale());
             // (The HUD's column: below the phone's L button and above its D-pad, the cards and the
             // minimap made smaller to fit there, the minimap left out if they would be too small.)
             int hudTop = (int)std::lround(16 * hk);
@@ -12768,9 +13064,15 @@ int main(int argc, char** argv)
             // (The tiles: B goes back to the game, there being no RESUME tile.)
             if (menuPage == PAGE_MAIN)
                 hint = touchPadUsed && touchPad.visible ? "TAP: CHOOSE   OUTSIDE: RESUME" : btn(Controls::A) + ": SELECT   " + btn(Controls::B) + ": RESUME";
-            // (Settings pages explain the chosen row in their preview: the hint is the buttons only.)
+            // (Settings pages explain the chosen row in their preview: the hint is the buttons only.
+            // The Settings hub's rows are pages to open; the others' are values, changed with
+            // Left/Right, and their links opened with A.)
             if (menu.style == 1)
-                hint = touchPadUsed && touchPad.visible ? "TAP: CHOOSE   OUTSIDE: BACK" : btn(Controls::A) + ": SELECT   " + btn(Controls::B) + ": BACK";
+                hint = menuPage == PAGE_HUB_SETTINGS
+                    ? (touchPadUsed && touchPad.visible ? "TAP: OPEN   OUTSIDE: BACK"
+                                                        : btn(Controls::A) + ": OPEN   " + btn(Controls::B) + ": BACK")
+                    : (touchPadUsed && touchPad.visible ? "TAP: CHANGE   OUTSIDE: BACK"
+                                                        : "LEFT / RIGHT / " + btn(Controls::A) + ": CHANGE   " + btn(Controls::B) + ": BACK");
             const bool wideMenu=menuPage==PAGE_CENCOUNTERS || menuPage==PAGE_FLY || menuPage==PAGE_REFERENCE || menuPage==PAGE_RSEARCH || menuPage==PAGE_RDETAIL || menuPage==PAGE_CITEM || menuPage==PAGE_EXTRAS || menuPage==PAGE_QUICK_ACTIONS || menuPage==PAGE_NUZLOCKE || menuPage==PAGE_RUN_CONFIRM || menuPage==PAGE_CGUIDE || menuPage==PAGE_CGUIDEENTRY || menuPage==PAGE_CBATTLE || menuPage==PAGE_STATES || menuPage==PAGE_SLOT || (menuPage>=PAGE_COMPANION&&menuPage<=PAGE_CLOCATION) || menuPage==PAGE_MATCHUPS || menuPage==PAGE_CHEATS || menuPage==PAGE_CDETAIL || menuPage==PAGE_CINFO || menuPage==PAGE_CSEARCH || menuPage==PAGE_BACKUPS || menuPage==PAGE_RESTORE_CONFIRM || menuPage==PAGE_LOAD_CONFIRM || menuPage==PAGE_QUIT_CONFIRM;
             if (menuPage == PAGE_CONTROLS) // (BUTTONS' preview: the controller connected)
             {
@@ -12785,7 +13087,7 @@ int main(int argc, char** argv)
                 static Menu::CompanionView mapView;
                 fillCompanionView(mapView);
                 const bool solid = Glass::Backdrop(canvas);
-                const float k = std::max(0.42f, std::min(canvas.w / 1400.0f, canvas.h / 788.0f));
+                const float k = std::max(0.42f, std::min(canvas.w / 1400.0f, canvas.h / 788.0f) * UiScale());
                 auto K = [&](float v) { return (int)std::lround(v * k); };
                 const int headH = K(70), pad = K(24);
                 int mw = mapView.mapW, mh = mapView.mapH;

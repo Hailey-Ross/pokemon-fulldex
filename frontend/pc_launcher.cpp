@@ -1074,6 +1074,19 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
     Launcher::PhoneUi() = true; // (a phone: bigger text and buttons, the Tiles layout)
 #endif
     if (getenv("SSR_LIST_PHONE")) Launcher::PhoneUi() = true; // (test)
+    // UI SIZE (ui.h): the factor, on every device. Above 100% (a handheld's small screen, by
+    // default) on one that is not a phone or the Switch: the phone's layouts, which fit a short
+    // screen with larger writing, at that size; those two have them already.
+    {
+        SDL_DisplayMode dm{};
+        const int screenH = SDL_GetDesktopDisplayMode(0, &dm) == 0 && dm.h > 0 ? dm.h : canvas.h;
+        UiScale() = UiScaleFor(Launcher::ConfigValue(fo.cfg, "ui_size"), screenH);
+#if !defined(SSR_PHONE) && !defined(__SWITCH__)
+        Launcher::LargeUi() = UiScale() > 1.0f;
+        if (Launcher::LargeUi()) Launcher::PhoneUi() = true;
+        else if (!getenv("SSR_LIST_PHONE")) Launcher::PhoneUi() = false; // (UI SIZE set back to 100%)
+#endif
+    }
 #ifdef __SWITCH__
     Launcher::PhoneUi() = true; // (the Switch: the same bigger text and buttons as a phone, so the menus read in handheld)
 #endif
@@ -1619,7 +1632,14 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
         }
         if (guide)
         {
-            change(1);
+            // (A opens a link/page. Toggles and pickers have no select step: their shown value is
+            // the selection, changed with Left/Right.)
+            if (!page.items.empty())
+            {
+                const int sel = std::max(0, std::min(page.selected, (int)page.items.size() - 1));
+                const Launcher::Setting& s = page.items[sel];
+                (void)s; change(1); // (A still turns a toggle over and steps a picker on, as players are used to)
+            }
             return;
         }
         // The glass launcher: A on a section of the sidebar, or on the banner's buttons.
@@ -2985,9 +3005,16 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                     if (e.type == SDL_MOUSEBUTTONUP)
                     {
                         pressed = false;
-                        // (A section of the sidebar: the settings close and it opens, no Back first.)
+                        // (A section of the sidebar: the settings close and it opens, no Back first.
+                        // Settings itself takes a step back: a group to the groups, the groups out.)
                         const int sd = Launcher::SideAt(canvas, mx, my);
-                        if (sd >= 0 && sd != Launcher::SIDE_SETTINGS)
+                        if (sd == Launcher::SIDE_SETTINGS)
+                        {
+                            onBack = false;
+                            if (!page.Back()) toggleGuide();
+                            break;
+                        }
+                        if (sd >= 0)
                         {
                             guide = false; onBack = false; Launcher::Focus().side = -1;
                             if (!Launcher::OpenSide(sd)) note = std::string(Launcher::SideName(sd)) + ": COMING SOON";
@@ -2999,7 +3026,17 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                             for (const auto& r : setMenu.pickRects)
                                 if (mx >= r[0] && mx < r[0] + r[2] && my >= r[1] && my < r[1] + r[3])
                                 {
-                                    for (size_t k = 0; k < page.items[page.selected].values.size() && page.ValueIndex(page.items[page.selected]) != r[4]; k++) change(1);
+                                    // (The card's choice is in the drawn order; map it to the
+                                    // stored value by its shown label before stepping to it.)
+                                    int target = r[4];
+                                    const Launcher::Setting& s = page.items[page.selected];
+                                    if (setMenu.selected >= 0 && setMenu.selected < (int)setMenu.items.size() &&
+                                        target < (int)setMenu.items[setMenu.selected].choices.size())
+                                    {
+                                        const std::string& shown = setMenu.items[setMenu.selected].choices[target];
+                                        for (int i = 0; i < (int)s.values.size(); i++) if (s.values[i].second == shown) { target = i; break; }
+                                    }
+                                    for (size_t k = 0; k < s.values.size() && page.ValueIndex(s) != target; k++) change(1);
                                     cardHit = true;
                                     break;
                                 }
@@ -3008,7 +3045,61 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                         {
                             const int item = setMap[hit];
                             if (item < 0) { onBack = false; if (!page.Back()) guide = false; }
-                            else if (page.items[item].key) { if (item == page.selected && !onBack) change(1); else { page.selected = item; onBack = false; } }
+                            else
+                            {
+                                page.selected = item; onBack = false;
+                                // (Touch/mouse: the visible control is the hit target; the row's
+                                // name only selects. The pad changes values with Left/Right.)
+                                const UiInput::Part* part = nullptr;
+                                for (const auto& p : setMenu.parts)
+                                    if (p.item == hit && UiInput::InPart(p, mx, my)) { part = &p; break; }
+                                if (part && part->intent == UiInput::Intent::Set)
+                                {
+                                    const Launcher::Setting& s = page.items[item];
+                                    const int cur = page.ValueIndex(s), n = (int)s.values.size();
+                                    // (The pill's index is the drawn OFF/ON order; the stored values
+                                    // may be in another order, so map by the shown label.)
+                                    int target = part->value;
+                                    if (hit < (int)setMenu.items.size() && target < (int)setMenu.items[hit].choices.size())
+                                    {
+                                        const std::string& shown = setMenu.items[hit].choices[target];
+                                        for (int i = 0; i < n; i++) if (s.values[i].second == shown) { target = i; break; }
+                                    }
+                                    if (n > 0 && target != cur)
+                                    {
+                                        const int fwd = (target - cur + n) % n, back = (cur - target + n) % n;
+                                        const int steps = fwd <= back ? fwd : back;
+                                        for (int k = 0; k < steps; k++) change(fwd <= back ? 1 : -1);
+                                    }
+                                }
+                                else if (part && part->intent == UiInput::Intent::Step)
+                                    change(part->value < 0 ? -1 : 1);
+                                else if (part && part->intent == UiInput::Intent::Open)
+                                    change(1);
+                                else if (!part)
+                                {
+                                    const Launcher::Setting& s = page.items[item];
+                                    bool onOff = s.values.size() == 2;
+                                    for (const auto& v : s.values) onOff = onOff && (v.second == "ON" || v.second == "OFF");
+                                    if (onOff)
+                                    {
+                                        // (The drawn pills: left = OFF, right = ON. Map the label
+                                        // to the stored order, then step to it.)
+                                        const bool right = mx >= setMenu.ctlX + setMenu.ctlW / 2;
+                                        const char* shown = right ? "ON" : "OFF";
+                                        int target = 0;
+                                        for (int i = 0; i < (int)s.values.size(); i++) if (s.values[i].second == shown) { target = i; break; }
+                                        const int cur = page.ValueIndex(s), n = (int)s.values.size();
+                                        if (n > 0 && target != cur)
+                                        {
+                                            const int fwd = (target - cur + n) % n, back = (cur - target + n) % n;
+                                            for (int k = 0; k < (fwd <= back ? fwd : back); k++) change(fwd <= back ? 1 : -1);
+                                        }
+                                    }
+                                    else if (s.key && (!strncmp(s.key, "!group", 6) || s.key[0] == '!')) change(1);
+                                }
+                                // (Focus: the row's name; it only selects.)
+                            }
                         }
                     }
                     break;
@@ -3137,6 +3228,14 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 break;
             }
             case SDL_MOUSEWHEEL:
+                // (The settings page scrolls under the wheel, as a finger's drag does.)
+                if (Launcher::Glassy(canvas) && guide && setMenu.open)
+                {
+                    int steps = e.wheel.y;
+                    if (e.wheel.direction == SDL_MOUSEWHEEL_FLIPPED) steps = -steps;
+                    if (steps) { setMenu.freeScroll = true; setMenu.scrollPx = std::max(0, setMenu.scrollPx - steps * std::max(30, setMenu.rowH * 2)); }
+                    break;
+                }
                 if (Launcher::Glassy(canvas) && !guide && Launcher::NotesScroll(e.wheel.y > 0 ? -2 : 2)) break; // (What's New)
                 if (!guide && !setMenu.open && Launcher::Focus().page < 0 && Launcher::Focus().dialog == 0 && Launcher::Focus().popup < 0 && !Launcher::TilesOn())
                 {
@@ -3391,7 +3490,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             if (Launcher::Glassy(canvas))
             {
                 // (The pause menu's glass settings pages, ui_settings.h, over the chosen game's picture blurred.)
-                setMenu.touchRows = Launcher::PhoneUi() ? 1.5f : 1.0f; // (a phone: rows big enough for a finger, the page larger)
+                setMenu.touchRows = Launcher::PhoneUi() && !Launcher::LargeUi() ? 1.5f : 1.0f; // (a phone: rows big enough for a finger, the page larger)
                 setMenu.laneK = Launcher::PhoneUi() ? std::max(0.42f, Launcher::GU(canvas) * (480.0f / 720.0f) * 0.94f * 1.3f) : 0.0f; // (by the launcher's own unit: right upright too)
                 { static int lastSel = -99; if (page.selected != lastSel) { lastSel = page.selected; setMenu.freeScroll = false; } }
                 Launcher::BuildSettingsMenu(setMenu, setMap, page, onBack);
