@@ -8932,8 +8932,7 @@ int main(int argc, char** argv)
                         // settings page anywhere across its rows (on a heading or between rows
                         // too, not only on a row), and a plain list (cheats, the companion's
                         // lists) anywhere in its box. Let go without moving, it is a tap.
-                        const bool settingsRows = menu.style == 1 && !menu.keyGrid && !menu.slotGrid &&
-                            !(item >= 0 && menu.items[item].kind == Menu::K_BACK) && x >= menu.rowX && x < menu.rowX + menu.rowW;
+                        const bool settingsRows = menu.style == 1 && !menu.keyGrid && !menu.slotGrid;
                         const bool plainList = menu.style == 0 && menu.columns == 0 && menu.drawnLineH > 0 && item != -2;
                         if (settingsRows || plainList)
                         {

@@ -1027,7 +1027,7 @@ inline int Menu::UpdateSettings(const MenuInput& in, int& dir)
     if (in.down) step(1);
     const MenuItem& it = items[selected];
     if (it.disabled || it.kind == K_SECTION) return -1;
-    if (in.accept) return selected; // (a toggle turns over, a picker steps on, a link or Back opens)
+    if (in.accept) return (it.kind == K_TOGGLE || it.kind == K_PICKER || it.kind == K_PLAIN) ? -1 : selected; // (A only opens links/Back/slots/keys: a shown value is already the selection)
     if (in.left || in.right)
     {
         const int d = in.left ? -1 : 1;
@@ -1078,16 +1078,28 @@ inline void Menu::SettingsTap(int item, int x, MenuInput& input)
     if (item < 0) return;
     selected = item;
     const MenuItem& it = items[item];
-    // (A pill tapped: that one. A picker: its left half back, its right half on. The slot grid:
-    // whatever is tapped is chosen, a toggle turned over.)
+    if (it.disabled) return;
+    if (it.kind == K_BACK) { input.back = true; return; }
+    // (The slot grid and the keyboard: whatever is tapped is chosen.)
     if (slotGrid || keyGrid) { input.accept = true; return; }
-    if (it.kind == K_TOGGLE || it.kind == K_PICKER)
-    {
-        if (x >= ctlX) { if (x < ctlX + ctlW / 2) input.left = true; else input.right = true; }
-        else if (it.kind == K_PICKER) input.right = true;
-        else input.accept = true; // (a toggle's name: turned over)
-    }
-    else input.accept = true;
+    // (The visible controls: Off/On pills, chevrons, preview cards, links. The row's name only
+    // focuses it; the pad reaches the same changes with Left/Right on the focused row.)
+    for (const UiInput::Part& p : parts)
+        if (p.item == item && UiInput::InPart(p, x, pickY))
+        {
+            switch (p.intent)
+            {
+            case UiInput::Intent::Focus: return;
+            case UiInput::Intent::Step:
+            case UiInput::Intent::Set:
+                if (p.value < 0) input.left = true; else input.right = true;
+                return;
+            case UiInput::Intent::Open: input.accept = true; return;
+            case UiInput::Intent::Back: input.back = true; return;
+            case UiInput::Intent::Drag: return;
+            }
+            return;
+        }
 }
 
 // A type's colour (the games' own, as fans know them), for its chip and a move's edge.
@@ -1723,6 +1735,7 @@ inline void Menu::DrawSettings(Canvas& c, const std::string& title, const std::s
     const bool solid = haveFrame || laneX >= 0 ? c.backdrop.size() == c.px.size() : Glass::Backdrop(c); // (in the launcher: its page is drawn already)
     const int n = (int)items.size();
     pickRects.clear();
+    parts.clear();
     if (selected < 0 || selected >= n) return;
     const bool wide = c.w >= c.h * 1.2f;
     float pw, ph, k;
@@ -1767,6 +1780,13 @@ inline void Menu::DrawSettings(Canvas& c, const std::string& title, const std::s
     { const double t = MenuProfNow(); MenuProf()[0] += t - profT; profT = t; }
     // Header: back button, the page's icon, its title, a line under them.
     backS = lane ? 0 : K(54); backX = px0 + K(28); backY = py0 + K(18);
+    if (backS > 0)
+        for (int i = 0; i < n; i++)
+            if (items[i].kind == K_BACK)
+            {
+                parts.push_back({backX, backY, backS, backS, UiInput::Intent::Back, i, 0});
+                break;
+            }
     if (!lane)
     {
     const bool backChosen = items[selected].kind == K_BACK;
@@ -2040,8 +2060,9 @@ inline void Menu::DrawSettings(Canvas& c, const std::string& title, const std::s
                 const bool arrows = it.kind == K_PICKER && !off;
                 if (arrows)
                 {
-                    Glass::DrawIcon(c, Glass::I_CHEVRON_L, ctlX + KR(14), y + rowH * 0.5f, 9 * kr, GlassText);
-                    Glass::DrawIcon(c, Glass::I_CHEVRON_R, ctlX + ctlW - KR(14), y + rowH * 0.5f, 9 * kr, GlassText);
+                    const bool canL = it.choice > 0, canR = it.choice + 1 < (int)it.choices.size();
+                    Glass::DrawIcon(c, Glass::I_CHEVRON_L, ctlX + KR(14), y + rowH * 0.5f, 9 * kr, canL ? GlassText : GlassOff);
+                    Glass::DrawIcon(c, Glass::I_CHEVRON_R, ctlX + ctlW - KR(14), y + rowH * 0.5f, 9 * kr, canR ? GlassText : GlassOff);
                 }
                 int vpx = KR(19);
                 while (vpx > 8 && W(it.value, vpx, true) > ctlW - KR(56)) vpx--;
@@ -2060,6 +2081,23 @@ inline void Menu::DrawSettings(Canvas& c, const std::string& title, const std::s
             }
         };
         drawRow();
+        {
+            // (The row as the pointer sees it: its name focuses only; links open; Off/On pills and
+            // the chevrons are the controls. The pad reaches the same changes with Left/Right.)
+            const bool opens = it.kind == K_LINK || it.kind == K_FOLDER || it.kind == K_SLOT || it.kind == K_KEY;
+            parts.push_back({listX, y, std::max(0, ctlX - listX), rowH,
+                             it.kind == K_BACK ? UiInput::Intent::Back : opens ? UiInput::Intent::Open : UiInput::Intent::Focus, i, 0});
+            if (it.kind == K_TOGGLE)
+            {
+                parts.push_back({ctlX, y, ctlW / 2, rowH, UiInput::Intent::Set, i, 0});
+                parts.push_back({ctlX + ctlW / 2, y, ctlW - ctlW / 2, rowH, UiInput::Intent::Set, i, 1});
+            }
+            else if (it.kind == K_PICKER)
+            {
+                parts.push_back({ctlX, y, ctlW / 2, rowH, UiInput::Intent::Step, i, -1});
+                parts.push_back({ctlX + ctlW / 2, y, ctlW - ctlW / 2, rowH, UiInput::Intent::Step, i, 1});
+            }
+        }
         if (!selHere && cx1 > cx0 && cy1 > cy0)
         {
             rc.key = rk; rc.x = cx0; rc.y = cy0; rc.w = cx1 - cx0; rc.h = cy1 - cy0;
@@ -2258,7 +2296,11 @@ inline void Menu::DrawSettings(Canvas& c, const std::string& title, const std::s
             const int ci = onlyOn ? (i == choices - 1 ? it.choice : 0) : i; // (the choice this card shows)
             const bool on = ci == it.choice;
             if (!onlyOn && !it.disabled && (it.kind == K_PICKER || it.kind == K_TOGGLE)) // (a card to tap: its whole cell)
-                pickRects.push_back({ side ? sideX : cx - cellW / 2, cy - K(6), side ? sideW + gapX + picW : cellW, rowH + K(12), ci });
+            {
+                const std::array<int, 5> r{ side ? sideX : cx - cellW / 2, cy - K(6), side ? sideW + gapX + picW : cellW, rowH + K(12), ci };
+                pickRects.push_back(r);
+                parts.push_back({r[0], r[1], r[2], r[3], UiInput::Intent::Set, selected, ci});
+            }
             if (pictures)
             {
                 const int x = side ? sideX + sideW + gapX : cx - picW / 2, py = side ? cy + (rowH - picH) / 2 : cy;
