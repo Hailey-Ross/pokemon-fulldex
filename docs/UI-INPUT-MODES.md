@@ -4,7 +4,8 @@ Design for Fulldex's UI across touch, mouse, keyboard and gamepad — including 
 inputs active at once on the same device (e.g. an Android phone with a Bluetooth controller
 and a touchscreen).
 
-Status: **milestone 1 implemented and verified** (game pause settings).
+Status: **settings pages implemented and verified** — the game pause settings and the
+launcher's own Settings pages.
 
 Implemented:
 - `frontend/ui_input.h`: `Mode`, `Intent`, `Part`, `Gesture`.
@@ -12,16 +13,21 @@ Implemented:
   set; chevrons = step; preview cards = set; links/Back = open/back). The pointer hit-tests
   the parts; the pad keeps row focus + Left/Right; A now only opens links/Back/slots/keys.
   Chevrons dim at the first/last choice. A drag anywhere on the settings page scrolls.
+- Launcher settings (the glass page): the first touch on a group row opens it; a pill changes
+  the value directly (Off then On, and On then Off); a chevron steps; a preview card selects
+  its choice; the row name only selects; a drag scrolls; A opens links/groups only.
 - Android defines `SSR_PHONE`, so the phone touch hints are actually compiled in.
 
 Verified:
 - Android: tapping the On pill sets the toggle; tapping the row name only selects; an
   upward swipe scrolls the Cheats list.
+- Android: every control in Settings -> Display (toggles, pickers, sliders, links, group rows).
 - Steam Deck: pad Left/Right changes the focused toggle; A on a toggle does nothing.
 - Windows: build produced and pushed to the test box.
 
-Still to do: the launcher's own settings page, the pause tile page, the visual last-input
-mode (focus ring vs hover), the simultaneous-input matrix, and the remaining menus.
+Still to do: the launcher's other surfaces (tabs, sidebar, banner, grid, game menu, tab
+options, ROMs, hub, about, music bar), the pause tile page, the visual last-input mode
+(focus ring vs hover), the simultaneous-input matrix, and the shared gesture classifier.
 
 
 ## Goals
@@ -147,11 +153,11 @@ One routine for the pause menu and the launcher:
 - All sources are always active. No mode lock, no "controller detected, disable touch".
 - Shared focus: a touch sets the row focus; a pad event moves it; the presentation follows
   the last event.
-- Avoid double activation: on Android/Switch, disable SDL's synthesized touch→mouse and
-  handle the finger events for both the launcher and the game menu; or, if synthesis stays,
-  route the synthesized mouse through the same intent and dedupe by touch id. The current
-  dead `SSR_PHONE` define must be resolved (Android's CMake never sets it), so the phone
-  hints are actually compiled in.
+- Avoid double activation: the policy is set per window, in one place each. The launcher
+  turns SDL's synthesized touch→mouse on (its taps are clicks, and a phone with a controller
+  still works); the game turns it off and takes `SDL_FINGER*` itself for its menus and touch
+  screen. `SSR_PHONE` is defined by the Android build, so the phone hints and layout are
+  compiled in. No event is acted on twice.
 - On-screen controls and a physical pad feed the same game input state (OR of held
   buttons); the touch screen and the pad do not conflict.
 - The gamepad focus ring and a touch press can coexist; touching a row updates the focus
@@ -187,7 +193,8 @@ One routine for the pause menu and the launcher:
 - `MenuItem` holds `kind`, `choices`, `value`, `enabled`; the shown value is the state.
 - Delete `SettingsTap`'s x-position heuristics; keep a single `Step`/`Set`/`Open` dispatch.
 - One gesture classifier shared by the launcher and the pause menu (today they duplicate).
-- Resolve the Android `SSR_PHONE` define and the touch→mouse policy in one place.
+- The touch→mouse policy lives where each window is created: the launcher synthesizes
+  clicks; the game takes fingers itself. (Done; see Simultaneous inputs.)
 - Tests: extend `tests/local_menu_touch.cpp` for part hit-tests, tap-vs-drag, pills,
   chevrons, sliders, and the shared focus; add the simultaneous-input cases (synthetic
   events).

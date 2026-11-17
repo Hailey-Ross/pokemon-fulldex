@@ -1619,7 +1619,14 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
         }
         if (guide)
         {
-            change(1);
+            // (A opens a link/page. Toggles and pickers have no select step: their shown value is
+            // the selection, changed with Left/Right.)
+            if (!page.items.empty())
+            {
+                const int sel = std::max(0, std::min(page.selected, (int)page.items.size() - 1));
+                const Launcher::Setting& s = page.items[sel];
+                if (page.group < 0 || (s.key && s.key[0] == '!')) change(1);
+            }
             return;
         }
         // The glass launcher: A on a section of the sidebar, or on the banner's buttons.
@@ -2999,7 +3006,17 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                             for (const auto& r : setMenu.pickRects)
                                 if (mx >= r[0] && mx < r[0] + r[2] && my >= r[1] && my < r[1] + r[3])
                                 {
-                                    for (size_t k = 0; k < page.items[page.selected].values.size() && page.ValueIndex(page.items[page.selected]) != r[4]; k++) change(1);
+                                    // (The card's choice is in the drawn order; map it to the
+                                    // stored value by its shown label before stepping to it.)
+                                    int target = r[4];
+                                    const Launcher::Setting& s = page.items[page.selected];
+                                    if (setMenu.selected >= 0 && setMenu.selected < (int)setMenu.items.size() &&
+                                        target < (int)setMenu.items[setMenu.selected].choices.size())
+                                    {
+                                        const std::string& shown = setMenu.items[setMenu.selected].choices[target];
+                                        for (int i = 0; i < (int)s.values.size(); i++) if (s.values[i].second == shown) { target = i; break; }
+                                    }
+                                    for (size_t k = 0; k < s.values.size() && page.ValueIndex(s) != target; k++) change(1);
                                     cardHit = true;
                                     break;
                                 }
@@ -3008,7 +3025,61 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                         {
                             const int item = setMap[hit];
                             if (item < 0) { onBack = false; if (!page.Back()) guide = false; }
-                            else if (page.items[item].key) { if (item == page.selected && !onBack) change(1); else { page.selected = item; onBack = false; } }
+                            else
+                            {
+                                page.selected = item; onBack = false;
+                                // (Touch/mouse: the visible control is the hit target; the row's
+                                // name only selects. The pad changes values with Left/Right.)
+                                const UiInput::Part* part = nullptr;
+                                for (const auto& p : setMenu.parts)
+                                    if (p.item == hit && UiInput::InPart(p, mx, my)) { part = &p; break; }
+                                if (part && part->intent == UiInput::Intent::Set)
+                                {
+                                    const Launcher::Setting& s = page.items[item];
+                                    const int cur = page.ValueIndex(s), n = (int)s.values.size();
+                                    // (The pill's index is the drawn OFF/ON order; the stored values
+                                    // may be in another order, so map by the shown label.)
+                                    int target = part->value;
+                                    if (hit < (int)setMenu.items.size() && target < (int)setMenu.items[hit].choices.size())
+                                    {
+                                        const std::string& shown = setMenu.items[hit].choices[target];
+                                        for (int i = 0; i < n; i++) if (s.values[i].second == shown) { target = i; break; }
+                                    }
+                                    if (n > 0 && target != cur)
+                                    {
+                                        const int fwd = (target - cur + n) % n, back = (cur - target + n) % n;
+                                        const int steps = fwd <= back ? fwd : back;
+                                        for (int k = 0; k < steps; k++) change(fwd <= back ? 1 : -1);
+                                    }
+                                }
+                                else if (part && part->intent == UiInput::Intent::Step)
+                                    change(part->value < 0 ? -1 : 1);
+                                else if (part && part->intent == UiInput::Intent::Open)
+                                    change(1);
+                                else if (!part)
+                                {
+                                    const Launcher::Setting& s = page.items[item];
+                                    bool onOff = s.values.size() == 2;
+                                    for (const auto& v : s.values) onOff = onOff && (v.second == "ON" || v.second == "OFF");
+                                    if (onOff)
+                                    {
+                                        // (The drawn pills: left = OFF, right = ON. Map the label
+                                        // to the stored order, then step to it.)
+                                        const bool right = mx >= setMenu.ctlX + setMenu.ctlW / 2;
+                                        const char* shown = right ? "ON" : "OFF";
+                                        int target = 0;
+                                        for (int i = 0; i < (int)s.values.size(); i++) if (s.values[i].second == shown) { target = i; break; }
+                                        const int cur = page.ValueIndex(s), n = (int)s.values.size();
+                                        if (n > 0 && target != cur)
+                                        {
+                                            const int fwd = (target - cur + n) % n, back = (cur - target + n) % n;
+                                            for (int k = 0; k < (fwd <= back ? fwd : back); k++) change(fwd <= back ? 1 : -1);
+                                        }
+                                    }
+                                    else if (s.key && (!strncmp(s.key, "!group", 6) || s.key[0] == '!')) change(1);
+                                }
+                                // (Focus: the row's name; it only selects.)
+                            }
                         }
                     }
                     break;

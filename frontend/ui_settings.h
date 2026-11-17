@@ -1091,8 +1091,11 @@ inline void Menu::SettingsTap(int item, int x, MenuInput& input)
             {
             case UiInput::Intent::Focus: return;
             case UiInput::Intent::Step:
-            case UiInput::Intent::Set:
                 if (p.value < 0) input.left = true; else input.right = true;
+                return;
+            case UiInput::Intent::Set:
+                // (An Off/On pill: 0 is Off, 1 is On. A value of 0 must go left, not right.)
+                if (p.value == 0) input.left = true; else input.right = true;
                 return;
             case UiInput::Intent::Open: input.accept = true; return;
             case UiInput::Intent::Back: input.back = true; return;
