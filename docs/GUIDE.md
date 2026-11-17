@@ -19,9 +19,10 @@ games keep their hand-written entries under one QUESTIONS heading.
   recognised, all three teams are shown. At eight badges the four Elite Four rooms are
   summarised by their aces; their full teams, and N's and Ghetsis's, are in GYMS.
 - **HERE** — the place you are in now, with the wild Pokémon the game's own encounter
-  tables list for it, grouped by how they are met (`Grass: Roggenrola L10-13, Woobat
-  L10-13 · Rustling Grass: Drilbur ...`), capped to what the preview fits with a pointer
-  to LOCATION for the rest. A town says it has none and points at the routes around it.
+  tables list for it. Each way they are met (grass, dark grass, rustling grass, surf,
+  rippling water, fishing, ...) gets its own line, and each Pokémon with its level range
+  a line under it; a long list stops with a pointer to LOCATION, which has the same
+  table. A town says it has none and points at the routes around it.
 - **NEXT STEPS** — the main story by milestone: Nuvema → Striaton → Nacrene → Castelia
   → Nimbasa → Driftveil → Mistralton → Icirrus → Opelucid → Victory Road/League → the
   post-game.

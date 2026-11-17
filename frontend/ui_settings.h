@@ -2189,11 +2189,31 @@ inline void Menu::DrawSettings(Canvas& c, const std::string& title, const std::s
         {
             T(c, x0, gy + K(14), "Answer", K(15), GlassHint, true, false);
             gy += K(26);
-            for (const auto& line : Wrap(a.text, K(19), innerW, 12))
+            // (The answer's own line breaks first: HERE puts each Pokémon on a line, under the way
+            // it is met. Each line still wraps if it is wider than the panel; when the panel runs
+            // out, the last line says where the rest is.)
+            std::vector<std::string> lines;
+            size_t at = 0;
+            while (at <= a.text.size())
             {
-                if (gy + K(28) > regionBottom) break;
-                T(c, x0, gy + K(18), line, K(19), GlassText, false, false);
-                gy += K(28);
+                size_t nl = a.text.find('\n', at);
+                const std::string para = a.text.substr(at, nl == std::string::npos ? std::string::npos : nl - at);
+                for (const auto& line : Wrap(para, K(18), innerW, 80)) lines.push_back(line);
+                if (nl == std::string::npos) break;
+                at = nl + 1;
+            }
+            const int lineH = K(24);
+            const int room = std::max(0, (regionBottom - gy) / lineH);
+            if (room > 0 && (int)lines.size() > room)
+            {
+                lines.resize(room - 1);
+                lines.push_back(a.tail.empty() ? "..." : ("... " + a.tail));
+            }
+            for (const auto& line : lines)
+            {
+                if (gy + lineH > regionBottom) break;
+                T(c, x0, gy + K(16), line, K(18), GlassText, false, false);
+                gy += lineH;
             }
         }
         else

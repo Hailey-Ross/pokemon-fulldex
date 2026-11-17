@@ -5704,38 +5704,41 @@ int main(int argc, char** argv)
         const std::vector<std::string> lines = companionMetadata.EncounterLines(companionSnapshot.map);
         r.any = true;
         r.title = "HERE: " + place;
-        r.hint = "WHERE YOU ARE  \xC2\xB7  " + std::to_string(lines.size()) + " WILD LISTINGS";
+        int ways = 0, pokemon = 0;
+        for (const std::string& line : lines)
+            (line.find(" L") == std::string::npos && line.find("LEVEL VARIES") == std::string::npos) ? ways++ : pokemon++;
+        r.hint = "WHERE YOU ARE  \xC2\xB7  " + std::to_string(ways) + " WAYS  \xC2\xB7  " + std::to_string(pokemon) + " POKeMON";
         if (!companionSnapshot.locationLive) r.hint += "  \xC2\xB7  THE GAME HAS NOT SAID WHERE EXACTLY";
         if (lines.empty())
             r.answer = "The game lists no wild POKeMON for " + place + ". Try the grass, dark grass, shaking grass and water of the routes around it.";
         else
         {
             // (EncounterLines gives a method's name and then its POKeMON: GRASS, then Roggenrola
-            // L10-13, Woobat L10-13, then the next method. Group them so the answer reads.)
-            std::string grouped, method, species;
-            auto flush = [&]() {
-                if (method.empty()) return;
-                if (!grouped.empty()) grouped += "  \xC2\xB7  ";
-                grouped += method + ": " + species;
-                method.clear();
-                species.clear();
+            // L10-13, Woobat L10-13, then the next method. The answer gives each way it is met a
+            // line, and each POKeMON a line under it; a long list stops and points at LOCATION,
+            // which has the same table.)
+            auto titleWords = [](std::string s) {
+                bool start = true;
+                for (char& c : s)
+                {
+                    const unsigned char u = (unsigned char)c;
+                    c = (char)(start ? std::toupper(u) : std::tolower(u));
+                    start = c == ' ';
+                }
+                return s;
             };
+            std::string out;
+            int count = 0;
+            bool more = false;
             for (const std::string& line : lines)
             {
+                if (++count > 18) { more = true; break; }
                 const bool isMethod = line.find(" L") == std::string::npos && line.find("LEVEL VARIES") == std::string::npos;
-                if (isMethod) { flush(); method = line; }
-                else { if (!species.empty()) species += ", "; species += line; }
+                if (!out.empty()) out += "\n";
+                out += isMethod ? titleWords(line) : ("- " + line);
             }
-            flush();
-            r.answer = "The game's encounter tables for " + place + ": " + grouped;
-            // (The preview is a panel, not a page: keep the answer to what fits and point at LOCATION.)
-            if (r.answer.size() > 190)
-            {
-                size_t at = r.answer.rfind("  \xC2\xB7  ", 190);
-                if (at == std::string::npos || at < 100) at = r.answer.rfind(' ', 190);
-                if (at == std::string::npos || at < 100) at = 190;
-                r.answer = r.answer.substr(0, at) + " ... LOCATION has the full list.";
-            }
+            if (more) out += "\n... LOCATION has the rest.";
+            r.answer = out;
         }
         return r;
     };
@@ -7223,6 +7226,7 @@ int main(int argc, char** argv)
                         Menu::CompanionView::GuideAnswer a;
                         a.text = guideText(here.answer);
                         a.shown = companionHereShown;
+                        a.tail = "See LOCATION."; // (when the panel cannot fit the whole table)
                         menu.companion.guide.push_back(a);
                         add(M_CGUIDE_HERE, guideText(here.title).c_str(), a.shown ? "Shown" : "", true);
                         MenuItem& it = menu.items.back();
