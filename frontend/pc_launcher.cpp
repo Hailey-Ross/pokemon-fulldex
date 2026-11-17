@@ -79,8 +79,12 @@ static void ListWindowSize(SDL_Window* w, int* ww, int* wh)
     *ww = std::max(1, *ww - g_safeL - g_safeR);
     *wh = std::max(1, *wh - g_safeT - g_safeB);
 }
+// The list's own keyboard (dialog 3): typed text from a hardware keyboard too, but on iOS no
+// system keyboard over it (ios_orient.h, IosHardwareKeyboard).
+static void StartListKeyboard() { if (IosHardwareKeyboard()) SDL_StartTextInput(); }
 #else
 static void ListWindowSize(SDL_Window* w, int* ww, int* wh) { SDL_GetWindowSize(w, ww, wh); }
+static void StartListKeyboard() { SDL_StartTextInput(); }
 #endif
 #if !defined(SSR_PHONE) && !defined(__SWITCH__)
 #include "shortcuts.h"
@@ -1653,7 +1657,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 F.kbFor = F.tool == 1 ? 1 : 2;
                 F.kbRom.clear();
                 F.text = F.tool == 2 ? Launcher::SearchText() : std::string();
-                F.dialog = 3; F.drow = 0; SDL_StartTextInput();
+                F.dialog = 3; F.drow = 0; StartListKeyboard();
                 return;
             }
             if (onTabs && !F.onSort) { Launcher::OpenTabMenu(tab); return; } // (a tab: move, hide; one of your own also rename, delete)
@@ -1708,7 +1712,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 {
                     // (Your Picture just chosen: the system's picker for it.)
                     const int ld = Launcher::LookDo(F.prow, 1);
-                    if (ld == 2) SDL_StartTextInput(); // (My Themes: the theme's name)
+                    if (ld == 2) StartListKeyboard(); // (My Themes: the theme's name)
 #ifdef _WIN32
                     if (ld == 4) { const std::string zip = PickZipFile(window); if (!zip.empty()) Launcher::ThemeImport(zip); }
 #endif
@@ -1733,7 +1737,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                     }
                     const std::string said = Launcher::HubDo(F.prow, F.pact);
                     if (!said.empty()) note = said;
-                    if (F.dialog == 3) SDL_StartTextInput(); // (the Trade page's code)
+                    if (F.dialog == 3) StartListKeyboard(); // (the Trade page's code)
                     return;
                 }
                 if (F.page == Launcher::SIDE_ABOUT && F.prow == 0) { Launcher::OpenSupportAsk(); return; } // (Buy Me A Coffee or PayPal)
@@ -1776,7 +1780,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 F.popup = -1;
                 if (item == 1) { toggleFavourite(); return; }
                 const bool valid = selected >= 0 && selected < (int)games.size();
-                if (item == 2 && valid) { F.kbFor = 0; F.dialog = 3; F.drow = 0; F.text = Launcher::ShortName(games[selected]); SDL_StartTextInput(); return; }
+                if (item == 2 && valid) { F.kbFor = 0; F.dialog = 3; F.drow = 0; F.text = Launcher::ShortName(games[selected]); StartListKeyboard(); return; }
                 if (item == 5 && valid) { Launcher::OpenAddToTab(games[selected].rom); return; }
                 if (item == 6 && valid) { F.dialog = 1; F.drow = 0; return; }
 #ifdef __ANDROID__
@@ -2190,7 +2194,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             {
                 // (Add To Tab, or a tab of your own's menu.)
                 const int r = Launcher::TabDialogPick(pick, tab, note);
-                if (r == 2) { kb.open = false; SDL_StartTextInput(); }
+                if (r == 2) { kb.open = false; StartListKeyboard(); }
                 if (r != 1) { scroll = 0; settle(); }
                 return;
             }
@@ -3407,9 +3411,19 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             // (The safe area, in the drawable's pixels.)
             static bool filterOn = false;
             if (!filterOn) { SDL_SetEventFilter(SafeAreaFilter, nullptr); IosIgnoreControllerPresses(); filterOn = true; }
-            IosSafeInsets(&g_safeT, &g_safeB, &g_safeL, &g_safeR);
             int pointsW = 1, pointsH = 1;
             SDL_GetWindowSize(window, &pointsW, &pointsH);
+            {
+                // iPadOS gives and takes back room at the top (the status bar, the window's
+                // controls) while the list is up: following it moved the whole list 32 points
+                // under the player's finger, so a tap could land on what was there a moment
+                // before. The insets only grow until the window's size changes (a turn).
+                static int keepW = 0, keepH = 0;
+                int t = 0, b = 0, l = 0, r = 0;
+                IosSafeInsets(&t, &b, &l, &r);
+                if (pointsW != keepW || pointsH != keepH) { keepW = pointsW; keepH = pointsH; g_safeT = t; g_safeB = b; g_safeL = l; g_safeR = r; }
+                else { g_safeT = std::max(g_safeT, t); g_safeB = std::max(g_safeB, b); g_safeL = std::max(g_safeL, l); g_safeR = std::max(g_safeR, r); }
+            }
             const double px = (double)ow / std::max(1, pointsW);
             safeDst = { (int)(g_safeL * px), (int)(g_safeT * px), 0, 0 };
             ow = std::max(1, ow - (int)((g_safeL + g_safeR) * px));
