@@ -7,7 +7,9 @@
 namespace Companion {
 // section groups the entries on the Guide page (NEXT STEPS, GYMS, WHERE IS, ...); null: the
 // page's one QUESTIONS list, as the earlier games have it.
-struct GuideEntry {const char* title;const char* hint;const char* answer; const char* section = nullptr;};
+// item, when it is a thing the bag holds (an HM, a key item): its id in the game, so the page
+// can mark an entry the player already has.
+struct GuideEntry {const char* title;const char* hint;const char* answer; const char* section = nullptr; int item = 0;};
 inline std::vector<GuideEntry> GuideFor(const std::string& code) {
     if(code=="IPKE")return {
         {"Why did the POKeMON on this route change?","Look at the clock.","The grass has a list for the morning (4 AM to 10 AM), the day (until 8 PM) and the night. At night the GOOD and SUPER ROD can also hook a night fish. The encounter list follows your DS clock."},
@@ -117,7 +119,7 @@ inline std::vector<GuideEntry> GuideFor(const std::string& code) {
         {"Where do I start?","NUVEMA TOWN.","In your room BIANCA and CHEREN choose their POKeMON with you: SNIVY, TEPIG or OSHAWOTT. See PROF. JUNIPER in her lab for the POKeDEX and XTRANSCEIVER, then take ROUTE 1 to ACCUMULA TOWN and ROUTE 2 to STRIATON CITY.","NEXT STEPS"},
         {"What happens in STRIATON CITY?","The gym, then the DREAMYARD.","Beat the gym leader (CHILI, CRESS or CILAN), then go with BIANCA and CHEREN to the DREAMYARD. A TEAM PLASMA grunt takes the dream mist; once that is settled FENNEL gives you the C-GEAR and HM01 CUT. CUT clears the tree on ROUTE 3.","NEXT STEPS"},
         {"Where next after STRIATON?","ROUTE 3 and NACRENE CITY.","CUT the tree on ROUTE 3, deal with TEAM PLASMA at the WELLSPRING CAVE OF DREAMS, then reach NACRENE CITY. The museum is the gym; after LENORA, TEAM PLASMA steals a DRAGON SKULL and PINWHEEL FOREST is next.","NEXT STEPS"},
-        {"After LENORA?","PINWHEEL FOREST, then CASTELIA CITY.","Follow TEAM PLASMA through PINWHEEL FOREST and get the DRAGON SKULL back, then cross SKYARROW BRIDGE to CASTELIA CITY. BURGH's gym is there; after it, BIANCA's MUNNA is taken and TEAM PLASMA's hideout under the city is the next stop.","NEXT STEPS"},
+        {"After LENORA?","PINWHEEL FOREST, then CASTELIA CITY.","Follow TEAM PLASMA through PINWHEEL FOREST and get the DRAGON SKULL back, then cross SKYARROW BRIDGE to CASTELIA CITY. BURGH's gym is there; after it, BIANCA's MUNNA is taken and TEAM PLASMA's hideout in the city is the next stop.","NEXT STEPS"},
         {"After BURGH?","ROUTE 4 to NIMBASA CITY.","Cross the desert to NIMBASA CITY. The gym leader is ELESA; after her, ROUTE 5 and the DRAWBRIDGE lead to DRIFTVEIL CITY.","NEXT STEPS"},
         {"After ELESA?","ROUTE 5 and DRIFTVEIL CITY.","The DRAWBRIDGE lowers after ELESA. In DRIFTVEIL, CLAY's gym comes first; then TEAM PLASMA's COLD STORAGE, ROUTE 6 and CHARGESTONE CAVE.","NEXT STEPS"},
         {"After CLAY?","CHARGESTONE CAVE to MISTRALTON CITY.","Clay opens the way to ROUTE 6. N and TEAM PLASMA are in CHARGESTONE CAVE; beyond it are MISTRALTON CITY, SKYLA's gym, CELESTIAL TOWER and ROUTE 7.","NEXT STEPS"},
@@ -136,20 +138,26 @@ inline std::vector<GuideEntry> GuideFor(const std::string& code) {
         {"ICIRRUS GYM: BRYCEN","FIRE, FIGHTING, ROCK or STEEL.","VANILLISH (Lv 37), CRYOGONAL (Lv 37), BEARTIC (Lv 39). Reward: FREEZE BADGE and TM79 FROST BREATH.","GYMS"},
         {"OPELUCID GYM: DRAYDEN","ICE or DRAGON.","FRAXURE (Lv 41), DRUDDIGON (Lv 41), HAXORUS (Lv 43). DRAYDEN leads in BLACK (IRIS in WHITE). Reward: LEGEND BADGE and TM82 DRAGON TAIL.","GYMS"},
         {"What are the ELITE FOUR's types?","GHOST, DARK, FIGHTING, PSYCHIC.","SHAUNTAL (GHOST), GRIMSLEY (DARK), MARSHAL (FIGHTING) and CAITLIN (PSYCHIC); you may take them in any order. NEXT BOSS has their teams; N and GHETSIS follow.","GYMS"},
+        {"SHAUNTAL's team","GHOST.","COFAGRIGUS (GHOST) Lv 48, JELLICENT (WATER/GHOST) Lv 48, GOLURK (GROUND/GHOST) Lv 48, CHANDELURE (GHOST/FIRE) Lv 50. CHANDELURE is the ace; use DARK or GHOST moves.","GYMS"},
+        {"GRIMSLEY's team","DARK.","SCRAFTY (DARK/FIGHTING) Lv 48, LIEPARD (DARK) Lv 48, KROOKODILE (GROUND/DARK) Lv 48, BISHARP (DARK/STEEL) Lv 50. FIGHTING moves hit three of them; BISHARP is the ace.","GYMS"},
+        {"MARSHAL's team","FIGHTING.","THROH (FIGHTING) Lv 48, SAWK (FIGHTING) Lv 48, CONKELDURR (FIGHTING) Lv 48, MIENSHAO (FIGHTING) Lv 50. FLYING and PSYCHIC moves; CONKELDURR is the wall, MIENSHAO the ace.","GYMS"},
+        {"CAITLIN's team","PSYCHIC.","REUNICLUS (PSYCHIC) Lv 48, MUSHARNA (PSYCHIC) Lv 48, SIGILYPH (PSYCHIC/FLYING) Lv 48, GOTHITELLE (PSYCHIC) Lv 50. DARK, BUG and GHOST moves; SIGILYPH is not pure PSYCHIC.","GYMS"},
+        {"N's team","N'S CASTLE.","ZEKROM (DRAGON/ELECTRIC) Lv 52, CARRACOSTA (WATER/ROCK) Lv 50, VANILLUXE (ICE) Lv 50, ARCHEOPS (ROCK/FLYING) Lv 50, ZOROARK (DARK) Lv 50, KLINKLANG (STEEL) Lv 50.","GYMS"},
+        {"GHETSIS's team","N'S CASTLE.","COFAGRIGUS (GHOST) Lv 52, BOUFFALANT (NORMAL) Lv 52, SEISMITOAD (WATER/GROUND) Lv 52, BISHARP (DARK/STEEL) Lv 52, EELEKTROSS (ELECTRIC) Lv 52, HYDREIGON (DARK/DRAGON) Lv 54. HYDREIGON is the ace.","GYMS"},
         {"How do I beat GHETSIS?","A prepared team, not a gimmick.","His HYDREIGON is Lv 54 and hits hard: a FIGHTING or ICE move for it, and answers to COFAGRIGUS, BOUFFALANT, SEISMITOAD, BISHARP and EELEKTROSS. Heal between the ELITE FOUR and him.","GYMS"},
 
         // WHERE IS: the moves and items that unlock the map, and the event one.
-        {"HM01 CUT","STRIATON CITY.","FENNEL gives it to you in STRIATON CITY once the DREAMYARD business is done (she gives the C-GEAR at the same time).","WHERE IS"},
-        {"HM02 FLY","DRIFTVEIL CITY.","A woman in DRIFTVEIL CITY gives it to you once you have CLAY's badge.","WHERE IS"},
-        {"HM03 SURF","TWIST MOUNTAIN.","A worker in TWIST MOUNTAIN gives it to you after SKYLA's badge.","WHERE IS"},
-        {"HM04 STRENGTH","NIMBASA CITY.","A man in NIMBASA CITY gives it to you after ELESA's badge.","WHERE IS"},
-        {"HM05 WATERFALL","ROUTE 18.","An item ball on ROUTE 18, in the south-east of UNOVA after the League.","WHERE IS"},
-        {"HM06 DIVE","UNDELLA TOWN.","A swimmer in UNDELLA TOWN gives it to you after the League.","WHERE IS"},
+        {"HM01 CUT","STRIATON CITY.","FENNEL gives it to you in STRIATON CITY once the DREAMYARD business is done (she gives the C-GEAR at the same time).","WHERE IS",420},
+        {"HM02 FLY","DRIFTVEIL CITY.","A woman in DRIFTVEIL CITY gives it to you once you have CLAY's badge.","WHERE IS",421},
+        {"HM03 SURF","TWIST MOUNTAIN.","A worker in TWIST MOUNTAIN gives it to you after SKYLA's badge.","WHERE IS",422},
+        {"HM04 STRENGTH","NIMBASA CITY.","A man in NIMBASA CITY gives it to you after ELESA's badge.","WHERE IS",423},
+        {"HM05 WATERFALL","ROUTE 18.","An item ball on ROUTE 18, in the south-east of UNOVA after the League.","WHERE IS",424},
+        {"HM06 DIVE","UNDELLA TOWN.","A swimmer in UNDELLA TOWN gives it to you after the League.","WHERE IS",425},
         {"C-GEAR","STRIATON CITY.","FENNEL gives it to you after the DREAMYARD, together with HM01 CUT.","WHERE IS"},
         {"XTRANSCEIVER","NUVEMA TOWN.","PROF. JUNIPER gives it to you at the start, in her lab.","WHERE IS"},
-        {"BICYCLE","NIMBASA CITY.","A man in NIMBASA CITY lends you one after ELESA's badge.","WHERE IS"},
-        {"DOWSING MCHN","NACRENE CITY.","Someone in NACRENE CITY gives it to you after LENORA's badge.","WHERE IS"},
-        {"SUPER ROD","NUVEMA TOWN.","A fisherman in NUVEMA TOWN gives it to you after the National Dex.","WHERE IS"},
+        {"BICYCLE","NIMBASA CITY.","A man in NIMBASA CITY lends you one after ELESA's badge.","WHERE IS",450},
+        {"DOWSING MCHN","NACRENE CITY.","Someone in NACRENE CITY gives it to you after LENORA's badge.","WHERE IS",471},
+        {"SUPER ROD","NUVEMA TOWN.","A fisherman in NUVEMA TOWN gives it to you after the National Dex.","WHERE IS",447},
         {"LIBERTY PASS","A Wi-Fi event.","The event item for LIBERTY GARDEN and VICTINI. The distributions have ended, so it needs an event save or a trade.","WHERE IS"},
         {"TMs","Anywhere.","TMs are reusable in BLACK and WHITE: use one as many times as you like. HMs stay until the Move Deleter removes them.","WHERE IS"},
 

@@ -85,11 +85,10 @@ inline BlackBossInfo BlackNextBoss(int badges, int bestLevel, int starter)
     r.any = true; r.title = "NEXT BOSS: THE ELITE FOUR";
     r.hint = "POKeMON LEAGUE  \xC2\xB7  FOUR ROOMS  \xC2\xB7  HIGHEST Lv 50";
     if (bestLevel > 0) r.hint += "  \xC2\xB7  YOUR BEST Lv " + std::to_string(bestLevel);
-    r.answer = "You may take the rooms in any order. SHAUNTAL (GHOST): " + BlackTeamSummary(*e4[0]) + ". "
-        "GRIMSLEY (DARK): " + BlackTeamSummary(*e4[1]) + ". MARSHAL (FIGHTING): " + BlackTeamSummary(*e4[2]) + ". "
-        "CAITLIN (PSYCHIC): " + BlackTeamSummary(*e4[3]) + ".";
+    auto ace = [&](const BlackBoss& b) { const BlackBossMon* m = &b.team[0]; for (int i = 1; i < b.count; i++) if (b.team[i].level > m->level) m = &b.team[i]; return std::string(m->name) + " Lv " + std::to_string(m->level); };
+    r.answer = "Any order. SHAUNTAL (GHOST), ace " + ace(*e4[0]) + "; GRIMSLEY (DARK), ace " + ace(*e4[1]) + "; MARSHAL (FIGHTING), ace " + ace(*e4[2]) + "; CAITLIN (PSYCHIC), ace " + ace(*e4[3]) + ". Their full teams are in GYMS.";
     const BlackBoss* n = FindBlackBoss("N"); const BlackBoss* g = FindBlackBoss("GHETSIS");
-    if (n && g) r.answer += " Then N: " + BlackTeamSummary(*n) + ". GHETSIS: " + BlackTeamSummary(*g) + ".";
+    if (n && g) r.answer += " N: " + ace(*n) + "; GHETSIS: " + ace(*g) + ".";
     return r;
 }
 }

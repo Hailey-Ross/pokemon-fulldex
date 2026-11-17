@@ -5710,9 +5710,18 @@ int main(int argc, char** argv)
             r.answer = "The game lists no wild POKeMON for " + place + ". Try the grass, dark grass, shaking grass and water of the routes around it.";
         else
         {
-            r.answer = "The game's encounter tables for " + place + ": ";
-            for (size_t i = 0; i < lines.size() && i < 12; i++) { if (i) r.answer += "; "; r.answer += lines[i]; }
-            if (lines.size() > 12) r.answer += "; and " + std::to_string(lines.size() - 12) + " more (LOCATION has the full list).";
+            std::string list;
+            for (size_t i = 0; i < lines.size() && i < 12; i++) { if (i) list += "; "; list += lines[i]; }
+            if (lines.size() > 12) list += "; and " + std::to_string(lines.size() - 12) + " more";
+            r.answer = "The game's encounter tables for " + place + ": " + list;
+            // (The preview is a panel, not a page: keep the answer to what fits and point at LOCATION.)
+            if (r.answer.size() > 210)
+            {
+                size_t at = r.answer.rfind("; ", 210);
+                if (at == std::string::npos || at < 120) at = r.answer.rfind(' ', 210);
+                if (at == std::string::npos || at < 120) at = 210;
+                r.answer = r.answer.substr(0, at) + " ... LOCATION has the full list.";
+            }
         }
         return r;
     };
@@ -7223,13 +7232,18 @@ int main(int argc, char** argv)
                     Menu::CompanionView::GuideAnswer answer;
                     answer.text = guideText(companionGuide[i].answer);
                     answer.shown = companionGuideShown.count((int)i) > 0;
+                    // (An item the bag holds: the row says HAVE, so WHERE IS doubles as a checklist.)
+                    bool have = false;
+                    if (companionGuide[i].item > 0)
+                        for (const auto& bag : companionSnapshot.items)
+                            if (bag.id == companionGuide[i].item && bag.quantity > 0) { have = true; break; }
                     const int answerAt = (int)menu.companion.guide.size(); // (NEXT BOSS is in it first)
                     menu.companion.guide.push_back(answer);
-                    add(M_GUIDE0 + (int)i, guideText(companionGuide[i].title).c_str(), answer.shown ? "Shown" : "", true);
+                    add(M_GUIDE0 + (int)i, guideText(companionGuide[i].title).c_str(), answer.shown ? "Shown" : have ? "Have" : "", true);
                     MenuItem& it = menu.items.back();
                     it.kind = Menu::K_LINK;
                     it.preview = Menu::P_CGUIDE;
-                    it.icon = answer.shown ? Glass::I_SPARKLE : Glass::I_INFO; // (shown: a sparkle)
+                    it.icon = answer.shown ? Glass::I_SPARKLE : have ? Glass::I_POKEBALL : Glass::I_INFO; // (shown: a sparkle)
                     it.choice = answerAt;
                     it.desc = "Hint: " + guideText(companionGuide[i].hint);
                 }
