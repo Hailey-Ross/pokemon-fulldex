@@ -1694,6 +1694,9 @@ struct Settings : OptionalFeatures
     // blurred every few frames. Off (dark glass): no read back, which cost frames (4 ms a read on a PC,
     // more on the Switch and phones).
     bool liveGlass=false;
+    // UI SIZE: the menus and overlays larger than the screen's lines alone make them (ui.h,
+    // UiScaleFor): "auto" (larger under 720 lines: a handheld's small screen) or a percentage.
+    std::string uiSize="auto";
     // VOLUME: the game's sound and music, 0 (off) to 100 in tens.
     int volume = 100;
     // MUSIC and SOUND EFFECTS: each on its own, 0 to 100 in tens (frontend/game_music.h).
@@ -1809,6 +1812,7 @@ struct Settings : OptionalFeatures
             else if (k == "party_hud") partyHud=v=="1";
             else if (k == "status_bar") statusBar=v=="1";
             else if (k == "live_glass") liveGlass=v=="1";
+            else if (k == "ui_size") uiSize=v;
             else if (k == "screen_filter") screenFilter=std::clamp(atoi(v.c_str()),0,2);
             else if (k == "smart_fast") smartFast = v=="1";
             else if (k == "zoom") zoom = v=="1";
@@ -1877,6 +1881,7 @@ struct Settings : OptionalFeatures
         f << "party_hud=" << partyHud << "\n";
         f << "status_bar=" << statusBar << "\n";
         f << "live_glass=" << liveGlass << "\n";
+        f << "ui_size=" << uiSize << "\n";
         f << "screen_filter=" << screenFilter << "\n";
         if (!gbaLcd.empty()) f << "gba_lcd=" << gbaLcd << "\n";
         SaveExtras(f);
@@ -5700,7 +5705,7 @@ int main(int argc, char** argv)
         M_RA_LIST, M_ACH_POINTS, M_ACH_STATUS, M_ACH_RARITY,
         M_CSEARCH, M_SEARCH_LETTER, M_SEARCH_DELETE, M_SEARCH_SPACE, M_SEARCH_CLEAR, M_SEARCH_DONE,
         M_CDETAIL_TOGGLE, M_CINFO, M_BACKUPS, M_RESTORE_CONFIRM, M_LOAD_CONFIRM,
-        M_MATCHUPS, M_TYPE1, M_TYPE2, M_SECOND_SCREEN,
+        M_MATCHUPS, M_TYPE1, M_TYPE2, M_SECOND_SCREEN, M_UISIZE,
         M_COMPANION, M_CPARTY, M_CBAG, M_CDEX, M_CLOCATION, M_CMAP, M_CENCOUNTERS, M_REFERENCE, M_REFERENCE_KIND, M_REFERENCE_QUERY, M_CPOCKET, M_CDEX_FILTER, M_CDEX_TYPE, M_CBATTLE, M_CGUIDE, M_CGUIDE_REVEAL, M_NUZLOCKE, M_RUN_ENABLED, M_RUN_RESET, M_RUN_RESET_CONFIRM, M_QUICK_ACTIONS, M_OPEN_PC, M_FLY, M_HUB_SAVE, M_HUB_LOAD, M_HUB_CHEATS, M_HUB_FAST, M_HUB_SETTINGS, M_HUB_QUIT,
         M_QUIT_YES, M_RESET_YES, // (QUIT GAME / RESET GAME asked first: PAGE_QUIT_CONFIRM)
         M_SHORTCUTS, // (CONTROLS: Fulldex's own four shortcuts, opening KEYS AND BUTTONS at them)
@@ -5715,6 +5720,16 @@ int main(int argc, char** argv)
         M_CFOLDER0 = 50000  // (M_CFOLDER0 + i: folder i of the cheat database)
     };
     enum { PAGE_MAIN, PAGE_KEYS, PAGE_DISPLAY, PAGE_GRAPHICS, PAGE_CONTROLS, PAGE_CHEATS, PAGE_RA, PAGE_SOUND, PAGE_RA_LIST, PAGE_RA_DETAIL, PAGE_CSEARCH, PAGE_CDETAIL, PAGE_CINFO, PAGE_BACKUPS, PAGE_RESTORE_CONFIRM, PAGE_LOAD_CONFIRM, PAGE_MATCHUPS, PAGE_COMPANION, PAGE_CPARTY, PAGE_CMON, PAGE_CBAG, PAGE_CDEX, PAGE_CDEXDETAIL, PAGE_CLOCATION, PAGE_PLAYBACK, PAGE_STATES, PAGE_SLOT, PAGE_CBATTLE, PAGE_CGUIDE, PAGE_CGUIDEENTRY, PAGE_NUZLOCKE, PAGE_RUN_CONFIRM, PAGE_QUICK_ACTIONS, PAGE_EXTRAS, PAGE_CITEM, PAGE_REFERENCE, PAGE_RSEARCH, PAGE_RDETAIL, PAGE_CMAP, PAGE_CENCOUNTERS, PAGE_HUB_SAVE, PAGE_HUB_LOAD, PAGE_HUB_CHEATS, PAGE_HUB_SETTINGS, PAGE_HUB_QUIT, PAGE_QUIT_CONFIRM, PAGE_SLOT_REPLACE, PAGE_FLY, PAGE_COUNT };
+    // UI SIZE's values (Settings::uiSize, ui.h UiScaleFor), in the picker's order; and the height
+    // of the display the window is on, which "auto" goes by (not the window's own: a small window on
+    // a large screen keeps the menus as they were).
+    static const char* const kUiSizes[] = { "auto", "100", "125", "150", "175", "200" };
+    auto uiSizeAt = [&]() { for (int i = 0; i < 6; i++) if (cfg.uiSize == kUiSizes[i]) return i; return 0; };
+    auto screenLines = [&]() {
+        SDL_DisplayMode dm{};
+        const int d = window ? SDL_GetWindowDisplayIndex(window) : 0;
+        return SDL_GetDesktopDisplayMode(d < 0 ? 0 : d, &dm) == 0 ? dm.h : 0;
+    };
     int companionType1 = 0, companionType2 = CompanionTypes::None;
     // ACHIEVEMENTS (RETROACHIEVEMENTS' list): read from the set as the page opens.
     std::vector<Achievements::Row> achList;
@@ -6186,6 +6201,10 @@ int main(int argc, char** argv)
             picker(M_ASPECT, "ASPECT RATIO", Glass::I_RATIO, Menu::P_ASPECT, { "AUTO", "16:9", "16:10", "3:2", "4:3" }, std::clamp(cfg.aspect, 0, 4),
                    "The shape of the picture. Auto fills the screen; the others keep their shape.",
                    "Narrower than your screen: bars at the sides.");
+            // UI SIZE (ui.h, UiScaleFor): the menus and overlays, larger on a small screen.
+            picker(M_UISIZE, "UI SIZE", Glass::I_EXPAND, Menu::P_NONE, { "AUTO", "1X", "1.25X", "1.5X", "1.75X", "2X" }, uiSizeAt(),
+                   "How large the menus and the overlays over the game are. Auto: 1.5x on a handheld's screen under 720 lines; 1x on larger ones, phones and the Switch.",
+                   "The game list follows the next time it opens.");
 #ifndef __SWITCH__
             // (The Switch always shows the one wide screen these layouts are built around.)
             // One setting: LARGE SCREEN only ever changed HYBRID (layout.h, Layout::swapped), so its
@@ -9174,6 +9193,7 @@ int main(int argc, char** argv)
             }
             SDL_GetMouseState(&mouseX, &mouseY);
             SDL_GetRendererOutputSize(renderer, &outW, &outH);
+            UiScale() = UiScaleFor(cfg.uiSize, screenLines());
             // SDL mouse positions are window points; layout, cursor and touch use output pixels.
             // Refresh each frame for resize and movement between Retina/external displays.
             int windowW = 0, windowH = 0;
@@ -10196,6 +10216,10 @@ int main(int argc, char** argv)
 #endif
             case M_ASPECT:
                 cfg.aspect = (cfg.aspect + (dir < 0 ? 4 : 1)) % 5;
+                break;
+            case M_UISIZE:
+                cfg.uiSize = kUiSizes[(uiSizeAt() + (dir < 0 ? 5 : 1)) % 6];
+                UiScale() = UiScaleFor(cfg.uiSize, screenLines());
                 break;
             case M_BATTLEBUTTONS:
                 // (Platinum, SoulSilver and HeartGold: their own strip, or SUN AND MOON's command buttons.)
@@ -12250,7 +12274,7 @@ int main(int argc, char** argv)
                     if (c >> 24) canvas.Fill(ox + px, oy + py, 1, 1, c);
                 }
             }
-            const int tsc = std::max(1, outH / 360);
+            const int tsc = std::max(1, (int)(outH * UiScale() / 360));
             const std::string label = std::string(pads.Empty() ? Controls::KeyName(cfg.controls.Key(Controls::Y))
                 : Controls::InputName(cfg.controls.Pad(Controls::Y, cfg.byLabel), Controls::StyleOf(pads.Current())))
                 + ": RUN " + (shoesOn ? "ON" : "OFF");
@@ -12538,7 +12562,7 @@ int main(int argc, char** argv)
                 liveStale.clear();
                 panelsNew = true;
             }
-            float hk = std::max(0.42f, std::min(outW, outH) / 720.0f);
+            float hk = std::max(0.42f, std::min(outW, outH) / 720.0f * UiScale());
             // (The HUD's column: below the phone's L button and above its D-pad, the cards and the
             // minimap made smaller to fit there, the minimap left out if they would be too small.)
             int hudTop = (int)std::lround(16 * hk);
@@ -12897,7 +12921,7 @@ int main(int argc, char** argv)
                 static Menu::CompanionView mapView;
                 fillCompanionView(mapView);
                 const bool solid = Glass::Backdrop(canvas);
-                const float k = std::max(0.42f, std::min(canvas.w / 1400.0f, canvas.h / 788.0f));
+                const float k = std::max(0.42f, std::min(canvas.w / 1400.0f, canvas.h / 788.0f) * UiScale());
                 auto K = [&](float v) { return (int)std::lround(v * k); };
                 const int headH = K(70), pad = K(24);
                 int mw = mapView.mapW, mh = mapView.mapH;

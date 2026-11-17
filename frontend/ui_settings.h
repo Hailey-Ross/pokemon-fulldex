@@ -71,12 +71,14 @@ inline std::string Sentence(const std::string& s)
 inline int PixelScale(int px) { return std::max(1, (px + 4) / 9); }
 inline int W(const std::string& s, int px, bool bold = false, bool title = true)
 {
+    px = UiMinPx(px); // (larger menus: the rows' second lines and values were 6 to 9 pixels)
     if (Menu::UseClean()) return CleanFont::Width(Shown(s, title), px, bold);
     return Canvas::TextWidth(s, PixelScale(px));
 }
 // (y: the baseline.)
 inline void T(Canvas& c, int x, int y, const std::string& s, int px, uint32_t col, bool bold = false, bool title = true)
 {
+    px = UiMinPx(px);
     if (Menu::UseClean()) CleanFont::Draw(c, x, y, Shown(s, title), px, col, bold);
     else c.Text(x, y - 7 * PixelScale(px), s, PixelScale(px), col);
 }
@@ -266,7 +268,7 @@ inline int PromptHit(int x, int y)
 // pressed once), the buttons' hint; canClear: CLEAR BINDING can be chosen.
 inline void Prompt(Canvas& c, int icon, const std::string& title, const std::string& sub, const std::string& warn, const std::string& hint, bool canClear)
 {
-    const float k = std::max(0.42f, std::min(c.w / 1400.0f, c.h / 788.0f));
+    const float k = std::max(0.42f, std::min(c.w / 1400.0f, c.h / 788.0f) * UiScale());
     auto K = [&](float v) { return (int)std::lround(v * k); };
     Glass::Round(c, 0, 0, c.w, c.h, 0, 0x66000000); // (the page dimmed behind it)
     const int pw = std::min(c.w - K(32), K(460)), innerW = pw - K(48);
@@ -1733,7 +1735,7 @@ inline void Menu::DrawSettings(Canvas& c, const std::string& title, const std::s
     // press.)
     static std::vector<uint32_t> frame;
     static std::string frameKey;
-    const std::string fk = std::to_string(c.w) + "x" + std::to_string(c.h) + " " + std::to_string(c.BackdropSig());
+    const std::string fk = std::to_string(c.w) + "x" + std::to_string(c.h) + " " + std::to_string(c.BackdropSig()) + " " + std::to_string(UiScale());
     const bool haveFrame = fk == frameKey && frame.size() == c.px.size();
     const bool solid = haveFrame || laneX >= 0 ? c.backdrop.size() == c.px.size() : Glass::Backdrop(c); // (in the launcher: its page is drawn already)
     const int n = (int)items.size();
@@ -1742,21 +1744,29 @@ inline void Menu::DrawSettings(Canvas& c, const std::string& title, const std::s
     if (selected < 0 || selected >= n) return;
     const bool wide = c.w >= c.h * 1.2f;
     float pw, ph, k;
-    if (wide)
+    if (wide && UiLarge())
+    {
+        // (Larger menus, on a small screen: the panel fills it, as there is no room to spare
+        // around it, and its contents are larger by as much; the rows scroll.)
+        pw = c.w - 2.0f * std::max(2, c.h / 120);
+        ph = c.h - 2.0f * std::max(2, c.h / 120);
+        k = std::min(ph / 645.0f, pw / 1045.0f) * UiScale();
+    }
+    else if (wide)
     {
         pw = std::min(c.w * 0.76f, c.h * 1.62f);
         ph = std::min(c.h * 0.84f, pw * 0.62f);
-        k = ph / 645.0f;
+        k = ph / 645.0f * UiScale();
     }
     else
     {
         pw = c.w * 0.94f;
         ph = c.h * 0.9f;
-        k = std::min(pw / 560.0f, ph / 1000.0f);
+        k = std::min(pw / 560.0f, ph / 1000.0f) * UiScale();
     }
     k = std::max(k, 0.42f);
     const bool lane = laneX >= 0;
-    if (lane) k = laneK > 0 ? laneK : std::max(0.42f, c.h / 720.0f * 0.94f);
+    if (lane) k = laneK > 0 ? laneK : std::max(0.42f, c.h / 720.0f * 0.94f * UiScale());
     auto K = [&](float v) { return (int)std::lround(v * k); };
     int px0 = (int)((c.w - pw) / 2), py0 = (int)((c.h - ph) / 2), W0 = (int)pw, H0 = (int)ph;
     if (lane) { px0 = laneX; py0 = laneY; W0 = laneW; H0 = laneH; }
@@ -1897,6 +1907,7 @@ inline void Menu::DrawSettings(Canvas& c, const std::string& title, const std::s
     rowY.assign(n, -1);
     ctlW = KR(186);
     if (c.h > c.w) ctlW = std::max(KR(110), (int)(listW * 0.33f)); // (upright: the value under a third of the row, so the name has room)
+    else if (UiLarge()) ctlW = std::min(ctlW, std::max(KR(120), (int)(listW * 0.42f))); // (larger menus: the name keeps its room on a short list)
     ctlX = listX + listW - KR(14) - ctlW;
     bool firstSection = true;
     for (int i = 0; i < n; i++)
@@ -2037,7 +2048,7 @@ inline void Menu::DrawSettings(Canvas& c, const std::string& title, const std::s
                 Glass::Rim(c, bx, by, d, d, KR(6), std::max(1.0f, kr), 0x50, 0x14);
             }
             else if (it.icon >= 0) Glass::DrawIcon(c, it.icon, listX + KR(36) + in, y + rowH * 0.5f, 11 * kr, ink);
-            const int lpx = KR(rowTall > 1 ? 22 : 20); // (the name's size)
+            const int lpx = KR(rowTall > 1 || UiLarge() ? 22 : 20); // (the name's size; larger menus: as a tall row's, the controls being narrower)
             const int base = y + rowH / 2 + lpx * 7 / 20; // (the baseline of the row's text)
             {
                 // (A long name cut to fit before the controls on the right.)
@@ -2089,7 +2100,7 @@ inline void Menu::DrawSettings(Canvas& c, const std::string& title, const std::s
                     Glass::DrawIcon(c, Glass::I_CHEVRON_R, ctlX + ctlW - KR(14), y + rowH * 0.5f, 9 * kr, canR ? GlassText : GlassOff);
                 }
                 int vpx = KR(19);
-                while (vpx > 8 && W(it.value, vpx, true) > ctlW - KR(56)) vpx--;
+                while (vpx > 8 && W(it.value, vpx, true) > ctlW - KR(UiLarge() ? 40 : 56)) vpx--; // (larger menus: the arrows closer, the value kept large)
                 if (it.kind == K_PICKER) TCentred(c, ctlX + ctlW / 2, base, it.value, vpx, ink, true);
                 else T(c, ctlX + ctlW - W(it.value, vpx), base, it.value, vpx, off ? GlassOff : GlassHint);
             }
@@ -2169,7 +2180,17 @@ inline void Menu::DrawSettings(Canvas& c, const std::string& title, const std::s
         y += (int)(nameLines.size() - 1) * K(32);
     }
     else T(c, pvX + pad, pvY + K(42), name, nameS, GlassText, true);
-    for (const std::string& line : Wrap(desc, descS, innerW, wide ? 7 : 5))
+    // (The description stops above the tip at the foot of the preview: with larger menus on a short
+    // screen it ran into it.)
+    size_t descMax = wide ? 7 : 5;
+    if (UiLarge() && !it.tip.empty())
+    {
+        const int tipLines = (int)Wrap(Sentence(it.tip), K(17), innerW - K(34), 4).size();
+        const int tipTop = pvY + pvH - pad - tipLines * K(23);
+        const int room = tipTop - K(18) - K(8) - (y - descL + K(6));
+        descMax = std::min(descMax, (size_t)std::max(1, room / std::max(1, descL)));
+    }
+    for (const std::string& line : Wrap(desc, descS, innerW, descMax))
     {
         T(c, pvX + pad, y, line, descS, Desc, false, false);
         y += descL;
@@ -2618,8 +2639,12 @@ inline void Menu::DrawDialog(Canvas& c, const std::string& title, const std::str
     static bool baseSolid = false;
     static int basePy = 0, basePh = 0;
     const bool touch = touchRows > 1.0f;
-    const float k = std::max(0.42f, std::min(c.w / (touch ? 620.0f : 1400.0f), c.h / (touch ? 480.0f : 788.0f)));
-    const std::string key = std::to_string(c.w) + "x" + std::to_string(c.h) + " " + std::to_string(c.BackdropSig()) + " " + std::to_string(dialogIcon) + "|" + std::to_string(touch) + "|" +
+    // (Larger menus: the phone's size, which fills a short screen, and no larger: past it the dialog
+    // would not fit.)
+    const bool large = !touch && UiLarge();
+    const float k = large ? std::max(0.42f, std::min(c.w / 620.0f, c.h / 480.0f) * std::min(1.0f, UiScale() / 1.5f))
+                          : std::max(0.42f, std::min(c.w / (touch ? 620.0f : 1400.0f), c.h / (touch ? 480.0f : 788.0f)));
+    const std::string key = std::to_string(c.w) + "x" + std::to_string(c.h) + " " + std::to_string(k) + " " + std::to_string(c.BackdropSig()) + " " + std::to_string(dialogIcon) + "|" + std::to_string(touch) + "|" +
         title + "|" + text + "|" + hint + "|" + std::to_string(UiLang::lang);
     auto K = [&](float v) { return (int)std::lround(v * k); };
     const int pw = std::min(c.w - K(32), K(520)); // (the card's width: the same on both paths)
@@ -2717,8 +2742,10 @@ inline void CompanionWindow(Canvas& c, const Menu::CompanionView& cv, int tab, i
     // the game stays the main thing on one screen. full: the whole canvas, a second screen's, over
     // the blurred game already in it.)
     const float margin = std::min(c.w, c.h) * (full ? 0.035f : 0.03f);
-    int ph = full ? (int)(c.h - 2 * margin) : (int)(c.h * 0.68f);
-    const int pw = full ? (int)(c.w - 2 * margin) : (int)std::min(c.w * 0.25f, ph * 0.64f);
+    // (Larger menus, on a small screen: taller and wider, its writing larger with it.)
+    const bool large = !full && UiLarge();
+    int ph = full ? (int)(c.h - 2 * margin) : (int)(c.h * (large ? 0.9f : 0.68f));
+    const int pw = full ? (int)(c.w - 2 * margin) : (int)std::min(c.w * (large ? 0.42f : 0.25f), ph * 0.64f);
     const int px = (int)(c.w - pw - margin);
     int py = (int)margin;
     if (!full)
@@ -2733,7 +2760,8 @@ inline void CompanionWindow(Canvas& c, const Menu::CompanionView& cv, int tab, i
     // box, which sits from about there in the widened battle.)
     const int sizePh = ph;
     if (!full && inBattle) ph = std::max((int)(c.h * 0.3f), std::min(ph, (int)(c.h * 0.48f) - py));
-    const float k = full ? std::max(0.5f, std::min(c.w, c.h) / 560.0f) : std::max(0.42f, sizePh / 640.0f);
+    const float k = full ? std::max(0.5f, std::min(c.w, c.h) / 560.0f * std::min(UiScale(), 1.3f))
+                         : std::max(0.42f, large ? std::min(sizePh / 640.0f, pw / 410.0f) : sizePh / 640.0f);
     auto K = [&](float v) { return (int)std::lround(v * k); };
     if (panelRect) { panelRect[0] = px; panelRect[1] = py; panelRect[2] = pw; panelRect[3] = ph; }
     // (No shadow round it: over the bright game it reads as a dark border.)
@@ -2778,7 +2806,7 @@ inline void CompanionWindow(Canvas& c, const Menu::CompanionView& cv, int tab, i
 inline void PartyHud(Canvas& c, const Menu::CompanionView& cv, int top = -1, float scale = 0)
 {
     using namespace SettingsArt;
-    const float k = scale > 0 ? scale : std::max(0.42f, std::min(c.w, c.h) / 720.0f);
+    const float k = scale > 0 ? scale : std::max(0.42f, std::min(c.w, c.h) / 720.0f * UiScale());
     auto K = [&](float v) { return (int)std::lround(v * k); };
     const int cw = K(132), ch = K(46), gap = K(6), x = K(16);
     int y = top >= 0 ? top : K(16);
@@ -2833,7 +2861,7 @@ inline std::string MoneyText(long long money)
 inline void StatusBar(Canvas& c, const std::string& place, int balls, const std::string& clock, int battery, long long money = -1)
 {
     using namespace SettingsArt;
-    const float k = std::max(0.42f, std::min(c.w, c.h) / 720.0f);
+    const float k = std::max(0.42f, std::min(c.w, c.h) / 720.0f * UiScale());
     auto K = [&](float v) { return (int)std::lround(v * k); };
     const int h = K(34), px = K(15);
     // (Each part: an icon and its text; their widths first, to centre the strip.)
