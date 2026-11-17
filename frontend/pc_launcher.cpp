@@ -3417,7 +3417,11 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             safeDst.w = ow; safeDst.h = oh;
         }
 #else
-        SDL_GetRendererOutputSize(renderer, &ow, &oh);
+        if (SDL_GetRendererOutputSize(renderer, &ow, &oh) != 0 || ow <= 0 || oh <= 0)
+        {
+            SDL_Delay(16);
+            continue; // Keep pumping lifecycle events while the drawable is recreated.
+        }
 #endif
 #ifdef SSR_PHONE
         // Bound software composition work on high density phone displays. (Drawn at 1280 on the long side and
