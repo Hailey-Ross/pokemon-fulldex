@@ -842,6 +842,9 @@ struct Menu
     // and size, the controls' box on the right of them, and the back button.
     mutable std::vector<int> rowY;
     mutable int rowX = 0, rowW = 0, rowH = 0, ctlX = 0, ctlW = 0, backX = 0, backY = 0, backS = 0, scrollPx = 0;
+    // (The preview's box and a Guide answer's line height: a finger dragged on the preview scrolls
+    // that answer rather than the list.)
+    mutable int previewX = 0, previewY = 0, previewW = 0, previewH = 0, previewLineH = 1;
 };
 
 #include "ui_settings.h"

@@ -7992,6 +7992,9 @@ int main(int argc, char** argv)
     MenuDrag menuDrag;
     SDL_FingerID menuDragFinger = 0;
     int menuDragPage = -1;
+    // (A finger dragging the GUIDE's answer window: it scrolls the answer, not the rows.)
+    SDL_FingerID guideDragFinger = -1;
+    int guideDragY = 0;
 
 #ifdef __SWITCH__
     // The Switch's touch screen: its SDL sends finger events and no mouse events made from them,
@@ -8962,6 +8965,26 @@ int main(int argc, char** argv)
                 if ((ev.type == SDL_MOUSEBUTTONUP && ev.button.which != SDL_TOUCH_MOUSEID) ||
                     (ev.type == SDL_WINDOWEVENT && ev.window.event == SDL_WINDOWEVENT_FOCUS_LOST)) pointerHeld = false;
 #endif
+                // (A GUIDE answer that is shown scrolls in its own window with the wheel; the list
+                // of rows is left where it is. Other pages have no wheel handling here.)
+                if (ev.type == SDL_MOUSEWHEEL && menu.open && menuPage == PAGE_CGUIDE && menu.columns == 0)
+                {
+                    int steps = ev.wheel.y;
+                    if (ev.wheel.direction == SDL_MOUSEWHEEL_FLIPPED) steps = -steps;
+                    if (steps && menu.selected >= 0 && menu.selected < (int)menu.items.size())
+                    {
+                        const MenuItem& it = menu.items[menu.selected];
+                        if (it.preview == Menu::P_CGUIDE && it.choice >= 0 && it.choice < (int)menu.companion.guide.size())
+                        {
+                            auto& a = menu.companion.guide[it.choice];
+                            if (a.shown && a.scrollMax > 0)
+                            {
+                                a.scroll = std::clamp(a.scroll - steps, 0, a.scrollMax);
+                                continue;
+                            }
+                        }
+                    }
+                }
                 if (ev.type == SDL_CONTROLLERBUTTONDOWN && ev.cbutton.button < PAD_COUNT)
                 {
                     int b = ev.cbutton.button;
@@ -9020,6 +9043,33 @@ int main(int argc, char** argv)
                     int ow = 0, oh = 0;
                     SDL_GetRendererOutputSize(renderer, &ow, &oh);
                     const int x = (int)(ev.tfinger.x * ow), y = (int)(ev.tfinger.y * oh);
+                    if (guideDragFinger >= 0)
+                    {
+                        // (The GUIDE's answer window: a finger's drag moves it, not the list.)
+                        if (!menu.open || menuPage != PAGE_CGUIDE) guideDragFinger = -1;
+                        else if ((SDL_FingerID)ev.tfinger.fingerId == guideDragFinger)
+                        {
+                            if (ev.type == SDL_FINGERUP) { guideDragFinger = -1; continue; }
+                            if (ev.type == SDL_FINGERMOTION && menu.selected >= 0 && menu.selected < (int)menu.items.size())
+                            {
+                                const MenuItem& it = menu.items[menu.selected];
+                                if (it.preview == Menu::P_CGUIDE && it.choice >= 0 && it.choice < (int)menu.companion.guide.size())
+                                {
+                                    auto& a = menu.companion.guide[it.choice];
+                                    const int lineH = std::max(1, menu.previewLineH);
+                                    const int dy = guideDragY - y; // (a finger moving up goes further down the answer)
+                                    if (dy >= lineH || dy <= -lineH)
+                                    {
+                                        const int lines = dy / lineH;
+                                        a.scroll = std::clamp(a.scroll + lines, 0, a.scrollMax);
+                                        guideDragY += lines * lineH;
+                                    }
+                                }
+                            }
+                            continue;
+                        }
+                        else continue;
+                    }
                     if (menuDrag.active)
                     {
                         if (ev.tfinger.fingerId != menuDragFinger) continue;
@@ -9042,6 +9092,23 @@ int main(int argc, char** argv)
                     }
                     else if (ev.type == SDL_FINGERDOWN)
                     {
+                        // (A finger on the GUIDE's answer window starts a scroll of that answer,
+                        // not of the rows; the answer must be shown and longer than the window.)
+                        if (menuPage == PAGE_CGUIDE && menu.selected >= 0 && menu.selected < (int)menu.items.size() &&
+                            x >= menu.previewX && x < menu.previewX + menu.previewW && y >= menu.previewY && y < menu.previewY + menu.previewH)
+                        {
+                            const MenuItem& it = menu.items[menu.selected];
+                            if (it.preview == Menu::P_CGUIDE && it.choice >= 0 && it.choice < (int)menu.companion.guide.size())
+                            {
+                                const auto& a = menu.companion.guide[it.choice];
+                                if (a.shown && a.scrollMax > 0)
+                                {
+                                    guideDragFinger = ev.tfinger.fingerId;
+                                    guideDragY = y;
+                                    continue;
+                                }
+                            }
+                        }
                         const int item = menu.ItemAt(x, y);
                         // A finger put down on a page that scrolls may be the start of a drag: a
                         // settings page anywhere across its rows (on a heading or between rows
@@ -11601,6 +11668,13 @@ int main(int argc, char** argv)
                 if(const char* g=getenv("SSR_TEST_GUIDE")){const bool here=!strncmp(g,"here",4);const bool shown=strchr(g,'1')!=nullptr;if(here)companionHereShown=shown;else companionNextBossShown=shown;goPage(PAGE_CGUIDE,here?M_CGUIDE_HERE:M_CGUIDE_NEXT);
                     if(const char* s=getenv("SSR_TEST_GUIDE_SCROLL")){const int n=atoi(s);if(menu.selected>=0&&menu.selected<(int)menu.items.size()){const MenuItem& it=menu.items[menu.selected];if(it.preview==Menu::P_CGUIDE&&it.choice>=0&&it.choice<(int)menu.companion.guide.size())menu.companion.guide[it.choice].scroll=std::max(0,n);}}}}
         }
+        // (Test runs: SSR_TEST_WHEEL=<frame>,<steps>: a wheel notch pushed at that frame, for the
+        // Guide answer's own scroll.)
+        {
+            static int testWheelAt=-1,testWheelSteps=0;static uint32_t testWheelFrames=0;
+            if(testWheelAt==-1){testWheelAt=-2;if(const char* w=getenv("SSR_TEST_WHEEL"))sscanf(w,"%d,%d",&testWheelAt,&testWheelSteps);}
+            if(testWheelAt>=0&&++testWheelFrames==(uint32_t)testWheelAt){SDL_Event e{};e.type=SDL_MOUSEWHEEL;e.wheel.y=testWheelSteps;SDL_PushEvent(&e);testWheelAt=-2;}
+        }
         // FLY (M_FLY): the check's answer within about 30 frames (as PokeDaisy waits), then the towns; the
         // flight's job (result 1: Gen 5's flight event, none when the game's own check said no).
         if(flyCheckJob && !menu.open)
@@ -12925,7 +12999,7 @@ int main(int argc, char** argv)
                                  menu.companion.guide[it.choice].shown && menu.companion.guide[it.choice].scrollMax > 0;
                 }
                 hint = touchPadUsed && touchPad.visible
-                    ? (scrollable ? "TAP: SHOW/HIDE   (PAD L/R: SCROLL)" : "TAP: SHOW/HIDE   OUTSIDE: BACK")
+                    ? (scrollable ? "DRAG: SCROLL   TAP: SHOW/HIDE" : "TAP: SHOW/HIDE   OUTSIDE: BACK")
                     : (scrollable ? "LEFT / RIGHT: SCROLL   " + btn(Controls::A) + ": SHOW/HIDE   " + btn(Controls::B) + ": BACK"
                                   : btn(Controls::A) + ": SHOW/HIDE   " + btn(Controls::B) + ": BACK");
             }

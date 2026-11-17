@@ -1813,6 +1813,7 @@ inline void Menu::DrawSettings(Canvas& c, const std::string& title, const std::s
         pvX = lanePvX; pvY = py0; pvW = px0 + W0 - pvX; pvH = H0;
         if (laneListH > 0) { listBottom = py0 + laneListH - K(10); pvY = lanePvY; pvH = py0 + H0 - lanePvY; }
     }
+    previewX = pvX; previewY = pvY; previewW = pvW; previewH = pvH; // (for a finger's drag on the Guide's answer)
 
     { const double t = MenuProfNow(); MenuProf()[1] += t - profT; profT = t; }
     // The rows: their places down the list, a section's heading (and a line before every one but
@@ -2203,6 +2204,7 @@ inline void Menu::DrawSettings(Canvas& c, const std::string& title, const std::s
                 at = nl + 1;
             }
             const int lineH = K(24);
+            previewLineH = lineH; // (a finger's drag on the answer moves it a line at a time)
             const int room = std::max(0, (regionBottom - gy) / lineH);
             const int maxScroll = std::max(0, (int)lines.size() - room);
             a.scrollMax = maxScroll; // (the guide's Left/Right clamps to it)

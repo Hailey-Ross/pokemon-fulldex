@@ -3,9 +3,9 @@
 The Guide is the pause menu's COMPANION tab: hints for the moments you'd otherwise
 open a walkthrough. It is written to spoil as little as possible: an entry starts as a
 title and a hint, and A or a tap shows its answer in the preview beside the list (and
-hides it again). An answer longer than the preview scrolls with Left/Right; the bar on
-its right shows how much of it is there. The list keeps which answers you have shown for
-the session. NEXT BOSS and HERE work the same way.
+hides it again). An answer longer than the preview scrolls with Left/Right, the mouse
+wheel or a finger's drag; the bar on its right shows how much of it is there. The list
+keeps which answers you have shown for the session. NEXT BOSS and HERE work the same way.
 
 Pokémon Black (IRBO) is the first game with the full set of sections; the other DS
 games keep their hand-written entries under one QUESTIONS heading.
@@ -22,9 +22,9 @@ games keep their hand-written entries under one QUESTIONS heading.
 - **HERE** — the place you are in now, with the wild Pokémon the game's own encounter
   tables list for it. Each way they are met (grass, dark grass, rustling grass, surf,
   rippling water, fishing, ...) gets its own line, and each Pokémon with its level range
-  a line under it. A long list scrolls with Left/Right (the bar on the right shows the
-  part in view); LOCATION has the same table. A town says it has none and points at the
-  routes around it.
+  a line under it. A long list scrolls (Left/Right, the wheel, or a drag on the preview;
+  the bar on the right shows the part in view); LOCATION has the same table. A town says
+  it has none and points at the routes around it.
 - **NEXT STEPS** — the main story by milestone: Nuvema → Striaton → Nacrene → Castelia
   → Nimbasa → Driftveil → Mistralton → Icirrus → Opelucid → Victory Road/League → the
   post-game.
@@ -62,10 +62,10 @@ games keep their hand-written entries under one QUESTIONS heading.
   four rooms rather than which ones are done. Black's flags are 0x969-0x96C (Shauntal,
   Grimsley, Marshal, Caitlin) in the cart's save; reading them would let the card move
   to the next room and then to N and Ghetsis.
-- The answer preview scrolls a line at a time with Left/Right (three at a time when it
-  is long), with a bar on its right. A finger has no swipe there yet; on a touch-only
-  setup the pad's Left/Right still scrolls. The Elite Four's full teams stay in separate
-  GYMS entries because they read better as entries than as a wall of lines.
+- The answer preview scrolls with Left/Right (a line a press, three when it is long), the
+  wheel, or a finger's drag on the preview, with a bar on its right. The Elite Four's
+  full teams stay in separate GYMS entries because they read better as entries than as a
+  wall of lines.
 - White (IRIS in Opelucid, N's Reshiram) and Black 2/White 2 can follow the same shape:
   a boss table and, for B2W2, the Challenge Mode teams.
 
