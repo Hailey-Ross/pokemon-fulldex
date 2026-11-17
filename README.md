@@ -305,8 +305,23 @@ Razer Kishi and others) plays as a DS and hides the on-screen buttons; its
 AND BUTTONS** in the pause menu (and on the game list) changes which button does what,
 including fast forward, swapping the screens, save state and load state.
 
-**Saves** go in a `saves` folder inside your ROMs folder (made for you). The
-settings and `game.log` are in `Android/data/io.github.mamesj.pokemonds/files`.
+**Saves:** the location depends on how your ROMs were added and any folder settings
+you have changed. A shared ROM folder normally has a `saves` folder; imported ROMs
+can use FullDex's app folder under `Android/data/io.github.mamesj.pokemonds/files`,
+which Android file managers may not let you open. Changing the ROM folder does not
+move existing saves.
+
+For saves you can open in a file manager or another emulator, return to the game
+list and open **Settings > Game List > Saves Folder**. Choose a folder on the
+device's shared storage, such as `Documents/FullDex Saves`, and allow the requested
+file access. FullDex copies the current saves there without replacing files already
+in that folder; the old copies stay where they were. If the destination already
+contains a save with the same name, check which copy you want to use before playing.
+If Android will not grant access to the chosen location, choose another folder on
+the device's storage.
+
+The app's startup settings and `game.log` are normally in
+`Android/data/io.github.mamesj.pokemonds/files`.
 
 **What it needs:** Android 7.0 or newer on a 64-bit phone. The 3D world is drawn
 by the processor at 720P to start (3D RESOLUTION in the settings: Y in the list,
@@ -424,7 +439,7 @@ cartridge. Copy it in under the game's name, in this folder:
 | PC (Windows, Linux, Steam Deck) | the `saves` folder beside the program |
 | Linux AppImage | `~/.local/share/pokemon-ds-wide/saves` |
 | Mac | `~/Library/Application Support/Pokemon DS Widescreen/saves` |
-| Android | the `saves` folder inside the folder you chose for your ROMs |
+| Android | your configured **Saves Folder**; otherwise a `saves` folder in the ROM/app folder (see the Android guide above) |
 | iPhone and iPad | Files app: On My iPhone (or iPad) > Pokémon Fulldex > `saves` |
 | Nintendo Switch | `/switch/pokemon-ds-wide/saves/` on the SD card |
 
