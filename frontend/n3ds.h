@@ -117,6 +117,39 @@ inline int DumpCrypt(const std::string& path)
     if (!ok) return -1;
     return (n[0x18F] & 4) || plain ? 0 : 1;
 }
+
+// Some decrypted dumps do not carry the NCCH "no encryption" marker, and the games' own program
+// (Zakuro) asks for it. When the exheader proves the content is plaintext (its program ID is the
+// NCCH header's, as in DumpCrypt), set the marker on the player's own dump: one byte, only when a
+// game is about to be made or played. It is the marker GodMode9's decrypted dumps carry, and it
+// is what the launcher's own check reads. Returns true when it wrote the marker.
+inline bool MarkDecrypted(const std::string& path)
+{
+#ifdef _WIN32
+    FILE* f = _wfopen(std::filesystem::u8path(path).wstring().c_str(), L"r+b");
+#else
+    FILE* f = fopen(path.c_str(), "r+b");
+#endif
+    if (!f) return false;
+    unsigned char h[0x200] = {}, n[0x200] = {}, ex[0x208] = {};
+    bool ok = fread(h, 1, sizeof h, f) == sizeof h && memcmp(h + 0x100, "NCSD", 4) == 0;
+    const long at = ok ? (long)((uint32_t)h[0x120] | (uint32_t)h[0x121] << 8 | (uint32_t)h[0x122] << 16 | (uint32_t)h[0x123] << 24) * 0x200 : 0;
+    ok = ok && at > 0 && fseek(f, at, SEEK_SET) == 0 && fread(n, 1, sizeof n, f) == sizeof n && memcmp(n + 0x100, "NCCH", 4) == 0;
+    // (Only an unmarked dump whose exheader is plaintext: this never writes to an encrypted one.)
+    if (ok && !(n[0x18F] & 4))
+        ok = fseek(f, at + 0x200, SEEK_SET) == 0 && fread(ex, 1, sizeof ex, f) == sizeof ex &&
+             memcmp(ex + 0x200, n + 0x118, 8) == 0;
+    else
+        ok = false;
+    if (ok)
+    {
+        const unsigned char marked = (unsigned char)(n[0x18F] | 4);
+        ok = fseek(f, at + 0x18F, SEEK_SET) == 0 && fwrite(&marked, 1, 1, f) == 1 && fflush(f) == 0;
+        if (ok) fprintf(stderr, "[3ds] marked %s as decrypted (NoCrypto set)\n", path.c_str());
+    }
+    fclose(f);
+    return ok;
+}
 // Why a 3DS file with the ROMs is not in the list (#155), said once on the list: the one that matters most (an
 // Omega Ruby or Alpha Sapphire that cannot be played before another game, or a file that is no dump).
 inline std::string& SkipNote() { static std::string s; return s; }
@@ -503,6 +536,9 @@ inline bool MakeFolder(const std::string& appDir, const Launcher::Game& g)
     if (!f) { fprintf(stderr, "[3ds] cannot write %s/rom.txt\n", g.folder.c_str()); return false; }
     fprintf(f, "%s\n", g.rom.c_str());
     fclose(f);
+    // (The game's program checks the dump's "no encryption" marker, and some decrypted dumps lack
+    // it: set it here, when the game is about to be made or played, never during the list's scan.)
+    MarkDecrypted(g.rom);
     return true;
 }
 
