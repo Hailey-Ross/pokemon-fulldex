@@ -3208,6 +3208,14 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 break;
             }
             case SDL_MOUSEWHEEL:
+                // (The settings page scrolls under the wheel, as a finger's drag does.)
+                if (Launcher::Glassy(canvas) && guide && setMenu.open)
+                {
+                    int steps = e.wheel.y;
+                    if (e.wheel.direction == SDL_MOUSEWHEEL_FLIPPED) steps = -steps;
+                    if (steps) { setMenu.freeScroll = true; setMenu.scrollPx = std::max(0, setMenu.scrollPx - steps * std::max(30, setMenu.rowH * 2)); }
+                    break;
+                }
                 if (Launcher::Glassy(canvas) && !guide && Launcher::NotesScroll(e.wheel.y > 0 ? -2 : 2)) break; // (What's New)
                 if (!guide && !setMenu.open && Launcher::Focus().page < 0 && Launcher::Focus().dialog == 0 && Launcher::Focus().popup < 0 && !Launcher::TilesOn())
                 {

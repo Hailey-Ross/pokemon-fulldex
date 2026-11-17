@@ -449,9 +449,10 @@ struct Menu
         if(style!=1&&columns>0&&!nowPlaying.idle){const int b=NowPlayingAt(x,y);if(b>=0){npFocus=-1;npAction=b;return;}}
         if(style==2)
         {
-            // (On a button: it is chosen and pressed. Outside the card: CANCEL.)
+            // (On a button: it is chosen and pressed. Outside the card: CANCEL, as the hint says.)
             for(int b=0;b<2;b++)
                 if(dialogW>0&&x>=dialogX[b]&&x<dialogX[b]+dialogW&&y>=dialogY&&y<dialogY+dialogH){selected=b==0?(int)items.size()-1:0;input.accept=true;return;}
+            if (cardW > 0 && (x < cardX || x >= cardX + cardW || y < cardY || y >= cardY + cardH)) input.back = true;
             return;
         }
         const int item=ItemAt(x,y);
@@ -824,6 +825,8 @@ struct Menu
     // last item CANCEL, drawn side by side as pills (CANCEL first); dialogIcon above the title.
     int dialogIcon = -1;
     mutable int dialogX[2] = {}, dialogY = 0, dialogW = 0, dialogH = 0;
+    // (The card's whole rect, for a tap outside it: that cancels, as the page's hint says.)
+    mutable int cardX = 0, cardY = 0, cardW = 0, cardH = 0;
     void DrawDialog(Canvas& c, const std::string& title, const std::string& text, const std::string& hint) const;
     void DrawDialogButtons(Canvas& c, int py, int ph, float k, bool solid) const;
     // (A settings page of state slots, SAVE and LOAD: its other rows as pills across the top, the

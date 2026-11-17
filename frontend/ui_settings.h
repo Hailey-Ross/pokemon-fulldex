@@ -2622,10 +2622,12 @@ inline void Menu::DrawDialog(Canvas& c, const std::string& title, const std::str
     const std::string key = std::to_string(c.w) + "x" + std::to_string(c.h) + " " + std::to_string(c.BackdropSig()) + " " + std::to_string(dialogIcon) + "|" + std::to_string(touch) + "|" +
         title + "|" + text + "|" + hint + "|" + std::to_string(UiLang::lang);
     auto K = [&](float v) { return (int)std::lround(v * k); };
+    const int pw = std::min(c.w - K(32), K(520)); // (the card's width: the same on both paths)
     if (key == baseKey && base.size() == c.px.size())
     {
         std::copy(base.begin(), base.end(), c.px.begin());
         Glass::Mark(c, 0, 0, c.w, c.h);
+        cardX = (c.w - pw) / 2; cardY = basePy; cardW = pw; cardH = basePh;
         DrawDialogButtons(c, basePy, basePh, k, baseSolid);
         return;
     }
@@ -2633,11 +2635,12 @@ inline void Menu::DrawDialog(Canvas& c, const std::string& title, const std::str
     if (solid) Glass::Frost(c, 0, 0, c.w, c.h, 0);
     else Glass::Round(c, 0, 0, c.w, c.h, 0, GlassShade);
     Glass::Round(c, 0, 0, c.w, c.h, 0, 0x1C000000); // (the game a touch darker behind the card)
-    const int pw = std::min(c.w - K(32), K(520)), innerW = pw - K(64);
+    const int innerW = pw - K(64);
     const int bodyFont = K(touch ? 22 : 17), lineHeight = K(touch ? 32 : 25);
     const auto lines = text.empty() ? std::vector<std::string>() : Wrap(text, bodyFont, innerW, 4);
     const int ph = K(touch ? 280 : 250) + (int)lines.size() * lineHeight;
     const int px = (c.w - pw) / 2, py = (c.h - ph) / 2;
+    cardX = px; cardY = py; cardW = pw; cardH = ph;
     Glass::Shadow(c, px, py, pw, ph, 26 * k, 30 * k, 0x90);
     if (solid) Glass::Frost(c, px, py, pw, ph, 26 * k);
     Glass::Round(c, px, py, pw, ph, 26 * k, Panel); // (the same glass as the settings pages)

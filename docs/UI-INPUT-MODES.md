@@ -105,6 +105,8 @@ One routine for the pause menu and the launcher:
 - pointer presses on a control do not block a drag: dragging anywhere scrolls.
 - the wheel scrolls the open page too: a settings page by pixels, a plain list by rows. It
   leaves the chosen row where it is (the next pad press brings it back into view).
+- a tap outside a dialog's card cancels it (Back), as the hint says; on a settings page a
+  tap outside the page goes Back.
 
 ## Widget catalogue
 
