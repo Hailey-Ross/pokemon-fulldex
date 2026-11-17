@@ -1627,6 +1627,16 @@ static bool InputHeld(const PadState& p, int in)
     return false;
 }
 
+// Zoom belongs to the physical right-stick click, not SWAP's remapped output. The default
+// SWAP binding lends its click to zoom when the touch cursor is off; an explicit binding
+// (including another action taking R3) must keep its assigned meaning.
+static bool ZoomPressed(const PadState& now, const PadState& before, const Controls::Bindings& b, bool byLabel)
+{
+    const int action = b.ActionOfPad(Controls::IN_RS, byLabel);
+    const bool available = action < 0 || (action == Controls::SWAP && b.pad[Controls::SWAP] == -1);
+    return available && now.btn[PAD_RS] && !before.btn[PAD_RS];
+}
+
 // DS buttons from the controller. With byLabel the button printed "A" is A on any pad;
 // otherwise the DS diamond is mapped by position (right = A, bottom = B).
 static uint32_t PadKeys(const PadState& p, bool byLabel)
@@ -5962,7 +5972,7 @@ int main(int argc, char** argv)
     bool captureReleased = false;
     bool navHoldOff = false; // (the button just given: ignored by the menu until let go)
     PadState physPad, prevPhysPad; // the controller as it is, before RemapPad
-    bool saveEdge = false, loadEdge = false, resetEdge = false; // physical shortcut presses
+    bool saveEdge = false, loadEdge = false, resetEdge = false, zoomEdge = false; // physical shortcut presses
     const int ctlRow0 = ctlHasKeyboard ? 1 : 0; // the first action's row
     const int ctlRowReset = ctlRow0 + Controls::COUNT, ctlRowBack = ctlRowReset + 1;
     // KEYS AND BUTTONS as a settings page: what each row is (an action, 0 and up, or KR_*), as the
@@ -9682,6 +9692,7 @@ int main(int argc, char** argv)
             saveEdge = !menu.open && InputHeld(physPad, saveIn) && !InputHeld(prevPhysPad, saveIn);
             loadEdge = !menu.open && InputHeld(physPad, loadIn) && !InputHeld(prevPhysPad, loadIn);
             resetEdge = fastInputFocused && !menu.open && InputHeld(physPad, resetIn) && !InputHeld(prevPhysPad, resetIn);
+            zoomEdge = !menu.open && ZoomPressed(physPad, prevPhysPad, cfg.controls, cfg.byLabel);
         }
         prevPhysPad = physPad;
         if (navHoldOff)
@@ -10698,7 +10709,7 @@ int main(int argc, char** argv)
             if (!padTouchNow && cfg.controls.pad[Controls::SWAP] >= 0 && pressed(PAD_RS)) focus.manualFlip = !focus.manualFlip;
             // (ZOOM: a click of the right stick steps it, the right stick looks around; not while the stick is the
             // touch cursor, nor when the click is SWAP SCREENS.)
-            if (!padTouchNow && cfg.controls.pad[Controls::SWAP] < 0 && pressed(PAD_RS)) dsZoomCycle = true;
+            if (!padTouchNow && zoomEdge) dsZoomCycle = true;
             if (!padTouchNow)
             {
                 if (fabsf(ps.rx) > fabsf(dsZoomSX)) dsZoomSX = ps.rx;
