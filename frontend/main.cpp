@@ -12882,7 +12882,7 @@ int main(int argc, char** argv)
                     ? (touchPadUsed && touchPad.visible ? "TAP: OPEN   OUTSIDE: BACK"
                                                         : btn(Controls::A) + ": OPEN   " + btn(Controls::B) + ": BACK")
                     : (touchPadUsed && touchPad.visible ? "TAP: CHANGE   OUTSIDE: BACK"
-                                                        : "LEFT / RIGHT: CHANGE   " + btn(Controls::A) + ": OPEN   " + btn(Controls::B) + ": BACK");
+                                                        : "LEFT / RIGHT / " + btn(Controls::A) + ": CHANGE   " + btn(Controls::B) + ": BACK");
             const bool wideMenu=menuPage==PAGE_CENCOUNTERS || menuPage==PAGE_FLY || menuPage==PAGE_REFERENCE || menuPage==PAGE_RSEARCH || menuPage==PAGE_RDETAIL || menuPage==PAGE_CITEM || menuPage==PAGE_EXTRAS || menuPage==PAGE_QUICK_ACTIONS || menuPage==PAGE_NUZLOCKE || menuPage==PAGE_RUN_CONFIRM || menuPage==PAGE_CGUIDE || menuPage==PAGE_CGUIDEENTRY || menuPage==PAGE_CBATTLE || menuPage==PAGE_STATES || menuPage==PAGE_SLOT || (menuPage>=PAGE_COMPANION&&menuPage<=PAGE_CLOCATION) || menuPage==PAGE_MATCHUPS || menuPage==PAGE_CHEATS || menuPage==PAGE_CDETAIL || menuPage==PAGE_CINFO || menuPage==PAGE_CSEARCH || menuPage==PAGE_BACKUPS || menuPage==PAGE_RESTORE_CONFIRM || menuPage==PAGE_LOAD_CONFIRM || menuPage==PAGE_QUIT_CONFIRM;
             if (menuPage == PAGE_CONTROLS) // (BUTTONS' preview: the controller connected)
             {

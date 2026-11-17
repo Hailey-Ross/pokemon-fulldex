@@ -1625,7 +1625,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             {
                 const int sel = std::max(0, std::min(page.selected, (int)page.items.size() - 1));
                 const Launcher::Setting& s = page.items[sel];
-                if (page.group < 0 || (s.key && s.key[0] == '!')) change(1);
+                (void)s; change(1); // (A still turns a toggle over and steps a picker on, as players are used to)
             }
             return;
         }
@@ -3457,8 +3457,8 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                                        : std::string("ENTER: PLAY    Q / E: TABS    H: SETTINGS    ESC: QUIT");
         const std::string pageHint = page.group < 0 ? (padIn ? "UP / DOWN: CHOOSE    " + btn(Controls::A) + ": OPEN    " + btn(Controls::B) + ": BACK"
                                                              : std::string("UP / DOWN: CHOOSE    ENTER: OPEN    ESC: BACK"))
-                                   : padIn ? "UP / DOWN: CHOOSE    LEFT / RIGHT: CHANGE    " + btn(Controls::A) + ": OPEN    " + btn(Controls::B) + ": BACK"
-                                           : std::string("UP / DOWN: CHOOSE    LEFT / RIGHT: CHANGE    ENTER: OPEN    ESC: BACK");
+                                   : padIn ? "UP / DOWN: CHOOSE    LEFT / RIGHT / " + btn(Controls::A) + ": CHANGE    " + btn(Controls::B) + ": BACK"
+                                           : std::string("UP / DOWN: CHOOSE    LEFT / RIGHT / ENTER: CHANGE    ESC: BACK");
 #endif
         if (guide)
         {

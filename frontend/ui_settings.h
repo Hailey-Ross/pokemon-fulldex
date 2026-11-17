@@ -1027,7 +1027,7 @@ inline int Menu::UpdateSettings(const MenuInput& in, int& dir)
     if (in.down) step(1);
     const MenuItem& it = items[selected];
     if (it.disabled || it.kind == K_SECTION) return -1;
-    if (in.accept) return (it.kind == K_TOGGLE || it.kind == K_PICKER || it.kind == K_PLAIN) ? -1 : selected; // (A only opens links/Back/slots/keys: a shown value is already the selection)
+    if (in.accept) return it.kind == K_PLAIN ? -1 : selected; // (A turns a toggle over and steps a picker on, as before #210; a link or Back opens)
     if (in.left || in.right)
     {
         const int d = in.left ? -1 : 1;
