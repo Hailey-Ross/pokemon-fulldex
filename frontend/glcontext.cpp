@@ -63,8 +63,13 @@ void SsrEnterGLContext()
 
 void SsrLeaveGLContext()
 {
-    glFlush();
-    eglMakeCurrent(OurDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    // A rejected context has no GL entry points yet. Leave still restores the API/context
+    // captured before creation, so the software renderer can take over safely.
+    if (OurContext != EGL_NO_CONTEXT && eglGetCurrentContext() == OurContext)
+    {
+        if (glad_glFlush) glFlush();
+        eglMakeCurrent(OurDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    }
     if (SdlWindow && SdlContext)
     {
         // SDL thinks its context never stopped being current and would skip making it current
@@ -82,8 +87,11 @@ void SsrLeaveGLContext()
 
 void SsrReleaseGLContext()
 {
-    glFlush();
-    eglMakeCurrent(OurDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    if (OurContext != EGL_NO_CONTEXT && eglGetCurrentContext() == OurContext)
+    {
+        if (glad_glFlush) glFlush();
+        eglMakeCurrent(OurDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    }
 }
 
 static std::string EglError(const char* what)
