@@ -185,6 +185,15 @@ inline std::vector<GuideEntry> GuideFor(const std::string& code) {
         {"RELIC CASTLE and VOLCARONA","DESERT RESORT.","The castle's lower floors open after the League; VOLCARONA waits at the bottom.","POST-GAME"},
         {"Sages","Across UNOVA.","The six sages are part of the epilogue; look for them around UNOVA after the League.","POST-GAME"},
 
+        // STUCK?: the blockers people hit, with the step that clears them.
+        {"The DRAWBRIDGE is raised","Beat ELESA.","ELESA's badge lowers the DRAWBRIDGE to DRIFTVEIL CITY. If it is still up, the NIMBASA gym is the next thing.","STUCK?"},
+        {"TEAM PLASMA in the COLD STORAGE","West of DRIFTVEIL CITY.","After CLAY's badge, follow TEAM PLASMA to the COLD STORAGE west of DRIFTVEIL; the story then continues north on ROUTE 6.","STUCK?"},
+        {"CHARGESTONE CAVE's floating rocks","They follow magnetism.","The electrified blue rocks move toward or away from the magnetised spots; step close to clear a path. N waits at the far end of the cave.","STUCK?"},
+        {"DRAGONSPIRAL TOWER","After ICIRRUS CITY.","The story opens DRAGONSPIRAL TOWER after BRYCEN; it is north of ICIRRUS CITY. TEAM PLASMA is inside and the legendary waits at the top.","STUCK?"},
+        {"The RELIC CASTLE's lower floors","The DESERT RESORT.","The castle is in the DESERT RESORT. The story opens the way down once; the deepest floors and VOLCARONA wait until after the League.","STUCK?"},
+        {"The way to the LEAGUE","ROUTE 10 and VICTORY ROAD.","The LEGEND BADGE opens ROUTE 10. VICTORY ROAD needs POKeMON that know STRENGTH, SURF and WATERFALL; the LEAGUE is at the end.","STUCK?"},
+        {"N's CASTLE","After the ELITE FOUR.","When the four rooms are beaten, N's CASTLE rises from the LEAGUE. N is the first battle there and GHETSIS the last; heal between them.","STUCK?"},
+
         // TIPS.
         {"Why did the POKeMON here change?","Look at the calendar.","Some places change their POKeMON with the seasons, and the seasons follow the month: January, May and September are spring, February, June and October summer, March, July and November autumn, April, August and December winter. The encounter list follows your DS clock.","TIPS"},
         {"What about the dark grass and the grass that shakes?","They're not the plain grass.","Dark grass, grass that shakes and water that ripples each hold POKeMON of their own, often stronger or rarer than the plain grass around them.","TIPS"},

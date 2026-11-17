@@ -5694,6 +5694,28 @@ int main(int argc, char** argv)
         }
         return Companion::BlackNextBoss(companionSnapshot.badges, best, starter);
     };
+    // (GUIDE's HERE: the wild POKeMON the game lists for the place the player is in now.)
+    struct GuideHereInfo { std::string title, hint, answer; bool any = false; };
+    auto guideHere = [&]() -> GuideHereInfo {
+        GuideHereInfo r;
+        if (gameCode != "IRBO" || companionSnapshot.map <= 0) return r;
+        std::string place = companionMetadata.PlaceName(companionSnapshot.map);
+        if (place.empty()) place = "THIS PLACE";
+        const std::vector<std::string> lines = companionMetadata.EncounterLines(companionSnapshot.map);
+        r.any = true;
+        r.title = "HERE: " + place;
+        r.hint = "WHERE YOU ARE  \xC2\xB7  " + std::to_string(lines.size()) + " WILD LISTINGS";
+        if (!companionSnapshot.locationLive) r.hint += "  \xC2\xB7  THE GAME HAS NOT SAID WHERE EXACTLY";
+        if (lines.empty())
+            r.answer = "The game lists no wild POKeMON for " + place + ". Try the grass, dark grass, shaking grass and water of the routes around it.";
+        else
+        {
+            r.answer = "The game's encounter tables for " + place + ": ";
+            for (size_t i = 0; i < lines.size() && i < 12; i++) { if (i) r.answer += "; "; r.answer += lines[i]; }
+            if (lines.size() > 12) r.answer += "; and " + std::to_string(lines.size() - 12) + " more (LOCATION has the full list).";
+        }
+        return r;
+    };
     int companionGuideChoice=0;bool companionGuideReveal=false;
     std::set<int> companionGuideShown; // (GUIDE: the answers the player chose to show)
     readCompanion();
@@ -5716,7 +5738,7 @@ int main(int argc, char** argv)
         M_CSEARCH, M_SEARCH_LETTER, M_SEARCH_DELETE, M_SEARCH_SPACE, M_SEARCH_CLEAR, M_SEARCH_DONE,
         M_CDETAIL_TOGGLE, M_CINFO, M_BACKUPS, M_RESTORE_CONFIRM, M_LOAD_CONFIRM,
         M_MATCHUPS, M_TYPE1, M_TYPE2, M_SECOND_SCREEN,
-        M_COMPANION, M_CPARTY, M_CBAG, M_CDEX, M_CLOCATION, M_CMAP, M_CENCOUNTERS, M_REFERENCE, M_REFERENCE_KIND, M_REFERENCE_QUERY, M_CPOCKET, M_CDEX_FILTER, M_CDEX_TYPE, M_CBATTLE, M_CGUIDE, M_CGUIDE_REVEAL, M_CGUIDE_NEXT, M_NUZLOCKE, M_RUN_ENABLED, M_RUN_RESET, M_RUN_RESET_CONFIRM, M_QUICK_ACTIONS, M_OPEN_PC, M_FLY, M_HUB_SAVE, M_HUB_LOAD, M_HUB_CHEATS, M_HUB_FAST, M_HUB_SETTINGS, M_HUB_QUIT,
+        M_COMPANION, M_CPARTY, M_CBAG, M_CDEX, M_CLOCATION, M_CMAP, M_CENCOUNTERS, M_REFERENCE, M_REFERENCE_KIND, M_REFERENCE_QUERY, M_CPOCKET, M_CDEX_FILTER, M_CDEX_TYPE, M_CBATTLE, M_CGUIDE, M_CGUIDE_REVEAL, M_CGUIDE_NEXT, M_CGUIDE_HERE, M_NUZLOCKE, M_RUN_ENABLED, M_RUN_RESET, M_RUN_RESET_CONFIRM, M_QUICK_ACTIONS, M_OPEN_PC, M_FLY, M_HUB_SAVE, M_HUB_LOAD, M_HUB_CHEATS, M_HUB_FAST, M_HUB_SETTINGS, M_HUB_QUIT,
         M_QUIT_YES, M_RESET_YES, // (QUIT GAME / RESET GAME asked first: PAGE_QUIT_CONFIRM)
         M_SHORTCUTS, // (CONTROLS: Fulldex's own four shortcuts, opening KEYS AND BUTTONS at them)
         M_EXTRAS, M_EXTRA0=92000, M_EXTRA_END=92006, M_PLAYBACK=93000, M_FAST_SPEED, M_SMART_FAST, M_SLOW_MOTION, M_REWIND_MB, M_REWIND, M_TURBO_A, M_SCREEN_FILTER, M_COMPANION_OVERLAY, M_PARTY_HUD, M_STATUS_BAR, M_LIVE_GLASS, M_FAST_BUTTON, M_ZOOM, M_ZOOM_TEXT,
@@ -7167,6 +7189,26 @@ int main(int argc, char** argv)
                         it.desc = "Hint: " + guideText(nb.hint);
                     }
                 }
+                // (HERE: the place the player is in, with the game's wild list for it.)
+                if (gameCode == "IRBO")
+                {
+                    const GuideHereInfo here = guideHere();
+                    if (here.any)
+                    {
+                        section(guideText("HERE").c_str(), Glass::I_GLOBE);
+                        Menu::CompanionView::GuideAnswer a;
+                        a.text = guideText(here.hint);
+                        a.shown = false;
+                        menu.companion.guide.push_back(a);
+                        add(M_CGUIDE_HERE, guideText(here.title).c_str(), "", true);
+                        MenuItem& it = menu.items.back();
+                        it.kind = Menu::K_LINK;
+                        it.preview = Menu::P_CGUIDE;
+                        it.icon = Glass::I_GLOBE;
+                        it.choice = (int)menu.companion.guide.size() - 1;
+                        it.desc = "Hint: " + guideText(here.hint);
+                    }
+                }
                 // (The entries in their sections: NEXT STEPS, GYMS, WHERE IS, ...; the earlier games
                 // have them all under one QUESTIONS heading.)
                 const char* lastSection = nullptr;
@@ -7191,6 +7233,14 @@ int main(int argc, char** argv)
                     it.choice = answerAt;
                     it.desc = "Hint: " + guideText(companionGuide[i].hint);
                 }
+            }
+            else if(menuPage == PAGE_CGUIDEENTRY && companionGuideChoice == -3)
+            {
+                // (HERE: the place and its wild list; the list waits behind REVEAL.)
+                const GuideHereInfo here = guideHere();
+                info(here.title);
+                info(companionGuideReveal ? here.answer : here.hint);
+                add(M_CGUIDE_REVEAL,companionGuideReveal?"HIDE ANSWER":"REVEAL ANSWER","");
             }
             else if(menuPage == PAGE_CGUIDEENTRY && companionGuideChoice < 0)
             {
@@ -10061,6 +10111,7 @@ int main(int argc, char** argv)
             case M_CDEX:companionReferenceReturn=false;goPage(PAGE_CDEX,M_CDEX_FILTER);hit=-1;break;
             case M_CGUIDE:goPage(PAGE_CGUIDE,-1);hit=-1;break;
             case M_CGUIDE_NEXT:companionGuideChoice=-2;companionGuideReveal=false;goPage(PAGE_CGUIDEENTRY,M_CGUIDE_NEXT);hit=-1;break;
+            case M_CGUIDE_HERE:companionGuideChoice=-3;companionGuideReveal=false;goPage(PAGE_CGUIDEENTRY,M_CGUIDE_HERE);hit=-1;break;
             case M_CGUIDE_REVEAL:companionGuideReveal=!companionGuideReveal;break;
             case M_CBATTLE:goPage(PAGE_CBATTLE,M_BACK);hit=-1;break;
             case M_CLOCATION:goPage(PAGE_CLOCATION,M_BACK);hit=-1;break;
@@ -10158,7 +10209,7 @@ int main(int argc, char** argv)
                 if(menuPage==PAGE_QUICK_ACTIONS){goPage(PAGE_MAIN,M_QUICK_ACTIONS);hit=-1;break;}
                 if(menuPage==PAGE_RUN_CONFIRM){goPage(PAGE_NUZLOCKE,M_RUN_RESET);hit=-1;break;}
                 if(menuPage==PAGE_NUZLOCKE){goPage(PAGE_COMPANION,M_NUZLOCKE);hit=-1;break;}
-                if(menuPage==PAGE_CGUIDEENTRY){ if (companionGuideChoice < 0) { goPage(PAGE_CGUIDE,M_CGUIDE_NEXT); hit=-1; break; } goPage(PAGE_CGUIDE,M_GUIDE0+companionGuideChoice);hit=-1;break;}
+                if(menuPage==PAGE_CGUIDEENTRY){ if (companionGuideChoice < 0) { goPage(PAGE_CGUIDE,companionGuideChoice == -3 ? M_CGUIDE_HERE : M_CGUIDE_NEXT); hit=-1; break; } goPage(PAGE_CGUIDE,M_GUIDE0+companionGuideChoice);hit=-1;break;}
                 if(menuPage==PAGE_CGUIDE){goPage(PAGE_COMPANION,M_CGUIDE);hit=-1;break;}
                 if(menuPage==PAGE_CBATTLE){goPage(PAGE_COMPANION,M_CBATTLE);hit=-1;break;}
                 if(menuPage==PAGE_PLAYBACK){goPage(PAGE_MAIN,M_PLAYBACK);hit=-1;break;}
@@ -11513,7 +11564,7 @@ int main(int argc, char** argv)
             if(testPageAt>=0&&++testPageFrames==(uint32_t)testPageAt&&testPage>=0&&testPage<PAGE_COUNT)
             {readCompanion(true);menu.open=true;goPage(testPage,-1);fprintf(stderr,"[test] page %d at frame %u\n",testPage,frame);testPageAt=-1;
                 // (SSR_TEST_GUIDE=1: the GUIDE's NEXT BOSS page, its answer shown, for pictures.)
-                if(const char* g=getenv("SSR_TEST_GUIDE")){companionGuideChoice=-2;companionGuideReveal=g[0]=='1';goPage(PAGE_CGUIDEENTRY,M_CGUIDE_NEXT);}}
+                if(const char* g=getenv("SSR_TEST_GUIDE")){const bool here=!strncmp(g,"here",4);companionGuideChoice=here?-3:-2;companionGuideReveal=strchr(g,'1')!=nullptr;goPage(PAGE_CGUIDEENTRY,here?M_CGUIDE_HERE:M_CGUIDE_NEXT);}}
         }
         // FLY (M_FLY): the check's answer within about 30 frames (as PokeDaisy waits), then the towns; the
         // flight's job (result 1: Gen 5's flight event, none when the game's own check said no).
