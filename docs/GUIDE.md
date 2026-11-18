@@ -55,10 +55,14 @@ games keep their hand-written entries under one QUESTIONS heading.
   order (`badgeIndex`) are this file's.
 - HERE reads the Companion's own metadata (`PlaceName`, `EncounterLines`) for the map
   the save says the player is on; the item HAVE marks use the bag's item ids (Black:
-  HM01-HM06 420-425, BICYCLE 450, DOWSING MCHN 471, SUPER ROD 447; HeartGold/SoulSilver
-  and Platinum: HM01-HM08 420-427, BICYCLE 450, OLD/GOOD/SUPER ROD 445-447, DOWSING
-  MCHN 471, SQUIRTBOTTLE 477, and Platinum's VS SEEKER 443, EXPLORER KIT 428 and POKe
-  RADAR 431).
+  HM01-HM06 420-425, BICYCLE 450, DOWSING MCHN 471, SUPER ROD 447. HeartGold/SoulSilver:
+  HM01-HM08 420-427, BICYCLE 450, OLD/GOOD/SUPER ROD 445-447, DOWSING MCHN 471,
+  SQUIRTBOTTLE 477, COIN CASE 444, HeartGold's RAINBOW WING 483 and CLEAR BELL 474,
+  SoulSilver's SILVER WING 482 and TIDAL BELL 503, and both games' S.S. TICKET 456 and
+  PASS 480. Platinum: HM01-HM08 420-427, BICYCLE 450, OLD/GOOD/SUPER ROD 445-447, VS
+  SEEKER 443, EXPLORER KIT 428, POKe RADAR 431, and the keys on its STUCK? rows:
+  SECRETPOTION 464, WORKS KEY 438, STORAGE KEY 463 and GALACTIC KEY 440. The RADIO CARD
+  and EXPN CARD are game flags, not bag items, so they are not marked.)
 
 ## Limits and next steps
 
