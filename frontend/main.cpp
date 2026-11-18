@@ -6852,12 +6852,11 @@ int main(int argc, char** argv)
                     if (st.gender == 255) e.facts.push_back({ "Gender", "Unknown" });
                     else if (st.gender == 0) e.facts.push_back({ "Gender", "Always male" });
                     else if (st.gender == 254) e.facts.push_back({ "Gender", "Always female" });
-                    else { snprintf(b, sizeof b, "%.1f%% female", st.gender * 100.0 / 254); std::string g = b; if (g.find(".0%") != std::string::npos) g.erase(g.find(".0%"), 2); e.facts.push_back({ "Gender", g }); }
+                    else { snprintf(b, sizeof b, "%.1f", st.gender * 100.0 / 254); std::string g = b; if (g.size() > 2 && g.compare(g.size() - 2, 2, ".0") == 0) g.erase(g.size() - 2); e.facts.push_back({ "Gender", UiLang::F("{0}% female", { g }) }); }
                     static const char* const eggNames[] = { "", "Monster", "Water 1", "Bug", "Flying", "Field", "Fairy", "Grass", "Human-Like", "Water 3", "Mineral", "Amorphous", "Water 2", "Ditto", "Dragon", "Undiscovered" };
-                    auto egg = [&](int g) { return g >= 1 && g <= 15 ? std::string(eggNames[g]) : std::to_string(g); };
+                    auto egg = [&](int g) { return g >= 1 && g <= 15 ? UiLang::Tr(eggNames[g]) : std::to_string(g); };
                     e.facts.push_back({ "Egg groups", egg(st.eggGroup1) + (st.eggGroup2 != st.eggGroup1 ? " / " + egg(st.eggGroup2) : std::string()) });
-                    snprintf(b, sizeof b, "%d steps", (st.hatchCycles + 1) * 255);
-                    e.facts.push_back({ "Hatches in", b });
+                    e.facts.push_back({ "Hatches in", UiLang::F("{0} steps", { std::to_string((st.hatchCycles + 1) * 255) }) });
                     int height = 0, weight = 0;
                     if (m.Size(id, height, weight) && height > 0)
                     {
@@ -6866,10 +6865,10 @@ int main(int argc, char** argv)
                     }
                     static const char* const evNames[] = { "HP", "Attack", "Defence", "Sp. Atk", "Sp. Def", "Speed" }; // (DexStats' order)
                     std::string evs;
-                    for (int i = 0; i < 6; i++) if (st.ev[i]) evs += (evs.empty() ? "" : ", ") + std::to_string(st.ev[i]) + " " + evNames[i];
+                    for (int i = 0; i < 6; i++) if (st.ev[i]) evs += (evs.empty() ? "" : ", ") + std::to_string(st.ev[i]) + " " + UiLang::Tr(evNames[i]);
                     if (!evs.empty()) e.facts.push_back({ "EV yield", evs });
                     static const char* const growth[] = { "Medium Fast", "Erratic", "Fluctuating", "Medium Slow", "Fast", "Slow" };
-                    if (st.growth >= 0 && st.growth < 6) e.facts.push_back({ "Growth", growth[st.growth] });
+                    if (st.growth >= 0 && st.growth < 6) e.facts.push_back({ "Growth", UiLang::Tr(growth[st.growth]) });
                     e.facts.push_back({ "Base friendship", std::to_string(st.friendship) });
                 }
                 // (What hits it: each attacking type's multiplier against its types; 1x left out.)
@@ -6917,11 +6916,11 @@ int main(int argc, char** argv)
                         std::string how;
                         for (const auto& w : p.ways)
                         {
-                            how += (how.empty() ? "" : ", ") + title(w);
+                            how += (how.empty() ? "" : ", ") + title(UiLang::Tr(w == "GRASS" ? "TALL GRASS" : w));
                             if (w == "GRASS" && !p.times.empty() && p.times.size() < 3)
                             {
                                 std::string t;
-                                for (const char* n : { "MORNING", "DAY", "NIGHT" }) if (p.times.count(n)) t += (t.empty() ? "" : ", ") + title(n);
+                                for (const char* n : { "MORNING", "DAY", "NIGHT" }) if (p.times.count(n)) t += (t.empty() ? "" : ", ") + title(UiLang::Tr(n));
                                 how += " (" + t + ")";
                             }
                         }
@@ -6929,7 +6928,7 @@ int main(int argc, char** argv)
                         const std::string lv = !p.low ? std::string() : p.high != p.low ? "Lv " + std::to_string(p.low) + "-" + std::to_string(p.high) : "Lv " + std::to_string(p.low);
                         e.found.push_back({ title(p.name) + "  \xC2\xB7  " + how, lv });
                     }
-                    if (places.size() > most) e.found.push_back({ "And " + std::to_string(places.size() - most) + " more places", "" });
+                    if (places.size() > most) e.found.push_back({ UiLang::F("And {0} more places", { std::to_string(places.size() - most) }), "" });
                 }
                 for (int mv : m.Tutors(id))
                 {
