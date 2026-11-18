@@ -66,6 +66,11 @@ games keep their hand-written entries under one QUESTIONS heading.
   four rooms rather than which ones are done. Black's flags are 0x969-0x96C (Shauntal,
   Grimsley, Marshal, Caitlin) in the cart's save; reading them would let the card move
   to the next room and then to N and Ghetsis.
+- On a save where the Elite Four has already been beaten, Black's NEXT BOSS still shows
+  the first-time Elite Four (Lv 48-50) rather than the higher-level rematch: the card
+  follows the badge count, and the rematch teams/state are not read yet. It only affects
+  finished-story saves; a fix needs the rematch teams in the Black boss data and the
+  E4/Hall-of-Fame flags to choose them.
 - The answer preview scrolls with Left/Right (a line a press, three when it is long), the
   wheel, or a finger's drag on the preview, with a bar on its right. The Elite Four's
   full teams stay in separate GYMS entries because they read better as entries than as a
