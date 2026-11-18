@@ -5772,6 +5772,25 @@ int main(int argc, char** argv)
         static const char* const ptE4[] = {"AARON","BERTHA","FLINT","LUCIAN","CYNTHIA"};
         return e4Card(ptE4, 5);
     };
+    // (GUIDE's GYMS for the gen 4 games: each leader's team, from the same cart data.)
+    auto guideGen4Team = [&](const char* name) -> std::string {
+        const bool hg = gameCode == "IPKE" || gameCode == "IPGE";
+        if (!hg && gameCode != "CPUE") return "";
+        const Companion::Gen4Boss* b = Companion::FindGen4Boss(name, hg);
+        if (!b) return "";
+        std::string out;
+        for (int i = 0; i < b->count; i++)
+        {
+            const auto& m = b->team[i];
+            std::string ty;
+            const int t1 = companionMetadata.Type(m.species, 0), t2 = companionMetadata.Type(m.species, 1);
+            if (CompanionTypes::Valid(t1)) ty = CompanionTypes::Name(t1);
+            if (t2 != t1 && CompanionTypes::Valid(t2)) ty += std::string(ty.empty() ? "" : "/") + CompanionTypes::Name(t2);
+            if (i) out += ", ";
+            out += companionMetadata.Species(m.species) + (ty.empty() ? "" : " (" + ty + ")") + " Lv " + std::to_string(m.level);
+        }
+        return out.empty() ? out : out + ".";
+    };
     // (GUIDE's HERE: the wild POKeMON the game lists for the place the player is in now.)
     struct GuideHereInfo { std::string title, hint, answer; bool any = false; };
     auto guideHere = [&]() -> GuideHereInfo {
@@ -5820,6 +5839,7 @@ int main(int argc, char** argv)
     int companionGuideChoice=0;bool companionGuideReveal=false;
     bool companionNextBossShown=false, companionHereShown=false; // (GUIDE's computed answers)
     std::set<int> companionGuideShown; // (GUIDE: the answers the player chose to show)
+    std::set<int> companionGymShown; // (GUIDE GYMS: the teams the player chose to show)
     readCompanion();
     int companionMon=0, companionSpecies=1, companionPocket=-1, companionDexFilter=0, companionItem=0, companionDexType=0;
     std::set<int> companionRevealed; // (POKEDEX: entries not yet seen that the player chose to show)
@@ -5846,7 +5866,7 @@ int main(int argc, char** argv)
         M_EXTRAS, M_EXTRA0=92000, M_EXTRA_END=92006, M_PLAYBACK=93000, M_FAST_SPEED, M_SMART_FAST, M_SLOW_MOTION, M_REWIND_MB, M_REWIND, M_TURBO_A, M_SCREEN_FILTER, M_COMPANION_OVERLAY, M_PARTY_HUD, M_STATUS_BAR, M_LIVE_GLASS, M_FAST_BUTTON, M_ZOOM, M_ZOOM_TEXT,
         M_STATES, M_SLOT_SAVE, M_SLOT_LOAD, M_SLOT_PREVIOUS, M_UNDO_LOAD,
         M_KEY0=94000, M_KEY_LAYER=94900, M_KEY_SPACE, M_KEY_DEL, M_KEY_DONE, M_KEY_SYMBOLS, // (the keyboard's keys, Menu::keyGrid: SEARCH, the log in)
-        M_FLY0=96000, M_CPARTY0=80000, M_CDEX0=81000, M_CITEM0=83000, M_RRESULT0=86000, M_SLOT0=90000, M_GUIDE0=91000,
+        M_FLY0=96000, M_CPARTY0=80000, M_CDEX0=81000, M_CITEM0=83000, M_RRESULT0=86000, M_SLOT0=90000, M_GUIDE0=91000, M_CGUIDE_GYM0=91100,
         M_BACKUP0 = 70000,
         M_CHEAT0 = 1000, // (M_CHEAT0 + i: cheat i, CHEATS)
         M_ACH0 = 30000,  // (M_ACH0 + i: achievement i, ACHIEVEMENTS)
@@ -7307,6 +7327,51 @@ int main(int argc, char** argv)
                         it.icon = a.shown ? Glass::I_SPARKLE : Glass::I_GLOBE;
                         it.choice = (int)menu.companion.guide.size() - 1;
                         it.desc = "Hint: " + guideText(here.hint);
+                    }
+                }
+                // (GYMS for the gen 4 games: every gym, the Elite Four and the champion, so any
+                // of their teams can be read, not only the next one. NEXT BOSS points at the next.)
+                {
+                    const bool hg = gameCode == "IPKE" || gameCode == "IPGE";
+                    if (hg || gameCode == "CPUE")
+                    {
+                        struct Row { const char* name; const char* hint; };
+                        static const Row hgRows[] = {
+                            {"FALKNER","VIOLET CITY GYM"},{"BUGSY","AZALEA TOWN GYM"},{"WHITNEY","GOLDENROD CITY GYM"},
+                            {"MORTY","ECRUTEAK CITY GYM"},{"CHUCK","CIANWOOD CITY GYM"},{"JASMINE","OLIVINE CITY GYM"},
+                            {"PRYCE","MAHOGANY TOWN GYM"},{"CLAIR","BLACKTHORN CITY GYM"},
+                            {"WILL","ELITE FOUR"},{"KOGA","ELITE FOUR"},{"BRUNO","ELITE FOUR"},{"KAREN","ELITE FOUR"},{"LANCE","CHAMPION"},
+                            {"BROCK","PEWTER CITY GYM"},{"MISTY","CERULEAN CITY GYM"},{"LT_SURGE","VERMILION CITY GYM"},
+                            {"ERIKA","CELADON CITY GYM"},{"JANINE","FUCHSIA CITY GYM"},{"SABRINA","SAFFRON CITY GYM"},
+                            {"BLAINE","CINNABAR ISLAND GYM"},{"BLUE","VIRIDIAN CITY GYM"},{"RED","MT. SILVER"},
+                        };
+                        static const Row ptRows[] = {
+                            {"ROARK","OREBURGH CITY GYM"},{"GARDENIA","ETERNA CITY GYM"},{"FANTINA","HEARTHOME CITY GYM"},
+                            {"MAYLENE","VEILSTONE CITY GYM"},{"WAKE","PASTORIA CITY GYM"},{"BYRON","CANALAVE CITY GYM"},
+                            {"CANDICE","SNOWPOINT CITY GYM"},{"VOLKNER","SUNYSHORE CITY GYM"},
+                            {"AARON","ELITE FOUR"},{"BERTHA","ELITE FOUR"},{"FLINT","ELITE FOUR"},{"LUCIAN","ELITE FOUR"},{"CYNTHIA","CHAMPION"},
+                        };
+                        const Row* rows = hg ? hgRows : ptRows;
+                        const int count = hg ? (int)(sizeof(hgRows)/sizeof(hgRows[0])) : (int)(sizeof(ptRows)/sizeof(ptRows[0]));
+                        section(guideText("GYMS").c_str(), Glass::I_TROPHY);
+                        for (int i = 0; i < count; i++)
+                        {
+                            const std::string team = guideGen4Team(rows[i].name);
+                            if (team.empty()) continue;
+                            Menu::CompanionView::GuideAnswer a;
+                            a.text = guideText(team);
+                            a.shown = companionGymShown.count(i) > 0;
+                            menu.companion.guide.push_back(a);
+                            std::string disp = rows[i].name;
+                            for (char& c : disp) if (c == '_') c = ' ';
+                            add(M_CGUIDE_GYM0 + i, guideText(disp).c_str(), a.shown ? "Shown" : "", true);
+                            MenuItem& it = menu.items.back();
+                            it.kind = Menu::K_LINK;
+                            it.preview = Menu::P_CGUIDE;
+                            it.icon = a.shown ? Glass::I_SPARKLE : Glass::I_TROPHY;
+                            it.choice = (int)menu.companion.guide.size() - 1;
+                            it.desc = "Hint: " + guideText(rows[i].hint);
+                        }
                     }
                 }
                 // (The entries in their sections: NEXT STEPS, GYMS, WHERE IS, ...; the earlier games
@@ -10072,12 +10137,13 @@ int main(int argc, char** argv)
             int hit = menu.Update(nav, dir);
             const int id = backTo >= 0 ? M_BACK : hit >= 0 && hit < (int)menuIds.size() ? menuIds[hit] : -1;
             if (backTo >= 0) hit = 0;
-            if((id==M_CGUIDE_NEXT || id==M_CGUIDE_HERE) && dir==0)
+            if((id==M_CGUIDE_NEXT || id==M_CGUIDE_HERE || (id>=M_CGUIDE_GYM0 && id<M_CGUIDE_GYM0+40)) && dir==0)
             {
-                // (NEXT BOSS and HERE answer in the preview like the other Guide entries: A or a
-                // tap shows it and hides it again; no separate page.)
-                bool& shown = id==M_CGUIDE_NEXT ? companionNextBossShown : companionHereShown;
-                shown = !shown;
+                // (The computed Guide answers — NEXT BOSS, HERE and the GYMS teams — show in the
+                // preview like the other entries: A or a tap shows and hides them again.)
+                if (id==M_CGUIDE_NEXT) companionNextBossShown = !companionNextBossShown;
+                else if (id==M_CGUIDE_HERE) companionHereShown = !companionHereShown;
+                else { const int i=id-M_CGUIDE_GYM0; if(!companionGymShown.erase(i)) companionGymShown.insert(i); }
                 goPage(PAGE_CGUIDE,id);hit=-1;
             }
             else if(id>=M_GUIDE0 && id<M_GUIDE0+(int)companionGuide.size() && dir==0)
