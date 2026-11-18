@@ -3793,7 +3793,8 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                     int at = -1;
                     for (int i = 0; i < (int)games.size(); i++)
                         if (games[i].platform == Launcher::N3DS && games[i].rom == N3dsPrepRom()) at = i;
-                    if (at >= 0) { result = at; quit = true; N3dsPrepRom().clear(); }
+                    if (at >= 0) { N3ds::Ack(); result = at; quit = true; N3dsPrepRom().clear(); }
+                    else N3ds::Ack(); // (no game found: clear the READY card too)
                     n3dsReadyAt = 0;
                 }
             }
