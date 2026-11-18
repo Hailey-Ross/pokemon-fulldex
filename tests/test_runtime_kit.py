@@ -1,5 +1,7 @@
 from pathlib import Path
 import shutil
+import sys
+import os
 import subprocess
 import tempfile
 import unittest
@@ -8,6 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class RuntimeKitTests(unittest.TestCase):
+    # (The 3DS games' launcher code is Windows and Linux only: N3ds is not there on a Mac.)
+    @unittest.skipUnless(sys.platform.startswith('linux') or sys.platform == 'win32' or os.name == 'nt', 'Windows or Linux only')
     @unittest.skipUnless(shutil.which('c++'), 'C++ compiler required')
     def test_partial_install_retry_preserves_existing_files(self):
         with tempfile.TemporaryDirectory() as folder:
