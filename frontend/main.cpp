@@ -5698,7 +5698,8 @@ int main(int argc, char** argv)
     struct GuideHereInfo { std::string title, hint, answer; bool any = false; };
     auto guideHere = [&]() -> GuideHereInfo {
         GuideHereInfo r;
-        if (gameCode != "IRBO" || companionSnapshot.map <= 0) return r;
+        const bool hereGame = gameCode == "IRBO" || gameCode == "IPKE" || gameCode == "IPGE" || gameCode == "CPUE";
+        if (!hereGame || companionSnapshot.map <= 0) return r;
         std::string place = companionMetadata.PlaceName(companionSnapshot.map);
         if (place.empty()) place = "THIS PLACE";
         const std::vector<std::string> lines = companionMetadata.EncounterLines(companionSnapshot.map);
@@ -7213,7 +7214,6 @@ int main(int argc, char** argv)
                     }
                 }
                 // (HERE: the place the player is in, with the game's wild list for it.)
-                if (gameCode == "IRBO")
                 {
                     const GuideHereInfo here = guideHere();
                     if (here.any)
