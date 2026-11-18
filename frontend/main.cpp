@@ -75,6 +75,7 @@
 #include "companion_rom.h"
 #include "companion_guides.h"
 #include "companion_black_bosses.h" // (Pokemon Black's next gym/league teams)
+#include "companion_gen4_bosses.h" // (HeartGold/SoulSilver and Platinum's)
 #include "companion_panel.h"
 #include "companion_battle.h"
 #include "optional_features.h"
@@ -5680,10 +5681,10 @@ int main(int argc, char** argv)
         }
     };
     const auto companionGuide=Companion::GuideFor(gameCode);
-    // (GUIDE's NEXT BOSS: the next gym, or the League, from the save's badges; the Striaton leader
-    // by the starter in the party.)
-    auto guideNextBoss = [&]() -> Companion::BlackBossInfo {
-        if (gameCode != "IRBO") return {};
+    // (GUIDE's NEXT BOSS: the next gym, or the League, from the save's badges. Black's
+    // Striaton leader follows the starter; the gen 4 games' first leaders are fixed.)
+    struct GuideBoss { std::string title, hint, answer; bool any = false; };
+    auto guideNextBoss = [&]() -> GuideBoss {
         int best = 0, starter = 0;
         for (const auto& m : companionSnapshot.party)
         {
@@ -5692,7 +5693,84 @@ int main(int argc, char** argv)
             else if (m.species >= 498 && m.species <= 500) starter = 2;
             else if (m.species >= 501 && m.species <= 503) starter = 3;
         }
-        return Companion::BlackNextBoss(companionSnapshot.badges, best, starter);
+        if (gameCode == "IRBO")
+        {
+            const Companion::BlackBossInfo b = Companion::BlackNextBoss(companionSnapshot.badges, best, starter);
+            GuideBoss g; g.title = b.title; g.hint = b.hint; g.answer = b.answer; g.any = b.any; return g;
+        }
+        const bool hg = gameCode == "IPKE" || gameCode == "IPGE";
+        if (!hg && gameCode != "CPUE") return {};
+        const int badges = companionSnapshot.badges;
+        auto monLine = [&](const Companion::Gen4Mon& m) {
+            std::string ty;
+            const int t1 = companionMetadata.Type(m.species, 0), t2 = companionMetadata.Type(m.species, 1);
+            if (CompanionTypes::Valid(t1)) ty = CompanionTypes::Name(t1);
+            if (t2 != t1 && CompanionTypes::Valid(t2)) ty += std::string(ty.empty() ? "" : "/") + CompanionTypes::Name(t2);
+            return companionMetadata.Species(m.species) + (ty.empty() ? "" : " (" + ty + ")") + " Lv " + std::to_string(m.level);
+        };
+        auto bossAnswer = [&](const Companion::Gen4Boss& b) {
+            int high = 0; std::string out;
+            for (int i = 0; i < b.count; i++)
+            {
+                high = std::max(high, b.team[i].level);
+                if (i) out += ", ";
+                out += monLine(b.team[i]);
+            }
+            return std::pair<std::string, int>(out + ".", high);
+        };
+        auto displayName = [](const char* name) { std::string s = name; for (char& c : s) if (c == '_') c = ' '; return s; };
+        auto makeBoss = [&](const char* name, const char* where) -> GuideBoss {
+            const Companion::Gen4Boss* b = Companion::FindGen4Boss(name, hg);
+            if (!b) return {};
+            const auto team = bossAnswer(*b);
+            GuideBoss g; g.any = true;
+            g.title = "NEXT BOSS: " + displayName(name);
+            g.hint = std::string(where) + "  \xC2\xB7  HIGHEST Lv " + std::to_string(team.second) +
+                     (best > 0 ? "  \xC2\xB7  YOUR BEST Lv " + std::to_string(best) : "");
+            g.answer = team.first;
+            return g;
+        };
+        auto e4Card = [&](const char* const* names, int n) -> GuideBoss {
+            GuideBoss g; int high = 0; std::string lines;
+            for (int i = 0; i < n; i++)
+            {
+                const Companion::Gen4Boss* b = Companion::FindGen4Boss(names[i], hg);
+                if (!b) continue;
+                const auto team = bossAnswer(*b);
+                high = std::max(high, team.second);
+                if (!lines.empty()) lines += "\n";
+                lines += displayName(names[i]) + ": " + team.first;
+            }
+            if (lines.empty()) return {};
+            g.any = true;
+            g.title = "NEXT BOSS: THE ELITE FOUR";
+            g.hint = "ELITE FOUR  \xC2\xB7  HIGHEST Lv " + std::to_string(high) +
+                     (best > 0 ? "  \xC2\xB7  YOUR BEST Lv " + std::to_string(best) : "");
+            g.answer = lines;
+            return g;
+        };
+        if (hg)
+        {
+            static const char* const johto[] = {"FALKNER","BUGSY","WHITNEY","MORTY","CHUCK","JASMINE","PRYCE","CLAIR"};
+            static const char* const jwhere[] = {"VIOLET CITY GYM","AZALEA TOWN GYM","GOLDENROD CITY GYM","ECRUTEAK CITY GYM","CIANWOOD CITY GYM","OLIVINE CITY GYM","MAHOGANY TOWN GYM","BLACKTHORN CITY GYM"};
+            static const char* const kanto[] = {"BROCK","MISTY","LT_SURGE","ERIKA","JANINE","SABRINA","BLAINE","BLUE"};
+            static const char* const kwhere[] = {"PEWTER CITY GYM","CERULEAN CITY GYM","VERMILION CITY GYM","CELADON CITY GYM","FUCHSIA CITY GYM","SAFFRON CITY GYM","CINNABAR ISLAND GYM","VIRIDIAN CITY GYM"};
+            if (badges < 8) return makeBoss(johto[badges], jwhere[badges]);
+            if (badges == 8)
+            {
+                static const char* const e4[] = {"WILL","KOGA","BRUNO","KAREN","LANCE"};
+                GuideBoss g = e4Card(e4, 5);
+                if (g.any) g.answer += "\nAfter LANCE: the KANTO GYMS (BROCK first).";
+                return g;
+            }
+            if (badges < 16) return makeBoss(kanto[badges - 8], kwhere[badges - 8]);
+            return makeBoss("RED", "MT. SILVER");
+        }
+        static const char* const sinnoh[] = {"ROARK","GARDENIA","FANTINA","MAYLENE","WAKE","BYRON","CANDICE","VOLKNER"};
+        static const char* const swhere[] = {"OREBURGH CITY GYM","ETERNA CITY GYM","HEARTHOME CITY GYM","VEILSTONE CITY GYM","PASTORIA CITY GYM","CANALAVE CITY GYM","SNOWPOINT CITY GYM","SUNYSHORE CITY GYM"};
+        if (badges < 8) return makeBoss(sinnoh[badges], swhere[badges]);
+        static const char* const ptE4[] = {"AARON","BERTHA","FLINT","LUCIAN","CYNTHIA"};
+        return e4Card(ptE4, 5);
     };
     // (GUIDE's HERE: the wild POKeMON the game lists for the place the player is in now.)
     struct GuideHereInfo { std::string title, hint, answer; bool any = false; };
@@ -7194,9 +7272,8 @@ int main(int argc, char** argv)
                 };
                 // (NEXT BOSS: the gym the save's badges point at next, or the League, with its team
                 // and your best level; the answer waits behind REVEAL like the other entries.)
-                if (gameCode == "IRBO")
                 {
-                    const Companion::BlackBossInfo nb = guideNextBoss();
+                    const GuideBoss nb = guideNextBoss();
                     if (nb.any)
                     {
                         section(guideText("NEXT BOSS").c_str(), Glass::I_TROPHY);
