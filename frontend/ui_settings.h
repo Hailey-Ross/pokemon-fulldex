@@ -1185,7 +1185,7 @@ inline void MonSummary(Canvas& c, const Menu::CompanionView::Mon& m, int x0, int
     if (!m.icon.empty()) MonIcon(c, m.icon, m.iconW, m.iconH, x0, y, is);
     else Glass::DrawIcon(c, Glass::I_POKEBALL, x0 + is * 0.5f, y + is * 0.5f, is * 0.28f, GlassText);
     const int tx = x0 + is + K(14);
-    const std::string lv = m.egg ? std::string("Egg") : "Lv " + std::to_string(m.level);
+    const std::string lv = m.egg ? UiLang::Tr("Egg") : "Lv " + std::to_string(m.level);
     if (showName)
     {
         T(c, tx, y + K(24), m.name, K(22), GlassText, true, false);
@@ -1197,10 +1197,10 @@ inline void MonSummary(Canvas& c, const Menu::CompanionView::Mon& m, int x0, int
     if (CompanionTypes::Valid(m.type2) && m.type2 != m.type1) TypeChip(c, m.type2, cx, y + K(34), k);
     y += is + K(14);
     std::string line;
-    if (!m.nature.empty()) line = m.nature + " nature";
+    if (!m.nature.empty()) line = UiLang::F("{0} nature", { m.nature });
     if (!m.ability.empty()) line += (line.empty() ? "" : "  \xC2\xB7  ") + m.ability;
     if (!line.empty()) { T(c, x0, y + K(12), line, K(13), Desc, false, false); y += K(20); }
-    T(c, x0, y + K(12), "Holding " + (m.item.empty() ? std::string("nothing") : m.item), K(13), Desc, false, false);
+    T(c, x0, y + K(12), UiLang::F("Holding {0}", { m.item.empty() ? UiLang::Tr("nothing") : m.item }), K(13), Desc, false, false);
     y += K(26);
     if (m.egg) return;
     // (Stats: each a bar, the longest the highest of the six; its IV after.)
@@ -1359,7 +1359,7 @@ inline void DexSummary(Canvas& c, const Menu::CompanionView::DexEntry& e, int x0
             T(c, nx, my + rowH / 2 + K(5), name, K(14), GlassText, true, false);
         }
         if (fit < e.learns.size())
-            T(c, x0, y + rows * rowH + K(18), "+" + std::to_string(e.learns.size() - fit) + " more", K(14), GlassHint, true, false);
+            T(c, x0, y + rows * rowH + K(18), UiLang::F("+{0} more", { std::to_string(e.learns.size() - fit) }), K(14), GlassHint, true, false);
         if (e.learns.empty()) T(c, x0, y + K(16), "None", K(16), Desc, false, false);
         T(c, x0, bottom - K(6), "A or tap: back to the entry", K(15), GlassHint, false, false);
         return;
@@ -1374,7 +1374,7 @@ inline void DexSummary(Canvas& c, const Menu::CompanionView::DexEntry& e, int x0
     if (total > 0 && bottom - y > K(110))
     {
         T(c, x0, y + K(14), "Base stats", K(15), GlassHint, true, false);
-        const std::string t = "Total " + std::to_string(total);
+        const std::string t = UiLang::F("Total {0}", { std::to_string(total) });
         T(c, x0 + w0 - W(t, K(15), true, false), y + K(14), t, K(15), GlassText, true, false);
         y += K(24);
         const int gap = K(18), colW = (w0 - gap) / 2, rowH = K(26), labelW = K(62), numW = K(34);
@@ -1397,7 +1397,7 @@ inline void DexSummary(Canvas& c, const Menu::CompanionView::DexEntry& e, int x0
     {
         std::string a;
         for (const auto& ab : e.abilities) a += (a.empty() ? "" : "  \xC2\xB7  ") + ab;
-        lines.push_back((e.abilities.size() > 1 ? "Abilities: " : "Ability: ") + a);
+        lines.push_back(UiLang::F(e.abilities.size() > 1 ? "Abilities: {0}" : "Ability: {0}", { a }));
     }
     for (const auto& ev : e.evolutions) lines.push_back(ev);
     for (const auto& line : lines)
@@ -1455,8 +1455,8 @@ inline void BattleFoeSummary(Canvas& c, const Menu::CompanionView::Mon& m, int x
     if (CompanionTypes::Valid(m.type1)) cx += TypeChip(c, m.type1, cx, y + K(44), k * 1.1f) + K(6);
     if (CompanionTypes::Valid(m.type2) && m.type2 != m.type1) TypeChip(c, m.type2, cx, y + K(44), k * 1.1f);
     y += is + K(24);
-    if (!m.ability.empty()) { T(c, x0, y + K(14), "Ability: " + m.ability, K(17), Desc, false, false); y += K(26); }
-    T(c, x0, y + K(14), "Holding " + (m.item.empty() ? std::string("nothing") : m.item), K(17), Desc, false, false);
+    if (!m.ability.empty()) { T(c, x0, y + K(14), UiLang::F("Ability: {0}", { m.ability }), K(17), Desc, false, false); y += K(26); }
+    T(c, x0, y + K(14), UiLang::F("Holding {0}", { m.item.empty() ? UiLang::Tr("nothing") : m.item }), K(17), Desc, false, false);
     y += K(36);
     if (!CompanionTypes::Valid(m.type1)) return;
     // (Each group: a heading, then the types as chips with how strong, wrapping while they fit.)
@@ -1513,7 +1513,7 @@ inline void BattleMoveSummary(Canvas& c, const Menu::CompanionView::BattleMove& 
         T(c, x0 + i * colW, y + K(46), vals[i], K(26), i == 2 && mv.pp == 0 ? 0xFFE5534Bu : GlassText, true, false);
     }
     y += K(76);
-    T(c, x0, y + K(14), "Against " + foe, K(15), GlassHint, true, false);
+    T(c, x0, y + K(14), UiLang::F("Against {0}", { foe }), K(15), GlassHint, true, false);
     y += K(26);
     const std::string big = mv.category == 2 ? std::string("Status move") : MatchText(mv.percent);
     T(c, x0, y + K(38), big, K(40), mv.category == 2 ? GlassText : MatchColour(mv.percent), true, false);
@@ -1536,13 +1536,13 @@ inline void CoverageSummary(Canvas& c, const Menu::CompanionView::Mon& m, const 
     Glass::Rim(c, x0, y, is, is, 14 * k, std::max(1.0f, k), 0x60, 0x14);
     if (!m.icon.empty()) MonIcon(c, m.icon, m.iconW, m.iconH, x0, y, is, m.hp == 0 ? 0x70 : 255);
     const int tx = x0 + is + K(16);
-    T(c, tx, y + K(24), "Lv " + std::to_string(m.level) + "  \xC2\xB7  " + (m.hp ? std::to_string(m.hp) + " / " + std::to_string(m.maxHp) + " HP" : std::string("Fainted")), K(16), GlassText, true, false);
+    T(c, tx, y + K(24), "Lv " + std::to_string(m.level) + "  \xC2\xB7  " + (m.hp ? std::to_string(m.hp) + " / " + std::to_string(m.maxHp) + " HP" : UiLang::Tr("Fainted")), K(16), GlassText, true, false);
     int cx = tx;
     if (CompanionTypes::Valid(m.type1)) cx += TypeChip(c, m.type1, cx, y + K(36), k * 1.1f) + K(6);
     if (CompanionTypes::Valid(m.type2) && m.type2 != m.type1) TypeChip(c, m.type2, cx, y + K(36), k * 1.1f);
     y += is + K(26);
     const struct { const char* head; int pct; std::string say; } rows[] = {
-        { "Its best move", cov.out, "against " + foe },
+        { "Its best move", cov.out, UiLang::F("against {0}", { foe }) },
         { "The foe's worst known move", cov.in, "against it" } };
     for (const auto& r : rows)
     {
@@ -1602,7 +1602,7 @@ inline bool CompanionPicture(Canvas& c, const Menu::CompanionView& cv, int kind,
             const int tx = ix + is + K(10), tw = cx + cw - K(12) - tx;
             const int nameY = cy + ch / 2 - K(4), barY = cy + ch / 2 + K(6);
             std::string name = m.name;
-            const std::string lv = m.egg ? std::string("Egg") : "Lv " + std::to_string(m.level);
+            const std::string lv = m.egg ? UiLang::Tr("Egg") : "Lv " + std::to_string(m.level);
             while (name.size() > 1 && W(name, K(16), true, false) > tw - W(lv, K(13), false, false) - K(16)) name.pop_back();
             T(c, tx, nameY, name, K(16), GlassText, true, false);
             T(c, cx + cw - K(12) - W(lv, K(13), false, false), nameY, lv, K(13), GlassHint, false, false);
@@ -1635,7 +1635,7 @@ inline bool CompanionPicture(Canvas& c, const Menu::CompanionView& cv, int kind,
             if (!empty || on) Glass::Rim(c, cx, cy, cw, ch, 12 * k, std::max(1.0f, k), on ? 0x90 : 0x60, 0x14);
             if (picks) picks->push_back({ cx, cy, cw, ch, i });
             T(c, cx + K(14), cy + ch / 2 - K(2), pk[i].name, K(15), on ? PillInk : empty ? GlassHint : GlassText, true, false);
-            const std::string sub = empty ? "Empty" : std::to_string(pk[i].stacks) + (pk[i].stacks == 1 ? " kind" : " kinds") + "  \xC2\xB7  " + std::to_string(pk[i].total) + " in all";
+            const std::string sub = empty ? "Empty" : UiLang::F(pk[i].stacks == 1 ? "{0} kind" : "{0} kinds", { std::to_string(pk[i].stacks) }) + "  \xC2\xB7  " + UiLang::F("{0} in all", { std::to_string(pk[i].total) });
             T(c, cx + K(14), cy + ch / 2 + K(16), sub, K(12), on ? 0xB30B1018u : GlassHint, false, false);
         }
     }
@@ -1667,7 +1667,7 @@ inline bool CompanionPicture(Canvas& c, const Menu::CompanionView& cv, int kind,
         {
             const std::string num = std::to_string(l.n);
             T(c, x0, y + K(36), num, K(38), GlassText, true, false);
-            T(c, x0 + W(num, K(38), true, false) + K(12), y + K(36), std::string(l.name) + " of " + std::to_string(total), K(16), Desc, false, false);
+            T(c, x0 + W(num, K(38), true, false) + K(12), y + K(36), UiLang::F("{0} of {1}", { std::string(l.name), std::to_string(total) }), K(16), Desc, false, false);
             const int pct = (int)std::lround(100.0 * l.n / total);
             const std::string ps = std::to_string(pct) + "%";
             T(c, x0 + w0 - W(ps, K(16), true, false), y + K(36), ps, K(16), GlassText, true, false);
@@ -2895,7 +2895,7 @@ inline void PartyHud(Canvas& c, const Menu::CompanionView& cv, int top = -1, flo
         }
         else Glass::DrawIcon(c, Glass::I_POKEBALL, ix + is * 0.5f, iy + is * 0.5f, is * 0.3f, m.hp == 0 ? Menu::GlassOff : Menu::GlassText);
         const int bx = ix + is + K(6), bw = x + cw - K(10) - bx;
-        const std::string lv = m.egg ? std::string("Egg") : "Lv " + std::to_string(m.level);
+        const std::string lv = m.egg ? UiLang::Tr("Egg") : "Lv " + std::to_string(m.level);
         T(c, bx, y + K(19), lv, K(12), m.hp == 0 && !m.egg ? Menu::GlassOff : Menu::GlassText, true, false);
         if (!m.egg)
         {

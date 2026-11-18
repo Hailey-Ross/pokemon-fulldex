@@ -1,3 +1,4 @@
+#include <initializer_list>
 // The interface's language (LANGUAGE in the settings, list_lang): the game list, the settings page
 // and the pause menu are written in English; Canvas::Text (ui.h) shows each text through Tr,
 // which applies the selected interface translation. A text not in the table stays in English.
@@ -174,5 +175,17 @@ inline std::string Tr(const std::string& s) {
     }
     // Companion pages (PokeDaisy) keep their own es/it/fr/de text; ja/ko fall back to English.
     return lang <= 4 ? CompanionTranslation(lang, s) : s;
+}
+// A template in the menus' language with its {0}, {1}... filled in ("Holding {0}": "Lleva {0}").
+inline std::string F(const std::string& tmpl, std::initializer_list<std::string> args)
+{
+    std::string t = Tr(tmpl);
+    int i = 0;
+    for (const std::string& v : args)
+    {
+        const std::string k = "{" + std::to_string(i++) + "}";
+        for (size_t p = t.find(k); p != std::string::npos; p = t.find(k, p + v.size())) t.replace(p, k.size(), v);
+    }
+    return t;
 }
 } // namespace UiLang
