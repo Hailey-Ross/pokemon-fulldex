@@ -4,8 +4,9 @@ The Guide is the pause menu's COMPANION tab: hints for the moments you'd otherwi
 open a walkthrough. It is written to spoil as little as possible: an entry starts as a
 title and a hint, and A or a tap shows its answer in the preview beside the list (and
 hides it again). An answer longer than the preview scrolls with Left/Right, the mouse
-wheel or a finger's drag; the bar on its right shows how much of it is there. The list
-keeps which answers you have shown for the session. NEXT BOSS and HERE work the same way.
+wheel while the pointer is over it, or a finger's drag on it; the bar on its right shows
+how much of it is there. The list keeps which answers you have shown for the session.
+NEXT BOSS and HERE work the same way.
 
 Pokémon Black (IRBO) is the first game with the full set of sections; the other DS
 games keep their hand-written entries under one QUESTIONS heading.
@@ -22,9 +23,9 @@ games keep their hand-written entries under one QUESTIONS heading.
 - **HERE** — the place you are in now, with the wild Pokémon the game's own encounter
   tables list for it. Each way they are met (grass, dark grass, rustling grass, surf,
   rippling water, fishing, ...) gets its own line, and each Pokémon with its level range
-  a line under it. A long list scrolls (Left/Right, the wheel, or a drag on the preview;
-  the bar on the right shows the part in view); LOCATION has the same table. A town says
-  it has none and points at the routes around it.
+  a line under it. A long list scrolls (Left/Right, the wheel over the preview, or a drag
+  on it; the bar on the right shows the part in view); LOCATION has the same table. A
+  town says it has none and points at the routes around it.
 - **NEXT STEPS** — the main story by milestone: Nuvema → Striaton → Nacrene → Castelia
   → Nimbasa → Driftveil → Mistralton → Icirrus → Opelucid → Victory Road/League → the
   post-game.

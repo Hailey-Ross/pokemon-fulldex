@@ -8965,23 +8965,37 @@ int main(int argc, char** argv)
                 if ((ev.type == SDL_MOUSEBUTTONUP && ev.button.which != SDL_TOUCH_MOUSEID) ||
                     (ev.type == SDL_WINDOWEVENT && ev.window.event == SDL_WINDOWEVENT_FOCUS_LOST)) pointerHeld = false;
 #endif
-                // (A GUIDE answer that is shown scrolls in its own window with the wheel; the list
-                // of rows is left where it is. Other pages have no wheel handling here.)
+                // (A GUIDE answer that is shown scrolls in its own window with the wheel, while the
+                // pointer is over that window; the list of rows is left where it is. Other pages
+                // have no wheel handling here.)
                 if (ev.type == SDL_MOUSEWHEEL && menu.open && menuPage == PAGE_CGUIDE && menu.columns == 0)
                 {
                     int steps = ev.wheel.y;
                     if (ev.wheel.direction == SDL_MOUSEWHEEL_FLIPPED) steps = -steps;
-                    if (steps && menu.selected >= 0 && menu.selected < (int)menu.items.size())
+                    if (steps)
                     {
-                        const MenuItem& it = menu.items[menu.selected];
-                        if (it.preview == Menu::P_CGUIDE && it.choice >= 0 && it.choice < (int)menu.companion.guide.size())
+                        int mx = 0, my = 0;
+                        SDL_GetMouseState(&mx, &my);
+                        int ow = 0, oh = 0, ww = 0, wh = 0;
+                        SDL_GetRendererOutputSize(renderer, &ow, &oh);
+                        SDL_GetWindowSize(window, &ww, &wh);
+                        const int px = ww > 0 ? mx * ow / ww : mx, py = wh > 0 ? my * oh / wh : my;
+                        const bool overPreview = menu.previewW > 0 &&
+                            px >= menu.previewX && px < menu.previewX + menu.previewW &&
+                            py >= menu.previewY && py < menu.previewY + menu.previewH;
+                        if (overPreview)
                         {
-                            auto& a = menu.companion.guide[it.choice];
-                            if (a.shown && a.scrollMax > 0)
+                            if (menu.selected >= 0 && menu.selected < (int)menu.items.size())
                             {
-                                a.scroll = std::clamp(a.scroll - steps, 0, a.scrollMax);
-                                continue;
+                                const MenuItem& it = menu.items[menu.selected];
+                                if (it.preview == Menu::P_CGUIDE && it.choice >= 0 && it.choice < (int)menu.companion.guide.size())
+                                {
+                                    auto& a = menu.companion.guide[it.choice];
+                                    if (a.shown && a.scrollMax > 0)
+                                        a.scroll = std::clamp(a.scroll - steps, 0, a.scrollMax);
+                                }
                             }
+                            continue; // (the preview keeps the wheel; the list stays put)
                         }
                     }
                 }
@@ -11673,7 +11687,12 @@ int main(int argc, char** argv)
         {
             static int testWheelAt=-1,testWheelSteps=0;static uint32_t testWheelFrames=0;
             if(testWheelAt==-1){testWheelAt=-2;if(const char* w=getenv("SSR_TEST_WHEEL"))sscanf(w,"%d,%d",&testWheelAt,&testWheelSteps);}
-            if(testWheelAt>=0&&++testWheelFrames==(uint32_t)testWheelAt){SDL_Event e{};e.type=SDL_MOUSEWHEEL;e.wheel.y=testWheelSteps;SDL_PushEvent(&e);testWheelAt=-2;}
+            if(testWheelAt>=0&&++testWheelFrames==(uint32_t)testWheelAt){
+                // (The wheel is the preview's when the pointer is over it: put it there first.)
+                int ow=0,oh=0,ww=0,wh=0;SDL_GetRendererOutputSize(renderer,&ow,&oh);SDL_GetWindowSize(window,&ww,&wh);
+                if(ww>0&&wh>0&&ow>0&&oh>0&&menu.previewW>0)
+                    SDL_WarpMouseInWindow(window,(menu.previewX+menu.previewW/2)*ww/ow,(menu.previewY+menu.previewH/2)*wh/oh);
+                SDL_Event e{};e.type=SDL_MOUSEWHEEL;e.wheel.y=testWheelSteps;SDL_PushEvent(&e);testWheelAt=-2;}
         }
         // FLY (M_FLY): the check's answer within about 30 frames (as PokeDaisy waits), then the towns; the
         // flight's job (result 1: Gen 5's flight event, none when the game's own check said no).
