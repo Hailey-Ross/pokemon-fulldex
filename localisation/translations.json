@@ -694,7 +694,19 @@
       "ZOOM WORKS ON THE OVERWORLD": "EL ZOOM FUNCIONA EN EL MAPA",
       " ADDED": " AÑADIDOS",
       "SOME FAILED (SEE GAME.LOG)": "ALGUNOS FALLARON (VER GAME.LOG)",
-      "FAILED (SEE GAME.LOG)": "FALLÓ (VER GAME.LOG)"
+      "FAILED (SEE GAME.LOG)": "FALLÓ (VER GAME.LOG)",
+      "Shown": "Visible",
+      "Have": "Lo tienes",
+      "Answer": "Respuesta",
+      "Answer hidden": "Respuesta oculta",
+      "A or tap to show it": "A o toca para verla",
+      "SHOW/HIDE": "MOSTRAR/OCULTAR",
+      "TAP": "TOCA",
+      "OUTSIDE": "FUERA",
+      "DRAG": "ARRASTRA",
+      "SCROLL": "DESPLAZAR",
+      "Hints for where you are in the game, the answer hidden until you ask.": "Pistas para el punto del juego en el que estás, con la respuesta oculta hasta que la pidas.",
+      "GUIDE": "GUÍA"
     },
     "it": {
       " (NEXT START)": " (AL RIAVVIO)",
@@ -1381,7 +1393,19 @@
       "ZOOM WORKS ON THE OVERWORLD": "LO ZOOM FUNZIONA SULLA MAPPA",
       " ADDED": " AGGIUNTE",
       "SOME FAILED (SEE GAME.LOG)": "ALCUNE NON RIUSCITE (VEDI GAME.LOG)",
-      "FAILED (SEE GAME.LOG)": "NON RIUSCITO (VEDI GAME.LOG)"
+      "FAILED (SEE GAME.LOG)": "NON RIUSCITO (VEDI GAME.LOG)",
+      "Shown": "Visibile",
+      "Have": "Ce l'hai",
+      "Answer": "Risposta",
+      "Answer hidden": "Risposta nascosta",
+      "A or tap to show it": "A o tocca per vederla",
+      "SHOW/HIDE": "MOSTRA/NASCONDI",
+      "TAP": "TOCCA",
+      "OUTSIDE": "FUORI",
+      "DRAG": "TRASCINA",
+      "SCROLL": "SCORRI",
+      "Hints for where you are in the game, the answer hidden until you ask.": "Indizi per il punto del gioco in cui sei, con la risposta nascosta finché non la chiedi.",
+      "GUIDE": "GUIDA"
     },
     "fr": {
       " (NEXT START)": " (PROCHAIN DÉBUT)",
@@ -2068,7 +2092,19 @@
       "ZOOM WORKS ON THE OVERWORLD": "LE ZOOM FONCTIONNE SUR LA CARTE",
       " ADDED": " AJOUTÉES",
       "SOME FAILED (SEE GAME.LOG)": "CERTAINES ONT ÉCHOUÉ (VOIR GAME.LOG)",
-      "FAILED (SEE GAME.LOG)": "ÉCHEC (VOIR GAME.LOG)"
+      "FAILED (SEE GAME.LOG)": "ÉCHEC (VOIR GAME.LOG)",
+      "Shown": "Affichée",
+      "Have": "Obtenu",
+      "Answer": "Réponse",
+      "Answer hidden": "Réponse cachée",
+      "A or tap to show it": "A ou touche pour l'afficher",
+      "SHOW/HIDE": "AFFICHER/MASQUER",
+      "TAP": "TOUCHE",
+      "OUTSIDE": "DEHORS",
+      "DRAG": "GLISSE",
+      "SCROLL": "DÉFILER",
+      "Hints for where you are in the game, the answer hidden until you ask.": "Des indices pour là où tu en es dans le jeu, la réponse cachée jusqu'à ce que tu la demandes.",
+      "GUIDE": "GUIDE"
     },
     "de": {
       " (NEXT START)": " (NÄCHSTER START)",
@@ -2755,7 +2791,19 @@
       "ZOOM WORKS ON THE OVERWORLD": "ZOOM GEHT NUR AUF DER KARTE",
       " ADDED": " HINZUGEFÜGT",
       "SOME FAILED (SEE GAME.LOG)": "EINIGE FEHLGESCHLAGEN (SIEHE GAME.LOG)",
-      "FAILED (SEE GAME.LOG)": "FEHLGESCHLAGEN (SIEHE GAME.LOG)"
+      "FAILED (SEE GAME.LOG)": "FEHLGESCHLAGEN (SIEHE GAME.LOG)",
+      "Shown": "Angezeigt",
+      "Have": "Hast du",
+      "Answer": "Antwort",
+      "Answer hidden": "Antwort verdeckt",
+      "A or tap to show it": "A oder tippen zum Anzeigen",
+      "SHOW/HIDE": "ZEIGEN/VERBERGEN",
+      "TAP": "TIPPEN",
+      "OUTSIDE": "DANEBEN",
+      "DRAG": "ZIEHEN",
+      "SCROLL": "SCROLLEN",
+      "Hints for where you are in the game, the answer hidden until you ask.": "Hinweise dazu, wo du im Spiel gerade bist, die Antwort verdeckt, bis du danach fragst.",
+      "GUIDE": "GUIDE"
     },
     "ja": {
       " (NEXT START)": " (次のスタート)",
@@ -3442,7 +3490,19 @@
       "ZOOM WORKS ON THE OVERWORLD": "ズームはフィールドで使えます",
       " ADDED": "個を追加",
       "SOME FAILED (SEE GAME.LOG)": "一部失敗（GAME.LOG を参照）",
-      "FAILED (SEE GAME.LOG)": "失敗（GAME.LOG を参照）"
+      "FAILED (SEE GAME.LOG)": "失敗（GAME.LOG を参照）",
+      "Shown": "表示中",
+      "Have": "所持",
+      "Answer": "答え",
+      "Answer hidden": "答えは非表示",
+      "A or tap to show it": "Aかタップで表示",
+      "SHOW/HIDE": "表示/非表示",
+      "TAP": "タップ",
+      "OUTSIDE": "外側",
+      "DRAG": "ドラッグ",
+      "SCROLL": "スクロール",
+      "Hints for where you are in the game, the answer hidden until you ask.": "今いる場面のヒント。答えは聞くまで隠れています。",
+      "GUIDE": "ガイド"
     },
     "ko": {
       " (NEXT START)": " (다음 시작)",
@@ -4129,7 +4189,19 @@
       "ZOOM WORKS ON THE OVERWORLD": "줌은 필드에서 쓸 수 있습니다",
       " ADDED": "개 추가됨",
       "SOME FAILED (SEE GAME.LOG)": "일부 실패 (GAME.LOG 참조)",
-      "FAILED (SEE GAME.LOG)": "실패 (GAME.LOG 참조)"
+      "FAILED (SEE GAME.LOG)": "실패 (GAME.LOG 참조)",
+      "Shown": "표시됨",
+      "Have": "보유",
+      "Answer": "답",
+      "Answer hidden": "답 숨김",
+      "A or tap to show it": "A 또는 탭해서 보기",
+      "SHOW/HIDE": "보이기/숨기기",
+      "TAP": "탭",
+      "OUTSIDE": "바깥",
+      "DRAG": "드래그",
+      "SCROLL": "스크롤",
+      "Hints for where you are in the game, the answer hidden until you ask.": "지금 게임 진행 위치에 맞는 힌트. 답은 물어볼 때까지 숨겨져 있습니다.",
+      "GUIDE": "가이드"
     }
   }
 }

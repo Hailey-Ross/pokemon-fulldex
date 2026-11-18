@@ -74,6 +74,7 @@
 #include "companion_types.h"
 #include "companion_rom.h"
 #include "companion_guides.h"
+#include "guide_translations.h"
 #include "companion_black_bosses.h" // (Pokemon Black's next gym/league teams)
 #include "companion_gen4_bosses.h" // (HeartGold/SoulSilver and Platinum's)
 #include "companion_panel.h"
@@ -5865,6 +5866,7 @@ int main(int argc, char** argv)
     // Striaton leader follows the starter; the gen 4 games' first leaders are fixed.)
     struct GuideBoss { std::string title, hint, answer; bool any = false; };
     auto guideNextBoss = [&]() -> GuideBoss {
+        GuideText::Lang() = UiLang::lang; // (the Guide in the menus' language: guide_translations.h)
         int best = 0, starter = 0;
         for (const auto& m : companionSnapshot.party)
         {
@@ -5904,9 +5906,9 @@ int main(int argc, char** argv)
             if (!b) return {};
             const auto team = bossAnswer(*b);
             GuideBoss g; g.any = true;
-            g.title = "NEXT BOSS: " + displayName(name);
-            g.hint = std::string(where) + "  \xC2\xB7  HIGHEST Lv " + std::to_string(team.second) +
-                     (best > 0 ? "  \xC2\xB7  YOUR BEST Lv " + std::to_string(best) : "");
+            g.title = GuideText::Fmt(GuideText::Tr("NEXT BOSS: {0}"), { displayName(name) });
+            g.hint = std::string(where) + "  \xC2\xB7  " + GuideText::Fmt(GuideText::Tr("HIGHEST Lv {0}"), { std::to_string(team.second) }) +
+                     (best > 0 ? "  \xC2\xB7  " + GuideText::Fmt(GuideText::Tr("YOUR BEST Lv {0}"), { std::to_string(best) }) : "");
             g.answer = team.first;
             return g;
         };
@@ -5923,9 +5925,9 @@ int main(int argc, char** argv)
             }
             if (lines.empty()) return {};
             g.any = true;
-            g.title = "NEXT BOSS: THE ELITE FOUR";
-            g.hint = "ELITE FOUR  \xC2\xB7  HIGHEST Lv " + std::to_string(high) +
-                     (best > 0 ? "  \xC2\xB7  YOUR BEST Lv " + std::to_string(best) : "");
+            g.title = GuideText::Tr("NEXT BOSS: THE ELITE FOUR");
+            g.hint = "ELITE FOUR  \xC2\xB7  " + GuideText::Fmt(GuideText::Tr("HIGHEST Lv {0}"), { std::to_string(high) }) +
+                     (best > 0 ? "  \xC2\xB7  " + GuideText::Fmt(GuideText::Tr("YOUR BEST Lv {0}"), { std::to_string(best) }) : "");
             g.answer = lines;
             return g;
         };
@@ -5940,7 +5942,7 @@ int main(int argc, char** argv)
             {
                 static const char* const e4[] = {"WILL","KOGA","BRUNO","KAREN","LANCE"};
                 GuideBoss g = e4Card(e4, 5);
-                if (g.any) g.answer += "\nAfter LANCE: the KANTO GYMS (BROCK first).";
+                if (g.any) g.answer += "\n" + GuideText::Tr("After LANCE: the KANTO GYMS (BROCK first).");
                 return g;
             }
             if (badges < 16) return makeBoss(kanto[badges - 8], kwhere[badges - 8]);
@@ -5975,20 +5977,21 @@ int main(int argc, char** argv)
     struct GuideHereInfo { std::string title, hint, answer; bool any = false; };
     auto guideHere = [&]() -> GuideHereInfo {
         GuideHereInfo r;
+        GuideText::Lang() = UiLang::lang;
         const bool hereGame = gameCode == "IRBO" || gameCode == "IPKE" || gameCode == "IPGE" || gameCode == "CPUE";
         if (!hereGame || companionSnapshot.map <= 0) return r;
         std::string place = companionMetadata.PlaceName(companionSnapshot.map);
-        if (place.empty()) place = "THIS PLACE";
+        if (place.empty()) place = GuideText::Tr("THIS PLACE");
         const std::vector<std::string> lines = companionMetadata.EncounterLines(companionSnapshot.map);
         r.any = true;
-        r.title = "HERE: " + place;
+        r.title = GuideText::Fmt(GuideText::Tr("HERE: {0}"), { place });
         int ways = 0, pokemon = 0;
         for (const std::string& line : lines)
             (line.find(" L") == std::string::npos && line.find("LEVEL VARIES") == std::string::npos) ? ways++ : pokemon++;
-        r.hint = "WHERE YOU ARE  \xC2\xB7  " + std::to_string(ways) + " WAYS  \xC2\xB7  " + std::to_string(pokemon) + " POKeMON";
-        if (!companionSnapshot.locationLive) r.hint += "  \xC2\xB7  THE GAME HAS NOT SAID WHERE EXACTLY";
+        r.hint = GuideText::Tr("WHERE YOU ARE") + "  \xC2\xB7  " + GuideText::Fmt(GuideText::Tr("{0} WAYS"), { std::to_string(ways) }) + "  \xC2\xB7  " + GuideText::Fmt(GuideText::Tr("{0} POKeMON"), { std::to_string(pokemon) });
+        if (!companionSnapshot.locationLive) r.hint += "  \xC2\xB7  " + GuideText::Tr("THE GAME HAS NOT SAID WHERE EXACTLY");
         if (lines.empty())
-            r.answer = "The game lists no wild POKeMON for " + place + ". Try the grass, dark grass, shaking grass and water of the routes around it.";
+            r.answer = GuideText::Fmt(GuideText::Tr("The game lists no wild POKeMON for {0}. Try the grass, dark grass, shaking grass and water of the routes around it."), { place });
         else
         {
             // (EncounterLines gives a method's name and then its POKeMON: GRASS, then Roggenrola
@@ -7487,6 +7490,7 @@ int main(int argc, char** argv)
                 // pages (credited on the launcher's About page).
                 settingsPage(Glass::I_CHEATS);
                 menu.rowTall = 1.5f;
+                GuideText::Lang() = UiLang::lang;
                 // (The pages' capitals as the rest of the menus: "ILEX FOREST" as "Ilex Forest".)
                 auto guideText = [](std::string t) {
                     auto swap = [&](const std::string& a, const std::string& b) { for (size_t at = t.find(a); at != std::string::npos; at = t.find(a, at + b.size())) t.replace(at, a.size(), b); };
@@ -7501,7 +7505,7 @@ int main(int argc, char** argv)
                     const GuideBoss nb = guideNextBoss();
                     if (nb.any)
                     {
-                        section(guideText("NEXT BOSS").c_str(), Glass::I_TROPHY);
+                        section(guideText(GuideText::Tr("NEXT BOSS")).c_str(), Glass::I_TROPHY);
                         Menu::CompanionView::GuideAnswer a;
                         a.text = guideText(nb.answer);
                         a.shown = companionNextBossShown;
@@ -7512,7 +7516,7 @@ int main(int argc, char** argv)
                         it.preview = Menu::P_CGUIDE;
                         it.icon = a.shown ? Glass::I_SPARKLE : Glass::I_TROPHY;
                         it.choice = (int)menu.companion.guide.size() - 1;
-                        it.desc = "Hint: " + guideText(nb.hint);
+                        it.desc = GuideText::Tr("Hint: ") + guideText(nb.hint);
                     }
                 }
                 // (HERE: the place the player is in, with the game's wild list for it.)
@@ -7520,7 +7524,7 @@ int main(int argc, char** argv)
                     const GuideHereInfo here = guideHere();
                     if (here.any)
                     {
-                        section(guideText("HERE").c_str(), Glass::I_GLOBE);
+                        section(guideText(GuideText::Tr("HERE")).c_str(), Glass::I_GLOBE);
                         Menu::CompanionView::GuideAnswer a;
                         a.text = guideText(here.answer);
                         a.shown = companionHereShown;
@@ -7531,7 +7535,7 @@ int main(int argc, char** argv)
                         it.preview = Menu::P_CGUIDE;
                         it.icon = a.shown ? Glass::I_SPARKLE : Glass::I_GLOBE;
                         it.choice = (int)menu.companion.guide.size() - 1;
-                        it.desc = "Hint: " + guideText(here.hint);
+                        it.desc = GuideText::Tr("Hint: ") + guideText(here.hint);
                     }
                 }
                 // (GYMS for the gen 4 games: every gym, the Elite Four and the champion, so any
@@ -7558,7 +7562,7 @@ int main(int argc, char** argv)
                         };
                         const Row* rows = hg ? hgRows : ptRows;
                         const int count = hg ? (int)(sizeof(hgRows)/sizeof(hgRows[0])) : (int)(sizeof(ptRows)/sizeof(ptRows[0]));
-                        section(guideText("GYMS").c_str(), Glass::I_TROPHY);
+                        section(guideText(GuideText::Tr("GYMS")).c_str(), Glass::I_TROPHY);
                         for (int i = 0; i < count; i++)
                         {
                             const std::string team = guideGen4Team(rows[i].name);
@@ -7575,7 +7579,7 @@ int main(int argc, char** argv)
                             it.preview = Menu::P_CGUIDE;
                             it.icon = a.shown ? Glass::I_SPARKLE : Glass::I_TROPHY;
                             it.choice = (int)menu.companion.guide.size() - 1;
-                            it.desc = "Hint: " + guideText(rows[i].hint);
+                            it.desc = GuideText::Tr("Hint: ") + guideText(GuideText::Tr(rows[i].hint));
                         }
                     }
                 }
@@ -7587,11 +7591,11 @@ int main(int argc, char** argv)
                     const char* sec = companionGuide[i].section ? companionGuide[i].section : "QUESTIONS";
                     if (!lastSection || strcmp(lastSection, sec))
                     {
-                        section(guideText(sec).c_str(), Glass::I_CHEATS);
+                        section(guideText(GuideText::Tr(sec)).c_str(), Glass::I_CHEATS);
                         lastSection = sec;
                     }
                     Menu::CompanionView::GuideAnswer answer;
-                    answer.text = guideText(companionGuide[i].answer);
+                    answer.text = guideText(GuideText::Tr(companionGuide[i].answer));
                     answer.shown = companionGuideShown.count((int)i) > 0;
                     // (An item the bag holds: the row says HAVE, so WHERE IS doubles as a checklist.)
                     bool have = false;
@@ -7600,13 +7604,13 @@ int main(int argc, char** argv)
                             if (bag.id == companionGuide[i].item && bag.quantity > 0) { have = true; break; }
                     const int answerAt = (int)menu.companion.guide.size(); // (NEXT BOSS is in it first)
                     menu.companion.guide.push_back(answer);
-                    add(M_GUIDE0 + (int)i, guideText(companionGuide[i].title).c_str(), answer.shown ? "Shown" : have ? "Have" : "", true);
+                    add(M_GUIDE0 + (int)i, guideText(GuideText::Tr(companionGuide[i].title)).c_str(), answer.shown ? "Shown" : have ? "Have" : "", true);
                     MenuItem& it = menu.items.back();
                     it.kind = Menu::K_LINK;
                     it.preview = Menu::P_CGUIDE;
                     it.icon = answer.shown ? Glass::I_SPARKLE : have ? Glass::I_POKEBALL : Glass::I_INFO; // (shown: a sparkle)
                     it.choice = answerAt;
-                    it.desc = "Hint: " + guideText(companionGuide[i].hint);
+                    it.desc = GuideText::Tr("Hint: ") + guideText(GuideText::Tr(companionGuide[i].hint));
                 }
             }
             else if(menuPage == PAGE_CGUIDEENTRY && companionGuideChoice >= 0 && companionGuideChoice<(int)companionGuide.size())

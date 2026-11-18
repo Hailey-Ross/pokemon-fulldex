@@ -98,21 +98,45 @@ inline std::vector<std::string> Wrap(const std::string& s, int px, int maxW, siz
 {
     std::vector<std::string> lines;
     std::string line;
-    size_t i = 0;
     const std::string text = UiLang::Tr(s);
-    while (i < text.size())
+    // The pieces a line may break between: words at spaces, and in Japanese and Chinese, which
+    // have no spaces, between characters (but not before a closing mark: 。、）...). Cut at spaces
+    // only, a Japanese answer was one long line running off the panel.
+    struct Unit { std::string t; bool space; };
+    std::vector<Unit> units;
+    auto cjk = [](uint32_t c) { return (c >= 0x2E80 && c <= 0x9FFF) || (c >= 0xF900 && c <= 0xFAFF) || (c >= 0xFF00 && c <= 0xFFEF); };
+    auto noStart = [](uint32_t c) { return c == 0x3001 || c == 0x3002 || c == 0x300D || c == 0x300F || c == 0x30FC || c == 0xFF01 || c == 0xFF09 ||
+                                           c == 0xFF0C || c == 0xFF0E || c == 0xFF1A || c == 0xFF1B || c == 0xFF1F; };
     {
-        size_t j = text.find(' ', i);
-        if (j == std::string::npos) j = text.size();
-        const std::string word = text.substr(i, j - i);
-        const std::string tryLine = line.empty() ? word : line + " " + word;
+        std::string cur;
+        bool space = false, prevCjk = false;
+        for (size_t i = 0; i < text.size();)
+        {
+            const size_t st = i;
+            const uint32_t c = UiLang::Next(text, i);
+            if (c == ' ')
+            {
+                if (!cur.empty()) { units.push_back({ cur, space }); cur.clear(); }
+                space = true;
+                prevCjk = false;
+                continue;
+            }
+            const bool k = cjk(c);
+            if (!cur.empty() && (k || prevCjk) && !noStart(c)) { units.push_back({ cur, space }); cur.clear(); space = false; }
+            cur += text.substr(st, i - st);
+            prevCjk = k;
+        }
+        if (!cur.empty()) units.push_back({ cur, space });
+    }
+    for (const Unit& u : units)
+    {
+        const std::string tryLine = line.empty() ? u.t : line + (u.space ? " " : "") + u.t;
         if (!line.empty() && W(tryLine, px, false, false) > maxW)
         {
             lines.push_back(line);
-            line = word;
+            line = u.t;
         }
         else line = tryLine;
-        i = j + 1;
     }
     if (!line.empty()) lines.push_back(line);
     if (lines.size() > maxLines)
