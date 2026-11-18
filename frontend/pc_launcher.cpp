@@ -293,6 +293,9 @@ void JavaStringArg(const char* method, const std::string& value)
 
 // The game folder of a 3DS game whose first Play is copying it in: it starts when that is done.
 std::string& N3dsAutoPlay() { static std::string folder; return folder; }
+#ifdef SSR_N3DS_PC
+std::string& N3dsPrepRom() { static std::string rom; return rom; } // (the game being prepared, for the card and the start)
+#endif
 
 bool JavaBoolStringArg(const char* method, const std::string& value)
 {
@@ -1579,7 +1582,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
         if (games[selected].platform == Launcher::N3DS && !games[selected].comingSoon)
         {
             if (N3ds::Busy()) { note = N3ds::Status(); if (note.empty()) note = "ONE GAME IS BEING PREPARED: WAIT FOR IT TO FINISH"; return; }
-            if (!N3ds::Prepared(games[selected])) { N3ds::StartPrepare(fo.dir, games[selected]); note = N3ds::Status(); return; }
+            if (!N3ds::Prepared(games[selected])) { N3dsPrepRom() = games[selected].rom; N3ds::StartPrepare(fo.dir, games[selected]); note.clear(); return; }
             result = selected;
             quit = true;
             return;
@@ -3585,11 +3588,9 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 if (MB.action >= 0) { if (!fake) NowPlaying::Command(MB.action); MB.action = -1; }
             }
 #ifdef SSR_N3DS_PC
-            if (N3ds::Busy())
-            {
-                const std::string prep = N3ds::Status(); if (!prep.empty()) note = prep;
+            const N3ds::StatusInfo n3dsPrep = N3ds::Peek();
+            if (n3dsPrep.active)
                 for (Launcher::Game& g : games) if (g.platform == Launcher::N3DS && !g.built) g.built = N3ds::Prepared(g);
-            }
 #elif defined(__ANDROID__)
             // (The 3DS games' copying and building: how it goes, twice a second.)
             static int n3dsPoll = 0;
@@ -3698,6 +3699,98 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 y += 12 * s;
             }
         }
+#ifdef SSR_N3DS_PC
+        // (The 3DS first-launch preparation: a card with the step, a bar, the time and the end.
+        // The list stays behind it; the game starts by itself once the setup is ready.)
+        if (n3dsPrep.active)
+        {
+            const int s = std::max(1, std::min(canvas.w, canvas.h) / 240);
+            std::string name = Launcher::TitleCase(n3dsPrep.name);
+            for (char& ch : name) ch = (char)toupper((unsigned char)ch);
+            const int cw = std::min(canvas.w - 80, 900), ch = std::min(canvas.h - 80, 360);
+            const int cx = (canvas.w - cw) / 2, cy = (canvas.h - ch) / 2, pad = 34;
+            canvas.Fill(0, 0, canvas.w, canvas.h, 0xB4000000);
+            Glass::Round(canvas, cx, cy, cw, ch, 20, 0xE6101418, 0x66FFFFFF, 2);
+            const uint32_t ink = Menu::GlassText, dim = Menu::GlassHint;
+            auto centre = [&](int y, const std::string& text, int scale, uint32_t col) {
+                Launcher::ModernText(canvas, cx + (cw - Canvas::TextWidth(text.c_str(), scale)) / 2, y, text, scale, col);
+            };
+            int y = cy + 40;
+            if (n3dsPrep.failed)
+            {
+                centre(y, "COULDN'T PREPARE " + name, s + 2, 0xFFF2A08A);
+                y += 42;
+                std::vector<std::string> lines;
+                std::string line;
+                for (size_t i = 0; i < n3dsPrep.error.size();)
+                {
+                    size_t j = n3dsPrep.error.find(' ', i);
+                    if (j == std::string::npos) j = n3dsPrep.error.size();
+                    const std::string word = n3dsPrep.error.substr(i, j - i);
+                    const std::string tried = line.empty() ? word : line + " " + word;
+                    if (!line.empty() && Canvas::TextWidth(tried.c_str(), s) > cw - 2 * pad) { lines.push_back(line); line = word; }
+                    else line = tried;
+                    i = j + 1;
+                }
+                if (!line.empty()) lines.push_back(line);
+                for (const std::string& l : lines) { centre(y, l, s, ink); y += 26; }
+                centre(cy + ch - 40, "A: CONTINUE", s + 1, ink);
+            }
+            else if (n3dsPrep.finished)
+            {
+                centre(y, "READY", s + 3, 0xFF8BE28B);
+                y += 52;
+                centre(y, name + " IS STARTING", s + 1, ink);
+                centre(cy + ch - 40, "THE FIRST-LAUNCH SETUP IS DONE", s, dim);
+            }
+            else
+            {
+                centre(y, "PREPARING " + name, s + 2, ink);
+                y += 42;
+                centre(y, "FIRST LAUNCH  \xC2\xB7  ONE-TIME SETUP, 5 TO 15 MINUTES", s, dim);
+                y += 34;
+                centre(y, n3dsPrep.step, s + 1, ink);
+                y += 30;
+                const int bw = cw - 2 * pad, bh = std::max(6, 3 * s), bx = cx + pad, by = y;
+                canvas.Fill(bx, by, bw, bh, 0x40FFFFFF);
+                if (n3dsPrep.total > 0)
+                    canvas.Fill(bx, by, std::clamp(n3dsPrep.done * bw / n3dsPrep.total, 0, bw), bh, 0xFF8AB4F8);
+                else
+                {
+                    // (No count yet (unpacking): a segment moving along the bar.)
+                    const int seg = std::max(30, bw / 4), x0 = (int)((SDL_GetTicks() / 8) % (bw + seg)) - seg;
+                    const int a = std::max(0, x0), b = std::min(bw, x0 + seg);
+                    if (b > a) canvas.Fill(bx + a, by, b - a, bh, 0xFF8AB4F8);
+                }
+                y += 24;
+                const long long sec = n3dsPrep.elapsed;
+                char line[96];
+                if (n3dsPrep.total > 0)
+                    snprintf(line, sizeof line, "%d%%   \xC2\xB7   ELAPSED %lld:%02lld", n3dsPrep.done * 100 / std::max(1, n3dsPrep.total), sec / 60, sec % 60);
+                else
+                    snprintf(line, sizeof line, "ELAPSED %lld:%02lld", sec / 60, sec % 60);
+                centre(y, line, s + 1, ink);
+                centre(cy + ch - 40, "THE GAME STARTS WHEN IT IS READY", s, dim);
+            }
+        }
+        // (The ready card lingers a moment, then the game starts without another click.)
+        {
+            static Uint32 n3dsReadyAt = 0;
+            if (n3dsPrep.active && n3dsPrep.finished && !n3dsPrep.failed)
+            {
+                if (!n3dsReadyAt) n3dsReadyAt = SDL_GetTicks();
+                if (SDL_GetTicks() - n3dsReadyAt > 1500)
+                {
+                    int at = -1;
+                    for (int i = 0; i < (int)games.size(); i++)
+                        if (games[i].platform == Launcher::N3DS && games[i].rom == N3dsPrepRom()) at = i;
+                    if (at >= 0) { result = at; quit = true; N3dsPrepRom().clear(); }
+                    n3dsReadyAt = 0;
+                }
+            }
+            else n3dsReadyAt = 0;
+        }
+#endif
         SDL_SetRenderDrawColor(renderer, 16, 16, 16, 255);
         if (!texture || SDL_UpdateTexture(texture, nullptr, canvas.px.data(), canvas.w * 4) != 0 ||
             SDL_RenderClear(renderer) != 0 || SDL_RenderCopy(renderer, texture, nullptr,
@@ -4342,7 +4435,7 @@ bool Start(int& argc, char**& argv)
         {
             chosen = directGame;
             directGame = -1;
-            if (!N3ds::Busy()) N3ds::StartPrepare(fo.dir, games[chosen]);
+            if (!N3ds::Busy()) { N3dsPrepRom() = games[chosen].rom; N3ds::StartPrepare(fo.dir, games[chosen]); }
         }
 #endif
     }

@@ -12,6 +12,7 @@
 //     FullDex's own program (inside the AppImage too); each game's folder in FullDex's data folder.
 #pragma once
 #include <algorithm>
+#include <chrono>
 #include <atomic>
 #include <cctype>
 #include <ctime>
@@ -549,6 +550,7 @@ struct Prep
     std::atomic<bool> running { false };
     bool finished = false, failed = false, told = true;
     int done = 0, total = 0;
+    std::chrono::steady_clock::time_point started{};
     std::string code, name, step, error;
 };
 inline Prep& P() { static Prep p; return p; }
@@ -567,6 +569,7 @@ inline void StartPrepare(const std::string& appDir, const Launcher::Game& g)
         p.name = g.name;
         p.step = "GETTING READY";
         p.error.clear();
+        p.started = std::chrono::steady_clock::now();
     }
     p.running = true;
     p.th = std::thread([appDir, g]() {
@@ -699,6 +702,33 @@ inline std::string Status()
 }
 inline bool Preparing(const std::string& code) { Prep& p = P(); std::lock_guard<std::mutex> l(p.m); return p.running && p.code == code; }
 inline bool Busy() { Prep& p = P(); std::lock_guard<std::mutex> l(p.m); return !p.told; }
+// (The launcher's preparation card: the whole state at once, without ending it.)
+struct StatusInfo
+{
+    bool active = false, running = false, finished = false, failed = false;
+    int done = 0, total = 0;
+    long long elapsed = 0; // seconds since it started
+    std::string name, step, error;
+};
+inline StatusInfo Peek()
+{
+    Prep& p = P();
+    std::lock_guard<std::mutex> l(p.m);
+    StatusInfo s;
+    s.active = !p.told;
+    s.running = p.running;
+    s.finished = p.finished;
+    s.failed = p.failed;
+    s.done = p.done;
+    s.total = p.total;
+    s.name = p.name;
+    s.step = p.step;
+    s.error = p.error;
+    if (p.started.time_since_epoch().count())
+        s.elapsed = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - p.started).count();
+    return s;
+}
+inline void Ack() { Prep& p = P(); std::lock_guard<std::mutex> l(p.m); p.told = true; }
 
 // Plays it (its window, until it quits); "Restart game" (exit code 3) starts it again.
 inline int Play(const std::string& appDir, const Launcher::Game& g)
