@@ -3719,10 +3719,15 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             auto centre = [&](int y, const std::string& text, int scale, uint32_t col) {
                 Launcher::ModernText(canvas, cx + (cw - Canvas::TextWidth(text.c_str(), scale)) / 2, y, text, scale, col);
             };
+            auto fit = [&](const std::string& text, int want) {
+                int scale = want;
+                while (scale > 1 && Canvas::TextWidth(text.c_str(), scale) > cw - 2 * pad) scale--;
+                return scale;
+            };
             int y = cy + 40;
             if (n3dsPrep.failed)
             {
-                centre(y, "COULDN'T PREPARE " + name, s + 2, 0xFFF2A08A);
+                centre(y, "COULDN'T PREPARE " + name, fit("COULDN'T PREPARE " + name, s + 2), 0xFFF2A08A);
                 y += 42;
                 std::vector<std::string> lines;
                 std::string line;
@@ -3744,16 +3749,16 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             {
                 centre(y, "READY", s + 3, 0xFF8BE28B);
                 y += 52;
-                centre(y, name + " IS STARTING", s + 1, ink);
+                centre(y, name + " IS STARTING", fit(name + " IS STARTING", s + 1), ink);
                 centre(cy + ch - 40, "THE FIRST-LAUNCH SETUP IS DONE", s, dim);
             }
             else
             {
-                centre(y, "PREPARING " + name, s + 2, ink);
+                centre(y, "PREPARING " + name, fit("PREPARING " + name, s + 2), ink);
                 y += 42;
-                centre(y, "FIRST LAUNCH  \xC2\xB7  ONE-TIME SETUP, 5 TO 15 MINUTES", s, dim);
+                centre(y, "FIRST LAUNCH  \xC2\xB7  ONE-TIME SETUP, 5 TO 15 MINUTES", fit("FIRST LAUNCH  \xC2\xB7  ONE-TIME SETUP, 5 TO 15 MINUTES", s), dim);
                 y += 34;
-                centre(y, n3dsPrep.step, s + 1, ink);
+                centre(y, n3dsPrep.step, fit(n3dsPrep.step, s + 1), ink);
                 y += 30;
                 const int bw = cw - 2 * pad, bh = std::max(6, 3 * s), bx = cx + pad, by = y;
                 canvas.Fill(bx, by, bw, bh, 0x40FFFFFF);
