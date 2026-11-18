@@ -1164,7 +1164,7 @@ inline int TypeChip(Canvas& c, int type, int x, int y, float k)
 {
     using namespace SettingsArt;
     auto K = [&](float v) { return (int)std::lround(v * k); };
-    const std::string name = CleanFont::Title(CompanionTypes::Name(type));
+    const std::string name = CleanFont::Title(UiLang::Tr(CompanionTypes::Name(type)));
     const int px = K(12), w = W(name, px, true, false) + K(18), h = K(22);
     Glass::Round(c, x, y, w, h, h * 0.5f, TypeColour(type));
     T(c, x + K(9), y + h / 2 + px * 7 / 20, name, px, 0xFFFFFFFF, true, false);
@@ -1479,7 +1479,7 @@ inline void BattleFoeSummary(Canvas& c, const Menu::CompanionView::Mon& m, int x
         int chx = x0;
         for (const auto& [type, p] : list)
         {
-            const std::string name = CleanFont::Title(CompanionTypes::Name(type)) + (p == 400 ? " 4x" : p == 25 ? " 0.25x" : "");
+            const std::string name = CleanFont::Title(UiLang::Tr(CompanionTypes::Name(type))) + (p == 400 ? " 4x" : p == 25 ? " 0.25x" : "");
             const int px = K(13), cw = W(name, px, true, false) + K(18), chh = K(24);
             if (chx + cw > x0 + w0) { chx = x0; y += chh + K(6); if (y + chh > bottom) break; }
             Glass::Round(c, chx, y, cw, chh, chh * 0.5f, TypeColour(type));

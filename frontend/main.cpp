@@ -5854,7 +5854,7 @@ int main(int argc, char** argv)
                 m.name = title(companionMetadata.Species(b.species));
                 m.level = b.level; m.hp = b.hp; m.maxHp = b.maxHp;
                 if (CompanionTypes::Valid(b.type1))
-                    m.item = title(std::string(CompanionTypes::Name(b.type1)) + (b.type2 != b.type1 && CompanionTypes::Valid(b.type2) ? std::string(" / ") + CompanionTypes::Name(b.type2) : ""));
+                    m.item = title(UiLang::Tr(CompanionTypes::Name(b.type1)) + (b.type2 != b.type1 && CompanionTypes::Valid(b.type2) ? std::string(" / ") + UiLang::Tr(CompanionTypes::Name(b.type2)) : ""));
                 if (companionMetadata.MonIcon(b.species, false, m.icon)) m.iconW = m.iconH = 32;
                 cv.battle.push_back(m);
             }
@@ -5886,8 +5886,8 @@ int main(int argc, char** argv)
         auto monLine = [&](const Companion::Gen4Mon& m) {
             std::string ty;
             const int t1 = companionMetadata.Type(m.species, 0), t2 = companionMetadata.Type(m.species, 1);
-            if (CompanionTypes::Valid(t1)) ty = CompanionTypes::Name(t1);
-            if (t2 != t1 && CompanionTypes::Valid(t2)) ty += std::string(ty.empty() ? "" : "/") + CompanionTypes::Name(t2);
+            if (CompanionTypes::Valid(t1)) ty = UiLang::Tr(CompanionTypes::Name(t1));
+            if (t2 != t1 && CompanionTypes::Valid(t2)) ty += std::string(ty.empty() ? "" : "/") + UiLang::Tr(CompanionTypes::Name(t2));
             return companionMetadata.Species(m.species) + (ty.empty() ? "" : " (" + ty + ")") + " Lv " + std::to_string(m.level);
         };
         auto bossAnswer = [&](const Companion::Gen4Boss& b) {
@@ -5966,8 +5966,8 @@ int main(int argc, char** argv)
             const auto& m = b->team[i];
             std::string ty;
             const int t1 = companionMetadata.Type(m.species, 0), t2 = companionMetadata.Type(m.species, 1);
-            if (CompanionTypes::Valid(t1)) ty = CompanionTypes::Name(t1);
-            if (t2 != t1 && CompanionTypes::Valid(t2)) ty += std::string(ty.empty() ? "" : "/") + CompanionTypes::Name(t2);
+            if (CompanionTypes::Valid(t1)) ty = UiLang::Tr(CompanionTypes::Name(t1));
+            if (t2 != t1 && CompanionTypes::Valid(t2)) ty += std::string(ty.empty() ? "" : "/") + UiLang::Tr(CompanionTypes::Name(t2));
             if (i) out += ", ";
             out += companionMetadata.Species(m.species) + (ty.empty() ? "" : " (" + ty + ")") + " Lv " + std::to_string(m.level);
         }
@@ -6241,7 +6241,7 @@ int main(int argc, char** argv)
             {
                 row(KR_CHANGING, "CHANGING", ctlKeyboard ? "KEYBOARD" : "CONTROLLER", Menu::K_TOGGLE, ctlKeyboard ? Glass::I_GRID : Glass::I_PAD,
                     "Which to change below: the keyboard's keys or a controller's buttons.",
-                    pads.Current() ? "Showing the " + std::string(Controls::KindName(Controls::KindOf(pads.Current()))) + ": the one used last. Each keeps its own buttons."
+                    pads.Current() ? UiLang::F("Showing the {0}: the one used last. Each keeps its own buttons.", { UiLang::Tr(Controls::KindName(Controls::KindOf(pads.Current()))) })
                                    : std::string("Each keeps its own; both work at once."));
                 menu.items.back().choices = { "KEYBOARD", "CONTROLLER" };
                 menu.items.back().choice = ctlKeyboard ? 0 : 1;
@@ -6259,7 +6259,7 @@ int main(int argc, char** argv)
                 const int icon = a >= Controls::MENU ? extra[a - Controls::MENU] : a >= Controls::UP ? Glass::I_PAD : -1;
                 const char* hint = Controls::ActionHint(a);
                 std::string desc = hint ? std::string(hint) : a == Controls::MENU ? std::string(cfg.startMenu ? "OPENS AND CLOSES THIS MENU. A CONTROLLER'S START DOES TOO (CONTROLS > START BUTTON)." : "OPENS AND CLOSES THIS MENU. ON A CONTROLLER, START AND SELECT TOGETHER DO TOO.")
-                                 : "THE DS'S " + std::string(Controls::ActionName(a)) + (a < Controls::UP ? " BUTTON" : "");
+                                 : UiLang::F(a < Controls::UP ? "THE DS'S {0} BUTTON" : "THE DS'S {0}", { UiLang::Tr(Controls::ActionName(a)) });
                 row(a, Controls::ActionName(a), v, Menu::K_PLAIN, icon, desc, how);
                 // (The preview: the controller with this action's button lit, or the key.)
                 MenuItem& it = menu.items.back();
@@ -6415,7 +6415,7 @@ int main(int argc, char** argv)
             for (int slot = 0; slot < 10; slot++)
             {
                 const std::string path = StateSlots::Path(quickState, slot);
-                add(M_SLOT0 + slot, ("SLOT " + std::to_string(slot + 1)).c_str(), StateSlots::Friendly(path), true);
+                add(M_SLOT0 + slot, UiLang::F("SLOT {0}", { std::to_string(slot + 1) }).c_str(), StateSlots::Friendly(path), true);
                 MenuItem& it = menu.items.back();
                 it.kind = Menu::K_SLOT;
                 // (Its picture: the top screen of the two saved beside the state, if it is the
@@ -6712,11 +6712,11 @@ int main(int argc, char** argv)
             menu.items.back().icon=Glass::I_REWIND;
             menu.items.back().desc="Clear what the tracker has noted, to start a new run.";
             menu.items.back().tip="Your game and its save are not changed.";
-            section(("FAINTED  ("+std::to_string(nuzlocke.Deaths().size())+")").c_str(),Glass::I_PEOPLE);
+            section(UiLang::F("FAINTED  ({0})",{std::to_string(nuzlocke.Deaths().size())}).c_str(),Glass::I_PEOPLE);
             for(auto entry:nuzlocke.Deaths())noted(Cheats::Fit(companionMetadata.Species(entry.second),30),"OUT");
             if(nuzlocke.Deaths().empty())noted("NONE YET","");
-            section(("FIRST ENCOUNTERS  ("+std::to_string(nuzlocke.Encounters().size())+")").c_str(),Glass::I_POKEBALL);
-            for(auto entry:nuzlocke.Encounters())noted("MAP "+std::to_string(entry.first),Cheats::Fit(companionMetadata.Species(entry.second),22));
+            section(UiLang::F("FIRST ENCOUNTERS  ({0})",{std::to_string(nuzlocke.Encounters().size())}).c_str(),Glass::I_POKEBALL);
+            for(auto entry:nuzlocke.Encounters())noted(UiLang::F("MAP {0}",{std::to_string(entry.first)}),Cheats::Fit(companionMetadata.Species(entry.second),22));
             if(nuzlocke.Encounters().empty())noted("NONE YET","");
         }
         else if(menuPage==PAGE_RUN_CONFIRM)
@@ -6960,7 +6960,7 @@ int main(int argc, char** argv)
                         std::string line = title(detail);
                         const size_t to = line.find(' ');
                         const size_t name = line.find(' ', to + 1);
-                        if (to != std::string::npos && name != std::string::npos) line = "Evolves into" + line.substr(name);
+                        if (to != std::string::npos && name != std::string::npos) line = UiLang::Tr("Evolves into") + line.substr(name);
                         e.evolutions.push_back(line);
                     }
                     if (full) dexEntryMore(e, id);
@@ -7004,7 +7004,7 @@ int main(int argc, char** argv)
                 {
                     link(M_CPARTY, "PARTY", Glass::I_PEOPLE, Menu::P_CPARTY, std::to_string(snap.party.size()),
                          "Your team as it is now. Open it for each one's stats, moves, nature and what it learns next.");
-                    link(M_CBAG, "BAG", Glass::I_LOAD, Menu::P_CBAG, std::to_string(itemsTotal) + " ITEMS",
+                    link(M_CBAG, "BAG", Glass::I_LOAD, Menu::P_CBAG, UiLang::F("{0} ITEMS", { std::to_string(itemsTotal) }),
                          "Every pocket of your bag. Open an item for what the game says about it.", "View only: use items through the game.");
                     link(M_CLOCATION, "LOCATION", Glass::I_GLOBE, Menu::P_CPLACE, Cheats::Fit(companionMetadata.PlaceName(snap.map), 16),
                          "Where you are on the region's map, and what can be caught here.");
@@ -7019,7 +7019,7 @@ int main(int argc, char** argv)
                 }
                 section("HELP", Glass::I_INFO);
                 if (!companionGuide.empty())
-                    link(M_CGUIDE, "GUIDE", Glass::I_CHEATS, Menu::P_NONE, std::to_string(companionGuide.size()) + " PAGES",
+                    link(M_CGUIDE, "GUIDE", Glass::I_CHEATS, Menu::P_NONE, UiLang::F("{0} PAGES", { std::to_string(companionGuide.size()) }),
                          "Hints for each part of the game, the answer hidden until you ask for it.", "From PokeDaisy's guides.");
                 link(M_NUZLOCKE, "NUZLOCKE TRACKER", Glass::I_POWER, Menu::P_NONE, onOff(nuzlocke.Enabled()),
                      "Keeps the rules of a Nuzlocke run: one catch per area, and fainted Pok\xC3\xA9" "mon count as gone.");
@@ -7050,7 +7050,7 @@ int main(int argc, char** argv)
                 menu.items.back().icon=Glass::I_GLOBE;
                 menu.items.back().desc="Type part of a name to narrow the list.";
                 auto entries=companionMetadata.ReferenceEntries(companionReferenceKind,companionQuery);
-                section(("RESULTS  ("+std::to_string(entries.size())+")").c_str(),Glass::I_INFO);
+                section(UiLang::F("RESULTS  ({0})",{std::to_string(entries.size())}).c_str(),Glass::I_INFO);
                 for(const auto& entry:entries)
                 {
                     add(M_RRESULT0+entry.first,Cheats::Fit(entry.second,32).c_str(),companionReferenceKind==0?std::to_string(entry.first):std::string(),true);
@@ -7098,7 +7098,7 @@ int main(int argc, char** argv)
                         section((std::to_string(++n)+".  "+companionMetadata.Species(mon.species)).c_str(),Glass::I_POKEBALL);
                         std::string moves;
                         for(int move:mon.moves)if(move)moves+=(moves.empty()?"":", ")+CleanFont::Title(companionMetadata.Move(move));
-                        const std::string about=(mon.customMoves?"Its own moves: ":"Moves by level: ")+moves+".";
+                        const std::string about=UiLang::F(mon.customMoves?"Its own moves: {0}.":"Moves by level: {0}.",{moves});
                         row("LEVEL",std::to_string(mon.level),about);
                         if(mon.item)row("HOLDING",companionMetadata.ItemName(mon.item),about);
                         if(mon.form)row("FORM",std::to_string(mon.form),about);
@@ -7115,7 +7115,7 @@ int main(int argc, char** argv)
                     {
                         const auto& record=companionMetadata.mapRecords[map];
                         if(record.place!=companionReferenceId||record.encounter<0||!shownSets.insert(record.encounter).second)continue;
-                        section(("WILD POKEMON  (MAP "+std::to_string(map)+")").c_str(),Glass::I_POKEBALL);
+                        section(UiLang::F("WILD POKEMON  (MAP {0})",{std::to_string(map)}).c_str(),Glass::I_POKEBALL);
                         for(const auto& entry:companionMetadata.EncounterLines(map))row(entry,"");
                     }
                 }
@@ -7178,10 +7178,10 @@ int main(int argc, char** argv)
                         auto move=companionMetadata.MoveData(mon.moves[i]);
                         if(move.ready)
                         {
-                            desc=std::string(CompanionTypes::Name(move.type))+" move, "+(move.category==0?"physical":move.category==1?"special":"status")+".";
-                            if(move.power>0)desc+=" Power "+std::to_string(move.power)+".";
-                            desc+=move.accuracy?" Accuracy "+std::to_string(move.accuracy)+"%.":std::string(" Never misses.");
-                            desc+=" "+std::to_string(move.pp)+" PP at most before PP Ups.";
+                            desc=UiLang::F(move.category==0?"{0} move, physical.":move.category==1?"{0} move, special.":"{0} move, status.",{UiLang::Tr(CompanionTypes::Name(move.type))});
+                            if(move.power>0)desc+=UiLang::F(" Power {0}.",{std::to_string(move.power)});
+                            desc+=move.accuracy?UiLang::F(" Accuracy {0}%.",{std::to_string(move.accuracy)}):UiLang::Tr(" Never misses.");
+                            desc+=UiLang::F(" {0} PP at most before PP Ups.",{std::to_string(move.pp)});
                         }
                         row(companionMetadata.Move(mon.moves[i]),"PP "+std::to_string(mon.pp[i]),desc,false);
                     }
@@ -7300,7 +7300,7 @@ int main(int argc, char** argv)
                 if (companionDexType < 0 || companionDexType >= (int)dexTypes.size()) companionDexType = 0;
                 {
                     std::vector<std::string> names{ "Any" };
-                    for (size_t i = 1; i < dexTypes.size(); i++) names.push_back(CleanFont::Title(CompanionTypes::Name(dexTypes[i])));
+                    for (size_t i = 1; i < dexTypes.size(); i++) names.push_back(CleanFont::Title(UiLang::Tr(CompanionTypes::Name(dexTypes[i]))));
                     picker(M_CDEX_TYPE, "TYPE", Glass::I_SPARKLE, Menu::P_NONE, names, companionDexType,
                            "Only the entries of one type.", "Entries you have not seen are left out while a type is chosen.");
                 }
@@ -7354,7 +7354,7 @@ int main(int argc, char** argv)
                 section("ENTRY",Glass::I_INFO);
                 row(e.name,e.caught?"CAUGHT":e.seen?"SEEN":"NOT SEEN");
                 menuIds.back()=M_CDEX0+id; // (A on it: the card between the entry and its moves, as POKEDEX's)
-                if(CompanionTypes::Valid(e.type1))row("TYPE",std::string(CompanionTypes::Name(e.type1))+(e.type2!=e.type1&&CompanionTypes::Valid(e.type2)?std::string(" / ")+CompanionTypes::Name(e.type2):""));
+                if(CompanionTypes::Valid(e.type1))row("TYPE",UiLang::Tr(CompanionTypes::Name(e.type1))+(e.type2!=e.type1&&CompanionTypes::Valid(e.type2)?std::string(" / ")+UiLang::Tr(CompanionTypes::Name(e.type2)):""));
                 section("BASE STATS",Glass::I_GAUGE);
                 static const char* statNames[]={"HP","ATTACK","DEFENCE","SPEED","SP. ATK","SP. DEF"};
                 for(int i=0;i<6;i++)row(statNames[i],std::to_string(e.base[i]));
@@ -7370,7 +7370,7 @@ int main(int argc, char** argv)
                     for(const auto& w:e.weak)
                     {
                         std::string types;
-                        for(int t:w.types)types+=(types.empty()?"":", ")+CleanFont::Title(CompanionTypes::Name(t));
+                        for(int t:w.types)types+=(types.empty()?"":", ")+CleanFont::Title(UiLang::Tr(CompanionTypes::Name(t)));
                         row(w.pct==400?"4x damage":w.pct==200?"2x damage":w.pct==50?"Half damage":w.pct==25?"Quarter damage":"No damage",types);
                     }
                 }
@@ -7426,7 +7426,7 @@ int main(int argc, char** argv)
                     if (own.species)
                     {
                         cv.mine = title(species(own.species));
-                        section((CompanionBattle::Upper(species(own.species)) + "'S MOVES").c_str(), Glass::I_GAUGE);
+                        section(UiLang::F("{0}'S MOVES", { CompanionBattle::Upper(species(own.species)) }).c_str(), Glass::I_GAUGE);
                         for (int slot = 0; slot < 4; slot++)
                         {
                             if (!own.moves[slot]) continue;
@@ -7659,7 +7659,7 @@ int main(int argc, char** argv)
                 cv.dexMoves = companionDexMoves;
                 const auto& snap = companionSnapshot;
                 std::string where = snap.locationLive ? "Where you are now." : "Where you last went through a door: the game is not telling where you are exactly.";
-                where += snap.repel > 0 ? " Repel: " + std::to_string(snap.repel) + " steps left." : " No Repel on.";
+                where = UiLang::Tr(where) + (snap.repel > 0 ? UiLang::F(" Repel: {0} steps left.", { std::to_string(snap.repel) }) : UiLang::Tr(" No Repel on."));
                 add(M_CMAP, "WHERE YOU ARE", cv.place, true);
                 {
                     MenuItem& it = menu.items.back();
@@ -7732,7 +7732,7 @@ int main(int argc, char** argv)
             if (cheatWhere == -3 && cheats.On() == 0) cheatWhere = -2;
             if (cheatWhere >= 0) cheatWhere = -2; // (folders open in place now)
             if (cheatOpen.size() != cheats.folders.size()) cheatOpen.assign(cheats.folders.size(), 0);
-            menu.headerNote = std::to_string(cheats.On()) + " ON  \xC2\xB7  " + std::to_string(cheats.items.size()) + " CODES";
+            menu.headerNote = UiLang::F("{0} ON  \xC2\xB7  {1} CODES", { std::to_string(cheats.On()), std::to_string(cheats.items.size()) });
             const std::string careful = "Cheats can change the game and its save: back up your save before trying them.";
             auto cheatRow = [&](size_t i, int indent, bool showFolder) {
                 const Cheats::Cheat& c = cheats.items[i];
@@ -7740,9 +7740,9 @@ int main(int argc, char** argv)
                 MenuItem& it = menu.items.back();
                 it.indent = indent;
                 std::string d = c.note.empty() ? std::string("The database says nothing more about this one.") : c.note;
-                if (showFolder && !c.category.empty()) d = "In " + c.category + ". " + d;
+                if (showFolder && !c.category.empty()) d = UiLang::F("In {0}. ", { c.category }) + UiLang::Tr(d);
                 it.desc = d;
-                it.tip = c.group >= 0 ? "Only one in its folder can be on at a time. " + careful : careful;
+                it.tip = c.group >= 0 ? UiLang::Tr("Only one in its folder can be on at a time.") + " " + UiLang::Tr(careful) : careful;
             };
             section("FIND", Glass::I_CHEATS);
             add(M_CSEARCH, "SEARCH", cheatQuery.empty() ? "" : Cheats::Fit(cheatQuery, 18));
@@ -7771,7 +7771,7 @@ int main(int argc, char** argv)
             }
             if (cheatWhere == -4)
             {
-                section(("RESULTS: " + Cheats::Fit(cheatQuery, 24)).c_str(), Glass::I_GLOBE);
+                section(UiLang::F("RESULTS: {0}", { Cheats::Fit(cheatQuery, 24) }).c_str(), Glass::I_GLOBE);
                 int matches = 0;
                 for (size_t i = 0; i < cheats.items.size(); i++)
                     if (Cheats::Matches(cheats.items[i], cheatQuery)) { matches++; cheatRow(i, 0, true); }
@@ -7803,7 +7803,7 @@ int main(int argc, char** argv)
                     MenuItem& it = menu.items.back();
                     it.kind = Menu::K_FOLDER;
                     it.choice = cheatOpen[f] ? 1 : 0;
-                    it.desc = cheats.folders[f].note.empty() ? std::to_string(total) + " codes in this folder." : cheats.folders[f].note;
+                    it.desc = cheats.folders[f].note.empty() ? UiLang::F("{0} codes in this folder.", { std::to_string(total) }) : cheats.folders[f].note;
                     it.tip = cheatOpen[f] ? "A: close the folder." : "A: open the folder.";
                     if (cheatOpen[f])
                         for (size_t i = 0; i < cheats.items.size(); i++)
@@ -7852,7 +7852,7 @@ int main(int argc, char** argv)
             // SAVE BACKUPS, a settings page: the backups of this game's save, newest first, each
             // asking before it is restored.
             settingsPage(Glass::I_LOAD);
-            section(("BACKUPS  ("+std::to_string(saveBackups.size())+")").c_str(),Glass::I_LOAD);
+            section(UiLang::F("BACKUPS  ({0})",{std::to_string(saveBackups.size())}).c_str(),Glass::I_LOAD);
             for(size_t i=0;i<saveBackups.size();i++)
             {
                 add(M_BACKUP0+(int)i,saveBackups[i].label.c_str(),i==0?"NEWEST":"",true);
@@ -7892,7 +7892,7 @@ int main(int argc, char** argv)
             settingsPage(Glass::I_TROPHY);
             int earned = 0;
             for (const auto& a : achList) if (a.unlocked) earned++;
-            menu.headerNote = std::to_string(earned) + " OF " + std::to_string(achList.size()) + " EARNED";
+            menu.headerNote = UiLang::F("{0} OF {1} EARNED", { std::to_string(earned), std::to_string(achList.size()) });
             if (achList.empty())
             {
                 add(M_NOTHING, "NONE LOADED", "", true);
@@ -7902,15 +7902,15 @@ int main(int argc, char** argv)
             for (int pass = 0; pass < 2; pass++)
             {
                 const int count = pass == 0 ? (int)achList.size() - earned : earned;
-                if (count > 0) section((std::string(pass == 0 ? "TO EARN" : "EARNED") + "  (" + std::to_string(count) + ")").c_str(), Glass::I_TROPHY);
+                if (count > 0) section(UiLang::F(pass == 0 ? "TO EARN  ({0})" : "EARNED  ({0})", { std::to_string(count) }).c_str(), Glass::I_TROPHY);
                 for (size_t i = 0; i < achList.size(); i++)
                 {
                     if (achList[i].unlocked != (pass == 1)) continue;
-                    add(M_ACH0 + (int)i, raTitle(achList[i].title).c_str(), std::to_string(achList[i].points) + " PTS", true);
+                    add(M_ACH0 + (int)i, raTitle(achList[i].title).c_str(), UiLang::F("{0} PTS", { std::to_string(achList[i].points) }), true);
                     MenuItem& it = menu.items.back();
                     it.kind = Menu::K_LINK;
                     it.icon = Glass::I_TROPHY;
-                    it.desc = achList[i].description + (achList[i].progress.empty() ? "" : " So far: " + achList[i].progress + ".");
+                    it.desc = achList[i].description + (achList[i].progress.empty() ? std::string() : UiLang::F(" So far: {0}.", { achList[i].progress }));
                     it.tip = "Choose it for its details.";
                     if (Achievements::Badge(achList[i].badge, !achList[i].unlocked, it.thumb, it.thumbW, it.thumbH)) it.icon = -1; // (its badge, grey until earned)
                 }
@@ -8249,7 +8249,7 @@ int main(int argc, char** argv)
         if (ctlKeyboard) cfg.controls.ClearKey(capturing);
         else cfg.controls.ClearPad(capturing);
         cfg.Save(opt.config);
-        say(std::string(Controls::ActionName(capturing)) + (ctlKeyboard ? " HAS NO KEY NOW" : " HAS NO BUTTON NOW"));
+        say(UiLang::F(ctlKeyboard ? "{0} HAS NO KEY NOW" : "{0} HAS NO BUTTON NOW", { Controls::ActionName(capturing) }));
         captureEnd();
     };
     // The quick slot (SAVE STATE / LOAD STATE in the pause menu, and their keys and buttons).
@@ -9649,7 +9649,7 @@ int main(int argc, char** argv)
                             else
                             {
                                 cfg.controls.SetKey(capturing, sc);
-                                if (other >= 0 && other != capturing) say(std::string(Controls::ActionName(capturing)) + " AND " + Controls::ActionName(other) + " SWAPPED KEYS");
+                                if (other >= 0 && other != capturing) say(UiLang::F("{0} AND {1} SWAPPED KEYS", { Controls::ActionName(capturing), Controls::ActionName(other) }));
                                 cfg.Save(opt.config);
                                 captureEnd();
                             }
@@ -10019,7 +10019,7 @@ int main(int argc, char** argv)
                 {
                     cfg.controls.SetPad(capturing, in, cfg.byLabel);
                     capturePending = -1;
-                    if (other >= 0) say(std::string(Controls::ActionName(capturing)) + " AND " + Controls::ActionName(other) + " SWAPPED BUTTONS");
+                    if (other >= 0) say(UiLang::F("{0} AND {1} SWAPPED BUTTONS", { Controls::ActionName(capturing), Controls::ActionName(other) }));
                     cfg.Save(opt.config);
                     capturing = -1;
                     navHoldOff = true;
@@ -10169,7 +10169,7 @@ int main(int argc, char** argv)
                 uint8_t* steps = base ? ram(base + companionProfile.repel, 1) : nullptr;
                 uint8_t* bag = base ? ram(base + companionProfile.bag, (size_t)slots * 4) : nullptr;
                 if (!steps || !bag) { say("REPEL: START OR LOAD A GAME"); break; }
-                if (*steps) { say("A REPEL IS STILL WORKING: " + std::to_string(*steps) + " STEPS LEFT"); break; }
+                if (*steps) { say(UiLang::F("A REPEL IS STILL WORKING: {0} STEPS LEFT", { std::to_string(*steps) })); break; }
                 static const int ids[3] = { 77, 76, 79 }, gives[3] = { 250, 200, 100 };
                 static const char* names[3] = { "MAX REPEL", "SUPER REPEL", "REPEL" };
                 int kind = -1, slot = -1;
@@ -10186,7 +10186,7 @@ int main(int argc, char** argv)
                 }
                 *steps = (uint8_t)gives[kind];
                 if (uint8_t* type = companionProfile.repelType ? ram(base + companionProfile.repelType, 1) : nullptr) *type = (uint8_t)ids[kind];
-                say(std::string("USED A ") + names[kind] + ": " + std::to_string(gives[kind]) + " STEPS (" + std::to_string(left) + " LEFT)");
+                say(UiLang::F("USED A {0}: {1} STEPS ({2} LEFT)", { UiLang::Tr(names[kind]), std::to_string(gives[kind]), std::to_string(left) }));
                 fdNav.open = false; swallowMenuButtons = true;
                 readCompanion(true);
                 break;
@@ -10422,7 +10422,7 @@ int main(int argc, char** argv)
                 else if(menuPage==PAGE_HUB_LOAD)
                 {
                     if(StateSlots::Exists(path)){pendingState=path;loadFromSlot=stateSlot;goPage(PAGE_LOAD_CONFIRM,M_BACK);}
-                    else say("SLOT "+std::to_string(stateSlot+1)+" IS EMPTY");
+                    else say(UiLang::F("SLOT {0} IS EMPTY",{std::to_string(stateSlot+1)}));
                 }
                 else goPage(PAGE_SLOT,M_SLOT_SAVE);
                 hit=-1;
@@ -12937,8 +12937,8 @@ int main(int argc, char** argv)
                     canvas.Text(ox + pad, oy + 2 * sc, n, sc, 0xFFFFD75E);
                 }
             }
-            const std::string hint = btn(Controls::Y) + " SEARCH   " + btn(Controls::X) + " SWITCH   " +
-                                     btn(Controls::A) + " CHECK";
+            const std::string hint = btn(Controls::Y) + " " + UiLang::Tr("SEARCH") + "   " + btn(Controls::X) + " " + UiLang::Tr("SWITCH") + "   " +
+                                     btn(Controls::A) + " " + UiLang::Tr("CHECK");
             const int tw = Canvas::TextWidth(hint, sc) + 8 * sc;
             const int ty = outH - 15 * sc;
             canvas.Fill((outW - tw) / 2, ty, tw, 13 * sc, 0xC0000000);
@@ -12963,7 +12963,7 @@ int main(int argc, char** argv)
             std::string label[FdNav::APPS];
             if (fdNav.resetAsk && frame - fdNav.resetAsk < 180) label[FdNav::RESET] = "A again";
             std::string hint = "A: USE   B: CLOSE";
-            if (fdNav.sel == FdNav::COUNT) hint = std::string("A: ") + (cfg.encountersShown ? "HIDE" : "SHOW") + " ON SCREEN   X: SET TO 0   B: CLOSE";
+            if (fdNav.sel == FdNav::COUNT) hint = std::string("A: ") + UiLang::F("{0} ON SCREEN", { UiLang::Tr(cfg.encountersShown ? "HIDE" : "SHOW") }) + "   X: SET TO 0   B: CLOSE";
             else if (fdNav.sel == FdNav::RESET) hint = "A TWICE: RESET THE GAME   B: CLOSE";
             static Canvas navCache;
             static std::string navKey;
@@ -13124,13 +13124,13 @@ int main(int argc, char** argv)
                 {
                     char pct[32];
                     snprintf(pct, sizeof pct, "%.1f%%", celebrateNow.rarity);
-                    rarity = std::string("  \xC2\xB7  ") + pct + " OF PLAYERS";
+                    rarity = std::string("  \xC2\xB7  ") + UiLang::F("{0} OF PLAYERS", { pct });
                 }
                 const std::string line1 = celebrateNow.mastery ? "GAME MASTERED" : "ACHIEVEMENT UNLOCKED";
                 // (Mastery: the game's name is the title, so its line is the points alone.)
                 const std::string line3 = celebrateNow.mastery
-                    ? std::to_string(celebrateNow.gamePoints) + " OF " + std::to_string(celebrateNow.gamePointsTotal) + " POINTS"
-                    : std::to_string(celebrateNow.points) + " POINTS" + rarity;
+                    ? UiLang::F("{0} OF {1} POINTS", { std::to_string(celebrateNow.gamePoints), std::to_string(celebrateNow.gamePointsTotal) })
+                    : UiLang::F("{0} POINTS", { std::to_string(celebrateNow.points) }) + rarity;
                 const int lineW = std::max(Canvas::TextWidth(line1, small), Canvas::TextWidth(line3, small));
                 const int cw = std::min(outW - 8 * sc, bs + 12 * sc + std::max(Canvas::TextWidth(celebrateNow.title, sc), lineW));
                 const int ch = 34 * sc;
@@ -13454,11 +13454,11 @@ int main(int argc, char** argv)
                         const int other = ctlKeyboard ? cfg.controls.ActionOfKey(capturePending) : cfg.controls.ActionOfPad(capturePending, cfg.byLabel);
                         const std::string what = ctlKeyboard ? Controls::KeyName(capturePending) : Controls::InputName(capturePending, Controls::StyleOf(pads.Current()));
                         if (other >= 0)
-                            warn = what + " already does " + CleanFont::Title(Controls::ActionName(other)) + ". Press it again to swap the two, or press another.";
+                            warn = UiLang::F("{0} already does {1}. Press it again to swap the two, or press another.", { what, CleanFont::Title(UiLang::Tr(Controls::ActionName(other))) });
                     }
                     const bool clearable = Controls::Bindings::Clearable(capturing);
                     SettingsArt::Prompt(canvas, ctlKeyboard ? Glass::I_GRID : Glass::I_PAD, ctlKeyboard ? "PRESS A KEY" : "PRESS A BUTTON",
-                                        CleanFont::Title(Controls::ActionName(capturing)) + "  \xC2\xB7  now " + now, warn,
+                                        UiLang::F("{0}  \xC2\xB7  now {1}", { CleanFont::Title(UiLang::Tr(Controls::ActionName(capturing))), now }), warn,
                                         ctlKeyboard ? (clearable ? "Esc: cancel    Backspace: clear" : "Esc: cancel")
                                                     : (touchPadUsed && touchPad.visible ? "Tap Cancel, or wait 5 seconds" : "Wait 5 seconds to cancel"),
                                         clearable);
@@ -13531,7 +13531,7 @@ int main(int argc, char** argv)
                 if (selId >= M_ACH0 && selId - M_ACH0 < (int)achList.size())
                 {
                     const Achievements::Row& r = achList[selId - M_ACH0];
-                    note = r.description + " (" + std::to_string(r.points) + " POINTS" + (r.unlocked ? ", UNLOCKED)" : ")");
+                    note = UiLang::F(r.unlocked ? "{0} ({1} POINTS, UNLOCKED)" : "{0} ({1} POINTS)", { r.description, std::to_string(r.points) });
                     if (!r.unlocked && !r.progress.empty()) note += " SO FAR: " + r.progress;
                 }
             }
@@ -13543,7 +13543,7 @@ int main(int argc, char** argv)
             if(menuPage == PAGE_CSEARCH || menuPage == PAGE_RSEARCH)
             {
                 const auto& query=menuPage==PAGE_RSEARCH?companionQuery:cheatQuery;
-                note="FIND: "+(query.empty() ? std::string("ALL ENTRIES") : query);
+                note=UiLang::Tr("FIND: ")+(query.empty() ? UiLang::Tr("ALL ENTRIES") : query);
                 hint="A: TYPE THE KEY   B: BACK";
             }
             if(menuPage == PAGE_CDETAIL || menuPage == PAGE_CINFO)note.clear();
@@ -13551,17 +13551,17 @@ int main(int argc, char** argv)
             if(menuPage == PAGE_RESTORE_CONFIRM && restoreChoice>=0 && restoreChoice<(int)saveBackups.size())
             {
                 title="RESTORE THIS BACKUP?";
-                note="Your game's save goes back to the backup from "+saveBackups[restoreChoice].label+", and the game restarts. Your save now is kept as before-restore.sav.";
+                note=UiLang::F("Your game's save goes back to the backup from {0}, and the game restarts. Your save now is kept as before-restore.sav.",{saveBackups[restoreChoice].label});
             }
             if(menuPage == PAGE_LOAD_CONFIRM)
             {
-                title = loadFromSlot >= 0 ? "LOAD SLOT " + std::to_string(loadFromSlot + 1) + "?" : pendingState == undoLoadState ? "UNDO LAST LOAD?" : "LOAD STATE?";
+                title = loadFromSlot >= 0 ? UiLang::F("LOAD SLOT {0}?", { std::to_string(loadFromSlot + 1) }) : pendingState == undoLoadState ? "UNDO LAST LOAD?" : "LOAD STATE?";
                 note = "Your cartridge save is kept. Saving in the game after loading an older state can still replace newer progress.";
             }
             if(menuPage == PAGE_SLOT_REPLACE)
             {
-                title = "REPLACE SLOT " + std::to_string(stateSlot + 1) + "?";
-                note = "The state in it now is saved over (" + StateSlots::Friendly(StateSlots::Path(quickState, stateSlot)) + ").";
+                title = UiLang::F("REPLACE SLOT {0}?", { std::to_string(stateSlot + 1) });
+                note = UiLang::F("The state in it now is saved over ({0}).", { StateSlots::Friendly(StateSlots::Path(quickState, stateSlot)) });
             }
             if(menuPage == PAGE_MATCHUPS)
                 note.clear();
