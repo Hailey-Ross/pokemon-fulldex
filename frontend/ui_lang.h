@@ -1,3 +1,4 @@
+#include <initializer_list>
 // The interface's language (LANGUAGE in the settings, list_lang): the game list, the settings page
 // and the pause menu are written in English; Canvas::Text (ui.h) shows each text through Tr,
 // which applies the selected interface translation. A text not in the table stays in English.
@@ -13,6 +14,12 @@
 #include "ui_translations.h"
 #include "ui_font.h"
 #include "companion_translations.h"
+#ifndef UI_TITLE_LANG_DEFINED
+#define UI_TITLE_LANG_DEFINED
+// (The menu language for title case: 0 is English. Outside English a lone Y, E, O or U between
+// words is "and"/"or", so it is written small, not kept as the Y button.)
+inline int& UiTitleLang() { static int l = 0; return l; }
+#endif
 
 namespace UiLang
 {
@@ -43,10 +50,10 @@ inline int LineUnits() { return Tall()?14:9; }
 inline void Set(const std::string& code) {
     const auto normal=Normalise(code);choice="auto";
     for(const auto* known:Codes)if(normal==known)choice=known;
-    lang=choice=="auto"?system:Language(choice);
+    lang=choice=="auto"?system:Language(choice);UiTitleLang()=lang;
 }
 inline void SetSystem(const std::string& code) {
-    system=Language(code);if(choice=="auto")lang=system;
+    system=Language(code);if(choice=="auto")lang=system;UiTitleLang()=lang;
 }
 // Invalid UTF-8 consumes one byte, so filenames and error messages cannot stall drawing.
 inline uint32_t Next(const std::string& text,size_t& at) {
@@ -115,6 +122,25 @@ inline const std::vector<std::pair<std::string,std::string>>& SpanishPrefixes() 
 inline const std::vector<std::pair<std::string,std::string>>& ItalianPrefixes() { static const auto values=Prefixes(2);return values; }
 
 // Translate whole messages first, then known dynamic prefixes and controller hint columns.
+// A word written in capitals in lower case from byte `from` on: A-Z and the accented capitals of
+// Spanish, Italian, French, German and Portuguese (À to Þ, two bytes each in UTF-8). Only A-Z were
+// lowered before: Spanish descriptions read "menÚ", "InstÁlalos", "aÑadir".
+inline void LowerLatin(std::string& w, size_t from)
+{
+    for (size_t k = from; k < w.size(); k++)
+    {
+        const unsigned char b = (unsigned char)w[k];
+        if (b >= 'A' && b <= 'Z') w[k] = (char)(b + 32);
+        else if (b == 0xC3 && k + 1 < w.size())
+        {
+            const unsigned char n = (unsigned char)w[k + 1];
+            if (n >= 0x80 && n <= 0x9E && n != 0x97) w[k + 1] = (char)(n + 0x20); // (not the multiplication sign)
+            k++;
+        }
+        else if (b == 0xC5 && k + 1 < w.size() && (unsigned char)w[k + 1] == 0x92) { w[k + 1] = (char)0x93; k++; } // (Œ)
+        else if (b >= 0xC0) { while (k + 1 < w.size() && ((unsigned char)w[k + 1] & 0xC0) == 0x80) k++; } // (other letters as they are)
+    }
+}
 inline std::string Tr(const std::string& s) {
     if(!lang||s.empty())return s;
     const auto& table=UiTranslations::Table(lang);
@@ -155,5 +181,17 @@ inline std::string Tr(const std::string& s) {
     }
     // Companion pages (PokeDaisy) keep their own es/it/fr/de text; ja/ko fall back to English.
     return lang <= 4 ? CompanionTranslation(lang, s) : s;
+}
+// A template in the menus' language with its {0}, {1}... filled in ("Holding {0}": "Lleva {0}").
+inline std::string F(const std::string& tmpl, std::initializer_list<std::string> args)
+{
+    std::string t = Tr(tmpl);
+    int i = 0;
+    for (const std::string& v : args)
+    {
+        const std::string k = "{" + std::to_string(i++) + "}";
+        for (size_t p = t.find(k); p != std::string::npos; p = t.find(k, p + v.size())) t.replace(p, k.size(), v);
+    }
+    return t;
 }
 } // namespace UiLang

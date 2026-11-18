@@ -13,6 +13,12 @@
 #include "stb_truetype.h"
 #include "ui_clean_font_data.h"
 #include "launcher_cjk.h"
+#ifndef UI_TITLE_LANG_DEFINED
+#define UI_TITLE_LANG_DEFINED
+// (The menu language for title case: 0 is English. Outside English a lone Y, E, O or U between
+// words is "and"/"or", so it is written small, not kept as the Y button.)
+inline int& UiTitleLang() { static int l = 0; return l; }
+#endif
 
 namespace CleanFont
 {
@@ -224,7 +230,8 @@ inline std::string Title(const std::string& s)
                                         "ZL", "ZR", "PP", "HP", "IV", "IVS", "EV", "EVS", "TM", "HM", "HMS", "TMS", "NDS", "SD", "UI", "LCD", "CRT",
                                         "MB", "GB", "KB", "AI", "TV", "CPU", "GPU", "SFX", "BGM", "XP", "EXP", "PS", "XBOX", "HGSS", "BW", "B2W2", "UV", "IPS", "BPS",
                                         "LB", "RB", "LT", "RT", "L1", "R1", "L2", "R2", "L3", "R3", "ZL", "ZR", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12" };
-    static const char* const small[] = { "OF", "AND", "THE", "TO", "IN", "FOR", "OR", "AT", "BY", "WITH", "DE", "DI", "DEL", "LA", "LE", "EL", "Y" };
+    static const char* const small[] = { "OF", "AND", "THE", "TO", "IN", "FOR", "OR", "AT", "BY", "WITH", "DE", "DI", "DEL", "LA", "LE", "EL", "Y",
+                                         "EN", "CON", "DU", "DES", "AUX", "SUR", "UND", "IM", "VOM", "ZUM", "NEL", "NELLA", "SUL", "PER", "DELLA", "E", "O", "U" };
     std::string out;
     size_t i = 0;
     bool firstWord = true;
@@ -242,6 +249,7 @@ inline std::string Title(const std::string& s)
             while (core > 0 && (word[core - 1] == '?' || word[core - 1] == '!' || word[core - 1] == '.' || word[core - 1] == ',' || word[core - 1] == ';')) core--;
             bool kept = false;
             for (const char* k : keep) if (word.compare(0, core, k) == 0 && std::char_traits<char>::length(k) == core) kept = true;
+            if (UiTitleLang() != 0 && !firstWord && (word == "Y" || word == "E" || word == "O" || word == "U") && j < s.size() && s[j] == ' ') kept = false;
             bool digits = false;
             for (char ch : word) if (ch >= '0' && ch <= '9') digits = true;
             if (word == "POKEMON") word = "Pokémon";
@@ -253,6 +261,7 @@ inline std::string Title(const std::string& s)
             {
                 bool isSmall = false;
                 for (const char* k : small) if (word == k) isSmall = true;
+                if (UiTitleLang() == 0 && (word == "E" || word == "O" || word == "U")) isSmall = false;
                 std::string w;
                 bool first = true;
                 for (size_t k = 0; k < word.size();)

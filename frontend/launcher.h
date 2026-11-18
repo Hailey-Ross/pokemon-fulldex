@@ -8613,10 +8613,10 @@ struct SettingsPage
 inline std::string SettingSentence(const std::string& s)
 {
     for (char ch : s) if (ch >= 'a' && ch <= 'z') return s;
-    static const char* const keep[] = { "FPS", "HUD", "GBA", "DS", "3D", "2D", "PC", "OK", "B", "X", "Y", "L", "R", "ZL", "ZR", "MB", "GPU",
+    static const char* const keep[] = { "FPS", "HUD", "GBA", "DS", "3D", "2D", "PC", "OK", "B", "X", "L", "R", "ZL", "ZR", "MB", "GPU",
                                         "CPU", "JIT", "LCD", "ROM", "ROMS", "SD", "HOME", "USB", "AUTO", "PS", "NDS", "UI", "4X", "2X", "16:9" };
     static const std::pair<const char*, const char*> spelt[] = { { "POKEMON", "Pok\xC3\xA9mon" }, { "POKEDEX", "Pok\xC3\xA9" "dex" },
-        { "GITHUB", "GitHub" }, { "RETROACHIEVEMENTS", "RetroAchievements" }, { "XBOX", "Xbox" }, { "JOY", "Joy" }, { "CON", "Con" },
+        { "GITHUB", "GitHub" }, { "RETROACHIEVEMENTS", "RetroAchievements" }, { "XBOX", "Xbox" }, { "JOY", "Joy" },
         { "MISSIONCONTROL", "MissionControl" }, { "SYS", "sys" }, { "FULLDEX", "Fulldex" }, { "WINDOWS", "Windows" }, { "MAC", "Mac" },
         { "LINUX", "Linux" }, { "ANDROID", "Android" }, { "IPHONE", "iPhone" }, { "SWITCH", "Switch" }, { "STEAM", "Steam" } };
     std::string out;
@@ -8631,7 +8631,12 @@ inline std::string SettingSentence(const std::string& s)
         bool kept = false;
         for (const char* k : keep) if (w == k) kept = true;
         for (const auto& sp : spelt) if (w == sp.first) { w = sp.second; kept = true; }
-        if (w == "A")
+        // (CON: Joy-Con's, after "Joy-"; elsewhere the Spanish and Italian word "con".)
+        if (w == "CON" && out.size() >= 4 && out.compare(out.size() - 4, 4, "Joy-") == 0) { w = "Con"; kept = true; }
+        // (Y: the button in English; in the other languages the Spanish "y" (and) is far more
+        // often meant, so there only as the button, as A below: "Y el menú", not "Y el menÚ".)
+        if (w == "Y" && UiLang::lang == 0) kept = true;
+        else if (w == "A" || w == "Y")
         {
             // (The button: before ":" or "/", before PLAYS / BUTTON, after "/" or THE.)
             size_t k = j;
@@ -8641,9 +8646,7 @@ inline std::string SettingSentence(const std::string& s)
             kept = (k < s.size() && (s[k] == ':' || s[k] == '/')) || next.compare(0, 5, "PLAYS") == 0 || next.compare(0, 6, "BUTTON") == 0 ||
                    (!out.empty() && out.find_last_not_of(' ') != std::string::npos && out[out.find_last_not_of(' ')] == '/') || before == "the ";
         }
-        if (!kept)
-            for (size_t k = start ? 1 : 0; k < w.size(); k++)
-                if (w[k] >= 'A' && w[k] <= 'Z') w[k] += 32;
+        if (!kept) UiLang::LowerLatin(w, start ? 1 : 0);
         out += w;
         start = false;
         i = j;

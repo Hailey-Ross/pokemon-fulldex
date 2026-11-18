@@ -576,6 +576,71 @@ struct Metadata
         }
         return out;
     }
+    // (The whole family for the POKEDEX: find the root by following the first parent, then walk
+    // every branch forward. Edges touching the current species are marked, so the entry's place
+    // in its family is clear.)
+    std::vector<std::string> EvolutionFamily(int id)const
+    {
+        std::vector<std::string> out;
+        if(id<=0||id>=(int)evolutions.size())return out;
+        std::vector<int> parent(evolutions.size(),-1);
+        for(int s=1;s<(int)evolutions.size();s++)
+            for(size_t at=0;at+5<evolutions[s].size();at+=6)
+            {
+                const int target=U16(evolutions[s].data()+at+4);
+                if(target>0&&target<(int)parent.size()&&parent[target]<0)parent[target]=s;
+            }
+        int root=id;
+        std::set<int> guard;
+        while(root>0&&root<(int)parent.size()&&!guard.count(root))
+        {
+            guard.insert(root);
+            const int p=parent[root];
+            if(p<=0)break;
+            root=p;
+        }
+        std::vector<int> stack{root};
+        std::set<int> seen;
+        while(!stack.empty())
+        {
+            const int s=stack.back();stack.pop_back();
+            if(s<=0||s>=(int)evolutions.size()||!seen.insert(s).second)continue;
+            const auto& records=evolutions[s];
+            for(size_t at=0;Range(records.size(),at,6);at+=6)
+            {
+                const int method=U16(records.data()+at),value=U16(records.data()+at+2),target=U16(records.data()+at+4);
+                if(!method||target<=0||target>=(int)evolutions.size())continue;
+                std::string line=Species(s)+" -> "+Species(target)+": "+Evolution(method,value);
+                if(s==id||target==id)line+="  (THIS ONE)";
+                out.push_back(line);
+                stack.push_back(target);
+            }
+        }
+        return out;
+    }
+    // (What is ahead from here for the PARTY: the current species and everything it can become,
+    // never its earlier forms.)
+    std::vector<std::string> EvolutionAhead(int id)const
+    {
+        std::vector<std::string> out;
+        if(id<=0||id>=(int)evolutions.size())return out;
+        std::vector<int> stack{id};
+        std::set<int> seen;
+        while(!stack.empty())
+        {
+            const int s=stack.back();stack.pop_back();
+            if(s<=0||s>=(int)evolutions.size()||!seen.insert(s).second)continue;
+            const auto& records=evolutions[s];
+            for(size_t at=0;Range(records.size(),at,6);at+=6)
+            {
+                const int method=U16(records.data()+at),value=U16(records.data()+at+2),target=U16(records.data()+at+4);
+                if(!method||target<=0||target>=(int)evolutions.size())continue;
+                out.push_back(Species(s)+" -> "+Species(target)+": "+Evolution(method,value));
+                stack.push_back(target);
+            }
+        }
+        return out;
+    }
     void Load(const Bytes& rom,const std::string& code,const Profile& profile)
     {
         if(!profile.supported)return;

@@ -80,8 +80,12 @@ static void ListWindowSize(SDL_Window* w, int* ww, int* wh)
     *ww = std::max(1, *ww - g_safeL - g_safeR);
     *wh = std::max(1, *wh - g_safeT - g_safeB);
 }
+// The list's own keyboard (dialog 3): typed text from a hardware keyboard too, but on iOS no
+// system keyboard over it (ios_orient.h, IosHardwareKeyboard).
+static void StartListKeyboard() { if (IosHardwareKeyboard()) SDL_StartTextInput(); }
 #else
 static void ListWindowSize(SDL_Window* w, int* ww, int* wh) { SDL_GetWindowSize(w, ww, wh); }
+static void StartListKeyboard() { SDL_StartTextInput(); }
 #endif
 #if !defined(SSR_PHONE) && !defined(__SWITCH__)
 #include "shortcuts.h"
@@ -356,6 +360,10 @@ void ExtractFuncs(const Folders& fo)
         }
     }
 }
+#endif
+
+#ifdef SSR_N3DS_PC
+std::string& N3dsPrepRom() { static std::string rom; return rom; } // (the game being prepared, for the card and the start)
 #endif
 
 // Whether this program plays a game: SoulSilver and HeartGold need the program's own tables,
@@ -1575,7 +1583,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
         if (games[selected].platform == Launcher::N3DS && !games[selected].comingSoon)
         {
             if (N3ds::Busy()) { note = N3ds::Status(); if (note.empty()) note = "ONE GAME IS BEING PREPARED: WAIT FOR IT TO FINISH"; return; }
-            if (!N3ds::Prepared(games[selected])) { N3ds::StartPrepare(fo.dir, games[selected]); note = N3ds::Status(); return; }
+            if (!N3ds::Prepared(games[selected])) { N3dsPrepRom() = games[selected].rom; N3ds::StartPrepare(fo.dir, games[selected]); note.clear(); return; }
             result = selected;
             quit = true;
             return;
@@ -1654,7 +1662,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 F.kbFor = F.tool == 1 ? 1 : 2;
                 F.kbRom.clear();
                 F.text = F.tool == 2 ? Launcher::SearchText() : std::string();
-                F.dialog = 3; F.drow = 0; SDL_StartTextInput();
+                F.dialog = 3; F.drow = 0; StartListKeyboard();
                 return;
             }
             if (onTabs && !F.onSort) { Launcher::OpenTabMenu(tab); return; } // (a tab: move, hide; one of your own also rename, delete)
@@ -1716,7 +1724,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 {
                     // (Your Picture just chosen: the system's picker for it.)
                     const int ld = Launcher::LookDo(F.prow, 1);
-                    if (ld == 2) SDL_StartTextInput(); // (My Themes: the theme's name)
+                    if (ld == 2) StartListKeyboard(); // (My Themes: the theme's name)
 #ifdef _WIN32
                     if (ld == 4) { const std::string zip = PickZipFile(window); if (!zip.empty()) Launcher::ThemeImport(zip); }
 #endif
@@ -1741,7 +1749,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                     }
                     const std::string said = Launcher::HubDo(F.prow, F.pact);
                     if (!said.empty()) note = said;
-                    if (F.dialog == 3) SDL_StartTextInput(); // (the Trade page's code)
+                    if (F.dialog == 3) StartListKeyboard(); // (the Trade page's code)
                     return;
                 }
                 if (F.page == Launcher::SIDE_ABOUT && F.prow == 0) { Launcher::OpenSupportAsk(); return; } // (Buy Me A Coffee or PayPal)
@@ -1784,7 +1792,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 F.popup = -1;
                 if (item == 1) { toggleFavourite(); return; }
                 const bool valid = selected >= 0 && selected < (int)games.size();
-                if (item == 2 && valid) { F.kbFor = 0; F.dialog = 3; F.drow = 0; F.text = Launcher::ShortName(games[selected]); SDL_StartTextInput(); return; }
+                if (item == 2 && valid) { F.kbFor = 0; F.dialog = 3; F.drow = 0; F.text = Launcher::ShortName(games[selected]); StartListKeyboard(); return; }
                 if (item == 5 && valid) { Launcher::OpenAddToTab(games[selected].rom); return; }
                 if (item == 6 && valid) { F.dialog = 1; F.drow = 0; return; }
 #ifdef __ANDROID__
@@ -2198,7 +2206,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             {
                 // (Add To Tab, or a tab of your own's menu.)
                 const int r = Launcher::TabDialogPick(pick, tab, note);
-                if (r == 2) { kb.open = false; SDL_StartTextInput(); }
+                if (r == 2) { kb.open = false; StartListKeyboard(); }
                 if (r != 1) { scroll = 0; settle(); }
                 return;
             }
@@ -2304,6 +2312,9 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
     };
     while (!quit)
     {
+#ifdef SSR_N3DS_PC
+        N3ds::StatusInfo n3dsPrep; // (filled below; the card after the list draws it)
+#endif
         bool hadModalMenu = modalMenuOpen();
         // Steam Input can deliver one press as both a keyboard shortcut and a controller
         // button. Apply each menu action once while draining this batch, even if the first
@@ -3415,9 +3426,19 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             // (The safe area, in the drawable's pixels.)
             static bool filterOn = false;
             if (!filterOn) { SDL_SetEventFilter(SafeAreaFilter, nullptr); IosIgnoreControllerPresses(); filterOn = true; }
-            IosSafeInsets(&g_safeT, &g_safeB, &g_safeL, &g_safeR);
             int pointsW = 1, pointsH = 1;
             SDL_GetWindowSize(window, &pointsW, &pointsH);
+            {
+                // iPadOS gives and takes back room at the top (the status bar, the window's
+                // controls) while the list is up: following it moved the whole list 32 points
+                // under the player's finger, so a tap could land on what was there a moment
+                // before. The insets only grow until the window's size changes (a turn).
+                static int keepW = 0, keepH = 0;
+                int t = 0, b = 0, l = 0, r = 0;
+                IosSafeInsets(&t, &b, &l, &r);
+                if (pointsW != keepW || pointsH != keepH) { keepW = pointsW; keepH = pointsH; g_safeT = t; g_safeB = b; g_safeL = l; g_safeR = r; }
+                else { g_safeT = std::max(g_safeT, t); g_safeB = std::max(g_safeB, b); g_safeL = std::max(g_safeL, l); g_safeR = std::max(g_safeR, r); }
+            }
             const double px = (double)ow / std::max(1, pointsW);
             safeDst = { (int)(g_safeL * px), (int)(g_safeT * px), 0, 0 };
             ow = std::max(1, ow - (int)((g_safeL + g_safeR) * px));
@@ -3571,11 +3592,9 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 if (MB.action >= 0) { if (!fake) NowPlaying::Command(MB.action); MB.action = -1; }
             }
 #ifdef SSR_N3DS_PC
-            if (N3ds::Busy())
-            {
-                const std::string prep = N3ds::Status(); if (!prep.empty()) note = prep;
+            n3dsPrep = N3ds::Peek();
+            if (n3dsPrep.active)
                 for (Launcher::Game& g : games) if (g.platform == Launcher::N3DS && !g.built) g.built = N3ds::Prepared(g);
-            }
 #elif defined(__ANDROID__)
             // (The 3DS games' copying and building: how it goes, twice a second.)
             static int n3dsPoll = 0;
@@ -3684,6 +3703,104 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 y += 12 * s;
             }
         }
+#ifdef SSR_N3DS_PC
+        // (The 3DS first-launch preparation: a card with the step, a bar, the time and the end.
+        // The list stays behind it; the game starts by itself once the setup is ready.)
+        if (n3dsPrep.active)
+        {
+            const int s = std::max(1, std::min(canvas.w, canvas.h) / 240);
+            std::string name = Launcher::TitleCase(n3dsPrep.name);
+            for (char& ch : name) ch = (char)toupper((unsigned char)ch);
+            const int cw = std::min(canvas.w - 80, 900), ch = std::min(canvas.h - 80, 360);
+            const int cx = (canvas.w - cw) / 2, cy = (canvas.h - ch) / 2, pad = 34;
+            canvas.Fill(0, 0, canvas.w, canvas.h, 0xB4000000);
+            Glass::Round(canvas, cx, cy, cw, ch, 20, 0xE6101418, 0x66FFFFFF, 2);
+            const uint32_t ink = Menu::GlassText, dim = Menu::GlassHint;
+            auto centre = [&](int y, const std::string& text, int scale, uint32_t col) {
+                Launcher::ModernText(canvas, cx + (cw - Canvas::TextWidth(text.c_str(), scale)) / 2, y, text, scale, col);
+            };
+            auto fit = [&](const std::string& text, int want) {
+                int scale = want;
+                while (scale > 1 && Canvas::TextWidth(text.c_str(), scale) > cw - 2 * pad) scale--;
+                return scale;
+            };
+            int y = cy + 40;
+            if (n3dsPrep.failed)
+            {
+                { const std::string t = UiLang::F("COULDN'T PREPARE {0}", { name }); centre(y, t, fit(t, s + 2), 0xFFF2A08A); }
+                y += 42;
+                std::vector<std::string> lines;
+                std::string line;
+                for (size_t i = 0; i < n3dsPrep.error.size();)
+                {
+                    size_t j = n3dsPrep.error.find(' ', i);
+                    if (j == std::string::npos) j = n3dsPrep.error.size();
+                    const std::string word = n3dsPrep.error.substr(i, j - i);
+                    const std::string tried = line.empty() ? word : line + " " + word;
+                    if (!line.empty() && Canvas::TextWidth(tried.c_str(), s) > cw - 2 * pad) { lines.push_back(line); line = word; }
+                    else line = tried;
+                    i = j + 1;
+                }
+                if (!line.empty()) lines.push_back(line);
+                for (const std::string& l : lines) { centre(y, l, s, ink); y += 26; }
+                centre(cy + ch - 40, "A: CONTINUE", s + 1, ink);
+            }
+            else if (n3dsPrep.finished)
+            {
+                centre(y, "READY", s + 3, 0xFF8BE28B);
+                y += 52;
+                { const std::string t = UiLang::F("{0} IS STARTING", { name }); centre(y, t, fit(t, s + 1), ink); }
+                centre(cy + ch - 40, "THE FIRST-LAUNCH SETUP IS DONE", s, dim);
+            }
+            else
+            {
+                { const std::string t = UiLang::F("PREPARING {0}", { name }); centre(y, t, fit(t, s + 2), ink); }
+                y += 42;
+                centre(y, "FIRST LAUNCH  \xC2\xB7  ONE-TIME SETUP, 5 TO 15 MINUTES", fit("FIRST LAUNCH  \xC2\xB7  ONE-TIME SETUP, 5 TO 15 MINUTES", s), dim);
+                y += 34;
+                centre(y, UiLang::Tr(n3dsPrep.step), fit(UiLang::Tr(n3dsPrep.step), s + 1), ink);
+                y += 30;
+                const int bw = cw - 2 * pad, bh = std::max(6, 3 * s), bx = cx + pad, by = y;
+                canvas.Fill(bx, by, bw, bh, 0x40FFFFFF);
+                if (n3dsPrep.total > 0)
+                    canvas.Fill(bx, by, std::clamp(n3dsPrep.done * bw / n3dsPrep.total, 0, bw), bh, 0xFF8AB4F8);
+                else
+                {
+                    // (No count yet (unpacking): a segment moving along the bar.)
+                    const int seg = std::max(30, bw / 4), x0 = (int)((SDL_GetTicks() / 8) % (bw + seg)) - seg;
+                    const int a = std::max(0, x0), b = std::min(bw, x0 + seg);
+                    if (b > a) canvas.Fill(bx + a, by, b - a, bh, 0xFF8AB4F8);
+                }
+                y += 24;
+                const long long sec = n3dsPrep.elapsed;
+                char line[96];
+                if (n3dsPrep.total > 0)
+                    { char t[24]; snprintf(t, sizeof t, "%lld:%02lld", sec / 60, sec % 60); snprintf(line, sizeof line, "%s", UiLang::F("{0}%   \xC2\xB7   ELAPSED {1}", { std::to_string(n3dsPrep.done * 100 / std::max(1, n3dsPrep.total)), t }).c_str()); }
+                else
+                    { char t[24]; snprintf(t, sizeof t, "%lld:%02lld", sec / 60, sec % 60); snprintf(line, sizeof line, "%s", UiLang::F("ELAPSED {0}", { t }).c_str()); }
+                centre(y, line, s + 1, ink);
+                centre(cy + ch - 40, "THE GAME STARTS WHEN IT IS READY", s, dim);
+            }
+        }
+        // (The ready card lingers a moment, then the game starts without another click.)
+        {
+            static Uint32 n3dsReadyAt = 0;
+            if (n3dsPrep.active && n3dsPrep.finished && !n3dsPrep.failed)
+            {
+                if (!n3dsReadyAt) n3dsReadyAt = SDL_GetTicks();
+                if (SDL_GetTicks() - n3dsReadyAt > 1500)
+                {
+                    int at = -1;
+                    for (int i = 0; i < (int)games.size(); i++)
+                        if (games[i].platform == Launcher::N3DS && games[i].rom == N3dsPrepRom()) at = i;
+                    if (at >= 0) { N3ds::Ack(); result = at; quit = true; N3dsPrepRom().clear(); }
+                    else N3ds::Ack(); // (no game found: clear the READY card too)
+                    n3dsReadyAt = 0;
+                }
+            }
+            else n3dsReadyAt = 0;
+        }
+#endif
         SDL_SetRenderDrawColor(renderer, 16, 16, 16, 255);
         if (!texture || SDL_UpdateTexture(texture, nullptr, canvas.px.data(), canvas.w * 4) != 0 ||
             SDL_RenderClear(renderer) != 0 || SDL_RenderCopy(renderer, texture, nullptr,
@@ -4328,7 +4445,7 @@ bool Start(int& argc, char**& argv)
         {
             chosen = directGame;
             directGame = -1;
-            if (!N3ds::Busy()) N3ds::StartPrepare(fo.dir, games[chosen]);
+            if (!N3ds::Busy()) { N3dsPrepRom() = games[chosen].rom; N3ds::StartPrepare(fo.dir, games[chosen]); }
         }
 #endif
     }

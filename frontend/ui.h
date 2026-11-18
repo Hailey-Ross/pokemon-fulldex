@@ -259,7 +259,7 @@ struct Menu
     enum { K_PLAIN, K_TOGGLE, K_PICKER, K_LINK, K_SECTION, K_BACK, K_FOLDER, K_SLOT, K_KEY };
     std::string headerNote; // (settings pages: a few words at the header's right, CHEATS' counts)
     // A preview's pictures (MenuItem::preview), one per choice (its art: which variant).
-    enum { P_NONE, P_LAYOUT, P_LARGE, P_SECOND, P_ASPECT, P_FULLSCREEN, P_SMOOTH, P_BATTLE, P_FPS, P_COMPANION, P_PARTY, P_FILTER, P_MOTION, P_WIDE, P_RES, P_PAD, P_KEY, P_SHORTCUTS, P_TOUCH, P_CPARTY, P_CBAG, P_CDEX, P_CPLACE, P_CBATTLE, P_CMON, P_CITEM, P_CDEXMON, P_CGUIDE, P_CBFOE, P_CBMOVE, P_CBCOVER };
+    enum { P_NONE, P_LAYOUT, P_LARGE, P_SECOND, P_ASPECT, P_FULLSCREEN, P_SMOOTH, P_BATTLE, P_FPS, P_COMPANION, P_PARTY, P_FILTER, P_MOTION, P_WIDE, P_RES, P_PAD, P_KEY, P_SHORTCUTS, P_TOUCH, P_CPARTY, P_CBAG, P_CDEX, P_CPLACE, P_CBATTLE, P_CMON, P_CITEM, P_CDEXMON, P_CGUIDE, P_CBFOE, P_CBMOVE, P_CBCOVER, P_CHEATNOTE };
     // P_PAD and P_KEY (CONTROLS): the controller drawn in its maker's layout (padStyle: Controls::Style;
     // a choice's art is the input lit, Controls::IN_*), the inputs held now lit too (padLive, a bit
     // per input), or a keyboard's key.
@@ -324,7 +324,9 @@ struct Menu
         };
         std::vector<DexEntry> dex;
         // (GUIDE's answers, P_CGUIDE: each shown once chosen with Enter or a tap.)
-        struct GuideAnswer { std::string text; bool shown = false; };
+        // (scroll: the first line shown in the preview; scrollMax: the last one it can start at, set
+        // by the preview as it draws, so Left/Right in the Guide knows where the answer ends.)
+        struct GuideAnswer { std::string text; bool shown = false; int scroll = 0; mutable int scrollMax = 0; };
         std::vector<GuideAnswer> guide;
         bool dexMoves = false;
         // (BATTLE INFO, in a battle: the foe (P_CBFOE: its types, ability, item, HP and what hits it
@@ -898,6 +900,9 @@ struct Menu
     // and size, the controls' box on the right of them, and the back button.
     mutable std::vector<int> rowY;
     mutable int rowX = 0, rowW = 0, rowH = 0, ctlX = 0, ctlW = 0, backX = 0, backY = 0, backS = 0, scrollPx = 0;
+    // (The preview's box and a Guide answer's line height: a finger dragged on the preview scrolls
+    // that answer rather than the list.)
+    mutable int previewX = 0, previewY = 0, previewW = 0, previewH = 0, previewLineH = 1;
 };
 
 #include "ui_settings.h"

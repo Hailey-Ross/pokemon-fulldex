@@ -16,4 +16,6 @@ class WindowsRuntimeLogTests(unittest.TestCase):
             exe = root / 'runtime-log.exe'
             subprocess.run(['c++', '-std=c++17', '-pthread', '-mwindows', '-I' + str(ROOT / 'frontend'),
                             str(ROOT / 'tests/test_windows_runtime_log.cpp'), '-o', str(exe)], check=True)
-            subprocess.run([str(exe), str(root / 'fixture')], check=True, timeout=30)
+            # (Two minutes: it copies itself and starts the copies twice; a fresh program is scanned
+            # before it runs, which took GitHub's Windows machines past 30 seconds. A hang still fails.)
+            subprocess.run([str(exe), str(root / 'fixture')], check=True, timeout=120)

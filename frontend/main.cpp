@@ -74,6 +74,9 @@
 #include "companion_types.h"
 #include "companion_rom.h"
 #include "companion_guides.h"
+#include "guide_translations.h"
+#include "companion_black_bosses.h" // (Pokemon Black's next gym/league teams)
+#include "companion_gen4_bosses.h" // (HeartGold/SoulSilver and Platinum's)
 #include "companion_panel.h"
 #include "companion_battle.h"
 #include "optional_features.h"
@@ -2030,6 +2033,35 @@ static bool ReadSnapshot(NDS& nds, const std::string& path, uint32_t* frame, boo
     rc_reset();
     pk_nds_call_reset();
     return true;
+}
+
+// An evolution line ("BULBASAUR -> IVYSAUR: LEVEL 16") in the menu's language: the game's
+// names stay as they are, the way it evolves is translated.
+static std::string EvoTr(const std::string& line)
+{
+    const size_t arrow = line.find(" -> ");
+    const size_t colon = line.find(": ", arrow == std::string::npos ? 0 : arrow);
+    if (colon == std::string::npos) return UiLang::Tr(line);
+    const std::string m = line.substr(colon + 2);
+    std::string out;
+    auto starts = [&](const char* p) { return m.rfind(p, 0) == 0; };
+    auto ends = [&](const char* p) { const size_t n = strlen(p); return m.size() > n && m.compare(m.size() - n, n, p) == 0; };
+    if (starts("LEVEL ") && m.size() > 6 && isdigit((unsigned char)m[6]))
+    {
+        const size_t c = m.find(", ");
+        out = UiLang::F("LEVEL {0}", { m.substr(6, c == std::string::npos ? std::string::npos : c - 6) });
+        if (c != std::string::npos) out += ", " + UiLang::Tr(m.substr(c + 2));
+    }
+    else if (starts("LEVEL UP HOLDING ") && ends(", DAYTIME")) out = UiLang::F("LEVEL UP HOLDING {0}, DAYTIME", { m.substr(17, m.size() - 17 - 9) });
+    else if (starts("LEVEL UP HOLDING ") && ends(", NIGHTTIME")) out = UiLang::F("LEVEL UP HOLDING {0}, NIGHTTIME", { m.substr(17, m.size() - 17 - 11) });
+    else if (starts("LEVEL UP WITH ") && ends(" IN PARTY")) out = UiLang::F("LEVEL UP WITH {0} IN PARTY", { m.substr(14, m.size() - 14 - 9) });
+    else if (starts("LEVEL UP KNOWING ")) out = UiLang::F("LEVEL UP KNOWING {0}", { m.substr(17) });
+    else if (starts("TRADE HOLDING ")) out = UiLang::F("TRADE HOLDING {0}", { m.substr(14) });
+    else if (starts("MALE: USE ")) out = UiLang::F("MALE: USE {0}", { m.substr(10) });
+    else if (starts("FEMALE: USE ")) out = UiLang::F("FEMALE: USE {0}", { m.substr(12) });
+    else if (starts("USE ")) out = UiLang::F("USE {0}", { m.substr(4) });
+    else out = UiLang::Tr(m);
+    return line.substr(0, colon + 2) + out;
 }
 
 int main(int argc, char** argv)
@@ -5851,7 +5883,7 @@ int main(int argc, char** argv)
                 m.name = title(companionMetadata.Species(b.species));
                 m.level = b.level; m.hp = b.hp; m.maxHp = b.maxHp;
                 if (CompanionTypes::Valid(b.type1))
-                    m.item = title(std::string(CompanionTypes::Name(b.type1)) + (b.type2 != b.type1 && CompanionTypes::Valid(b.type2) ? std::string(" / ") + CompanionTypes::Name(b.type2) : ""));
+                    m.item = title(UiLang::Tr(CompanionTypes::Name(b.type1)) + (b.type2 != b.type1 && CompanionTypes::Valid(b.type2) ? std::string(" / ") + UiLang::Tr(CompanionTypes::Name(b.type2)) : ""));
                 if (companionMetadata.MonIcon(b.species, false, m.icon)) m.iconW = m.iconH = 32;
                 cv.battle.push_back(m);
             }
@@ -5859,8 +5891,167 @@ int main(int argc, char** argv)
         }
     };
     const auto companionGuide=Companion::GuideFor(gameCode);
+    // (GUIDE's NEXT BOSS: the next gym, or the League, from the save's badges. Black's
+    // Striaton leader follows the starter; the gen 4 games' first leaders are fixed.)
+    struct GuideBoss { std::string title, hint, answer; bool any = false; };
+    auto guideNextBoss = [&]() -> GuideBoss {
+        GuideText::Lang() = UiLang::lang; // (the Guide in the menus' language: guide_translations.h)
+        int best = 0, starter = 0;
+        for (const auto& m : companionSnapshot.party)
+        {
+            best = std::max(best, m.level);
+            if (m.species >= 495 && m.species <= 497) starter = 1;
+            else if (m.species >= 498 && m.species <= 500) starter = 2;
+            else if (m.species >= 501 && m.species <= 503) starter = 3;
+        }
+        if (gameCode == "IRBO")
+        {
+            const Companion::BlackBossInfo b = Companion::BlackNextBoss(companionSnapshot.badges, best, starter);
+            GuideBoss g; g.title = b.title; g.hint = b.hint; g.answer = b.answer; g.any = b.any; return g;
+        }
+        const bool hg = gameCode == "IPKE" || gameCode == "IPGE";
+        if (!hg && gameCode != "CPUE") return {};
+        const int badges = companionSnapshot.badges;
+        auto monLine = [&](const Companion::Gen4Mon& m) {
+            std::string ty;
+            const int t1 = companionMetadata.Type(m.species, 0), t2 = companionMetadata.Type(m.species, 1);
+            if (CompanionTypes::Valid(t1)) ty = UiLang::Tr(CompanionTypes::Name(t1));
+            if (t2 != t1 && CompanionTypes::Valid(t2)) ty += std::string(ty.empty() ? "" : "/") + UiLang::Tr(CompanionTypes::Name(t2));
+            return companionMetadata.Species(m.species) + (ty.empty() ? "" : " (" + ty + ")") + " Lv " + std::to_string(m.level);
+        };
+        auto bossAnswer = [&](const Companion::Gen4Boss& b) {
+            int high = 0; std::string out;
+            for (int i = 0; i < b.count; i++)
+            {
+                high = std::max(high, b.team[i].level);
+                if (i) out += ", ";
+                out += monLine(b.team[i]);
+            }
+            return std::pair<std::string, int>(out + ".", high);
+        };
+        auto displayName = [](const char* name) { std::string s = name; for (char& c : s) if (c == '_') c = ' '; return s; };
+        auto makeBoss = [&](const char* name, const char* where) -> GuideBoss {
+            const Companion::Gen4Boss* b = Companion::FindGen4Boss(name, hg);
+            if (!b) return {};
+            const auto team = bossAnswer(*b);
+            GuideBoss g; g.any = true;
+            g.title = GuideText::Fmt(GuideText::Tr("NEXT BOSS: {0}"), { displayName(name) });
+            g.hint = std::string(where) + "  \xC2\xB7  " + GuideText::Fmt(GuideText::Tr("HIGHEST Lv {0}"), { std::to_string(team.second) }) +
+                     (best > 0 ? "  \xC2\xB7  " + GuideText::Fmt(GuideText::Tr("YOUR BEST Lv {0}"), { std::to_string(best) }) : "");
+            g.answer = team.first;
+            return g;
+        };
+        auto e4Card = [&](const char* const* names, int n) -> GuideBoss {
+            GuideBoss g; int high = 0; std::string lines;
+            for (int i = 0; i < n; i++)
+            {
+                const Companion::Gen4Boss* b = Companion::FindGen4Boss(names[i], hg);
+                if (!b) continue;
+                const auto team = bossAnswer(*b);
+                high = std::max(high, team.second);
+                if (!lines.empty()) lines += "\n";
+                lines += displayName(names[i]) + ": " + team.first;
+            }
+            if (lines.empty()) return {};
+            g.any = true;
+            g.title = GuideText::Tr("NEXT BOSS: THE ELITE FOUR");
+            g.hint = "ELITE FOUR  \xC2\xB7  " + GuideText::Fmt(GuideText::Tr("HIGHEST Lv {0}"), { std::to_string(high) }) +
+                     (best > 0 ? "  \xC2\xB7  " + GuideText::Fmt(GuideText::Tr("YOUR BEST Lv {0}"), { std::to_string(best) }) : "");
+            g.answer = lines;
+            return g;
+        };
+        if (hg)
+        {
+            static const char* const johto[] = {"FALKNER","BUGSY","WHITNEY","MORTY","CHUCK","JASMINE","PRYCE","CLAIR"};
+            static const char* const jwhere[] = {"VIOLET CITY GYM","AZALEA TOWN GYM","GOLDENROD CITY GYM","ECRUTEAK CITY GYM","CIANWOOD CITY GYM","OLIVINE CITY GYM","MAHOGANY TOWN GYM","BLACKTHORN CITY GYM"};
+            static const char* const kanto[] = {"BROCK","MISTY","LT_SURGE","ERIKA","JANINE","SABRINA","BLAINE","BLUE"};
+            static const char* const kwhere[] = {"PEWTER CITY GYM","CERULEAN CITY GYM","VERMILION CITY GYM","CELADON CITY GYM","FUCHSIA CITY GYM","SAFFRON CITY GYM","CINNABAR ISLAND GYM","VIRIDIAN CITY GYM"};
+            if (badges < 8) return makeBoss(johto[badges], jwhere[badges]);
+            if (badges == 8)
+            {
+                static const char* const e4[] = {"WILL","KOGA","BRUNO","KAREN","LANCE"};
+                GuideBoss g = e4Card(e4, 5);
+                if (g.any) g.answer += "\n" + GuideText::Tr("After LANCE: the KANTO GYMS (BROCK first).");
+                return g;
+            }
+            if (badges < 16) return makeBoss(kanto[badges - 8], kwhere[badges - 8]);
+            return makeBoss("RED", "MT. SILVER");
+        }
+        static const char* const sinnoh[] = {"ROARK","GARDENIA","FANTINA","MAYLENE","WAKE","BYRON","CANDICE","VOLKNER"};
+        static const char* const swhere[] = {"OREBURGH CITY GYM","ETERNA CITY GYM","HEARTHOME CITY GYM","VEILSTONE CITY GYM","PASTORIA CITY GYM","CANALAVE CITY GYM","SNOWPOINT CITY GYM","SUNYSHORE CITY GYM"};
+        if (badges < 8) return makeBoss(sinnoh[badges], swhere[badges]);
+        static const char* const ptE4[] = {"AARON","BERTHA","FLINT","LUCIAN","CYNTHIA"};
+        return e4Card(ptE4, 5);
+    };
+    // (GUIDE's GYMS for the gen 4 games: each leader's team, from the same cart data.)
+    auto guideGen4Team = [&](const char* name) -> std::string {
+        const bool hg = gameCode == "IPKE" || gameCode == "IPGE";
+        if (!hg && gameCode != "CPUE") return "";
+        const Companion::Gen4Boss* b = Companion::FindGen4Boss(name, hg);
+        if (!b) return "";
+        std::string out;
+        for (int i = 0; i < b->count; i++)
+        {
+            const auto& m = b->team[i];
+            std::string ty;
+            const int t1 = companionMetadata.Type(m.species, 0), t2 = companionMetadata.Type(m.species, 1);
+            if (CompanionTypes::Valid(t1)) ty = UiLang::Tr(CompanionTypes::Name(t1));
+            if (t2 != t1 && CompanionTypes::Valid(t2)) ty += std::string(ty.empty() ? "" : "/") + UiLang::Tr(CompanionTypes::Name(t2));
+            if (i) out += ", ";
+            out += companionMetadata.Species(m.species) + (ty.empty() ? "" : " (" + ty + ")") + " Lv " + std::to_string(m.level);
+        }
+        return out.empty() ? out : out + ".";
+    };
+    // (GUIDE's HERE: the wild POKeMON the game lists for the place the player is in now.)
+    struct GuideHereInfo { std::string title, hint, answer; bool any = false; };
+    auto guideHere = [&]() -> GuideHereInfo {
+        GuideHereInfo r;
+        GuideText::Lang() = UiLang::lang;
+        const bool hereGame = gameCode == "IRBO" || gameCode == "IPKE" || gameCode == "IPGE" || gameCode == "CPUE";
+        if (!hereGame || companionSnapshot.map <= 0) return r;
+        std::string place = companionMetadata.PlaceName(companionSnapshot.map);
+        if (place.empty()) place = GuideText::Tr("THIS PLACE");
+        const std::vector<std::string> lines = companionMetadata.EncounterLines(companionSnapshot.map);
+        r.any = true;
+        r.title = GuideText::Fmt(GuideText::Tr("HERE: {0}"), { place });
+        int ways = 0, pokemon = 0;
+        for (const std::string& line : lines)
+            (line.find(" L") == std::string::npos && line.find("LEVEL VARIES") == std::string::npos) ? ways++ : pokemon++;
+        r.hint = GuideText::Tr("WHERE YOU ARE") + "  \xC2\xB7  " + GuideText::Fmt(GuideText::Tr("{0} WAYS"), { std::to_string(ways) }) + "  \xC2\xB7  " + GuideText::Fmt(GuideText::Tr("{0} POKeMON"), { std::to_string(pokemon) });
+        if (!companionSnapshot.locationLive) r.hint += "  \xC2\xB7  " + GuideText::Tr("THE GAME HAS NOT SAID WHERE EXACTLY");
+        if (lines.empty())
+            r.answer = GuideText::Fmt(GuideText::Tr("The game lists no wild POKeMON for {0}. Try the grass, dark grass, shaking grass and water of the routes around it."), { place });
+        else
+        {
+            // (EncounterLines gives a method's name and then its POKeMON: GRASS, then Roggenrola
+            // L10-13, Woobat L10-13, then the next method. The answer gives each way it is met a
+            // line, and each POKeMON a line under it; a long list stops and points at LOCATION,
+            // which has the same table.)
+            auto titleWords = [](std::string s) {
+                bool start = true;
+                for (char& c : s)
+                {
+                    const unsigned char u = (unsigned char)c;
+                    c = (char)(start ? std::toupper(u) : std::tolower(u));
+                    start = c == ' ';
+                }
+                return s;
+            };
+            std::string out;
+            for (const std::string& line : lines)
+            {
+                const bool isMethod = line.find(" L") == std::string::npos && line.find("LEVEL VARIES") == std::string::npos;
+                if (!out.empty()) out += "\n";
+                out += isMethod ? titleWords(line) : ("- " + line);
+            }
+            r.answer = out;
+        }
+        return r;
+    };
     int companionGuideChoice=0;bool companionGuideReveal=false;
+    bool companionNextBossShown=false, companionHereShown=false; // (GUIDE's computed answers)
     std::set<int> companionGuideShown; // (GUIDE: the answers the player chose to show)
+    std::set<int> companionGymShown; // (GUIDE GYMS: the teams the player chose to show)
     readCompanion();
     int companionMon=0, companionSpecies=1, companionPocket=-1, companionDexFilter=0, companionItem=0, companionDexType=0;
     std::set<int> companionRevealed; // (POKEDEX: entries not yet seen that the player chose to show)
@@ -5881,13 +6072,13 @@ int main(int argc, char** argv)
         M_CSEARCH, M_SEARCH_LETTER, M_SEARCH_DELETE, M_SEARCH_SPACE, M_SEARCH_CLEAR, M_SEARCH_DONE,
         M_CDETAIL_TOGGLE, M_CINFO, M_BACKUPS, M_RESTORE_CONFIRM, M_LOAD_CONFIRM,
         M_MATCHUPS, M_TYPE1, M_TYPE2, M_SECOND_SCREEN, M_UISIZE,
-        M_COMPANION, M_CPARTY, M_CBAG, M_CDEX, M_CLOCATION, M_CMAP, M_CENCOUNTERS, M_REFERENCE, M_REFERENCE_KIND, M_REFERENCE_QUERY, M_CPOCKET, M_CDEX_FILTER, M_CDEX_TYPE, M_CBATTLE, M_CGUIDE, M_CGUIDE_REVEAL, M_NUZLOCKE, M_RUN_ENABLED, M_RUN_RESET, M_RUN_RESET_CONFIRM, M_QUICK_ACTIONS, M_OPEN_PC, M_FLY, M_HUB_SAVE, M_HUB_LOAD, M_HUB_CHEATS, M_HUB_FAST, M_HUB_SETTINGS, M_HUB_QUIT,
+        M_COMPANION, M_CPARTY, M_CBAG, M_CDEX, M_CLOCATION, M_CMAP, M_CENCOUNTERS, M_REFERENCE, M_REFERENCE_KIND, M_REFERENCE_QUERY, M_CPOCKET, M_CDEX_FILTER, M_CDEX_TYPE, M_CBATTLE, M_CGUIDE, M_CGUIDE_REVEAL, M_CGUIDE_NEXT, M_CGUIDE_HERE, M_NUZLOCKE, M_RUN_ENABLED, M_RUN_RESET, M_RUN_RESET_CONFIRM, M_QUICK_ACTIONS, M_OPEN_PC, M_FLY, M_HUB_SAVE, M_HUB_LOAD, M_HUB_CHEATS, M_HUB_FAST, M_HUB_SETTINGS, M_HUB_QUIT,
         M_QUIT_YES, M_RESET_YES, // (QUIT GAME / RESET GAME asked first: PAGE_QUIT_CONFIRM)
         M_SHORTCUTS, // (CONTROLS: Fulldex's own four shortcuts, opening KEYS AND BUTTONS at them)
         M_EXTRAS, M_EXTRA0=92000, M_EXTRA_END=92006, M_PLAYBACK=93000, M_FAST_SPEED, M_SMART_FAST, M_SLOW_MOTION, M_REWIND_MB, M_REWIND, M_TURBO_A, M_SCREEN_FILTER, M_COMPANION_OVERLAY, M_PARTY_HUD, M_STATUS_BAR, M_LIVE_GLASS, M_FAST_BUTTON, M_ZOOM, M_ZOOM_TEXT,
         M_STATES, M_SLOT_SAVE, M_SLOT_LOAD, M_SLOT_PREVIOUS, M_UNDO_LOAD, M_AUTO_STATE, M_AUTO_RESUME,
         M_KEY0=94000, M_KEY_LAYER=94900, M_KEY_SPACE, M_KEY_DEL, M_KEY_DONE, M_KEY_SYMBOLS, // (the keyboard's keys, Menu::keyGrid: SEARCH, the log in)
-        M_FLY0=96000, M_CPARTY0=80000, M_CDEX0=81000, M_CITEM0=83000, M_RRESULT0=86000, M_SLOT0=90000, M_GUIDE0=91000,
+        M_FLY0=96000, M_CPARTY0=80000, M_CDEX0=81000, M_CITEM0=83000, M_RRESULT0=86000, M_SLOT0=90000, M_GUIDE0=91000, M_CGUIDE_GYM0=91100,
         M_BACKUP0 = 70000,
         M_CHEAT0 = 1000, // (M_CHEAT0 + i: cheat i, CHEATS)
         M_ACH0 = 30000,  // (M_ACH0 + i: achievement i, ACHIEVEMENTS)
@@ -6079,7 +6270,7 @@ int main(int argc, char** argv)
             {
                 row(KR_CHANGING, "CHANGING", ctlKeyboard ? "KEYBOARD" : "CONTROLLER", Menu::K_TOGGLE, ctlKeyboard ? Glass::I_GRID : Glass::I_PAD,
                     "Which to change below: the keyboard's keys or a controller's buttons.",
-                    pads.Current() ? "Showing the " + std::string(Controls::KindName(Controls::KindOf(pads.Current()))) + ": the one used last. Each keeps its own buttons."
+                    pads.Current() ? UiLang::F("Showing the {0}: the one used last. Each keeps its own buttons.", { UiLang::Tr(Controls::KindName(Controls::KindOf(pads.Current()))) })
                                    : std::string("Each keeps its own; both work at once."));
                 menu.items.back().choices = { "KEYBOARD", "CONTROLLER" };
                 menu.items.back().choice = ctlKeyboard ? 0 : 1;
@@ -6097,7 +6288,7 @@ int main(int argc, char** argv)
                 const int icon = a >= Controls::MENU ? extra[a - Controls::MENU] : a >= Controls::UP ? Glass::I_PAD : -1;
                 const char* hint = Controls::ActionHint(a);
                 std::string desc = hint ? std::string(hint) : a == Controls::MENU ? std::string(cfg.startMenu ? "OPENS AND CLOSES THIS MENU. A CONTROLLER'S START DOES TOO (CONTROLS > START BUTTON)." : "OPENS AND CLOSES THIS MENU. ON A CONTROLLER, START AND SELECT TOGETHER DO TOO.")
-                                 : "THE DS'S " + std::string(Controls::ActionName(a)) + (a < Controls::UP ? " BUTTON" : "");
+                                 : UiLang::F(a < Controls::UP ? "THE DS'S {0} BUTTON" : "THE DS'S {0}", { UiLang::Tr(Controls::ActionName(a)) });
                 row(a, Controls::ActionName(a), v, Menu::K_PLAIN, icon, desc, how);
                 // (The preview: the controller with this action's button lit, or the key.)
                 MenuItem& it = menu.items.back();
@@ -6253,7 +6444,7 @@ int main(int argc, char** argv)
             for (int slot = 0; slot < 10; slot++)
             {
                 const std::string path = StateSlots::Path(quickState, slot);
-                add(M_SLOT0 + slot, ("SLOT " + std::to_string(slot + 1)).c_str(), StateSlots::Friendly(path), true);
+                add(M_SLOT0 + slot, UiLang::F("SLOT {0}", { std::to_string(slot + 1) }).c_str(), StateSlots::Friendly(path), true);
                 MenuItem& it = menu.items.back();
                 it.kind = Menu::K_SLOT;
                 // (Its picture: the top screen of the two saved beside the state, if it is the
@@ -6550,11 +6741,11 @@ int main(int argc, char** argv)
             menu.items.back().icon=Glass::I_REWIND;
             menu.items.back().desc="Clear what the tracker has noted, to start a new run.";
             menu.items.back().tip="Your game and its save are not changed.";
-            section(("FAINTED  ("+std::to_string(nuzlocke.Deaths().size())+")").c_str(),Glass::I_PEOPLE);
+            section(UiLang::F("FAINTED  ({0})",{std::to_string(nuzlocke.Deaths().size())}).c_str(),Glass::I_PEOPLE);
             for(auto entry:nuzlocke.Deaths())noted(Cheats::Fit(companionMetadata.Species(entry.second),30),"OUT");
             if(nuzlocke.Deaths().empty())noted("NONE YET","");
-            section(("FIRST ENCOUNTERS  ("+std::to_string(nuzlocke.Encounters().size())+")").c_str(),Glass::I_POKEBALL);
-            for(auto entry:nuzlocke.Encounters())noted("MAP "+std::to_string(entry.first),Cheats::Fit(companionMetadata.Species(entry.second),22));
+            section(UiLang::F("FIRST ENCOUNTERS  ({0})",{std::to_string(nuzlocke.Encounters().size())}).c_str(),Glass::I_POKEBALL);
+            for(auto entry:nuzlocke.Encounters())noted(UiLang::F("MAP {0}",{std::to_string(entry.first)}),Cheats::Fit(companionMetadata.Species(entry.second),22));
             if(nuzlocke.Encounters().empty())noted("NONE YET","");
         }
         else if(menuPage==PAGE_RUN_CONFIRM)
@@ -6661,12 +6852,11 @@ int main(int argc, char** argv)
                     if (st.gender == 255) e.facts.push_back({ "Gender", "Unknown" });
                     else if (st.gender == 0) e.facts.push_back({ "Gender", "Always male" });
                     else if (st.gender == 254) e.facts.push_back({ "Gender", "Always female" });
-                    else { snprintf(b, sizeof b, "%.1f%% female", st.gender * 100.0 / 254); std::string g = b; if (g.find(".0%") != std::string::npos) g.erase(g.find(".0%"), 2); e.facts.push_back({ "Gender", g }); }
+                    else { snprintf(b, sizeof b, "%.1f", st.gender * 100.0 / 254); std::string g = b; if (g.size() > 2 && g.compare(g.size() - 2, 2, ".0") == 0) g.erase(g.size() - 2); e.facts.push_back({ "Gender", UiLang::F("{0}% female", { g }) }); }
                     static const char* const eggNames[] = { "", "Monster", "Water 1", "Bug", "Flying", "Field", "Fairy", "Grass", "Human-Like", "Water 3", "Mineral", "Amorphous", "Water 2", "Ditto", "Dragon", "Undiscovered" };
-                    auto egg = [&](int g) { return g >= 1 && g <= 15 ? std::string(eggNames[g]) : std::to_string(g); };
+                    auto egg = [&](int g) { return g >= 1 && g <= 15 ? UiLang::Tr(eggNames[g]) : std::to_string(g); };
                     e.facts.push_back({ "Egg groups", egg(st.eggGroup1) + (st.eggGroup2 != st.eggGroup1 ? " / " + egg(st.eggGroup2) : std::string()) });
-                    snprintf(b, sizeof b, "%d steps", (st.hatchCycles + 1) * 255);
-                    e.facts.push_back({ "Hatches in", b });
+                    e.facts.push_back({ "Hatches in", UiLang::F("{0} steps", { std::to_string((st.hatchCycles + 1) * 255) }) });
                     int height = 0, weight = 0;
                     if (m.Size(id, height, weight) && height > 0)
                     {
@@ -6675,10 +6865,10 @@ int main(int argc, char** argv)
                     }
                     static const char* const evNames[] = { "HP", "Attack", "Defence", "Sp. Atk", "Sp. Def", "Speed" }; // (DexStats' order)
                     std::string evs;
-                    for (int i = 0; i < 6; i++) if (st.ev[i]) evs += (evs.empty() ? "" : ", ") + std::to_string(st.ev[i]) + " " + evNames[i];
+                    for (int i = 0; i < 6; i++) if (st.ev[i]) evs += (evs.empty() ? "" : ", ") + std::to_string(st.ev[i]) + " " + UiLang::Tr(evNames[i]);
                     if (!evs.empty()) e.facts.push_back({ "EV yield", evs });
                     static const char* const growth[] = { "Medium Fast", "Erratic", "Fluctuating", "Medium Slow", "Fast", "Slow" };
-                    if (st.growth >= 0 && st.growth < 6) e.facts.push_back({ "Growth", growth[st.growth] });
+                    if (st.growth >= 0 && st.growth < 6) e.facts.push_back({ "Growth", UiLang::Tr(growth[st.growth]) });
                     e.facts.push_back({ "Base friendship", std::to_string(st.friendship) });
                 }
                 // (What hits it: each attacking type's multiplier against its types; 1x left out.)
@@ -6726,11 +6916,11 @@ int main(int argc, char** argv)
                         std::string how;
                         for (const auto& w : p.ways)
                         {
-                            how += (how.empty() ? "" : ", ") + title(w);
+                            how += (how.empty() ? "" : ", ") + title(UiLang::Tr(w == "GRASS" ? "TALL GRASS" : w));
                             if (w == "GRASS" && !p.times.empty() && p.times.size() < 3)
                             {
                                 std::string t;
-                                for (const char* n : { "MORNING", "DAY", "NIGHT" }) if (p.times.count(n)) t += (t.empty() ? "" : ", ") + title(n);
+                                for (const char* n : { "MORNING", "DAY", "NIGHT" }) if (p.times.count(n)) t += (t.empty() ? "" : ", ") + title(UiLang::Tr(n));
                                 how += " (" + t + ")";
                             }
                         }
@@ -6738,7 +6928,7 @@ int main(int argc, char** argv)
                         const std::string lv = !p.low ? std::string() : p.high != p.low ? "Lv " + std::to_string(p.low) + "-" + std::to_string(p.high) : "Lv " + std::to_string(p.low);
                         e.found.push_back({ title(p.name) + "  \xC2\xB7  " + how, lv });
                     }
-                    if (places.size() > most) e.found.push_back({ "And " + std::to_string(places.size() - most) + " more places", "" });
+                    if (places.size() > most) e.found.push_back({ UiLang::F("And {0} more places", { std::to_string(places.size() - most) }), "" });
                 }
                 for (int mv : m.Tutors(id))
                 {
@@ -6792,13 +6982,14 @@ int main(int argc, char** argv)
                         e.learns.push_back(l);
                     }
                     std::stable_sort(e.learns.begin(), e.learns.end(), [](const auto& a, const auto& b) { return a.level < b.level; });
-                    for (const auto& detail : companionMetadata.EvolutionDetails(id))
+                    // (The whole family for the POKEDEX: earlier forms, this one and every branch;
+                    // the party page shows only what is ahead. PR #224 by OzWookiee.)
+                    for (const auto& detail : companionMetadata.EvolutionFamily(id))
                     {
-                        // ("EVOLVES TO QUILAVA: LEVEL 14" as "Evolves into Quilava: Level 14")
-                        std::string line = title(detail);
-                        const size_t to = line.find(' ');
-                        const size_t name = line.find(' ', to + 1);
-                        if (to != std::string::npos && name != std::string::npos) line = "Evolves into" + line.substr(name);
+                        std::string line = detail;
+                        const size_t mark = line.find("  (THIS ONE)");
+                        if (mark != std::string::npos) line = title(EvoTr(line.substr(0, mark))) + "  (" + UiLang::Tr("THIS ONE") + ")";
+                        else line = title(EvoTr(line));
                         e.evolutions.push_back(line);
                     }
                     if (full) dexEntryMore(e, id);
@@ -6842,7 +7033,7 @@ int main(int argc, char** argv)
                 {
                     link(M_CPARTY, "PARTY", Glass::I_PEOPLE, Menu::P_CPARTY, std::to_string(snap.party.size()),
                          "Your team as it is now. Open it for each one's stats, moves, nature and what it learns next.");
-                    link(M_CBAG, "BAG", Glass::I_LOAD, Menu::P_CBAG, std::to_string(itemsTotal) + " ITEMS",
+                    link(M_CBAG, "BAG", Glass::I_LOAD, Menu::P_CBAG, UiLang::F("{0} ITEMS", { std::to_string(itemsTotal) }),
                          "Every pocket of your bag. Open an item for what the game says about it.", "View only: use items through the game.");
                     link(M_CLOCATION, "LOCATION", Glass::I_GLOBE, Menu::P_CPLACE, Cheats::Fit(companionMetadata.PlaceName(snap.map), 16),
                          "Where you are on the region's map, and what can be caught here.");
@@ -6857,7 +7048,7 @@ int main(int argc, char** argv)
                 }
                 section("HELP", Glass::I_INFO);
                 if (!companionGuide.empty())
-                    link(M_CGUIDE, "GUIDE", Glass::I_CHEATS, Menu::P_NONE, std::to_string(companionGuide.size()) + " PAGES",
+                    link(M_CGUIDE, "GUIDE", Glass::I_CHEATS, Menu::P_NONE, UiLang::F("{0} PAGES", { std::to_string(companionGuide.size()) }),
                          "Hints for each part of the game, the answer hidden until you ask for it.", "From PokeDaisy's guides.");
                 link(M_NUZLOCKE, "NUZLOCKE TRACKER", Glass::I_POWER, Menu::P_NONE, onOff(nuzlocke.Enabled()),
                      "Keeps the rules of a Nuzlocke run: one catch per area, and fainted Pok\xC3\xA9" "mon count as gone.");
@@ -6888,7 +7079,7 @@ int main(int argc, char** argv)
                 menu.items.back().icon=Glass::I_GLOBE;
                 menu.items.back().desc="Type part of a name to narrow the list.";
                 auto entries=companionMetadata.ReferenceEntries(companionReferenceKind,companionQuery);
-                section(("RESULTS  ("+std::to_string(entries.size())+")").c_str(),Glass::I_INFO);
+                section(UiLang::F("RESULTS  ({0})",{std::to_string(entries.size())}).c_str(),Glass::I_INFO);
                 for(const auto& entry:entries)
                 {
                     add(M_RRESULT0+entry.first,Cheats::Fit(entry.second,32).c_str(),companionReferenceKind==0?std::to_string(entry.first):std::string(),true);
@@ -6936,7 +7127,7 @@ int main(int argc, char** argv)
                         section((std::to_string(++n)+".  "+companionMetadata.Species(mon.species)).c_str(),Glass::I_POKEBALL);
                         std::string moves;
                         for(int move:mon.moves)if(move)moves+=(moves.empty()?"":", ")+CleanFont::Title(companionMetadata.Move(move));
-                        const std::string about=(mon.customMoves?"Its own moves: ":"Moves by level: ")+moves+".";
+                        const std::string about=UiLang::F(mon.customMoves?"Its own moves: {0}.":"Moves by level: {0}.",{moves});
                         row("LEVEL",std::to_string(mon.level),about);
                         if(mon.item)row("HOLDING",companionMetadata.ItemName(mon.item),about);
                         if(mon.form)row("FORM",std::to_string(mon.form),about);
@@ -6953,7 +7144,7 @@ int main(int argc, char** argv)
                     {
                         const auto& record=companionMetadata.mapRecords[map];
                         if(record.place!=companionReferenceId||record.encounter<0||!shownSets.insert(record.encounter).second)continue;
-                        section(("WILD POKEMON  (MAP "+std::to_string(map)+")").c_str(),Glass::I_POKEBALL);
+                        section(UiLang::F("WILD POKEMON  (MAP {0})",{std::to_string(map)}).c_str(),Glass::I_POKEBALL);
                         for(const auto& entry:companionMetadata.EncounterLines(map))row(entry,"");
                     }
                 }
@@ -7004,6 +7195,12 @@ int main(int argc, char** argv)
                 {
                     row("HP",std::to_string(mon.hp)+" / "+std::to_string(mon.maxHp)+(mon.status?"  "+std::string(Companion::Status(mon.status)):std::string()));
                     row("HOLDING",mon.item?companionMetadata.ItemName(mon.item):std::string("NOTHING"));
+                    section("EVOLUTION",Glass::I_PEOPLE);
+                    {
+                        const auto ahead = companionMetadata.EvolutionAhead(mon.species);
+                        if (ahead.empty()) row("FINAL FORM","");
+                        else for (const auto& ev : ahead) row(CleanFont::Title(EvoTr(ev)),"");
+                    }
                     section("STATS",Glass::I_GAUGE);
                     static const char* statNames[]={"HP","ATTACK","DEFENCE","SPEED","SP. ATK","SP. DEF"};
                     for(int i=0;i<6;i++)
@@ -7016,10 +7213,10 @@ int main(int argc, char** argv)
                         auto move=companionMetadata.MoveData(mon.moves[i]);
                         if(move.ready)
                         {
-                            desc=std::string(CompanionTypes::Name(move.type))+" move, "+(move.category==0?"physical":move.category==1?"special":"status")+".";
-                            if(move.power>0)desc+=" Power "+std::to_string(move.power)+".";
-                            desc+=move.accuracy?" Accuracy "+std::to_string(move.accuracy)+"%.":std::string(" Never misses.");
-                            desc+=" "+std::to_string(move.pp)+" PP at most before PP Ups.";
+                            desc=UiLang::F(move.category==0?"{0} move, physical.":move.category==1?"{0} move, special.":"{0} move, status.",{UiLang::Tr(CompanionTypes::Name(move.type))});
+                            if(move.power>0)desc+=UiLang::F(" Power {0}.",{std::to_string(move.power)});
+                            desc+=move.accuracy?UiLang::F(" Accuracy {0}%.",{std::to_string(move.accuracy)}):UiLang::Tr(" Never misses.");
+                            desc+=UiLang::F(" {0} PP at most before PP Ups.",{std::to_string(move.pp)});
                         }
                         row(companionMetadata.Move(mon.moves[i]),"PP "+std::to_string(mon.pp[i]),desc,false);
                     }
@@ -7138,7 +7335,7 @@ int main(int argc, char** argv)
                 if (companionDexType < 0 || companionDexType >= (int)dexTypes.size()) companionDexType = 0;
                 {
                     std::vector<std::string> names{ "Any" };
-                    for (size_t i = 1; i < dexTypes.size(); i++) names.push_back(CleanFont::Title(CompanionTypes::Name(dexTypes[i])));
+                    for (size_t i = 1; i < dexTypes.size(); i++) names.push_back(CleanFont::Title(UiLang::Tr(CompanionTypes::Name(dexTypes[i]))));
                     picker(M_CDEX_TYPE, "TYPE", Glass::I_SPARKLE, Menu::P_NONE, names, companionDexType,
                            "Only the entries of one type.", "Entries you have not seen are left out while a type is chosen.");
                 }
@@ -7192,7 +7389,7 @@ int main(int argc, char** argv)
                 section("ENTRY",Glass::I_INFO);
                 row(e.name,e.caught?"CAUGHT":e.seen?"SEEN":"NOT SEEN");
                 menuIds.back()=M_CDEX0+id; // (A on it: the card between the entry and its moves, as POKEDEX's)
-                if(CompanionTypes::Valid(e.type1))row("TYPE",std::string(CompanionTypes::Name(e.type1))+(e.type2!=e.type1&&CompanionTypes::Valid(e.type2)?std::string(" / ")+CompanionTypes::Name(e.type2):""));
+                if(CompanionTypes::Valid(e.type1))row("TYPE",UiLang::Tr(CompanionTypes::Name(e.type1))+(e.type2!=e.type1&&CompanionTypes::Valid(e.type2)?std::string(" / ")+UiLang::Tr(CompanionTypes::Name(e.type2)):""));
                 section("BASE STATS",Glass::I_GAUGE);
                 static const char* statNames[]={"HP","ATTACK","DEFENCE","SPEED","SP. ATK","SP. DEF"};
                 for(int i=0;i<6;i++)row(statNames[i],std::to_string(e.base[i]));
@@ -7208,7 +7405,7 @@ int main(int argc, char** argv)
                     for(const auto& w:e.weak)
                     {
                         std::string types;
-                        for(int t:w.types)types+=(types.empty()?"":", ")+CleanFont::Title(CompanionTypes::Name(t));
+                        for(int t:w.types)types+=(types.empty()?"":", ")+CleanFont::Title(UiLang::Tr(CompanionTypes::Name(t)));
                         row(w.pct==400?"4x damage":w.pct==200?"2x damage":w.pct==50?"Half damage":w.pct==25?"Quarter damage":"No damage",types);
                     }
                 }
@@ -7264,7 +7461,7 @@ int main(int argc, char** argv)
                     if (own.species)
                     {
                         cv.mine = title(species(own.species));
-                        section((CompanionBattle::Upper(species(own.species)) + "'S MOVES").c_str(), Glass::I_GAUGE);
+                        section(UiLang::F("{0}'S MOVES", { CompanionBattle::Upper(species(own.species)) }).c_str(), Glass::I_GAUGE);
                         for (int slot = 0; slot < 4; slot++)
                         {
                             if (!own.moves[slot]) continue;
@@ -7328,6 +7525,7 @@ int main(int argc, char** argv)
                 // pages (credited on the launcher's About page).
                 settingsPage(Glass::I_CHEATS);
                 menu.rowTall = 1.5f;
+                GuideText::Lang() = UiLang::lang;
                 // (The pages' capitals as the rest of the menus: "ILEX FOREST" as "Ilex Forest".)
                 auto guideText = [](std::string t) {
                     auto swap = [&](const std::string& a, const std::string& b) { for (size_t at = t.find(a); at != std::string::npos; at = t.find(a, at + b.size())) t.replace(at, a.size(), b); };
@@ -7336,23 +7534,121 @@ int main(int argc, char** argv)
                     swap("Poke Ball", "Pok\xC3\xA9 Ball"); swap("Poke Mart", "Pok\xC3\xA9 Mart"); swap("S.s.", "S.S.");
                     return t;
                 };
-                section("QUESTIONS", Glass::I_CHEATS);
+                // (NEXT BOSS: the gym the save's badges point at next, or the League, with its team
+                // and your best level; the answer waits behind REVEAL like the other entries.)
+                {
+                    const GuideBoss nb = guideNextBoss();
+                    if (nb.any)
+                    {
+                        section(guideText(GuideText::Tr("NEXT BOSS")).c_str(), Glass::I_TROPHY);
+                        Menu::CompanionView::GuideAnswer a;
+                        a.text = guideText(nb.answer);
+                        a.shown = companionNextBossShown;
+                        menu.companion.guide.push_back(a);
+                        add(M_CGUIDE_NEXT, guideText(nb.title).c_str(), a.shown ? "Shown" : "", true);
+                        MenuItem& it = menu.items.back();
+                        it.kind = Menu::K_LINK;
+                        it.preview = Menu::P_CGUIDE;
+                        it.icon = a.shown ? Glass::I_SPARKLE : Glass::I_TROPHY;
+                        it.choice = (int)menu.companion.guide.size() - 1;
+                        it.desc = GuideText::Tr("Hint: ") + guideText(nb.hint);
+                    }
+                }
+                // (HERE: the place the player is in, with the game's wild list for it.)
+                {
+                    const GuideHereInfo here = guideHere();
+                    if (here.any)
+                    {
+                        section(guideText(GuideText::Tr("HERE")).c_str(), Glass::I_GLOBE);
+                        Menu::CompanionView::GuideAnswer a;
+                        a.text = guideText(here.answer);
+                        a.shown = companionHereShown;
+                        menu.companion.guide.push_back(a);
+                        add(M_CGUIDE_HERE, guideText(here.title).c_str(), a.shown ? "Shown" : "", true);
+                        MenuItem& it = menu.items.back();
+                        it.kind = Menu::K_LINK;
+                        it.preview = Menu::P_CGUIDE;
+                        it.icon = a.shown ? Glass::I_SPARKLE : Glass::I_GLOBE;
+                        it.choice = (int)menu.companion.guide.size() - 1;
+                        it.desc = GuideText::Tr("Hint: ") + guideText(here.hint);
+                    }
+                }
+                // (GYMS for the gen 4 games: every gym, the Elite Four and the champion, so any
+                // of their teams can be read, not only the next one. NEXT BOSS points at the next.)
+                {
+                    const bool hg = gameCode == "IPKE" || gameCode == "IPGE";
+                    if (hg || gameCode == "CPUE")
+                    {
+                        struct Row { const char* name; const char* hint; };
+                        static const Row hgRows[] = {
+                            {"FALKNER","VIOLET CITY GYM"},{"BUGSY","AZALEA TOWN GYM"},{"WHITNEY","GOLDENROD CITY GYM"},
+                            {"MORTY","ECRUTEAK CITY GYM"},{"CHUCK","CIANWOOD CITY GYM"},{"JASMINE","OLIVINE CITY GYM"},
+                            {"PRYCE","MAHOGANY TOWN GYM"},{"CLAIR","BLACKTHORN CITY GYM"},
+                            {"WILL","ELITE FOUR"},{"KOGA","ELITE FOUR"},{"BRUNO","ELITE FOUR"},{"KAREN","ELITE FOUR"},{"LANCE","CHAMPION"},
+                            {"BROCK","PEWTER CITY GYM"},{"MISTY","CERULEAN CITY GYM"},{"LT_SURGE","VERMILION CITY GYM"},
+                            {"ERIKA","CELADON CITY GYM"},{"JANINE","FUCHSIA CITY GYM"},{"SABRINA","SAFFRON CITY GYM"},
+                            {"BLAINE","CINNABAR ISLAND GYM"},{"BLUE","VIRIDIAN CITY GYM"},{"RED","MT. SILVER"},
+                        };
+                        static const Row ptRows[] = {
+                            {"ROARK","OREBURGH CITY GYM"},{"GARDENIA","ETERNA CITY GYM"},{"FANTINA","HEARTHOME CITY GYM"},
+                            {"MAYLENE","VEILSTONE CITY GYM"},{"WAKE","PASTORIA CITY GYM"},{"BYRON","CANALAVE CITY GYM"},
+                            {"CANDICE","SNOWPOINT CITY GYM"},{"VOLKNER","SUNYSHORE CITY GYM"},
+                            {"AARON","ELITE FOUR"},{"BERTHA","ELITE FOUR"},{"FLINT","ELITE FOUR"},{"LUCIAN","ELITE FOUR"},{"CYNTHIA","CHAMPION"},
+                        };
+                        const Row* rows = hg ? hgRows : ptRows;
+                        const int count = hg ? (int)(sizeof(hgRows)/sizeof(hgRows[0])) : (int)(sizeof(ptRows)/sizeof(ptRows[0]));
+                        section(guideText(GuideText::Tr("GYMS")).c_str(), Glass::I_TROPHY);
+                        for (int i = 0; i < count; i++)
+                        {
+                            const std::string team = guideGen4Team(rows[i].name);
+                            if (team.empty()) continue;
+                            Menu::CompanionView::GuideAnswer a;
+                            a.text = guideText(team);
+                            a.shown = companionGymShown.count(i) > 0;
+                            menu.companion.guide.push_back(a);
+                            std::string disp = rows[i].name;
+                            for (char& c : disp) if (c == '_') c = ' ';
+                            add(M_CGUIDE_GYM0 + i, guideText(disp).c_str(), a.shown ? "Shown" : "", true);
+                            MenuItem& it = menu.items.back();
+                            it.kind = Menu::K_LINK;
+                            it.preview = Menu::P_CGUIDE;
+                            it.icon = a.shown ? Glass::I_SPARKLE : Glass::I_TROPHY;
+                            it.choice = (int)menu.companion.guide.size() - 1;
+                            it.desc = GuideText::Tr("Hint: ") + guideText(GuideText::Tr(rows[i].hint));
+                        }
+                    }
+                }
+                // (The entries in their sections: NEXT STEPS, GYMS, WHERE IS, ...; the earlier games
+                // have them all under one QUESTIONS heading.)
+                const char* lastSection = nullptr;
                 for (size_t i = 0; i < companionGuide.size(); i++)
                 {
+                    const char* sec = companionGuide[i].section ? companionGuide[i].section : "QUESTIONS";
+                    if (!lastSection || strcmp(lastSection, sec))
+                    {
+                        section(guideText(GuideText::Tr(sec)).c_str(), Glass::I_CHEATS);
+                        lastSection = sec;
+                    }
                     Menu::CompanionView::GuideAnswer answer;
-                    answer.text = guideText(companionGuide[i].answer);
+                    answer.text = guideText(GuideText::Tr(companionGuide[i].answer));
                     answer.shown = companionGuideShown.count((int)i) > 0;
+                    // (An item the bag holds: the row says HAVE, so WHERE IS doubles as a checklist.)
+                    bool have = false;
+                    if (companionGuide[i].item > 0)
+                        for (const auto& bag : companionSnapshot.items)
+                            if (bag.id == companionGuide[i].item && bag.quantity > 0) { have = true; break; }
+                    const int answerAt = (int)menu.companion.guide.size(); // (NEXT BOSS is in it first)
                     menu.companion.guide.push_back(answer);
-                    add(M_GUIDE0 + (int)i, guideText(companionGuide[i].title).c_str(), answer.shown ? "Shown" : "", true);
+                    add(M_GUIDE0 + (int)i, guideText(GuideText::Tr(companionGuide[i].title)).c_str(), answer.shown ? "Shown" : have ? "Have" : "", true);
                     MenuItem& it = menu.items.back();
                     it.kind = Menu::K_LINK;
                     it.preview = Menu::P_CGUIDE;
-                    it.icon = answer.shown ? Glass::I_SPARKLE : Glass::I_INFO; // (shown: a sparkle)
-                    it.choice = (int)i;
-                    it.desc = "Hint: " + guideText(companionGuide[i].hint);
+                    it.icon = answer.shown ? Glass::I_SPARKLE : have ? Glass::I_POKEBALL : Glass::I_INFO; // (shown: a sparkle)
+                    it.choice = answerAt;
+                    it.desc = GuideText::Tr("Hint: ") + guideText(GuideText::Tr(companionGuide[i].hint));
                 }
             }
-            else if(menuPage == PAGE_CGUIDEENTRY && companionGuideChoice<(int)companionGuide.size())
+            else if(menuPage == PAGE_CGUIDEENTRY && companionGuideChoice >= 0 && companionGuideChoice<(int)companionGuide.size())
             {
                 const auto& entry=companionGuide[companionGuideChoice];
                 info(entry.title);
@@ -7398,7 +7694,7 @@ int main(int argc, char** argv)
                 cv.dexMoves = companionDexMoves;
                 const auto& snap = companionSnapshot;
                 std::string where = snap.locationLive ? "Where you are now." : "Where you last went through a door: the game is not telling where you are exactly.";
-                where += snap.repel > 0 ? " Repel: " + std::to_string(snap.repel) + " steps left." : " No Repel on.";
+                where = UiLang::Tr(where) + (snap.repel > 0 ? UiLang::F(" Repel: {0} steps left.", { std::to_string(snap.repel) }) : UiLang::Tr(" No Repel on."));
                 add(M_CMAP, "WHERE YOU ARE", cv.place, true);
                 {
                     MenuItem& it = menu.items.back();
@@ -7471,7 +7767,7 @@ int main(int argc, char** argv)
             if (cheatWhere == -3 && cheats.On() == 0) cheatWhere = -2;
             if (cheatWhere >= 0) cheatWhere = -2; // (folders open in place now)
             if (cheatOpen.size() != cheats.folders.size()) cheatOpen.assign(cheats.folders.size(), 0);
-            menu.headerNote = std::to_string(cheats.On()) + " ON  \xC2\xB7  " + std::to_string(cheats.items.size()) + " CODES";
+            menu.headerNote = UiLang::F("{0} ON  \xC2\xB7  {1} CODES", { std::to_string(cheats.On()), std::to_string(cheats.items.size()) });
             const std::string careful = "Cheats can change the game and its save: back up your save before trying them.";
             auto cheatRow = [&](size_t i, int indent, bool showFolder) {
                 const Cheats::Cheat& c = cheats.items[i];
@@ -7479,9 +7775,38 @@ int main(int argc, char** argv)
                 MenuItem& it = menu.items.back();
                 it.indent = indent;
                 std::string d = c.note.empty() ? std::string("The database says nothing more about this one.") : c.note;
-                if (showFolder && !c.category.empty()) d = "In " + c.category + ". " + d;
+                if (showFolder && !c.category.empty()) d = UiLang::F("In {0}. ", { c.category }) + UiLang::Tr(d);
                 it.desc = d;
-                it.tip = c.group >= 0 ? "Only one in its folder can be on at a time. " + careful : careful;
+                it.tip = c.group >= 0 ? UiLang::Tr("Only one in its folder can be on at a time.") + " " + UiLang::Tr(careful) : careful;
+                // (A code that needs buttons only applies while they are held. The preview puts
+                // the combo in a bright card under the name, so turning it on does not look like
+                // it should already be working; the note reads "Button: START+L+R.". PR #223 by OzWookiee.)
+                std::string lower = d;
+                for (char& ch : lower) ch = (char)std::tolower((unsigned char)ch);
+                const size_t b = lower.find("button");
+                if (b != std::string::npos)
+                {
+                    const size_t colon = d.find(':', b);
+                    if (colon != std::string::npos)
+                    {
+                        const size_t dot = d.find('.', colon);
+                        std::string activation = d.substr(colon + 1, dot == std::string::npos ? std::string::npos : dot - colon - 1);
+                        while (!activation.empty() && (activation.front() == ' ' || activation.front() == '\t')) activation.erase(0, 1);
+                        while (!activation.empty() && (activation.back() == ' ' || activation.back() == '\t')) activation.pop_back();
+                        if (!activation.empty())
+                        {
+                            it.sub = UiLang::F(lower.compare(b, 7, "buttons") == 0 ? "PRESS {0} TO APPLY" : "HOLD {0} TO APPLY", { activation });
+                            it.preview = Menu::P_CHEATNOTE;
+                            // (The card says it: drop the same "Button: ..." sentence from the
+                            // description, keeping any other note text.)
+                            const size_t end = d.find('.', colon);
+                            std::string rest = d.substr(0, b) + d.substr(end == std::string::npos ? d.size() : end + 1);
+                            while (!rest.empty() && (rest.back() == ' ' || rest.back() == '.')) rest.pop_back();
+                            while (!rest.empty() && rest.front() == ' ') rest.erase(0, 1);
+                            it.desc = rest;
+                        }
+                    }
+                }
             };
             section("FIND", Glass::I_CHEATS);
             add(M_CSEARCH, "SEARCH", cheatQuery.empty() ? "" : Cheats::Fit(cheatQuery, 18));
@@ -7510,7 +7835,7 @@ int main(int argc, char** argv)
             }
             if (cheatWhere == -4)
             {
-                section(("RESULTS: " + Cheats::Fit(cheatQuery, 24)).c_str(), Glass::I_GLOBE);
+                section(UiLang::F("RESULTS: {0}", { Cheats::Fit(cheatQuery, 24) }).c_str(), Glass::I_GLOBE);
                 int matches = 0;
                 for (size_t i = 0; i < cheats.items.size(); i++)
                     if (Cheats::Matches(cheats.items[i], cheatQuery)) { matches++; cheatRow(i, 0, true); }
@@ -7542,7 +7867,7 @@ int main(int argc, char** argv)
                     MenuItem& it = menu.items.back();
                     it.kind = Menu::K_FOLDER;
                     it.choice = cheatOpen[f] ? 1 : 0;
-                    it.desc = cheats.folders[f].note.empty() ? std::to_string(total) + " codes in this folder." : cheats.folders[f].note;
+                    it.desc = cheats.folders[f].note.empty() ? UiLang::F("{0} codes in this folder.", { std::to_string(total) }) : cheats.folders[f].note;
                     it.tip = cheatOpen[f] ? "A: close the folder." : "A: open the folder.";
                     if (cheatOpen[f])
                         for (size_t i = 0; i < cheats.items.size(); i++)
@@ -7591,7 +7916,7 @@ int main(int argc, char** argv)
             // SAVE BACKUPS, a settings page: the backups of this game's save, newest first, each
             // asking before it is restored.
             settingsPage(Glass::I_LOAD);
-            section(("BACKUPS  ("+std::to_string(saveBackups.size())+")").c_str(),Glass::I_LOAD);
+            section(UiLang::F("BACKUPS  ({0})",{std::to_string(saveBackups.size())}).c_str(),Glass::I_LOAD);
             for(size_t i=0;i<saveBackups.size();i++)
             {
                 add(M_BACKUP0+(int)i,saveBackups[i].label.c_str(),i==0?"NEWEST":"",true);
@@ -7631,7 +7956,7 @@ int main(int argc, char** argv)
             settingsPage(Glass::I_TROPHY);
             int earned = 0;
             for (const auto& a : achList) if (a.unlocked) earned++;
-            menu.headerNote = std::to_string(earned) + " OF " + std::to_string(achList.size()) + " EARNED";
+            menu.headerNote = UiLang::F("{0} OF {1} EARNED", { std::to_string(earned), std::to_string(achList.size()) });
             if (achList.empty())
             {
                 add(M_NOTHING, "NONE LOADED", "", true);
@@ -7641,15 +7966,15 @@ int main(int argc, char** argv)
             for (int pass = 0; pass < 2; pass++)
             {
                 const int count = pass == 0 ? (int)achList.size() - earned : earned;
-                if (count > 0) section((std::string(pass == 0 ? "TO EARN" : "EARNED") + "  (" + std::to_string(count) + ")").c_str(), Glass::I_TROPHY);
+                if (count > 0) section(UiLang::F(pass == 0 ? "TO EARN  ({0})" : "EARNED  ({0})", { std::to_string(count) }).c_str(), Glass::I_TROPHY);
                 for (size_t i = 0; i < achList.size(); i++)
                 {
                     if (achList[i].unlocked != (pass == 1)) continue;
-                    add(M_ACH0 + (int)i, raTitle(achList[i].title).c_str(), std::to_string(achList[i].points) + " PTS", true);
+                    add(M_ACH0 + (int)i, raTitle(achList[i].title).c_str(), UiLang::F("{0} PTS", { std::to_string(achList[i].points) }), true);
                     MenuItem& it = menu.items.back();
                     it.kind = Menu::K_LINK;
                     it.icon = Glass::I_TROPHY;
-                    it.desc = achList[i].description + (achList[i].progress.empty() ? "" : " So far: " + achList[i].progress + ".");
+                    it.desc = achList[i].description + (achList[i].progress.empty() ? std::string() : UiLang::F(" So far: {0}.", { achList[i].progress }));
                     it.tip = "Choose it for its details.";
                     if (Achievements::Badge(achList[i].badge, !achList[i].unlocked, it.thumb, it.thumbW, it.thumbH)) it.icon = -1; // (its badge, grey until earned)
                 }
@@ -7988,7 +8313,7 @@ int main(int argc, char** argv)
         if (ctlKeyboard) cfg.controls.ClearKey(capturing);
         else cfg.controls.ClearPad(capturing);
         cfg.Save(opt.config);
-        say(std::string(Controls::ActionName(capturing)) + (ctlKeyboard ? " HAS NO KEY NOW" : " HAS NO BUTTON NOW"));
+        say(UiLang::F(ctlKeyboard ? "{0} HAS NO KEY NOW" : "{0} HAS NO BUTTON NOW", { Controls::ActionName(capturing) }));
         captureEnd();
     };
     // The quick slot (SAVE STATE / LOAD STATE in the pause menu, and their keys and buttons).
@@ -8105,6 +8430,9 @@ int main(int argc, char** argv)
     MenuDrag menuDrag;
     SDL_FingerID menuDragFinger = 0;
     int menuDragPage = -1;
+    // (A finger dragging the GUIDE's answer window: it scrolls the answer, not the rows.)
+    SDL_FingerID guideDragFinger = -1;
+    int guideDragY = 0;
 
 #ifdef __SWITCH__
     // The Switch's touch screen: its SDL sends finger events and no mouse events made from them,
@@ -9095,6 +9423,33 @@ int main(int argc, char** argv)
                     if (ev.wheel.direction == SDL_MOUSEWHEEL_FLIPPED) steps = -steps;
                     if (steps)
                     {
+                        // (GUIDE: a shown answer under the pointer scrolls in its own window; the list stays put.)
+                        if (menuPage == PAGE_CGUIDE)
+                        {
+                            int mx = 0, my = 0;
+                            SDL_GetMouseState(&mx, &my);
+                            int ow = 0, oh = 0, ww = 0, wh = 0;
+                            SDL_GetRendererOutputSize(renderer, &ow, &oh);
+                            SDL_GetWindowSize(window, &ww, &wh);
+                            const int px = ww > 0 ? mx * ow / ww : mx, py = wh > 0 ? my * oh / wh : my;
+                            const bool overPreview = menu.previewW > 0 &&
+                                px >= menu.previewX && px < menu.previewX + menu.previewW &&
+                                py >= menu.previewY && py < menu.previewY + menu.previewH;
+                            if (overPreview)
+                            {
+                                if (menu.selected >= 0 && menu.selected < (int)menu.items.size())
+                                {
+                                    const MenuItem& it = menu.items[menu.selected];
+                                    if (it.preview == Menu::P_CGUIDE && it.choice >= 0 && it.choice < (int)menu.companion.guide.size())
+                                    {
+                                        auto& a = menu.companion.guide[it.choice];
+                                        if (a.shown && a.scrollMax > 0)
+                                            a.scroll = std::clamp(a.scroll - steps, 0, a.scrollMax);
+                                    }
+                                }
+                                continue; // (the preview keeps the wheel; the list stays put)
+                            }
+                        }
                         menu.freeScroll = true;
                         if (menu.style == 1) menu.scrollPx = std::max(0, menu.scrollPx - steps * std::max(30, menu.rowH * 2));
                         else menu.scroll = std::max(0, menu.scroll - steps);
@@ -9159,6 +9514,33 @@ int main(int argc, char** argv)
                     int ow = 0, oh = 0;
                     SDL_GetRendererOutputSize(renderer, &ow, &oh);
                     const int x = (int)(ev.tfinger.x * ow), y = (int)(ev.tfinger.y * oh);
+                    if (guideDragFinger >= 0)
+                    {
+                        // (The GUIDE's answer window: a finger's drag moves it, not the list.)
+                        if (!menu.open || menuPage != PAGE_CGUIDE) guideDragFinger = -1;
+                        else if ((SDL_FingerID)ev.tfinger.fingerId == guideDragFinger)
+                        {
+                            if (ev.type == SDL_FINGERUP) { guideDragFinger = -1; continue; }
+                            if (ev.type == SDL_FINGERMOTION && menu.selected >= 0 && menu.selected < (int)menu.items.size())
+                            {
+                                const MenuItem& it = menu.items[menu.selected];
+                                if (it.preview == Menu::P_CGUIDE && it.choice >= 0 && it.choice < (int)menu.companion.guide.size())
+                                {
+                                    auto& a = menu.companion.guide[it.choice];
+                                    const int lineH = std::max(1, menu.previewLineH);
+                                    const int dy = guideDragY - y; // (a finger moving up goes further down the answer)
+                                    if (dy >= lineH || dy <= -lineH)
+                                    {
+                                        const int lines = dy / lineH;
+                                        a.scroll = std::clamp(a.scroll + lines, 0, a.scrollMax);
+                                        guideDragY += lines * lineH;
+                                    }
+                                }
+                            }
+                            continue;
+                        }
+                        else continue;
+                    }
                     if (menuDrag.active)
                     {
                         if (ev.tfinger.fingerId != menuDragFinger) continue;
@@ -9181,6 +9563,23 @@ int main(int argc, char** argv)
                     }
                     else if (ev.type == SDL_FINGERDOWN)
                     {
+                        // (A finger on the GUIDE's answer window starts a scroll of that answer,
+                        // not of the rows; the answer must be shown and longer than the window.)
+                        if (menuPage == PAGE_CGUIDE && menu.selected >= 0 && menu.selected < (int)menu.items.size() &&
+                            x >= menu.previewX && x < menu.previewX + menu.previewW && y >= menu.previewY && y < menu.previewY + menu.previewH)
+                        {
+                            const MenuItem& it = menu.items[menu.selected];
+                            if (it.preview == Menu::P_CGUIDE && it.choice >= 0 && it.choice < (int)menu.companion.guide.size())
+                            {
+                                const auto& a = menu.companion.guide[it.choice];
+                                if (a.shown && a.scrollMax > 0)
+                                {
+                                    guideDragFinger = ev.tfinger.fingerId;
+                                    guideDragY = y;
+                                    continue;
+                                }
+                            }
+                        }
                         const int item = menu.ItemAt(x, y);
                         // A finger put down on a page that scrolls may be the start of a drag: a
                         // settings page anywhere across its rows (on a heading or between rows
@@ -9314,7 +9713,7 @@ int main(int argc, char** argv)
                             else
                             {
                                 cfg.controls.SetKey(capturing, sc);
-                                if (other >= 0 && other != capturing) say(std::string(Controls::ActionName(capturing)) + " AND " + Controls::ActionName(other) + " SWAPPED KEYS");
+                                if (other >= 0 && other != capturing) say(UiLang::F("{0} AND {1} SWAPPED KEYS", { Controls::ActionName(capturing), Controls::ActionName(other) }));
                                 cfg.Save(opt.config);
                                 captureEnd();
                             }
@@ -9684,7 +10083,7 @@ int main(int argc, char** argv)
                 {
                     cfg.controls.SetPad(capturing, in, cfg.byLabel);
                     capturePending = -1;
-                    if (other >= 0) say(std::string(Controls::ActionName(capturing)) + " AND " + Controls::ActionName(other) + " SWAPPED BUTTONS");
+                    if (other >= 0) say(UiLang::F("{0} AND {1} SWAPPED BUTTONS", { Controls::ActionName(capturing), Controls::ActionName(other) }));
                     cfg.Save(opt.config);
                     capturing = -1;
                     navHoldOff = true;
@@ -9834,7 +10233,7 @@ int main(int argc, char** argv)
                 uint8_t* steps = base ? ram(base + companionProfile.repel, 1) : nullptr;
                 uint8_t* bag = base ? ram(base + companionProfile.bag, (size_t)slots * 4) : nullptr;
                 if (!steps || !bag) { say("REPEL: START OR LOAD A GAME"); break; }
-                if (*steps) { say("A REPEL IS STILL WORKING: " + std::to_string(*steps) + " STEPS LEFT"); break; }
+                if (*steps) { say(UiLang::F("A REPEL IS STILL WORKING: {0} STEPS LEFT", { std::to_string(*steps) })); break; }
                 static const int ids[3] = { 77, 76, 79 }, gives[3] = { 250, 200, 100 };
                 static const char* names[3] = { "MAX REPEL", "SUPER REPEL", "REPEL" };
                 int kind = -1, slot = -1;
@@ -9851,7 +10250,7 @@ int main(int argc, char** argv)
                 }
                 *steps = (uint8_t)gives[kind];
                 if (uint8_t* type = companionProfile.repelType ? ram(base + companionProfile.repelType, 1) : nullptr) *type = (uint8_t)ids[kind];
-                say(std::string("USED A ") + names[kind] + ": " + std::to_string(gives[kind]) + " STEPS (" + std::to_string(left) + " LEFT)");
+                say(UiLang::F("USED A {0}: {1} STEPS ({2} LEFT)", { UiLang::Tr(names[kind]), std::to_string(gives[kind]), std::to_string(left) }));
                 fdNav.open = false; swallowMenuButtons = true;
                 readCompanion(true);
                 break;
@@ -10038,11 +10437,36 @@ int main(int argc, char** argv)
                 menu.open = false;
                 swallowMenuButtons = true;
             }
+            // (GUIDE: a shown answer longer than the preview scrolls with Left/Right; Up/Down still
+            // move between the guide's rows. The preview fills scrollMax as it draws.)
+            if (menuPage == PAGE_CGUIDE && (nav.left || nav.right) && menu.selected >= 0 && menu.selected < (int)menu.items.size())
+            {
+                const MenuItem& it = menu.items[menu.selected];
+                if (it.preview == Menu::P_CGUIDE && it.choice >= 0 && it.choice < (int)menu.companion.guide.size())
+                {
+                    auto& a = menu.companion.guide[it.choice];
+                    if (a.shown && a.scrollMax > 0)
+                    {
+                        const int step = a.scrollMax > 8 ? 3 : 1;
+                        a.scroll = std::clamp(a.scroll + (nav.right ? step : -step), 0, a.scrollMax);
+                        nav.left = nav.right = false;
+                    }
+                }
+            }
             int dir = 0;
             int hit = menu.Update(nav, dir);
             const int id = backTo >= 0 ? M_BACK : hit >= 0 && hit < (int)menuIds.size() ? menuIds[hit] : -1;
             if (backTo >= 0) hit = 0;
-            if(id>=M_GUIDE0 && id<M_GUIDE0+(int)companionGuide.size() && dir==0)
+            if((id==M_CGUIDE_NEXT || id==M_CGUIDE_HERE || (id>=M_CGUIDE_GYM0 && id<M_CGUIDE_GYM0+40)) && dir==0)
+            {
+                // (The computed Guide answers — NEXT BOSS, HERE and the GYMS teams — show in the
+                // preview like the other entries: A or a tap shows and hides them again.)
+                if (id==M_CGUIDE_NEXT) companionNextBossShown = !companionNextBossShown;
+                else if (id==M_CGUIDE_HERE) companionHereShown = !companionHereShown;
+                else { const int i=id-M_CGUIDE_GYM0; if(!companionGymShown.erase(i)) companionGymShown.insert(i); }
+                goPage(PAGE_CGUIDE,id);hit=-1;
+            }
+            else if(id>=M_GUIDE0 && id<M_GUIDE0+(int)companionGuide.size() && dir==0)
             {
                 // (GUIDE: the answer shown or hidden again, in the preview.)
                 const int i=id-M_GUIDE0;
@@ -10062,7 +10486,7 @@ int main(int argc, char** argv)
                 else if(menuPage==PAGE_HUB_LOAD)
                 {
                     if(StateSlots::Exists(path)){pendingState=path;loadFromSlot=stateSlot;goPage(PAGE_LOAD_CONFIRM,M_BACK);}
-                    else say("SLOT "+std::to_string(stateSlot+1)+" IS EMPTY");
+                    else say(UiLang::F("SLOT {0} IS EMPTY",{std::to_string(stateSlot+1)}));
                 }
                 else goPage(PAGE_SLOT,M_SLOT_SAVE);
                 hit=-1;
@@ -10779,6 +11203,30 @@ int main(int argc, char** argv)
                     ffRefreshes = refreshes = std::clamp(refreshes, 1, 4);
                 }
                 else refreshes = 1;
+            }
+        }
+        // Fast forward where the game's 3D runs at 30 pictures a second (the gen 4 overworld: a
+        // new 3D frame every second display frame): an odd number of frames a picture (3x, as
+        // the measure above often chose) showed the world 1 and 2 frames on by turns, a judder
+        // that looked like 30 fps (GitHub #178). There it runs an even number (3 becomes 2).
+        // Told by the 3D frames' spacing: always an even number of display frames apart.
+        {
+            static uint64_t lastFlush = 0;
+            static int evenRun = 0, still = 0;
+            const uint64_t lf = nds->GPU.GPU3D.LastFlushVBlank;
+            if (lf == lastFlush) { if (++still >= 4) evenRun = 0; }
+            else
+            {
+                const uint64_t d = lf - lastFlush;
+                still = 0;
+                evenRun = (d % 2 == 0) ? std::min(evenRun + 1, 100) : 0;
+                lastFlush = lf;
+            }
+            static bool told = false;
+            if (speed > 2 && (speed & 1) && evenRun >= 4)
+            {
+                speed--;
+                if (!told) { told = true; fprintf(stderr, "[ff] the 3D runs at half rate: fast forward in even steps (%d)\n", speed); }
             }
         }
         // A direction just pressed runs at normal speed for its first quarter of a second. The
@@ -11726,7 +12174,22 @@ int main(int argc, char** argv)
             static int testPageAt=-2,testPage=0;static uint32_t testPageFrames=0;
             if(testPageAt==-2){testPageAt=-1;if(const char* t=getenv("SSR_TEST_PAGE"))sscanf(t,"%d,%d",&testPageAt,&testPage);if(const char* t=getenv("SSR_TEST_SPECIES"))companionSpecies=std::max(1,atoi(t));}
             if(testPageAt>=0&&++testPageFrames==(uint32_t)testPageAt&&testPage>=0&&testPage<PAGE_COUNT)
-            {readCompanion(true);menu.open=true;goPage(testPage,-1);fprintf(stderr,"[test] page %d at frame %u\n",testPage,frame);testPageAt=-1;}
+            {readCompanion(true);menu.open=true;goPage(testPage,-1);fprintf(stderr,"[test] page %d at frame %u\n",testPage,frame);testPageAt=-1;
+                // (SSR_TEST_GUIDE=1: the GUIDE's NEXT BOSS page, its answer shown, for pictures.)
+                if(const char* g=getenv("SSR_TEST_GUIDE")){const bool here=!strncmp(g,"here",4);const bool shown=strchr(g,'1')!=nullptr;if(here)companionHereShown=shown;else companionNextBossShown=shown;goPage(PAGE_CGUIDE,here?M_CGUIDE_HERE:M_CGUIDE_NEXT);
+                    if(const char* s=getenv("SSR_TEST_GUIDE_SCROLL")){const int n=atoi(s);if(menu.selected>=0&&menu.selected<(int)menu.items.size()){const MenuItem& it=menu.items[menu.selected];if(it.preview==Menu::P_CGUIDE&&it.choice>=0&&it.choice<(int)menu.companion.guide.size())menu.companion.guide[it.choice].scroll=std::max(0,n);}}}}
+        }
+        // (Test runs: SSR_TEST_WHEEL=<frame>,<steps>: a wheel notch pushed at that frame, for the
+        // Guide answer's own scroll.)
+        {
+            static int testWheelAt=-1,testWheelSteps=0;static uint32_t testWheelFrames=0;
+            if(testWheelAt==-1){testWheelAt=-2;if(const char* w=getenv("SSR_TEST_WHEEL"))sscanf(w,"%d,%d",&testWheelAt,&testWheelSteps);}
+            if(testWheelAt>=0&&++testWheelFrames==(uint32_t)testWheelAt){
+                // (The wheel is the preview's when the pointer is over it: put it there first.)
+                int ow=0,oh=0,ww=0,wh=0;SDL_GetRendererOutputSize(renderer,&ow,&oh);SDL_GetWindowSize(window,&ww,&wh);
+                if(ww>0&&wh>0&&ow>0&&oh>0&&menu.previewW>0)
+                    SDL_WarpMouseInWindow(window,(menu.previewX+menu.previewW/2)*ww/ow,(menu.previewY+menu.previewH/2)*wh/oh);
+                SDL_Event e{};e.type=SDL_MOUSEWHEEL;e.wheel.y=testWheelSteps;SDL_PushEvent(&e);testWheelAt=-2;}
         }
         // FLY (M_FLY): the check's answer within about 30 frames (as PokeDaisy waits), then the towns; the
         // flight's job (result 1: Gen 5's flight event, none when the game's own check said no).
@@ -12538,8 +13001,8 @@ int main(int argc, char** argv)
                     canvas.Text(ox + pad, oy + 2 * sc, n, sc, 0xFFFFD75E);
                 }
             }
-            const std::string hint = btn(Controls::Y) + " SEARCH   " + btn(Controls::X) + " SWITCH   " +
-                                     btn(Controls::A) + " CHECK";
+            const std::string hint = btn(Controls::Y) + " " + UiLang::Tr("SEARCH") + "   " + btn(Controls::X) + " " + UiLang::Tr("SWITCH") + "   " +
+                                     btn(Controls::A) + " " + UiLang::Tr("CHECK");
             const int tw = Canvas::TextWidth(hint, sc) + 8 * sc;
             const int ty = outH - 15 * sc;
             canvas.Fill((outW - tw) / 2, ty, tw, 13 * sc, 0xC0000000);
@@ -12564,7 +13027,7 @@ int main(int argc, char** argv)
             std::string label[FdNav::APPS];
             if (fdNav.resetAsk && frame - fdNav.resetAsk < 180) label[FdNav::RESET] = "A again";
             std::string hint = "A: USE   B: CLOSE";
-            if (fdNav.sel == FdNav::COUNT) hint = std::string("A: ") + (cfg.encountersShown ? "HIDE" : "SHOW") + " ON SCREEN   X: SET TO 0   B: CLOSE";
+            if (fdNav.sel == FdNav::COUNT) hint = std::string("A: ") + UiLang::F("{0} ON SCREEN", { UiLang::Tr(cfg.encountersShown ? "HIDE" : "SHOW") }) + "   X: SET TO 0   B: CLOSE";
             else if (fdNav.sel == FdNav::RESET) hint = "A TWICE: RESET THE GAME   B: CLOSE";
             static Canvas navCache;
             static std::string navKey;
@@ -12725,13 +13188,13 @@ int main(int argc, char** argv)
                 {
                     char pct[32];
                     snprintf(pct, sizeof pct, "%.1f%%", celebrateNow.rarity);
-                    rarity = std::string("  \xC2\xB7  ") + pct + " OF PLAYERS";
+                    rarity = std::string("  \xC2\xB7  ") + UiLang::F("{0} OF PLAYERS", { pct });
                 }
                 const std::string line1 = celebrateNow.mastery ? "GAME MASTERED" : "ACHIEVEMENT UNLOCKED";
                 // (Mastery: the game's name is the title, so its line is the points alone.)
                 const std::string line3 = celebrateNow.mastery
-                    ? std::to_string(celebrateNow.gamePoints) + " OF " + std::to_string(celebrateNow.gamePointsTotal) + " POINTS"
-                    : std::to_string(celebrateNow.points) + " POINTS" + rarity;
+                    ? UiLang::F("{0} OF {1} POINTS", { std::to_string(celebrateNow.gamePoints), std::to_string(celebrateNow.gamePointsTotal) })
+                    : UiLang::F("{0} POINTS", { std::to_string(celebrateNow.points) }) + rarity;
                 const int lineW = std::max(Canvas::TextWidth(line1, small), Canvas::TextWidth(line3, small));
                 const int cw = std::min(outW - 8 * sc, bs + 12 * sc + std::max(Canvas::TextWidth(celebrateNow.title, sc), lineW));
                 const int ch = 34 * sc;
@@ -13055,11 +13518,11 @@ int main(int argc, char** argv)
                         const int other = ctlKeyboard ? cfg.controls.ActionOfKey(capturePending) : cfg.controls.ActionOfPad(capturePending, cfg.byLabel);
                         const std::string what = ctlKeyboard ? Controls::KeyName(capturePending) : Controls::InputName(capturePending, Controls::StyleOf(pads.Current()));
                         if (other >= 0)
-                            warn = what + " already does " + CleanFont::Title(Controls::ActionName(other)) + ". Press it again to swap the two, or press another.";
+                            warn = UiLang::F("{0} already does {1}. Press it again to swap the two, or press another.", { what, CleanFont::Title(UiLang::Tr(Controls::ActionName(other))) });
                     }
                     const bool clearable = Controls::Bindings::Clearable(capturing);
                     SettingsArt::Prompt(canvas, ctlKeyboard ? Glass::I_GRID : Glass::I_PAD, ctlKeyboard ? "PRESS A KEY" : "PRESS A BUTTON",
-                                        CleanFont::Title(Controls::ActionName(capturing)) + "  \xC2\xB7  now " + now, warn,
+                                        UiLang::F("{0}  \xC2\xB7  now {1}", { CleanFont::Title(UiLang::Tr(Controls::ActionName(capturing))), now }), warn,
                                         ctlKeyboard ? (clearable ? "Esc: cancel    Backspace: clear" : "Esc: cancel")
                                                     : (touchPadUsed && touchPad.visible ? "Tap Cancel, or wait 5 seconds" : "Wait 5 seconds to cancel"),
                                         clearable);
@@ -13132,7 +13595,7 @@ int main(int argc, char** argv)
                 if (selId >= M_ACH0 && selId - M_ACH0 < (int)achList.size())
                 {
                     const Achievements::Row& r = achList[selId - M_ACH0];
-                    note = r.description + " (" + std::to_string(r.points) + " POINTS" + (r.unlocked ? ", UNLOCKED)" : ")");
+                    note = UiLang::F(r.unlocked ? "{0} ({1} POINTS, UNLOCKED)" : "{0} ({1} POINTS)", { r.description, std::to_string(r.points) });
                     if (!r.unlocked && !r.progress.empty()) note += " SO FAR: " + r.progress;
                 }
             }
@@ -13144,7 +13607,7 @@ int main(int argc, char** argv)
             if(menuPage == PAGE_CSEARCH || menuPage == PAGE_RSEARCH)
             {
                 const auto& query=menuPage==PAGE_RSEARCH?companionQuery:cheatQuery;
-                note="FIND: "+(query.empty() ? std::string("ALL ENTRIES") : query);
+                note=UiLang::Tr("FIND: ")+(query.empty() ? UiLang::Tr("ALL ENTRIES") : query);
                 hint="A: TYPE THE KEY   B: BACK";
             }
             if(menuPage == PAGE_CDETAIL || menuPage == PAGE_CINFO)note.clear();
@@ -13152,17 +13615,17 @@ int main(int argc, char** argv)
             if(menuPage == PAGE_RESTORE_CONFIRM && restoreChoice>=0 && restoreChoice<(int)saveBackups.size())
             {
                 title="RESTORE THIS BACKUP?";
-                note="Your game's save goes back to the backup from "+saveBackups[restoreChoice].label+", and the game restarts. Your save now is kept as before-restore.sav.";
+                note=UiLang::F("Your game's save goes back to the backup from {0}, and the game restarts. Your save now is kept as before-restore.sav.",{saveBackups[restoreChoice].label});
             }
             if(menuPage == PAGE_LOAD_CONFIRM)
             {
-                title = loadFromSlot >= 0 ? "LOAD SLOT " + std::to_string(loadFromSlot + 1) + "?" : pendingState == undoLoadState ? "UNDO LAST LOAD?" : "LOAD STATE?";
+                title = loadFromSlot >= 0 ? UiLang::F("LOAD SLOT {0}?", { std::to_string(loadFromSlot + 1) }) : pendingState == undoLoadState ? "UNDO LAST LOAD?" : "LOAD STATE?";
                 note = "Your cartridge save is kept. Saving in the game after loading an older state can still replace newer progress.";
             }
             if(menuPage == PAGE_SLOT_REPLACE)
             {
-                title = "REPLACE SLOT " + std::to_string(stateSlot + 1) + "?";
-                note = "The state in it now is saved over (" + StateSlots::Friendly(StateSlots::Path(quickState, stateSlot)) + ").";
+                title = UiLang::F("REPLACE SLOT {0}?", { std::to_string(stateSlot + 1) });
+                note = UiLang::F("The state in it now is saved over ({0}).", { StateSlots::Friendly(StateSlots::Path(quickState, stateSlot)) });
             }
             if(menuPage == PAGE_MATCHUPS)
                 note.clear();
@@ -13188,6 +13651,22 @@ int main(int argc, char** argv)
                                                         : btn(Controls::A) + ": OPEN   " + btn(Controls::B) + ": BACK")
                     : (touchPadUsed && touchPad.visible ? "TAP: CHANGE   OUTSIDE: BACK"
                                                         : "LEFT / RIGHT / " + btn(Controls::A) + ": CHANGE   " + btn(Controls::B) + ": BACK");
+            if (menuPage == PAGE_CGUIDE)
+            {
+                // (A shown answer longer than its window scrolls: Left/Right, or the pad's L/R
+                // alongside a finger's tap to show it.)
+                bool scrollable = false;
+                if (menu.selected >= 0 && menu.selected < (int)menu.items.size())
+                {
+                    const MenuItem& it = menu.items[menu.selected];
+                    scrollable = it.preview == Menu::P_CGUIDE && it.choice >= 0 && it.choice < (int)menu.companion.guide.size() &&
+                                 menu.companion.guide[it.choice].shown && menu.companion.guide[it.choice].scrollMax > 0;
+                }
+                hint = touchPadUsed && touchPad.visible
+                    ? (scrollable ? "DRAG: SCROLL   TAP: SHOW/HIDE" : "TAP: SHOW/HIDE   OUTSIDE: BACK")
+                    : (scrollable ? "LEFT / RIGHT: SCROLL   " + btn(Controls::A) + ": SHOW/HIDE   " + btn(Controls::B) + ": BACK"
+                                  : btn(Controls::A) + ": SHOW/HIDE   " + btn(Controls::B) + ": BACK");
+            }
             const bool wideMenu=menuPage==PAGE_CENCOUNTERS || menuPage==PAGE_FLY || menuPage==PAGE_REFERENCE || menuPage==PAGE_RSEARCH || menuPage==PAGE_RDETAIL || menuPage==PAGE_CITEM || menuPage==PAGE_EXTRAS || menuPage==PAGE_QUICK_ACTIONS || menuPage==PAGE_NUZLOCKE || menuPage==PAGE_RUN_CONFIRM || menuPage==PAGE_CGUIDE || menuPage==PAGE_CGUIDEENTRY || menuPage==PAGE_CBATTLE || menuPage==PAGE_STATES || menuPage==PAGE_SLOT || (menuPage>=PAGE_COMPANION&&menuPage<=PAGE_CLOCATION) || menuPage==PAGE_MATCHUPS || menuPage==PAGE_CHEATS || menuPage==PAGE_CDETAIL || menuPage==PAGE_CINFO || menuPage==PAGE_CSEARCH || menuPage==PAGE_BACKUPS || menuPage==PAGE_RESTORE_CONFIRM || menuPage==PAGE_LOAD_CONFIRM || menuPage==PAGE_QUIT_CONFIRM;
             if (menuPage == PAGE_CONTROLS) // (BUTTONS' preview: the controller connected)
             {
