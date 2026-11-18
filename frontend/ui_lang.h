@@ -14,6 +14,12 @@
 #include "ui_translations.h"
 #include "ui_font.h"
 #include "companion_translations.h"
+#ifndef UI_TITLE_LANG_DEFINED
+#define UI_TITLE_LANG_DEFINED
+// (The menu language for title case: 0 is English. Outside English a lone Y, E, O or U between
+// words is "and"/"or", so it is written small, not kept as the Y button.)
+inline int& UiTitleLang() { static int l = 0; return l; }
+#endif
 
 namespace UiLang
 {
@@ -44,10 +50,10 @@ inline int LineUnits() { return Tall()?14:9; }
 inline void Set(const std::string& code) {
     const auto normal=Normalise(code);choice="auto";
     for(const auto* known:Codes)if(normal==known)choice=known;
-    lang=choice=="auto"?system:Language(choice);
+    lang=choice=="auto"?system:Language(choice);UiTitleLang()=lang;
 }
 inline void SetSystem(const std::string& code) {
-    system=Language(code);if(choice=="auto")lang=system;
+    system=Language(code);if(choice=="auto")lang=system;UiTitleLang()=lang;
 }
 // Invalid UTF-8 consumes one byte, so filenames and error messages cannot stall drawing.
 inline uint32_t Next(const std::string& text,size_t& at) {
