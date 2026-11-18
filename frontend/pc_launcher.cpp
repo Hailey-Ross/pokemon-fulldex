@@ -293,9 +293,6 @@ void JavaStringArg(const char* method, const std::string& value)
 
 // The game folder of a 3DS game whose first Play is copying it in: it starts when that is done.
 std::string& N3dsAutoPlay() { static std::string folder; return folder; }
-#ifdef SSR_N3DS_PC
-std::string& N3dsPrepRom() { static std::string rom; return rom; } // (the game being prepared, for the card and the start)
-#endif
 
 bool JavaBoolStringArg(const char* method, const std::string& value)
 {
@@ -363,6 +360,10 @@ void ExtractFuncs(const Folders& fo)
         }
     }
 }
+#endif
+
+#ifdef SSR_N3DS_PC
+std::string& N3dsPrepRom() { static std::string rom; return rom; } // (the game being prepared, for the card and the start)
 #endif
 
 // Whether this program plays a game: SoulSilver and HeartGold need the program's own tables,
@@ -2311,6 +2312,9 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
     };
     while (!quit)
     {
+#ifdef SSR_N3DS_PC
+        N3ds::StatusInfo n3dsPrep; // (filled below; the card after the list draws it)
+#endif
         bool hadModalMenu = modalMenuOpen();
         // Steam Input can deliver one press as both a keyboard shortcut and a controller
         // button. Apply each menu action once while draining this batch, even if the first
@@ -3588,7 +3592,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 if (MB.action >= 0) { if (!fake) NowPlaying::Command(MB.action); MB.action = -1; }
             }
 #ifdef SSR_N3DS_PC
-            const N3ds::StatusInfo n3dsPrep = N3ds::Peek();
+            n3dsPrep = N3ds::Peek();
             if (n3dsPrep.active)
                 for (Launcher::Game& g : games) if (g.platform == Launcher::N3DS && !g.built) g.built = N3ds::Prepared(g);
 #elif defined(__ANDROID__)
