@@ -28,6 +28,7 @@
 #include "fast_forward_button.h"
 #include "fast_forward_audio.h"
 #include "state_file.h"
+#include "hack_names.h"
 #ifdef GBAW_EMBEDDED
 #include "embed.h"
 #include "gba_glass.h" // (the pause menu as the DS games draw it; Fulldex's frontend folder)
@@ -6367,19 +6368,15 @@ std::vector<ListGame> Find(const std::string& roms, const std::string& saves)
         l.key = g.key;
         l.name = g.name;
         l.file = g.ips.empty() ? g.rom : g.ips;
-        // A ROM hack with a widescreen patch of its own (Radical Red, Unbound, ...) has its own picture when
-        // one is built in under the patch's name (art/radicalred.jpg): only that hack's ROM takes that patch
-        // (its safety list), so its game as sold keeps the game's own picture.
+        // A ROM hack with a widescreen patch of its own (Radical Red, Unbound, ...) has its own picture
+        // (art/radicalred.jpg) and name, but only that hack (hack_names.h): another hack on the same
+        // engine can fit the same patch, and keeps its own name and widescreen.
+        const HackNames::Hack* hack = HackNames::ForPatch(g.patch);
+        const bool thatHack = hack && HackNames::IsThatHack(*hack, g.sha1, g.fileName);
         const unsigned char* own = nullptr;
         size_t ownSize = 0;
-        l.art = g.patch.empty() ? std::string() : Art(g.patch, own, ownSize) ? g.patch : Games::ArtCode(g.sha1);
-        // (and its name, rather than the file's: RadicalRed.gba reads RADICALRED.)
-        static const struct { const char* patch; const char* name; } kHackNames[] = {
-            { "radicalred", "Radical Red" }, { "unbound", "Unbound" }, { "emeraldlegacy", "Emerald Legacy" },
-            { "inclement", "Inclement Emerald" }, { "monomyth", "Monomyth" }, { "gen3evolved", "Gen 3 Evolved" }, { "emeraldrogue", "Emerald Rogue" },
-        };
-        for (const auto& n : kHackNames)
-            if (g.patch == n.patch) l.name = n.name;
+        l.art = g.patch.empty() ? std::string() : (!hack || thatHack) && Art(g.patch, own, ownSize) ? g.patch : Games::ArtCode(g.sha1);
+        if (thatHack) l.name = hack->name; // (its name rather than the file's: RadicalRed.gba reads RADICALRED)
         l.hasSave = g.hasSave;
         l.widescreen = !g.patch.empty();
         l.hack = !g.known;
