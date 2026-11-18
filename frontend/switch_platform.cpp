@@ -194,9 +194,9 @@ std::string InstallHomeIcons(const std::vector<Launcher::Game>& games)
     const int made = SwitchForwarder::Install(g_self, entries, error);
     fprintf(stderr, "[switch] HOME Menu icons: %d of %d%s%s\n", made, (int)entries.size(), error.empty() ? "" : ", ", error.c_str());
     // (Short, as the row has room for: the longer "8 ON THE HOME MENU" ran over the row's name.
-    // What went wrong is in game.log, above.)
+    // What went wrong is in game.log, above. Each said in the list's language: "8" + " ADDED".)
     if (made == (int)entries.size()) return std::to_string(made) + " ADDED";
-    if (made > 0) return std::to_string(made) + " OF " + std::to_string(entries.size()) + " ADDED";
+    if (made > 0) return "SOME FAILED (SEE GAME.LOG)";
     return "FAILED (SEE GAME.LOG)";
 }
 #endif
