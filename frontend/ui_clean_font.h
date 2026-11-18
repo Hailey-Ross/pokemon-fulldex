@@ -224,7 +224,8 @@ inline std::string Title(const std::string& s)
                                         "ZL", "ZR", "PP", "HP", "IV", "IVS", "EV", "EVS", "TM", "HM", "HMS", "TMS", "NDS", "SD", "UI", "LCD", "CRT",
                                         "MB", "GB", "KB", "AI", "TV", "CPU", "GPU", "SFX", "BGM", "XP", "EXP", "PS", "XBOX", "HGSS", "BW", "B2W2", "UV", "IPS", "BPS",
                                         "LB", "RB", "LT", "RT", "L1", "R1", "L2", "R2", "L3", "R3", "ZL", "ZR", "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12" };
-    static const char* const small[] = { "OF", "AND", "THE", "TO", "IN", "FOR", "OR", "AT", "BY", "WITH", "DE", "DI", "DEL", "LA", "LE", "EL", "Y" };
+    static const char* const small[] = { "OF", "AND", "THE", "TO", "IN", "FOR", "OR", "AT", "BY", "WITH", "DE", "DI", "DEL", "LA", "LE", "EL", "Y",
+                                         "EN", "CON", "DU", "DES", "AUX", "SUR", "UND", "IM", "VOM", "ZUM", "NEL", "NELLA", "SUL", "PER", "DELLA" };
     std::string out;
     size_t i = 0;
     bool firstWord = true;

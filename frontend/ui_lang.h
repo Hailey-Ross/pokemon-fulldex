@@ -115,6 +115,25 @@ inline const std::vector<std::pair<std::string,std::string>>& SpanishPrefixes() 
 inline const std::vector<std::pair<std::string,std::string>>& ItalianPrefixes() { static const auto values=Prefixes(2);return values; }
 
 // Translate whole messages first, then known dynamic prefixes and controller hint columns.
+// A word written in capitals in lower case from byte `from` on: A-Z and the accented capitals of
+// Spanish, Italian, French, German and Portuguese (À to Þ, two bytes each in UTF-8). Only A-Z were
+// lowered before: Spanish descriptions read "menÚ", "InstÁlalos", "aÑadir".
+inline void LowerLatin(std::string& w, size_t from)
+{
+    for (size_t k = from; k < w.size(); k++)
+    {
+        const unsigned char b = (unsigned char)w[k];
+        if (b >= 'A' && b <= 'Z') w[k] = (char)(b + 32);
+        else if (b == 0xC3 && k + 1 < w.size())
+        {
+            const unsigned char n = (unsigned char)w[k + 1];
+            if (n >= 0x80 && n <= 0x9E && n != 0x97) w[k + 1] = (char)(n + 0x20); // (not the multiplication sign)
+            k++;
+        }
+        else if (b == 0xC5 && k + 1 < w.size() && (unsigned char)w[k + 1] == 0x92) { w[k + 1] = (char)0x93; k++; } // (Œ)
+        else if (b >= 0xC0) { while (k + 1 < w.size() && ((unsigned char)w[k + 1] & 0xC0) == 0x80) k++; } // (other letters as they are)
+    }
+}
 inline std::string Tr(const std::string& s) {
     if(!lang||s.empty())return s;
     const auto& table=UiTranslations::Table(lang);

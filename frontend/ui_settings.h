@@ -40,7 +40,7 @@ inline std::string Shown(const std::string& s, bool title)
 inline std::string Sentence(const std::string& s)
 {
     for (char ch : s) if (ch >= 'a' && ch <= 'z') return s; // (already written in sentence case)
-    static const char* const keep[] = { "FPS", "HD", "HUD", "GBA", "DS", "3D", "2D", "PC", "OK", "A", "B", "X", "Y", "L", "R", "MB", "GPU", "CPU", "JIT", "LCD", "HP", "TM", "HM" };
+    static const char* const keep[] = { "FPS", "HD", "HUD", "GBA", "DS", "3D", "2D", "PC", "OK", "A", "B", "X", "L", "R", "MB", "GPU", "CPU", "JIT", "LCD", "HP", "TM", "HM" };
     std::string out;
     bool start = true;
     size_t i = 0;
@@ -52,6 +52,15 @@ inline std::string Sentence(const std::string& s)
         std::string w = s.substr(i, j - i);
         bool kept = false;
         for (const char* k : keep) if (w == k) kept = true;
+        // (Y: the button in English; in the other languages only next to ":" or "/" (Y:, X / Y), being
+        // otherwise the Spanish "y" (and).)
+        if (w == "Y")
+        {
+            size_t k = j;
+            while (k < s.size() && s[k] == ' ') k++;
+            const size_t b = out.find_last_not_of(' ');
+            kept = UiLang::lang == 0 || (k < s.size() && (s[k] == ':' || s[k] == '/')) || (b != std::string::npos && out[b] == '/');
+        }
         // (The games' and hacks' names, and plurals of the names kept in capitals, as they are written.)
         static const char* const names[][2] = { { "RUBY", "Ruby" }, { "SAPPHIRE", "Sapphire" }, { "EMERALD", "Emerald" }, { "FIRERED", "FireRed" },
                                                  { "LEAFGREEN", "LeafGreen" }, { "ULTRA", "Ultra" }, { "VIOLET", "Violet" }, { "MONOMYTH", "Monomyth" },
@@ -59,9 +68,7 @@ inline std::string Sentence(const std::string& s)
         for (const auto& nm : names) if (w == nm[0]) w = nm[1], kept = true;
         if (w == "POKEMON") w = "Pok\xC3\xA9" "mon", kept = true;
         else if (w == "POKEDEX") w = "Pok\xC3\xA9" "dex", kept = true;
-        if (!kept)
-            for (size_t k = start ? 1 : 0; k < w.size(); k++)
-                if (w[k] >= 'A' && w[k] <= 'Z') w[k] += 32;
+        if (!kept) UiLang::LowerLatin(w, start ? 1 : 0);
         out += w;
         start = false;
         i = j;
@@ -2053,7 +2060,11 @@ inline void Menu::DrawSettings(Canvas& c, const std::string& title, const std::s
             const int base = y + rowH / 2 + lpx * 7 / 20; // (the baseline of the row's text)
             {
                 // (A long name cut to fit before the controls on the right.)
-                const int maxW = (it.kind == K_TOGGLE || it.kind == K_PICKER ? ctlX : listX + listW - KR(90)) - (listX + KR(76) + in) - KR(12);
+                int maxW = (it.kind == K_TOGGLE || it.kind == K_PICKER ? ctlX : listX + listW - KR(90)) - (listX + KR(76) + in) - KR(12);
+                // (A row that opens or does something with a value on its right ("8 ADDED"): the name ends
+                // before it. Translated, the two ran into each other: "Iconos En el Menú Home" over "8 Añadidos".)
+                if (it.kind == K_LINK && !it.value.empty())
+                    maxW = std::min(maxW, listX + listW - KR(44) - W(it.value, KR(rowTall > 1 ? 20 : 17), rowTall > 1) - KR(12) - (listX + KR(76) + in));
                 std::string label = it.label;
                 const bool bold = it.kind == K_FOLDER;
                 int lp2 = lpx; // (A long name shrinks a little first, and is cut only if it still does not fit.)
