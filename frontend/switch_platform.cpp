@@ -1444,7 +1444,7 @@ static bool Start3ds(const Launcher::Game& g)
         fprintf(stderr, "[3ds] cannot start another program from here (no homebrew loader)\n");
         return false;
     }
-    const std::string args = "\"" + g.rom + "\"" + (g_self.empty() ? std::string() : " \"FULLDEX_RETURN=" + g_self + "\"");
+    const std::string args = "\"" + g.rom + "\"" + (g_self.empty() ? std::string() : " \"FULLDEX_RETURN=" + g_self + "\"") + " \"FULLDEX_LANG=" + N3ds::MenuLanguage() + "\"";
     const Result rc = envSetNextLoad(g.rom.c_str(), args.c_str());
     fprintf(stderr, "[3ds] %s: %s (0x%x)\n", g.name.c_str(), args.c_str(), (unsigned)rc);
     ExitTrace("3ds handoff: closing network");

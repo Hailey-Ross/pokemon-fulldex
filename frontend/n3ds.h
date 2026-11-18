@@ -273,12 +273,16 @@ inline bool CopySave(const std::string& from, const std::vector<unsigned char>& 
 // The game's program keeps the same copy itself as it plays (omega-nx savefile.rs: written when the game saves,
 // taken in at its start when newer), in <FullDex>/saves unless OMEGA_NX_SAVE names the file: told the saves
 // folder FullDex uses, so the two keep one copy, a saves folder of the player's own included.
+// The game's menu in FullDex's language (omega-nx lang.rs): FULLDEX_LANG, en es it fr de ja ko.
+inline const char* MenuLanguage() { return UiLang::Codes[UiLang::lang >= 0 && UiLang::lang < 7 ? UiLang::lang : 0]; }
 inline void TellSave(const std::string& copy)
 {
 #ifdef _WIN32
     _wputenv_s(L"OMEGA_NX_SAVE", std::filesystem::u8path(copy).wstring().c_str());
+    _putenv_s("FULLDEX_LANG", MenuLanguage());
 #else
     setenv("OMEGA_NX_SAVE", copy.c_str(), 1);
+    setenv("FULLDEX_LANG", MenuLanguage(), 1);
 #endif
 }
 inline void SyncSave(const Launcher::Game& g, const std::string& copy, bool beforePlay = false)
