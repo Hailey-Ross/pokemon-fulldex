@@ -136,7 +136,7 @@ public:
                 std::string values;for(int i=0;i<6;i++){if(i)values+=" / ";values+=std::to_string(data.personal[species][i]);}Add(values);
             }
             for(const auto& detail:data.AbilityDetails(species))Add(detail);
-            for(const auto& detail:data.EvolutionDetails(species))Add(detail);
+            for(const auto& detail:data.EvolutionFamily(species))Add(detail);
             Add("LEVEL-UP MOVES");
             for(auto move:data.LearnedMoves(species))Add("L"+std::to_string(move.level)+" "+data.Move(move.move));
         }

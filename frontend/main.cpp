@@ -2035,6 +2035,35 @@ static bool ReadSnapshot(NDS& nds, const std::string& path, uint32_t* frame, boo
     return true;
 }
 
+// An evolution line ("BULBASAUR -> IVYSAUR: LEVEL 16") in the menu's language: the game's
+// names stay as they are, the way it evolves is translated.
+static std::string EvoTr(const std::string& line)
+{
+    const size_t arrow = line.find(" -> ");
+    const size_t colon = line.find(": ", arrow == std::string::npos ? 0 : arrow);
+    if (colon == std::string::npos) return UiLang::Tr(line);
+    const std::string m = line.substr(colon + 2);
+    std::string out;
+    auto starts = [&](const char* p) { return m.rfind(p, 0) == 0; };
+    auto ends = [&](const char* p) { const size_t n = strlen(p); return m.size() > n && m.compare(m.size() - n, n, p) == 0; };
+    if (starts("LEVEL ") && m.size() > 6 && isdigit((unsigned char)m[6]))
+    {
+        const size_t c = m.find(", ");
+        out = UiLang::F("LEVEL {0}", { m.substr(6, c == std::string::npos ? std::string::npos : c - 6) });
+        if (c != std::string::npos) out += ", " + UiLang::Tr(m.substr(c + 2));
+    }
+    else if (starts("LEVEL UP HOLDING ") && ends(", DAYTIME")) out = UiLang::F("LEVEL UP HOLDING {0}, DAYTIME", { m.substr(17, m.size() - 17 - 9) });
+    else if (starts("LEVEL UP HOLDING ") && ends(", NIGHTTIME")) out = UiLang::F("LEVEL UP HOLDING {0}, NIGHTTIME", { m.substr(17, m.size() - 17 - 11) });
+    else if (starts("LEVEL UP WITH ") && ends(" IN PARTY")) out = UiLang::F("LEVEL UP WITH {0} IN PARTY", { m.substr(14, m.size() - 14 - 9) });
+    else if (starts("LEVEL UP KNOWING ")) out = UiLang::F("LEVEL UP KNOWING {0}", { m.substr(17) });
+    else if (starts("TRADE HOLDING ")) out = UiLang::F("TRADE HOLDING {0}", { m.substr(14) });
+    else if (starts("MALE: USE ")) out = UiLang::F("MALE: USE {0}", { m.substr(10) });
+    else if (starts("FEMALE: USE ")) out = UiLang::F("FEMALE: USE {0}", { m.substr(12) });
+    else if (starts("USE ")) out = UiLang::F("USE {0}", { m.substr(4) });
+    else out = UiLang::Tr(m);
+    return line.substr(0, colon + 2) + out;
+}
+
 int main(int argc, char** argv)
 {
     Options opt;
@@ -6954,13 +6983,14 @@ int main(int argc, char** argv)
                         e.learns.push_back(l);
                     }
                     std::stable_sort(e.learns.begin(), e.learns.end(), [](const auto& a, const auto& b) { return a.level < b.level; });
-                    for (const auto& detail : companionMetadata.EvolutionDetails(id))
+                    // (The whole family for the POKEDEX: earlier forms, this one and every branch;
+                    // the party page shows only what is ahead. PR #224 by OzWookiee.)
+                    for (const auto& detail : companionMetadata.EvolutionFamily(id))
                     {
-                        // ("EVOLVES TO QUILAVA: LEVEL 14" as "Evolves into Quilava: Level 14")
-                        std::string line = title(detail);
-                        const size_t to = line.find(' ');
-                        const size_t name = line.find(' ', to + 1);
-                        if (to != std::string::npos && name != std::string::npos) line = UiLang::Tr("Evolves into") + line.substr(name);
+                        std::string line = detail;
+                        const size_t mark = line.find("  (THIS ONE)");
+                        if (mark != std::string::npos) line = title(EvoTr(line.substr(0, mark))) + "  (" + UiLang::Tr("THIS ONE") + ")";
+                        else line = title(EvoTr(line));
                         e.evolutions.push_back(line);
                     }
                     if (full) dexEntryMore(e, id);
@@ -7166,6 +7196,12 @@ int main(int argc, char** argv)
                 {
                     row("HP",std::to_string(mon.hp)+" / "+std::to_string(mon.maxHp)+(mon.status?"  "+std::string(Companion::Status(mon.status)):std::string()));
                     row("HOLDING",mon.item?companionMetadata.ItemName(mon.item):std::string("NOTHING"));
+                    section("EVOLUTION",Glass::I_PEOPLE);
+                    {
+                        const auto ahead = companionMetadata.EvolutionAhead(mon.species);
+                        if (ahead.empty()) row("FINAL FORM","");
+                        else for (const auto& ev : ahead) row(CleanFont::Title(EvoTr(ev)),"");
+                    }
                     section("STATS",Glass::I_GAUGE);
                     static const char* statNames[]={"HP","ATTACK","DEFENCE","SPEED","SP. ATK","SP. DEF"};
                     for(int i=0;i<6;i++)
@@ -7743,6 +7779,35 @@ int main(int argc, char** argv)
                 if (showFolder && !c.category.empty()) d = UiLang::F("In {0}. ", { c.category }) + UiLang::Tr(d);
                 it.desc = d;
                 it.tip = c.group >= 0 ? UiLang::Tr("Only one in its folder can be on at a time.") + " " + UiLang::Tr(careful) : careful;
+                // (A code that needs buttons only applies while they are held. The preview puts
+                // the combo in a bright card under the name, so turning it on does not look like
+                // it should already be working; the note reads "Button: START+L+R.". PR #223 by OzWookiee.)
+                std::string lower = d;
+                for (char& ch : lower) ch = (char)std::tolower((unsigned char)ch);
+                const size_t b = lower.find("button");
+                if (b != std::string::npos)
+                {
+                    const size_t colon = d.find(':', b);
+                    if (colon != std::string::npos)
+                    {
+                        const size_t dot = d.find('.', colon);
+                        std::string activation = d.substr(colon + 1, dot == std::string::npos ? std::string::npos : dot - colon - 1);
+                        while (!activation.empty() && (activation.front() == ' ' || activation.front() == '\t')) activation.erase(0, 1);
+                        while (!activation.empty() && (activation.back() == ' ' || activation.back() == '\t')) activation.pop_back();
+                        if (!activation.empty())
+                        {
+                            it.sub = UiLang::F(lower.compare(b, 7, "buttons") == 0 ? "PRESS {0} TO APPLY" : "HOLD {0} TO APPLY", { activation });
+                            it.preview = Menu::P_CHEATNOTE;
+                            // (The card says it: drop the same "Button: ..." sentence from the
+                            // description, keeping any other note text.)
+                            const size_t end = d.find('.', colon);
+                            std::string rest = d.substr(0, b) + d.substr(end == std::string::npos ? d.size() : end + 1);
+                            while (!rest.empty() && (rest.back() == ' ' || rest.back() == '.')) rest.pop_back();
+                            while (!rest.empty() && rest.front() == ' ') rest.erase(0, 1);
+                            it.desc = rest;
+                        }
+                    }
+                }
             };
             section("FIND", Glass::I_CHEATS);
             add(M_CSEARCH, "SEARCH", cheatQuery.empty() ? "" : Cheats::Fit(cheatQuery, 18));

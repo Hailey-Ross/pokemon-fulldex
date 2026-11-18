@@ -3727,7 +3727,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             int y = cy + 40;
             if (n3dsPrep.failed)
             {
-                centre(y, "COULDN'T PREPARE " + name, fit("COULDN'T PREPARE " + name, s + 2), 0xFFF2A08A);
+                { const std::string t = UiLang::F("COULDN'T PREPARE {0}", { name }); centre(y, t, fit(t, s + 2), 0xFFF2A08A); }
                 y += 42;
                 std::vector<std::string> lines;
                 std::string line;
@@ -3749,16 +3749,16 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             {
                 centre(y, "READY", s + 3, 0xFF8BE28B);
                 y += 52;
-                centre(y, name + " IS STARTING", fit(name + " IS STARTING", s + 1), ink);
+                { const std::string t = UiLang::F("{0} IS STARTING", { name }); centre(y, t, fit(t, s + 1), ink); }
                 centre(cy + ch - 40, "THE FIRST-LAUNCH SETUP IS DONE", s, dim);
             }
             else
             {
-                centre(y, "PREPARING " + name, fit("PREPARING " + name, s + 2), ink);
+                { const std::string t = UiLang::F("PREPARING {0}", { name }); centre(y, t, fit(t, s + 2), ink); }
                 y += 42;
                 centre(y, "FIRST LAUNCH  \xC2\xB7  ONE-TIME SETUP, 5 TO 15 MINUTES", fit("FIRST LAUNCH  \xC2\xB7  ONE-TIME SETUP, 5 TO 15 MINUTES", s), dim);
                 y += 34;
-                centre(y, n3dsPrep.step, fit(n3dsPrep.step, s + 1), ink);
+                centre(y, UiLang::Tr(n3dsPrep.step), fit(UiLang::Tr(n3dsPrep.step), s + 1), ink);
                 y += 30;
                 const int bw = cw - 2 * pad, bh = std::max(6, 3 * s), bx = cx + pad, by = y;
                 canvas.Fill(bx, by, bw, bh, 0x40FFFFFF);
@@ -3775,9 +3775,9 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 const long long sec = n3dsPrep.elapsed;
                 char line[96];
                 if (n3dsPrep.total > 0)
-                    snprintf(line, sizeof line, "%d%%   \xC2\xB7   ELAPSED %lld:%02lld", n3dsPrep.done * 100 / std::max(1, n3dsPrep.total), sec / 60, sec % 60);
+                    { char t[24]; snprintf(t, sizeof t, "%lld:%02lld", sec / 60, sec % 60); snprintf(line, sizeof line, "%s", UiLang::F("{0}%   \xC2\xB7   ELAPSED {1}", { std::to_string(n3dsPrep.done * 100 / std::max(1, n3dsPrep.total)), t }).c_str()); }
                 else
-                    snprintf(line, sizeof line, "ELAPSED %lld:%02lld", sec / 60, sec % 60);
+                    { char t[24]; snprintf(t, sizeof t, "%lld:%02lld", sec / 60, sec % 60); snprintf(line, sizeof line, "%s", UiLang::F("ELAPSED {0}", { t }).c_str()); }
                 centre(y, line, s + 1, ink);
                 centre(cy + ch - 40, "THE GAME STARTS WHEN IT IS READY", s, dim);
             }
