@@ -193,9 +193,11 @@ std::string InstallHomeIcons(const std::vector<Launcher::Game>& games)
     std::string error;
     const int made = SwitchForwarder::Install(g_self, entries, error);
     fprintf(stderr, "[switch] HOME Menu icons: %d of %d%s%s\n", made, (int)entries.size(), error.empty() ? "" : ", ", error.c_str());
-    if (made == (int)entries.size()) return std::to_string(made) + " ON THE HOME MENU";
-    if (made > 0) return std::to_string(made) + " OF " + std::to_string(entries.size()) + " (" + error + ")";
-    return "FAILED: " + error;
+    // (Short, as the row has room for: the longer "8 ON THE HOME MENU" ran over the row's name.
+    // What went wrong is in game.log, above.)
+    if (made == (int)entries.size()) return std::to_string(made) + " ADDED";
+    if (made > 0) return std::to_string(made) + " OF " + std::to_string(entries.size()) + " ADDED";
+    return "FAILED (SEE GAME.LOG)";
 }
 #endif
 
@@ -1101,6 +1103,11 @@ int PickGame(const std::vector<Launcher::Game>& gamesIn, int selected, const std
             const char* hint = page.group < 0 ? "UP / DOWN: CHOOSE    A: OPEN    B: BACK" : "UP / DOWN: CHOOSE    LEFT / RIGHT / A: CHANGE    B: BACK";
             std::string setNow = std::to_string(page.group) + "/" + std::to_string(page.selected) + "/" + std::to_string(keysOpen) + "/";
             for (const std::string& l : page.lines) setNow += l + "\n";
+            // (And what the rows that do something say: HOME MENU ICONS' INSTALLING... and its
+            // result are not settings lines, and the page was not drawn again for them: the
+            // icons were made but the row still said INSTALL, as if nothing happened (#170).)
+            for (const Launcher::Setting& it : page.items)
+                if (it.key && it.key[0] == '!' && !it.values.empty()) setNow += it.values[0].second + "\n";
             if (Launcher::Glassy(canvas) && !keysOpen && setNow == setKey) {}
             else if (Launcher::Glassy(canvas))
             {
