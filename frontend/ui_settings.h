@@ -1846,6 +1846,7 @@ inline void Menu::DrawSettings(Canvas& c, const std::string& title, const std::s
         pvX = lanePvX; pvY = py0; pvW = px0 + W0 - pvX; pvH = H0;
         if (laneListH > 0) { listBottom = py0 + laneListH - K(10); pvY = lanePvY; pvH = py0 + H0 - lanePvY; }
     }
+    previewX = pvX; previewY = pvY; previewW = pvW; previewH = pvH; // (for a finger's drag on the Guide's answer)
 
     { const double t = MenuProfNow(); MenuProf()[1] += t - profT; profT = t; }
     // The rows: their places down the list, a section's heading (and a line before every one but
@@ -2255,11 +2256,40 @@ inline void Menu::DrawSettings(Canvas& c, const std::string& title, const std::s
         {
             T(c, x0, gy + K(14), "Answer", K(15), GlassHint, true, false);
             gy += K(26);
-            for (const auto& line : Wrap(a.text, K(19), innerW, 12))
+            // (The answer's own line breaks first: HERE puts each Pokémon on a line, under the way
+            // it is met. Each line still wraps if it is wider than the panel. A longer answer
+            // scrolls with Left/Right; the bar on the right says how much there is.)
+            std::vector<std::string> lines;
+            size_t at = 0;
+            while (at <= a.text.size())
             {
-                if (gy + K(28) > regionBottom) break;
-                T(c, x0, gy + K(18), line, K(19), GlassText, false, false);
-                gy += K(28);
+                size_t nl = a.text.find('\n', at);
+                const std::string para = a.text.substr(at, nl == std::string::npos ? std::string::npos : nl - at);
+                for (const auto& line : Wrap(para, K(18), innerW - K(10), 80)) lines.push_back(line);
+                if (nl == std::string::npos) break;
+                at = nl + 1;
+            }
+            const int lineH = K(24);
+            previewLineH = lineH; // (a finger's drag on the answer moves it a line at a time)
+            const int room = std::max(0, (regionBottom - gy) / lineH);
+            const int maxScroll = std::max(0, (int)lines.size() - room);
+            a.scrollMax = maxScroll; // (the guide's Left/Right clamps to it)
+            const int first = std::clamp(a.scroll, 0, maxScroll);
+            const int textTop = gy;
+            for (int i = first; i < (int)lines.size() && i < first + room; i++)
+            {
+                T(c, x0, gy + K(16), lines[i], K(18), GlassText, false, false);
+                gy += lineH;
+            }
+            if (maxScroll > 0)
+            {
+                const int barX = x0 + innerW - K(7);
+                const int barTop = textTop + K(2);
+                const int barH = std::max(K(20), regionBottom - barTop);
+                Glass::Round(c, barX, barTop, K(3), barH, K(2), 0x30FFFFFF);
+                const int thumbH = std::max(K(18), barH * room / (int)lines.size());
+                const int thumbY = barTop + (barH - thumbH) * first / std::max(1, maxScroll);
+                Glass::Round(c, barX, thumbY, K(3), thumbH, K(2), 0xA0FFFFFF);
             }
         }
         else

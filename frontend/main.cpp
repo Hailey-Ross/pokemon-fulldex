@@ -74,6 +74,7 @@
 #include "companion_types.h"
 #include "companion_rom.h"
 #include "companion_guides.h"
+#include "companion_black_bosses.h" // (Pokemon Black's next gym/league teams)
 #include "companion_panel.h"
 #include "companion_battle.h"
 #include "optional_features.h"
@@ -5859,7 +5860,66 @@ int main(int argc, char** argv)
         }
     };
     const auto companionGuide=Companion::GuideFor(gameCode);
+    // (GUIDE's NEXT BOSS: the next gym, or the League, from the save's badges; the Striaton leader
+    // by the starter in the party.)
+    auto guideNextBoss = [&]() -> Companion::BlackBossInfo {
+        if (gameCode != "IRBO") return {};
+        int best = 0, starter = 0;
+        for (const auto& m : companionSnapshot.party)
+        {
+            best = std::max(best, m.level);
+            if (m.species >= 495 && m.species <= 497) starter = 1;
+            else if (m.species >= 498 && m.species <= 500) starter = 2;
+            else if (m.species >= 501 && m.species <= 503) starter = 3;
+        }
+        return Companion::BlackNextBoss(companionSnapshot.badges, best, starter);
+    };
+    // (GUIDE's HERE: the wild POKeMON the game lists for the place the player is in now.)
+    struct GuideHereInfo { std::string title, hint, answer; bool any = false; };
+    auto guideHere = [&]() -> GuideHereInfo {
+        GuideHereInfo r;
+        if (gameCode != "IRBO" || companionSnapshot.map <= 0) return r;
+        std::string place = companionMetadata.PlaceName(companionSnapshot.map);
+        if (place.empty()) place = "THIS PLACE";
+        const std::vector<std::string> lines = companionMetadata.EncounterLines(companionSnapshot.map);
+        r.any = true;
+        r.title = "HERE: " + place;
+        int ways = 0, pokemon = 0;
+        for (const std::string& line : lines)
+            (line.find(" L") == std::string::npos && line.find("LEVEL VARIES") == std::string::npos) ? ways++ : pokemon++;
+        r.hint = "WHERE YOU ARE  \xC2\xB7  " + std::to_string(ways) + " WAYS  \xC2\xB7  " + std::to_string(pokemon) + " POKeMON";
+        if (!companionSnapshot.locationLive) r.hint += "  \xC2\xB7  THE GAME HAS NOT SAID WHERE EXACTLY";
+        if (lines.empty())
+            r.answer = "The game lists no wild POKeMON for " + place + ". Try the grass, dark grass, shaking grass and water of the routes around it.";
+        else
+        {
+            // (EncounterLines gives a method's name and then its POKeMON: GRASS, then Roggenrola
+            // L10-13, Woobat L10-13, then the next method. The answer gives each way it is met a
+            // line, and each POKeMON a line under it; a long list stops and points at LOCATION,
+            // which has the same table.)
+            auto titleWords = [](std::string s) {
+                bool start = true;
+                for (char& c : s)
+                {
+                    const unsigned char u = (unsigned char)c;
+                    c = (char)(start ? std::toupper(u) : std::tolower(u));
+                    start = c == ' ';
+                }
+                return s;
+            };
+            std::string out;
+            for (const std::string& line : lines)
+            {
+                const bool isMethod = line.find(" L") == std::string::npos && line.find("LEVEL VARIES") == std::string::npos;
+                if (!out.empty()) out += "\n";
+                out += isMethod ? titleWords(line) : ("- " + line);
+            }
+            r.answer = out;
+        }
+        return r;
+    };
     int companionGuideChoice=0;bool companionGuideReveal=false;
+    bool companionNextBossShown=false, companionHereShown=false; // (GUIDE's computed answers)
     std::set<int> companionGuideShown; // (GUIDE: the answers the player chose to show)
     readCompanion();
     int companionMon=0, companionSpecies=1, companionPocket=-1, companionDexFilter=0, companionItem=0, companionDexType=0;
@@ -5881,7 +5941,7 @@ int main(int argc, char** argv)
         M_CSEARCH, M_SEARCH_LETTER, M_SEARCH_DELETE, M_SEARCH_SPACE, M_SEARCH_CLEAR, M_SEARCH_DONE,
         M_CDETAIL_TOGGLE, M_CINFO, M_BACKUPS, M_RESTORE_CONFIRM, M_LOAD_CONFIRM,
         M_MATCHUPS, M_TYPE1, M_TYPE2, M_SECOND_SCREEN, M_UISIZE,
-        M_COMPANION, M_CPARTY, M_CBAG, M_CDEX, M_CLOCATION, M_CMAP, M_CENCOUNTERS, M_REFERENCE, M_REFERENCE_KIND, M_REFERENCE_QUERY, M_CPOCKET, M_CDEX_FILTER, M_CDEX_TYPE, M_CBATTLE, M_CGUIDE, M_CGUIDE_REVEAL, M_NUZLOCKE, M_RUN_ENABLED, M_RUN_RESET, M_RUN_RESET_CONFIRM, M_QUICK_ACTIONS, M_OPEN_PC, M_FLY, M_HUB_SAVE, M_HUB_LOAD, M_HUB_CHEATS, M_HUB_FAST, M_HUB_SETTINGS, M_HUB_QUIT,
+        M_COMPANION, M_CPARTY, M_CBAG, M_CDEX, M_CLOCATION, M_CMAP, M_CENCOUNTERS, M_REFERENCE, M_REFERENCE_KIND, M_REFERENCE_QUERY, M_CPOCKET, M_CDEX_FILTER, M_CDEX_TYPE, M_CBATTLE, M_CGUIDE, M_CGUIDE_REVEAL, M_CGUIDE_NEXT, M_CGUIDE_HERE, M_NUZLOCKE, M_RUN_ENABLED, M_RUN_RESET, M_RUN_RESET_CONFIRM, M_QUICK_ACTIONS, M_OPEN_PC, M_FLY, M_HUB_SAVE, M_HUB_LOAD, M_HUB_CHEATS, M_HUB_FAST, M_HUB_SETTINGS, M_HUB_QUIT,
         M_QUIT_YES, M_RESET_YES, // (QUIT GAME / RESET GAME asked first: PAGE_QUIT_CONFIRM)
         M_SHORTCUTS, // (CONTROLS: Fulldex's own four shortcuts, opening KEYS AND BUTTONS at them)
         M_EXTRAS, M_EXTRA0=92000, M_EXTRA_END=92006, M_PLAYBACK=93000, M_FAST_SPEED, M_SMART_FAST, M_SLOW_MOTION, M_REWIND_MB, M_REWIND, M_TURBO_A, M_SCREEN_FILTER, M_COMPANION_OVERLAY, M_PARTY_HUD, M_STATUS_BAR, M_LIVE_GLASS, M_FAST_BUTTON, M_ZOOM, M_ZOOM_TEXT,
@@ -7336,23 +7396,78 @@ int main(int argc, char** argv)
                     swap("Poke Ball", "Pok\xC3\xA9 Ball"); swap("Poke Mart", "Pok\xC3\xA9 Mart"); swap("S.s.", "S.S.");
                     return t;
                 };
-                section("QUESTIONS", Glass::I_CHEATS);
+                // (NEXT BOSS: the gym the save's badges point at next, or the League, with its team
+                // and your best level; the answer waits behind REVEAL like the other entries.)
+                if (gameCode == "IRBO")
+                {
+                    const Companion::BlackBossInfo nb = guideNextBoss();
+                    if (nb.any)
+                    {
+                        section(guideText("NEXT BOSS").c_str(), Glass::I_TROPHY);
+                        Menu::CompanionView::GuideAnswer a;
+                        a.text = guideText(nb.answer);
+                        a.shown = companionNextBossShown;
+                        menu.companion.guide.push_back(a);
+                        add(M_CGUIDE_NEXT, guideText(nb.title).c_str(), a.shown ? "Shown" : "", true);
+                        MenuItem& it = menu.items.back();
+                        it.kind = Menu::K_LINK;
+                        it.preview = Menu::P_CGUIDE;
+                        it.icon = a.shown ? Glass::I_SPARKLE : Glass::I_TROPHY;
+                        it.choice = (int)menu.companion.guide.size() - 1;
+                        it.desc = "Hint: " + guideText(nb.hint);
+                    }
+                }
+                // (HERE: the place the player is in, with the game's wild list for it.)
+                if (gameCode == "IRBO")
+                {
+                    const GuideHereInfo here = guideHere();
+                    if (here.any)
+                    {
+                        section(guideText("HERE").c_str(), Glass::I_GLOBE);
+                        Menu::CompanionView::GuideAnswer a;
+                        a.text = guideText(here.answer);
+                        a.shown = companionHereShown;
+                        menu.companion.guide.push_back(a);
+                        add(M_CGUIDE_HERE, guideText(here.title).c_str(), a.shown ? "Shown" : "", true);
+                        MenuItem& it = menu.items.back();
+                        it.kind = Menu::K_LINK;
+                        it.preview = Menu::P_CGUIDE;
+                        it.icon = a.shown ? Glass::I_SPARKLE : Glass::I_GLOBE;
+                        it.choice = (int)menu.companion.guide.size() - 1;
+                        it.desc = "Hint: " + guideText(here.hint);
+                    }
+                }
+                // (The entries in their sections: NEXT STEPS, GYMS, WHERE IS, ...; the earlier games
+                // have them all under one QUESTIONS heading.)
+                const char* lastSection = nullptr;
                 for (size_t i = 0; i < companionGuide.size(); i++)
                 {
+                    const char* sec = companionGuide[i].section ? companionGuide[i].section : "QUESTIONS";
+                    if (!lastSection || strcmp(lastSection, sec))
+                    {
+                        section(guideText(sec).c_str(), Glass::I_CHEATS);
+                        lastSection = sec;
+                    }
                     Menu::CompanionView::GuideAnswer answer;
                     answer.text = guideText(companionGuide[i].answer);
                     answer.shown = companionGuideShown.count((int)i) > 0;
+                    // (An item the bag holds: the row says HAVE, so WHERE IS doubles as a checklist.)
+                    bool have = false;
+                    if (companionGuide[i].item > 0)
+                        for (const auto& bag : companionSnapshot.items)
+                            if (bag.id == companionGuide[i].item && bag.quantity > 0) { have = true; break; }
+                    const int answerAt = (int)menu.companion.guide.size(); // (NEXT BOSS is in it first)
                     menu.companion.guide.push_back(answer);
-                    add(M_GUIDE0 + (int)i, guideText(companionGuide[i].title).c_str(), answer.shown ? "Shown" : "", true);
+                    add(M_GUIDE0 + (int)i, guideText(companionGuide[i].title).c_str(), answer.shown ? "Shown" : have ? "Have" : "", true);
                     MenuItem& it = menu.items.back();
                     it.kind = Menu::K_LINK;
                     it.preview = Menu::P_CGUIDE;
-                    it.icon = answer.shown ? Glass::I_SPARKLE : Glass::I_INFO; // (shown: a sparkle)
-                    it.choice = (int)i;
+                    it.icon = answer.shown ? Glass::I_SPARKLE : have ? Glass::I_POKEBALL : Glass::I_INFO; // (shown: a sparkle)
+                    it.choice = answerAt;
                     it.desc = "Hint: " + guideText(companionGuide[i].hint);
                 }
             }
-            else if(menuPage == PAGE_CGUIDEENTRY && companionGuideChoice<(int)companionGuide.size())
+            else if(menuPage == PAGE_CGUIDEENTRY && companionGuideChoice >= 0 && companionGuideChoice<(int)companionGuide.size())
             {
                 const auto& entry=companionGuide[companionGuideChoice];
                 info(entry.title);
@@ -8105,6 +8220,9 @@ int main(int argc, char** argv)
     MenuDrag menuDrag;
     SDL_FingerID menuDragFinger = 0;
     int menuDragPage = -1;
+    // (A finger dragging the GUIDE's answer window: it scrolls the answer, not the rows.)
+    SDL_FingerID guideDragFinger = -1;
+    int guideDragY = 0;
 
 #ifdef __SWITCH__
     // The Switch's touch screen: its SDL sends finger events and no mouse events made from them,
@@ -9095,6 +9213,33 @@ int main(int argc, char** argv)
                     if (ev.wheel.direction == SDL_MOUSEWHEEL_FLIPPED) steps = -steps;
                     if (steps)
                     {
+                        // (GUIDE: a shown answer under the pointer scrolls in its own window; the list stays put.)
+                        if (menuPage == PAGE_CGUIDE)
+                        {
+                            int mx = 0, my = 0;
+                            SDL_GetMouseState(&mx, &my);
+                            int ow = 0, oh = 0, ww = 0, wh = 0;
+                            SDL_GetRendererOutputSize(renderer, &ow, &oh);
+                            SDL_GetWindowSize(window, &ww, &wh);
+                            const int px = ww > 0 ? mx * ow / ww : mx, py = wh > 0 ? my * oh / wh : my;
+                            const bool overPreview = menu.previewW > 0 &&
+                                px >= menu.previewX && px < menu.previewX + menu.previewW &&
+                                py >= menu.previewY && py < menu.previewY + menu.previewH;
+                            if (overPreview)
+                            {
+                                if (menu.selected >= 0 && menu.selected < (int)menu.items.size())
+                                {
+                                    const MenuItem& it = menu.items[menu.selected];
+                                    if (it.preview == Menu::P_CGUIDE && it.choice >= 0 && it.choice < (int)menu.companion.guide.size())
+                                    {
+                                        auto& a = menu.companion.guide[it.choice];
+                                        if (a.shown && a.scrollMax > 0)
+                                            a.scroll = std::clamp(a.scroll - steps, 0, a.scrollMax);
+                                    }
+                                }
+                                continue; // (the preview keeps the wheel; the list stays put)
+                            }
+                        }
                         menu.freeScroll = true;
                         if (menu.style == 1) menu.scrollPx = std::max(0, menu.scrollPx - steps * std::max(30, menu.rowH * 2));
                         else menu.scroll = std::max(0, menu.scroll - steps);
@@ -9159,6 +9304,33 @@ int main(int argc, char** argv)
                     int ow = 0, oh = 0;
                     SDL_GetRendererOutputSize(renderer, &ow, &oh);
                     const int x = (int)(ev.tfinger.x * ow), y = (int)(ev.tfinger.y * oh);
+                    if (guideDragFinger >= 0)
+                    {
+                        // (The GUIDE's answer window: a finger's drag moves it, not the list.)
+                        if (!menu.open || menuPage != PAGE_CGUIDE) guideDragFinger = -1;
+                        else if ((SDL_FingerID)ev.tfinger.fingerId == guideDragFinger)
+                        {
+                            if (ev.type == SDL_FINGERUP) { guideDragFinger = -1; continue; }
+                            if (ev.type == SDL_FINGERMOTION && menu.selected >= 0 && menu.selected < (int)menu.items.size())
+                            {
+                                const MenuItem& it = menu.items[menu.selected];
+                                if (it.preview == Menu::P_CGUIDE && it.choice >= 0 && it.choice < (int)menu.companion.guide.size())
+                                {
+                                    auto& a = menu.companion.guide[it.choice];
+                                    const int lineH = std::max(1, menu.previewLineH);
+                                    const int dy = guideDragY - y; // (a finger moving up goes further down the answer)
+                                    if (dy >= lineH || dy <= -lineH)
+                                    {
+                                        const int lines = dy / lineH;
+                                        a.scroll = std::clamp(a.scroll + lines, 0, a.scrollMax);
+                                        guideDragY += lines * lineH;
+                                    }
+                                }
+                            }
+                            continue;
+                        }
+                        else continue;
+                    }
                     if (menuDrag.active)
                     {
                         if (ev.tfinger.fingerId != menuDragFinger) continue;
@@ -9181,6 +9353,23 @@ int main(int argc, char** argv)
                     }
                     else if (ev.type == SDL_FINGERDOWN)
                     {
+                        // (A finger on the GUIDE's answer window starts a scroll of that answer,
+                        // not of the rows; the answer must be shown and longer than the window.)
+                        if (menuPage == PAGE_CGUIDE && menu.selected >= 0 && menu.selected < (int)menu.items.size() &&
+                            x >= menu.previewX && x < menu.previewX + menu.previewW && y >= menu.previewY && y < menu.previewY + menu.previewH)
+                        {
+                            const MenuItem& it = menu.items[menu.selected];
+                            if (it.preview == Menu::P_CGUIDE && it.choice >= 0 && it.choice < (int)menu.companion.guide.size())
+                            {
+                                const auto& a = menu.companion.guide[it.choice];
+                                if (a.shown && a.scrollMax > 0)
+                                {
+                                    guideDragFinger = ev.tfinger.fingerId;
+                                    guideDragY = y;
+                                    continue;
+                                }
+                            }
+                        }
                         const int item = menu.ItemAt(x, y);
                         // A finger put down on a page that scrolls may be the start of a drag: a
                         // settings page anywhere across its rows (on a heading or between rows
@@ -10038,11 +10227,35 @@ int main(int argc, char** argv)
                 menu.open = false;
                 swallowMenuButtons = true;
             }
+            // (GUIDE: a shown answer longer than the preview scrolls with Left/Right; Up/Down still
+            // move between the guide's rows. The preview fills scrollMax as it draws.)
+            if (menuPage == PAGE_CGUIDE && (nav.left || nav.right) && menu.selected >= 0 && menu.selected < (int)menu.items.size())
+            {
+                const MenuItem& it = menu.items[menu.selected];
+                if (it.preview == Menu::P_CGUIDE && it.choice >= 0 && it.choice < (int)menu.companion.guide.size())
+                {
+                    auto& a = menu.companion.guide[it.choice];
+                    if (a.shown && a.scrollMax > 0)
+                    {
+                        const int step = a.scrollMax > 8 ? 3 : 1;
+                        a.scroll = std::clamp(a.scroll + (nav.right ? step : -step), 0, a.scrollMax);
+                        nav.left = nav.right = false;
+                    }
+                }
+            }
             int dir = 0;
             int hit = menu.Update(nav, dir);
             const int id = backTo >= 0 ? M_BACK : hit >= 0 && hit < (int)menuIds.size() ? menuIds[hit] : -1;
             if (backTo >= 0) hit = 0;
-            if(id>=M_GUIDE0 && id<M_GUIDE0+(int)companionGuide.size() && dir==0)
+            if((id==M_CGUIDE_NEXT || id==M_CGUIDE_HERE) && dir==0)
+            {
+                // (NEXT BOSS and HERE answer in the preview like the other Guide entries: A or a
+                // tap shows it and hides it again; no separate page.)
+                bool& shown = id==M_CGUIDE_NEXT ? companionNextBossShown : companionHereShown;
+                shown = !shown;
+                goPage(PAGE_CGUIDE,id);hit=-1;
+            }
+            else if(id>=M_GUIDE0 && id<M_GUIDE0+(int)companionGuide.size() && dir==0)
             {
                 // (GUIDE: the answer shown or hidden again, in the preview.)
                 const int i=id-M_GUIDE0;
@@ -11726,7 +11939,22 @@ int main(int argc, char** argv)
             static int testPageAt=-2,testPage=0;static uint32_t testPageFrames=0;
             if(testPageAt==-2){testPageAt=-1;if(const char* t=getenv("SSR_TEST_PAGE"))sscanf(t,"%d,%d",&testPageAt,&testPage);if(const char* t=getenv("SSR_TEST_SPECIES"))companionSpecies=std::max(1,atoi(t));}
             if(testPageAt>=0&&++testPageFrames==(uint32_t)testPageAt&&testPage>=0&&testPage<PAGE_COUNT)
-            {readCompanion(true);menu.open=true;goPage(testPage,-1);fprintf(stderr,"[test] page %d at frame %u\n",testPage,frame);testPageAt=-1;}
+            {readCompanion(true);menu.open=true;goPage(testPage,-1);fprintf(stderr,"[test] page %d at frame %u\n",testPage,frame);testPageAt=-1;
+                // (SSR_TEST_GUIDE=1: the GUIDE's NEXT BOSS page, its answer shown, for pictures.)
+                if(const char* g=getenv("SSR_TEST_GUIDE")){const bool here=!strncmp(g,"here",4);const bool shown=strchr(g,'1')!=nullptr;if(here)companionHereShown=shown;else companionNextBossShown=shown;goPage(PAGE_CGUIDE,here?M_CGUIDE_HERE:M_CGUIDE_NEXT);
+                    if(const char* s=getenv("SSR_TEST_GUIDE_SCROLL")){const int n=atoi(s);if(menu.selected>=0&&menu.selected<(int)menu.items.size()){const MenuItem& it=menu.items[menu.selected];if(it.preview==Menu::P_CGUIDE&&it.choice>=0&&it.choice<(int)menu.companion.guide.size())menu.companion.guide[it.choice].scroll=std::max(0,n);}}}}
+        }
+        // (Test runs: SSR_TEST_WHEEL=<frame>,<steps>: a wheel notch pushed at that frame, for the
+        // Guide answer's own scroll.)
+        {
+            static int testWheelAt=-1,testWheelSteps=0;static uint32_t testWheelFrames=0;
+            if(testWheelAt==-1){testWheelAt=-2;if(const char* w=getenv("SSR_TEST_WHEEL"))sscanf(w,"%d,%d",&testWheelAt,&testWheelSteps);}
+            if(testWheelAt>=0&&++testWheelFrames==(uint32_t)testWheelAt){
+                // (The wheel is the preview's when the pointer is over it: put it there first.)
+                int ow=0,oh=0,ww=0,wh=0;SDL_GetRendererOutputSize(renderer,&ow,&oh);SDL_GetWindowSize(window,&ww,&wh);
+                if(ww>0&&wh>0&&ow>0&&oh>0&&menu.previewW>0)
+                    SDL_WarpMouseInWindow(window,(menu.previewX+menu.previewW/2)*ww/ow,(menu.previewY+menu.previewH/2)*wh/oh);
+                SDL_Event e{};e.type=SDL_MOUSEWHEEL;e.wheel.y=testWheelSteps;SDL_PushEvent(&e);testWheelAt=-2;}
         }
         // FLY (M_FLY): the check's answer within about 30 frames (as PokeDaisy waits), then the towns; the
         // flight's job (result 1: Gen 5's flight event, none when the game's own check said no).
@@ -13188,6 +13416,22 @@ int main(int argc, char** argv)
                                                         : btn(Controls::A) + ": OPEN   " + btn(Controls::B) + ": BACK")
                     : (touchPadUsed && touchPad.visible ? "TAP: CHANGE   OUTSIDE: BACK"
                                                         : "LEFT / RIGHT / " + btn(Controls::A) + ": CHANGE   " + btn(Controls::B) + ": BACK");
+            if (menuPage == PAGE_CGUIDE)
+            {
+                // (A shown answer longer than its window scrolls: Left/Right, or the pad's L/R
+                // alongside a finger's tap to show it.)
+                bool scrollable = false;
+                if (menu.selected >= 0 && menu.selected < (int)menu.items.size())
+                {
+                    const MenuItem& it = menu.items[menu.selected];
+                    scrollable = it.preview == Menu::P_CGUIDE && it.choice >= 0 && it.choice < (int)menu.companion.guide.size() &&
+                                 menu.companion.guide[it.choice].shown && menu.companion.guide[it.choice].scrollMax > 0;
+                }
+                hint = touchPadUsed && touchPad.visible
+                    ? (scrollable ? "DRAG: SCROLL   TAP: SHOW/HIDE" : "TAP: SHOW/HIDE   OUTSIDE: BACK")
+                    : (scrollable ? "LEFT / RIGHT: SCROLL   " + btn(Controls::A) + ": SHOW/HIDE   " + btn(Controls::B) + ": BACK"
+                                  : btn(Controls::A) + ": SHOW/HIDE   " + btn(Controls::B) + ": BACK");
+            }
             const bool wideMenu=menuPage==PAGE_CENCOUNTERS || menuPage==PAGE_FLY || menuPage==PAGE_REFERENCE || menuPage==PAGE_RSEARCH || menuPage==PAGE_RDETAIL || menuPage==PAGE_CITEM || menuPage==PAGE_EXTRAS || menuPage==PAGE_QUICK_ACTIONS || menuPage==PAGE_NUZLOCKE || menuPage==PAGE_RUN_CONFIRM || menuPage==PAGE_CGUIDE || menuPage==PAGE_CGUIDEENTRY || menuPage==PAGE_CBATTLE || menuPage==PAGE_STATES || menuPage==PAGE_SLOT || (menuPage>=PAGE_COMPANION&&menuPage<=PAGE_CLOCATION) || menuPage==PAGE_MATCHUPS || menuPage==PAGE_CHEATS || menuPage==PAGE_CDETAIL || menuPage==PAGE_CINFO || menuPage==PAGE_CSEARCH || menuPage==PAGE_BACKUPS || menuPage==PAGE_RESTORE_CONFIRM || menuPage==PAGE_LOAD_CONFIRM || menuPage==PAGE_QUIT_CONFIRM;
             if (menuPage == PAGE_CONTROLS) // (BUTTONS' preview: the controller connected)
             {
