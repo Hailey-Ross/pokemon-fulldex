@@ -18,3 +18,7 @@ void IosSafeInsets(int* top, int* bottom, int* left, int* right);
 // then takes keys from the keyboard itself, and presses are not turned into keys). Keeps any
 // event filter already set. Call once a window exists; calling again does nothing.
 void IosIgnoreControllerPresses();
+// Whether a hardware keyboard is connected. The list's own keyboard (a new tab, a name, the
+// search) asks SDL for text only then: SDL_StartTextInput also brings up iOS's keyboard, which
+// covered the list's own (the bottom half of an iPad's screen).
+bool IosHardwareKeyboard();

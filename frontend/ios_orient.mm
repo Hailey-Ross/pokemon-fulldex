@@ -155,3 +155,9 @@ void IosIgnoreControllerPresses()
     g_nextFilterData = data;
     SDL_SetEventFilter(DropControllerPresses, nullptr);
 }
+
+bool IosHardwareKeyboard()
+{
+    if (@available(iOS 14.0, *)) return GCKeyboard.coalescedKeyboard != nil;
+    return false;
+}
