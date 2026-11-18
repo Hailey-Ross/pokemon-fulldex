@@ -11137,6 +11137,30 @@ int main(int argc, char** argv)
                 else refreshes = 1;
             }
         }
+        // Fast forward where the game's 3D runs at 30 pictures a second (the gen 4 overworld: a
+        // new 3D frame every second display frame): an odd number of frames a picture (3x, as
+        // the measure above often chose) showed the world 1 and 2 frames on by turns, a judder
+        // that looked like 30 fps (GitHub #178). There it runs an even number (3 becomes 2).
+        // Told by the 3D frames' spacing: always an even number of display frames apart.
+        {
+            static uint64_t lastFlush = 0;
+            static int evenRun = 0, still = 0;
+            const uint64_t lf = nds->GPU.GPU3D.LastFlushVBlank;
+            if (lf == lastFlush) { if (++still >= 4) evenRun = 0; }
+            else
+            {
+                const uint64_t d = lf - lastFlush;
+                still = 0;
+                evenRun = (d % 2 == 0) ? std::min(evenRun + 1, 100) : 0;
+                lastFlush = lf;
+            }
+            static bool told = false;
+            if (speed > 2 && (speed & 1) && evenRun >= 4)
+            {
+                speed--;
+                if (!told) { told = true; fprintf(stderr, "[ff] the 3D runs at half rate: fast forward in even steps (%d)\n", speed); }
+            }
+        }
         // A direction just pressed runs at normal speed for its first quarter of a second. The
         // games repeat a held direction in menus after a few frames: at 4x a quick tap lasted
         // long enough to move the cursor two or three times (shops, the elevator, the Bag).
