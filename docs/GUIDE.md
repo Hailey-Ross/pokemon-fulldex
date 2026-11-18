@@ -54,8 +54,11 @@ games keep their hand-written entries under one QUESTIONS heading.
   levels, species and types; no game text is copied. The Striaton choice and the badge
   order (`badgeIndex`) are this file's.
 - HERE reads the Companion's own metadata (`PlaceName`, `EncounterLines`) for the map
-  the save says the player is on; the item HAVE marks use the bag's item ids (HM01-HM06
-  420-425, BICYCLE 450, DOWSING MCHN 471, SUPER ROD 447).
+  the save says the player is on; the item HAVE marks use the bag's item ids (Black:
+  HM01-HM06 420-425, BICYCLE 450, DOWSING MCHN 471, SUPER ROD 447; HeartGold/SoulSilver
+  and Platinum: HM01-HM08 420-427, BICYCLE 450, OLD/GOOD/SUPER ROD 445-447, DOWSING
+  MCHN 471, SQUIRTBOTTLE 477, and Platinum's VS SEEKER 443, EXPLORER KIT 428 and POKe
+  RADAR 431).
 
 ## Limits and next steps
 
