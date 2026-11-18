@@ -97,6 +97,8 @@ opens the pause menu; **QUIT** there goes back to the list.
 as a DS; hold its right trigger to fast forward. On the keyboard: arrow keys,
 X/Z for A/B, S/A for X/Y, Q/W for L/R, Enter for START, Backspace for SELECT,
 the mouse for the touch screen, Left Shift to fast forward, F5 to save a state and F8 to load it.
+For DS games, **CONTROLS > KEYS AND BUTTONS > RESET GAME** can assign a reset key or controller
+button. It starts unassigned and restarts immediately; progress since your last in-game save is lost.
 The `README.txt` inside has the full list. **CONTROLS > KEYS AND BUTTONS** in the pause menu (or on
 the game list's settings page) changes any of them, including fast forward, swapping the screens,
 save state and load state, on the keyboard and on a controller (the game list follows the ones you change).
@@ -303,8 +305,23 @@ Razer Kishi and others) plays as a DS and hides the on-screen buttons; its
 AND BUTTONS** in the pause menu (and on the game list) changes which button does what,
 including fast forward, swapping the screens, save state and load state.
 
-**Saves** go in a `saves` folder inside your ROMs folder (made for you). The
-settings and `game.log` are in `Android/data/io.github.mamesj.pokemonds/files`.
+**Saves:** the location depends on how your ROMs were added and any folder settings
+you have changed. A shared ROM folder normally has a `saves` folder; imported ROMs
+can use FullDex's app folder under `Android/data/io.github.mamesj.pokemonds/files`,
+which Android file managers may not let you open. Changing the ROM folder does not
+move existing saves.
+
+For saves you can open in a file manager or another emulator, return to the game
+list and open **Settings > Game List > Saves Folder**. Choose a folder on the
+device's shared storage, such as `Documents/FullDex Saves`, and allow the requested
+file access. FullDex copies the current saves there without replacing files already
+in that folder; the old copies stay where they were. If the destination already
+contains a save with the same name, check which copy you want to use before playing.
+If Android will not grant access to the chosen location, choose another folder on
+the device's storage.
+
+The app's startup settings and `game.log` are normally in
+`Android/data/io.github.mamesj.pokemonds/files`.
 
 **What it needs:** Android 7.0 or newer on a 64-bit phone. The 3D world is drawn
 by the processor at 720P to start (3D RESOLUTION in the settings: Y in the list,
@@ -389,11 +406,32 @@ controller, or SETTINGS at the top), or in the pause menu while you play (**Esc*
 | CONTROLS | **KEYS AND BUTTONS** (give any DS button, the pause menu, fast forward, swapping the screens, save state or load state another key or controller button), START BUTTON, BUTTONS, STICK TOUCH CURSOR |
 | SHORTCUTS | DESKTOP SHORTCUTS (PC), HOME MENU ICONS (Switch): a shortcut for each game |
 
+For DS games, **Settings → Playback → AUTO SAVE STATE** optionally keeps a separate
+state every minute, when the app goes into the background and when it exits normally.
+**RESUME ON START** optionally loads that ROM's automatic state on the next start.
+FullDex's embedded GBA player offers the same two options in **Settings → Controls**;
+the choices are shared between DS and GBA, with separate state files for each ROM.
+Both are off by default. Automatic states use the states folder, have a separate
+filename based on the ROM's full CRC and size, and retain the previous successful
+state. Manual slots and the normal in-game save are kept separately. Continue saving
+in the game too: an automatic state is not an in-game save or a cloud backup.
+An invalid automatic state starts normally and pauses automatic writes for that
+session so the damaged file can be recovered; turn resume off to start normally.
+This feature currently covers DS and FullDex's embedded GBA player, not 3DS. Mobile lifecycle behavior
+still depends on the operating system giving the app time to finish writing.
+
 The pause menu also has RESUME, SAVE STATE, LOAD STATE, FAST FORWARD, CHEATS
 ([below](#cheats)), RETROACHIEVEMENTS ([below](#retroachievements)), RESET GAME and QUIT
 (back to the game list). LOAD STATE takes you back to where the state was made but leaves your
 in-game save as it is; saving in the game afterwards writes over it as usual. Not every platform has
 every setting: a phone and the Switch are always full screen, for one.
+
+GBA state slots are replaced only after the new state has been written and closed
+successfully. The previous successful state stays beside the slot as `.ss.previous`;
+an interrupted or failed write stays as `.ss.pending` without replacing the slot.
+If saving fails, keep these files for recovery, check disk space and folder permissions,
+and move the pending file aside before retrying. Close the game before restoring a
+previous state file. These state files are separate from the normal `.sav` save.
 
 ### RetroAchievements
 
@@ -422,7 +460,7 @@ cartridge. Copy it in under the game's name, in this folder:
 | PC (Windows, Linux, Steam Deck) | the `saves` folder beside the program |
 | Linux AppImage | `~/.local/share/pokemon-ds-wide/saves` |
 | Mac | `~/Library/Application Support/Pokemon DS Widescreen/saves` |
-| Android | the `saves` folder inside the folder you chose for your ROMs |
+| Android | your configured **Saves Folder**; otherwise a `saves` folder in the ROM/app folder (see the Android guide above) |
 | iPhone and iPad | Files app: On My iPhone (or iPad) > Pokémon Fulldex > `saves` |
 | Nintendo Switch | `/switch/pokemon-ds-wide/saves/` on the SD card |
 

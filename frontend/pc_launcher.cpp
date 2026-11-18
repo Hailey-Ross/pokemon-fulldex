@@ -1,6 +1,7 @@
 #include <chrono>
 #include "folders.h"
 #include "picture_browser.h"
+#include "linux_folder_picker.h"
 // The PC all-games program's game list. See pc_launcher.h.
 #ifdef SSR_PC_LAUNCHER
 #include "pc_launcher.h"
@@ -1680,6 +1681,13 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
 #elif defined(_WIN32)
                         const std::string dir = PickFolder(window, L"Choose the folder containing your ROMs");
                         if (!dir.empty()) useRomFolder(dir);
+#elif defined(__linux__)
+                        const auto picked = LinuxFolderPicker::Choose(fo.roms, "Choose the folder containing your ROMs");
+                        if (picked.available)
+                        {
+                            if (!picked.path.empty()) useRomFolder(picked.path);
+                        }
+                        else { folderBrowse = fo.roms; folderFirst = 0; showRomFolder(); }
 #else
                         folderBrowse = fo.roms; folderFirst = 0; showRomFolder();
 #endif
@@ -3417,7 +3425,11 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             safeDst.w = ow; safeDst.h = oh;
         }
 #else
-        SDL_GetRendererOutputSize(renderer, &ow, &oh);
+        if (SDL_GetRendererOutputSize(renderer, &ow, &oh) != 0 || ow <= 0 || oh <= 0)
+        {
+            SDL_Delay(16);
+            continue; // Keep pumping lifecycle events while the drawable is recreated.
+        }
 #endif
 #ifdef SSR_PHONE
         // Bound software composition work on high density phone displays. (Drawn at 1280 on the long side and
@@ -4079,9 +4091,7 @@ std::string PickAnyFolder(SDL_Window* window, const std::string& kind)
 #elif defined(__APPLE__) && !defined(SSR_IOS)
     return RunPicker("osascript -e 'POSIX path of (choose folder with prompt \"Choose the folder for your " + what + "\")' 2>/dev/null");
 #elif defined(__linux__) && !defined(__ANDROID__)
-    std::string r = RunPicker("zenity --file-selection --directory --title='Choose the folder for your " + what + "' 2>/dev/null");
-    if (r.empty()) r = RunPicker("kdialog --getexistingdirectory \"$HOME\" 2>/dev/null");
-    return r;
+    return LinuxFolderPicker::Choose(".", "Choose the folder for your " + what).path;
 #else
     return "";
 #endif

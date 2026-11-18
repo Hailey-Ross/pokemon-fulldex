@@ -1290,6 +1290,8 @@ inline void SyncGbaSettings(const std::string& cfg, const std::string& dataDir)
     set.push_back({ "fast_button", ConfigValue(cfg, "fast_button") == "toggle" ? "toggle" : "hold" });
     const std::string fast = ConfigValue(cfg, "fast_lock");
     if (fast == "0" || fast == "1") set.push_back({ "fast_lock", fast });
+    set.push_back({ "auto_state", ConfigValue(cfg, "auto_state") == "1" ? "1" : "0" });
+    set.push_back({ "auto_resume", ConfigValue(cfg, "auto_resume") == "1" ? "1" : "0" });
     const std::string vol = ConfigValue(cfg, "volume");
     set.push_back({ "volume", vol.empty() ? "100" : vol });
 #ifndef __SWITCH__
@@ -1476,7 +1478,14 @@ inline int GlassTabAt(const Canvas& c, int x, int y);
 inline Grid Layout(const Canvas& c)
 {
     Orient(c);
-    Grid g;
+    Grid g{};
+    // Window creation and rotation can query the view before a drawable exists.
+    // Keep its steps valid until a real canvas replaces this temporary layout.
+    if (c.w < 16 || c.h < 16)
+    {
+        g.s = g.tile = g.cols = g.cw = g.ch = g.colStep = g.rowStep = 1;
+        return g;
+    }
     g.s = std::max(1, std::min(c.w, c.h) / 240); // the font's scale: 3 at 720 lines
     if (Glassy(c))
     {

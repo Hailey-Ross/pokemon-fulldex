@@ -83,6 +83,8 @@
 #include "ds_zoom.h"
 #include <bitset>
 #include "state_slots.h"
+#include "auto_state.h"
+#include "CRC32.h"
 #include "rewind_history.h"
 #include "screen_effect.h"
 #include "state_preview.h"
@@ -1592,7 +1594,7 @@ static PadState RemapPad(const PadState& p, const Controls::Bindings& b, bool by
         if (in < 0) continue;
         used[in] = true;
         if (a == Controls::FAST) o.rt = in == Controls::IN_RT ? p.rt : on(in) ? 1.0f : 0.0f;
-        else if (a == Controls::SAVE || a == Controls::LOAD) {} // (a press, beside this)
+        else if (a == Controls::SAVE || a == Controls::LOAD || a == Controls::RESET) {} // physical press shortcuts
         else
         {
             const int dest = Controls::DefaultPad(a, byLabel);
@@ -1623,6 +1625,16 @@ static bool InputHeld(const PadState& p, int in)
     if (in == Controls::IN_LT) return p.lt > 0.5f;
     if (in == Controls::IN_RT) return p.rt > 0.5f;
     return false;
+}
+
+// Zoom belongs to the physical right-stick click, not SWAP's remapped output. The default
+// SWAP binding lends its click to zoom when the touch cursor is off; an explicit binding
+// (including another action taking R3) must keep its assigned meaning.
+static bool ZoomPressed(const PadState& now, const PadState& before, const Controls::Bindings& b, bool byLabel)
+{
+    const int action = b.ActionOfPad(Controls::IN_RS, byLabel);
+    const bool available = action < 0 || (action == Controls::SWAP && b.pad[Controls::SWAP] == -1);
+    return available && now.btn[PAD_RS] && !before.btn[PAD_RS];
 }
 
 // DS buttons from the controller. With byLabel the button printed "A" is A on any pad;
@@ -1686,6 +1698,7 @@ struct Settings : OptionalFeatures
     bool zoom = true, zoomText = true; // ZOOM AND LOOK AROUND, AUTO ZOOM IN (ds_zoom.h)
     bool fastButtonToggle = false;
     bool fastLock = false; // pause-menu FAST FORWARD, retained for the next launch
+    bool autoState = false, autoResume = false;
     int screenFilter=0;
     bool companionOverlay=false,partyHud=false;
     // STATUS BAR: a slim strip at the top while you play: the area, Poke Balls, the time, the battery.
@@ -1808,6 +1821,8 @@ struct Settings : OptionalFeatures
             else if (k == "ff_low_res") ffLowRes = v == "1";
             else if (k == "fast_button") fastButtonToggle = v == "toggle";
             else if (k == "fast_lock") fastLock = v == "1";
+            else if (k == "auto_state") autoState = v == "1";
+            else if (k == "auto_resume") autoResume = v == "1";
             else if (k == "fast_speed") fastSpeed = std::clamp(atoi(v.c_str()),2,8);
             else if (k == "slow_divisor") slowDivisor = v=="4"?4:v=="2"?2:1;
             else if (k == "rewind_mb") rewindMb = v=="128"?128:v=="64"?64:0;
@@ -1877,6 +1892,8 @@ struct Settings : OptionalFeatures
         f << "ff_low_res=" << (ffLowRes ? 1 : 0) << "\n";
         f << "fast_button=" << (fastButtonToggle ? "toggle" : "hold") << "\n";
         f << "fast_lock=" << (fastLock ? 1 : 0) << "\n";
+        f << "auto_state=" << (autoState ? 1 : 0) << "\n";
+        f << "auto_resume=" << (autoResume ? 1 : 0) << "\n";
         f << "fast_speed=" << fastSpeed << "\n";
         f << "slow_divisor=" << slowDivisor << "\n";
         f << "rewind_mb=" << rewindMb << "\n";
@@ -2191,6 +2208,20 @@ int main(int argc, char** argv)
     }
     // (RETROACHIEVEMENTS finds the game's set by the ROM's fingerprint: taken while the ROM is here.)
     const std::string romFingerprint = !opt.headless && !opt.lockstep ? Achievements::Fingerprint(rom) : std::string();
+    // States must not cross into a changed dump/hack sharing the same save basename.
+    const size_t autoRomBytes = rom.size();
+    // (Its identity: RetroAchievements' fingerprint, which covers the game's code, and 4 KB of every
+    // 256 KB of the rest, so a changed dump or hack gets its own; reading every byte of a 512 MB ROM
+    // at every start cost about a second on the Switch, the feature on or off.)
+    uint32_t autoRomCrc = 0;
+    if (!opt.headless && !opt.lockstep)
+    {
+        std::vector<u8> probe(romFingerprint.begin(), romFingerprint.end());
+        for (size_t at = 0; at < rom.size(); at += 256 * 1024)
+            probe.insert(probe.end(), rom.begin() + at, rom.begin() + std::min(rom.size(), at + 4096));
+        if (rom.size() > 4096) probe.insert(probe.end(), rom.end() - 4096, rom.end());
+        autoRomCrc = CRC32(probe.data(), (int)probe.size());
+    }
     // The cartridge has its own copy now; Black 2's ROM is about 300 MB, which counts on the Switch.
     const int companionRevision=rom.size()>0x1E?rom[0x1E]:-1;
     const Companion::Profile companionProfile=Companion::ProfileFor(gameCode,companionRevision);
@@ -2315,6 +2346,11 @@ int main(int argc, char** argv)
     const std::string quickState = FolderSet::StateOf(opt.save); // (FOLDERS: in the states folder, or beside the save)
     std::string pendingState = quickState;
     const std::string undoLoadState = quickState + ".undo-load";
+    const std::string autoStatePath = AutoState::Path(quickState, autoRomCrc, autoRomBytes);
+    const bool autoStateAllowed = !opt.headless && !opt.lockstep && !opt.noSave;
+    bool autoStateBlocked = false;
+    std::string autoStateNote;
+    AutoState::Timer autoStateTimer;
     RewindHistory rewindHistory;
     ScreenEffect screenEffect;
     StatePreview statePreview;
@@ -2389,6 +2425,45 @@ int main(int argc, char** argv)
 #endif
     for (const std::string& kv : opt.sets) cfg.Apply(kv);
     if (!opt.sets.empty() || opt.keepSettings) cfg.readOnly = true;
+    if (autoStateAllowed && cfg.autoResume && opt.stateLoad.empty() && AutoState::Present(autoStatePath))
+    {
+        std::vector<u8> keep;
+        if (const u8* cur = nds->GetNDSSave(); cur && nds->GetNDSSaveLength())
+            keep.assign(cur, cur + nds->GetNDSSaveLength());
+        Savestate before;
+        if (!nds->DoSavestate(&before) || before.Error)
+        {
+            autoStateBlocked = true;
+            autoStateNote = "AUTO RESUME SKIPPED - COULD NOT KEEP RECOVERY STATE";
+        }
+        else
+        {
+            before.Finish();
+            bool touched = false;
+            const uint32_t oldFrame = frame;
+            const bool loaded = ReadSnapshot(*nds, autoStatePath, &frame, &touched);
+            if (!loaded)
+            {
+                frame = oldFrame;
+                if (touched)
+                {
+                    Savestate recovery(before.Buffer(), before.Length(), false);
+                    if (recovery.Error || !nds->DoSavestate(&recovery) || recovery.Error)
+                    {
+                        fprintf(stderr, "[auto-state] invalid state and recovery failed; stopping without saving\n");
+                        return 1;
+                    }
+                }
+                // Keep the damaged state for investigation; don't rotate over it on exit.
+                autoStateBlocked = true;
+                autoStateNote = "INVALID AUTO STATE - STARTING NORMALLY; AUTO SAVE PAUSED";
+            }
+            else autoStateNote = "AUTO STATE RESUMED - IN-GAME SAVE KEPT";
+            if (!keep.empty()) nds->SetNDSSave(keep.data(), (u32)keep.size());
+            rc_reset(); pk_nds_call_reset(); Achievements::Reset(); SetClock(*nds, false);
+        }
+        fprintf(stderr, "[auto-state] %s\n", autoStateNote.c_str());
+    }
     exclusives.on = cfg.bothVersions && exclusives.Supported();
 #ifdef __SWITCH__
     // (No CPU BOOST any more: the system kept taking its boost mode away and the game dropped
@@ -2486,6 +2561,7 @@ int main(int argc, char** argv)
     bool syncToDisplay = false;
     int refreshesPerFrame = 1;
     bool swapPaced = false; // (Linux, 120 Hz and up: the driver holds each picture refreshesPerFrame refreshes)
+    int swapQuick = 0;      // (pictures in a row the driver handed back at once: it said it paces them, but does not)
     double refreshPeriod = 1001.0 / 60000.0;
     double screenPace = 0; // Android: seconds a picture when the frames keep the screen's rate (0: the DS's own)
     SDL_Renderer* renderer = nullptr;
@@ -5809,7 +5885,7 @@ int main(int argc, char** argv)
         M_QUIT_YES, M_RESET_YES, // (QUIT GAME / RESET GAME asked first: PAGE_QUIT_CONFIRM)
         M_SHORTCUTS, // (CONTROLS: Fulldex's own four shortcuts, opening KEYS AND BUTTONS at them)
         M_EXTRAS, M_EXTRA0=92000, M_EXTRA_END=92006, M_PLAYBACK=93000, M_FAST_SPEED, M_SMART_FAST, M_SLOW_MOTION, M_REWIND_MB, M_REWIND, M_TURBO_A, M_SCREEN_FILTER, M_COMPANION_OVERLAY, M_PARTY_HUD, M_STATUS_BAR, M_LIVE_GLASS, M_FAST_BUTTON, M_ZOOM, M_ZOOM_TEXT,
-        M_STATES, M_SLOT_SAVE, M_SLOT_LOAD, M_SLOT_PREVIOUS, M_UNDO_LOAD,
+        M_STATES, M_SLOT_SAVE, M_SLOT_LOAD, M_SLOT_PREVIOUS, M_UNDO_LOAD, M_AUTO_STATE, M_AUTO_RESUME,
         M_KEY0=94000, M_KEY_LAYER=94900, M_KEY_SPACE, M_KEY_DEL, M_KEY_DONE, M_KEY_SYMBOLS, // (the keyboard's keys, Menu::keyGrid: SEARCH, the log in)
         M_FLY0=96000, M_CPARTY0=80000, M_CDEX0=81000, M_CITEM0=83000, M_RRESULT0=86000, M_SLOT0=90000, M_GUIDE0=91000,
         M_BACKUP0 = 70000,
@@ -5897,7 +5973,7 @@ int main(int argc, char** argv)
     bool captureReleased = false;
     bool navHoldOff = false; // (the button just given: ignored by the menu until let go)
     PadState physPad, prevPhysPad; // the controller as it is, before RemapPad
-    bool saveEdge = false, loadEdge = false; // (SAVE STATE / LOAD STATE: the button just pressed)
+    bool saveEdge = false, loadEdge = false, resetEdge = false, zoomEdge = false; // physical shortcut presses
     const int ctlRow0 = ctlHasKeyboard ? 1 : 0; // the first action's row
     const int ctlRowReset = ctlRow0 + Controls::COUNT, ctlRowBack = ctlRowReset + 1;
     // KEYS AND BUTTONS as a settings page: what each row is (an action, 0 and up, or KR_*), as the
@@ -5962,7 +6038,7 @@ int main(int argc, char** argv)
             {
                 menu.listShare = 0.5f;
                 static const char* const shortName[Controls::COUNT] = { "A", "B", "X", "Y", "L", "R", "START", "SELECT", "UP", "DOWN", "LEFT", "RIGHT",
-                                                                        "MENU", "FAST", "SWAP", "SAVE", "LOAD" };
+                                                                        "MENU", "FAST", "SWAP", "SAVE", "LOAD", "RESET" };
                 menu.padLabels.assign(Controls::IN_COUNT, std::string());
                 for (int a = 0; a < Controls::COUNT; a++)
                 {
@@ -6510,6 +6586,12 @@ int main(int argc, char** argv)
             picker(M_SLOW_MOTION, "SLOW MOTION", Glass::I_GAUGE, Menu::P_NONE, { "OFF", "1/2", "1/4" }, cfg.slowDivisor == 4 ? 2 : cfg.slowDivisor == 2 ? 1 : 0,
                    "Run the game at half or a quarter of its speed.", "Handy for tricky timing.");
             section("ASSIST", Glass::I_REWIND);
+            toggle(M_AUTO_STATE, "AUTO SAVE STATE", Glass::I_SAVE, Menu::P_NONE, cfg.autoState,
+                   "Keep a separate DS state every minute, when backgrounded and on exit. Manual slots stay as they are.",
+                   "Off by default. This does not replace saving in the game.");
+            toggle(M_AUTO_RESUME, "RESUME ON START", Glass::I_LOAD, Menu::P_NONE, cfg.autoResume,
+                   "Start this DS ROM from its automatic state when available. Your in-game save is kept.",
+                   "Turn off to start normally. Changed ROMs use separate automatic states.");
             toggle(M_TURBO_A, "TURBO A", Glass::I_PAD, Menu::P_NONE, cfg.turboA,
                    "Holding A presses it again and again.", "Speeds through text and repeated choices.");
             picker(M_REWIND_MB, "REWIND MEMORY", Glass::I_REWIND, Menu::P_NONE, { "OFF", "64 MB", "128 MB" }, cfg.rewindMb == 128 ? 2 : cfg.rewindMb == 64 ? 1 : 0,
@@ -7923,6 +8005,19 @@ int main(int argc, char** argv)
         say(saved?"STATE SAVED":"SAVE STATE FAILED - PREVIOUS STATE KEPT");
     };
     auto saveQuick = [&]() {saveAt(quickState);};
+    auto saveAutomatic = [&]() {
+        if (!autoStateAllowed || !cfg.autoState || autoStateBlocked || !frame) return;
+        const bool saved = StateSlots::Save(autoStatePath, [&](const std::string& temporary) {
+            return WriteSnapshot(*nds, temporary, frame);
+        });
+        autoStateTimer.Saved(SDL_GetTicks());
+        fprintf(stderr, "[auto-state] %s frame=%u\n", saved ? "saved" : "failed; prior state kept", frame);
+        if (!saved)
+        {
+            autoStateBlocked = true;
+            say("AUTO STATE FAILED - PREVIOUS STATE KEPT");
+        }
+    };
     auto resetGame = [&]() {
         rewindHistory.Clear();
         pk_nds_call_reset();flyCheckJob=flyJob=0;
@@ -8719,6 +8814,18 @@ int main(int argc, char** argv)
             // returns at once must not be treated as a refresh, or the next picture is asked
             // for 2 ms early every frame and the game runs away faster than the screen.
             const double blocked = lastShownAt ? (double)(returned - lastShownAt) / perfFreq : 0;
+            // (#211: a driver can accept the swap interval and then ignore it, NVIDIA PRIME offload
+            // on X11: every picture comes back at once and the game ran 3.5 times too fast. Twelve
+            // in a row and FullDex paces them itself, as when the swap interval is refused.)
+            if (swapPaced)
+            {
+                swapQuick = blocked > 0.0005 ? 0 : swapQuick + 1;
+                if (swapQuick >= 12)
+                {
+                    swapPaced = false;
+                    fprintf(stderr, "[display] the driver took the swap interval but does not hold the pictures: FullDex paces them itself\n");
+                }
+            }
             if (lastRefresh && blocked > 0.0005)
             {
                 const double observed = (double)(returned - lastRefresh) / perfFreq;
@@ -9121,6 +9228,7 @@ int main(int argc, char** argv)
                 else if (ev.type == SDL_APP_WILLENTERBACKGROUND || ev.type == SDL_APP_TERMINATING)
                 {
                     // A phone may close the app at any time once it is in the background.
+                    saveAutomatic();
                     if (!opt.noSave) FlushSave(opt.save);
                     cfg.Save(opt.config);
                 }
@@ -9230,6 +9338,7 @@ int main(int argc, char** argv)
                     else if (act == Controls::SWAP) focus.manualFlip = !focus.manualFlip;
                     else if (act == Controls::SAVE) saveQuick();
                     else if (act == Controls::LOAD) loadQuick();
+                    else if (act == Controls::RESET) { resetGame(); say("GAME RESET"); }
                     else if (act >= 0) {} // (a DS button, or fast forward: read as held, below)
                     else if (k == SDLK_TAB) layout = LayoutNext(layout);
                     else if (k == SDLK_F2) focus.mode = (focus.mode + 1) % 3;
@@ -9592,8 +9701,11 @@ int main(int argc, char** argv)
         {
             const int saveIn = cfg.controls.Pad(Controls::SAVE, cfg.byLabel);
             const int loadIn = cfg.controls.Pad(Controls::LOAD, cfg.byLabel);
+            const int resetIn = cfg.controls.Pad(Controls::RESET, cfg.byLabel);
             saveEdge = !menu.open && InputHeld(physPad, saveIn) && !InputHeld(prevPhysPad, saveIn);
             loadEdge = !menu.open && InputHeld(physPad, loadIn) && !InputHeld(prevPhysPad, loadIn);
+            resetEdge = fastInputFocused && !menu.open && InputHeld(physPad, resetIn) && !InputHeld(prevPhysPad, resetIn);
+            zoomEdge = !menu.open && ZoomPressed(physPad, prevPhysPad, cfg.controls, cfg.byLabel);
         }
         prevPhysPad = physPad;
         if (navHoldOff)
@@ -10104,6 +10216,8 @@ int main(int argc, char** argv)
             case M_PLAYBACK:goPage(PAGE_PLAYBACK,M_FAST_SPEED);hit=-1;break;
             case M_FAST_BUTTON:
                 cfg.fastButtonToggle = !cfg.fastButtonToggle; cfg.Save(opt.config); fastButton.Block(); break;
+            case M_AUTO_STATE:cfg.autoState=!cfg.autoState;cfg.Save(opt.config);break;
+            case M_AUTO_RESUME:cfg.autoResume=!cfg.autoResume;cfg.Save(opt.config);break;
             case M_FAST_SPEED:
             {
                 static const int speeds[]={2,3,4,8};int i=0;while(i<3&&speeds[i]<cfg.fastSpeed)i++;
@@ -10586,6 +10700,7 @@ int main(int argc, char** argv)
             static long testQuickFrames = 0;
             if (saveEdge || (testQuickSave >= 0 && ++testQuickFrames == testQuickSave)) saveQuick();
             if (loadEdge) loadQuick();
+            if (resetEdge) { resetGame(); say("GAME RESET"); }
             PadState toGame = ps;
             if (cfg.startMenu && ctrlStart) toGame.btn[PAD_START] = touchStart; // (START is the menu's)
             if (fdNav.open) toGame = PadState(); // (FULLDEX NAV's buttons are its own)
@@ -10607,7 +10722,7 @@ int main(int argc, char** argv)
             if (!padTouchNow && cfg.controls.pad[Controls::SWAP] >= 0 && pressed(PAD_RS)) focus.manualFlip = !focus.manualFlip;
             // (ZOOM: a click of the right stick steps it, the right stick looks around; not while the stick is the
             // touch cursor, nor when the click is SWAP SCREENS.)
-            if (!padTouchNow && cfg.controls.pad[Controls::SWAP] < 0 && pressed(PAD_RS)) dsZoomCycle = true;
+            if (!padTouchNow && zoomEdge) dsZoomCycle = true;
             if (!padTouchNow)
             {
                 if (fabsf(ps.rx) > fabsf(dsZoomSX)) dsZoomSX = ps.rx;
@@ -13311,6 +13426,8 @@ int main(int argc, char** argv)
         }
 
         const bool cloudDirty = !opt.noSave && frame % 120 == 0 && Host::SaveIsDirty;
+        if (!autoStateNote.empty()) { say(autoStateNote); autoStateNote.clear(); }
+        if (autoStateTimer.Due(SDL_GetTicks(), autoStateAllowed && cfg.autoState && !autoStateBlocked, paused)) saveAutomatic();
         if (!opt.noSave && frame % 120 == 0 && !FlushSave(opt.save))
             say("SAVE FAILED - CHECK DISK SPACE AND SAVE FOLDER");
         // (Cloud saves: the save just written goes up a little later; what happened at the start is said.)
@@ -13338,6 +13455,7 @@ int main(int argc, char** argv)
         fflush(stderr);
     };
     exitStep("saving");
+    saveAutomatic();
     if (!opt.noSave && !FlushSave(opt.save) && !opt.headless)
         SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "FullDex save failed",
             "Your latest progress could not be written reliably. Check disk space and save-folder permissions. Keep the save and .tmp files for recovery.", window);

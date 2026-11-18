@@ -105,6 +105,11 @@ int Update(Page& page, const Input& in, int& dir);
 // slider: 0 to 10 when a slider's bar was tapped, else -1. pick: the choice card tapped in the
 // preview (for the chosen row), else -1.
 void Tap(Page& page, int x, int y, Input& out, int& slider, int& pick);
+// A finger on the pause menu: scrollable pages defer taps until release, so a swipe
+// scrolls without activating the row. Mouse clicks can continue to use Tap.
+enum TouchPhase { TOUCH_DOWN, TOUCH_MOVE, TOUCH_UP };
+void Touch(Page& page, TouchPhase phase, int64_t finger, int x, int y, Input& out, int& slider, int& pick);
+void CancelTouch();
 // The page drawn at w x h (ARGB, alpha as the DS menu's canvas). changed: false when it is the
 // same picture as the last call's.
 const uint32_t* Draw(const Page& page, int w, int h, bool& changed);
