@@ -30,6 +30,8 @@
 - **3DS games fill a phone's wide screen by default.** Aspect Ratio starts at Fill screen: on a 20:9 phone the game fills the screen with more of the world at the sides (Ultra Sun and Ultra Moon's field too, which stayed 16:9). On 16:9 screens it looks as before; a saved choice is kept.
 - **Ultra Sun and Ultra Moon: the opening movie and title screen show again.** They stayed black until a button was pressed, on every platform.
 - **Omega Ruby and Alpha Sapphire: the speech box is whole in widescreen.** Its ends were stretched apart from its middle (a step at the left, the white past the frame at the right); it now keeps the 3DS's own width, centred.
+- **3DS games on phones: the Menu button stays when the touch controls are off,** so the menu (and the setting to bring them back) can always be reached without a controller.
+- **3DS games in fullscreen hide the mouse pointer** while you play with a controller; it comes back for a moment when the mouse moves.
 - **Game Options in the launcher** keeps its focus and opens the selected game's menu under the button (#191).
 - **About > Credits:** OzWookiee, Saiborg23 and elripalda.
 
