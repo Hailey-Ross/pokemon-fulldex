@@ -148,7 +148,7 @@ struct SetupJob
 };
 inline SetupJob& SJ() { static SetupJob j; return j; }
 
-inline std::string SetupFolderName(const std::string& code) { return code == "ECLA" ? "pokemon-alpha-sapphire" : "omega-nx"; }
+inline std::string SetupFolderName(const std::string& code) { return SwitchFolder(code); }
 inline std::string SetupToolsDir(const std::string& appDir)
 {
     if (const char* t = getenv("FULLDEX_BUILDER_TOOLS")) if (*t) return t;
@@ -337,7 +337,7 @@ inline void SetupStart(const std::string& drive, bool toFolder)
             SetEnvironmentVariableW(L"FD_GAME", W(Slashes(rom)).c_str());
             SetEnvironmentVariableW(L"FD_OUT", W(Slashes(out)).c_str());
             SetEnvironmentVariableW(L"FD_ID", W(id).c_str());
-            SetEnvironmentVariableW(L"FD_NAME", W(code == "ECLA" ? "Pokemon Alpha Sapphire" : "Pokemon Omega Ruby").c_str());
+            SetEnvironmentVariableW(L"FD_NAME", W(ProgramName(code)).c_str());
             SetEnvironmentVariableW(L"FD_TITLES", W(Slashes(ProgramDir(appDir) + "/titles/" + id)).c_str());
             SetEnvironmentVariableW(L"FD_MISSING", W(nMissing ? Slashes(missing) : std::string()).c_str());
             SetEnvironmentVariableW(L"FD_COPY_DUMP", copyDump ? L"1" : L"0");

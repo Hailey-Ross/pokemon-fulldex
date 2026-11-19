@@ -595,7 +595,7 @@ Save to it from the game's menu	Im Spielmenü darauf speichern
 Choose a slot to play from it, or delete it. Save to the slots from the game's menu.	Wähle einen Platz, um davon zu spielen oder ihn zu löschen. Gespeichert wird im Spielmenü.
 Fulldex backs up this save every time the game starts and before anything here changes it. Your ROM is never changed.	Fulldex sichert diesen Spielstand bei jedem Spielstart und bevor hier etwas daran geändert wird. Dein ROM wird nie verändert.
 The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.	Die GBA-Spiele haben je einen Speicherzustand, im Spielmenü gespeichert und geladen. Plätze gibt es für die DS-Spiele.
-Omega Ruby and Alpha Sapphire have no save states: they save from the game's own menu. Save state slots are for the DS games.	Omega Rubin und Alpha Saphir haben keine Speicherzustände: Sie speichern im Menü des Spiels. Plätze gibt es für die DS-Spiele.
+3DS games have no save states: they save from the game's own menu. Save state slots are for the DS games.	3DS-Spiele haben keine Speicherzustände: Sie speichern im Menü des Spiels. Plätze gibt es für die DS-Spiele.
 Keep This One	Diesen behalten
 Choose A File...	Datei wählen...
 Restore Backup	Sicherung wiederherstellen
@@ -718,6 +718,11 @@ Get {} Ready On A Windows PC	{} auf einem Windows-PC vorbereiten
 Copy {}.so to your phone, into the same folder as your ROMs (USB cable, Google Drive, anything).	Kopiere {}.so auf dein Handy, in denselben Ordner wie deine ROMs (USB-Kabel, Google Drive, egal wie).
 FullDex on your phone finds it by itself and the game runs at full speed.	FullDex auf deinem Handy findet sie von selbst und das Spiel läuft mit voller Geschwindigkeit.
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): THEN IT BUILDS	{} WIRD ZU FULLDEX HINZUGEFÜGT (EINMALIG, ETWA 2 GB): DANACH WIRD ES ERSTELLT
+{}: NOT A 3DS GAME FULLDEX PLAYS (OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)	{}: KEIN VON FULLDEX UNTERSTÜTZTES 3DS-SPIEL (OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)
+THAT FILE IS NOT A 3DS GAME FULLDEX PLAYS	DIESE DATEI IST KEIN VON FULLDEX UNTERSTÜTZTES 3DS-SPIEL
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 4 GB): THEN IT BUILDS	{} WIRD ZU FULLDEX HINZUGEFÜGT (EINMALIG, ETWA 4 GB): DANACH WIRD ES ERSTELLT
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): IT STARTS WHEN READY	{} WIRD ZU FULLDEX HINZUGEFÜGT (EINMALIG, ETWA 2 GB): ES STARTET, SOBALD ES BEREIT IST
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 4 GB): IT STARTS WHEN READY	{} WIRD ZU FULLDEX HINZUGEFÜGT (EINMALIG, ETWA 4 GB): ES STARTET, SOBALD ES BEREIT IST
 )FDXLANG";
 static const char* const kLauncherLang_es = u8R"FDXLANG(# Fulldex launcher: Español. One line each: the English, a tab, the Español. {} stands for a name or number.
 Game Options	Opciones del juego
@@ -1313,7 +1318,7 @@ Save to it from the game's menu	Guarda en ella desde el menú del juego
 Choose a slot to play from it, or delete it. Save to the slots from the game's menu.	Elige una ranura para jugar desde ella o borrarla. Se guarda desde el menú del juego.
 Fulldex backs up this save every time the game starts and before anything here changes it. Your ROM is never changed.	Fulldex hace una copia de esta partida cada vez que empieza el juego y antes de cambiarla aquí. Tu ROM nunca se modifica.
 The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.	Los juegos de GBA tienen un estado guardado cada uno, desde el menú del juego. Las ranuras son para los juegos de DS.
-Omega Ruby and Alpha Sapphire have no save states: they save from the game's own menu. Save state slots are for the DS games.	Rubí Omega y Zafiro Alfa no tienen estados guardados: se guarda desde el menú del juego. Las ranuras son para los juegos de DS.
+3DS games have no save states: they save from the game's own menu. Save state slots are for the DS games.	Los juegos de 3DS no tienen estados guardados: se guardan desde el menú del propio juego. Las ranuras de estado son para los juegos de DS.
 Keep This One	Quedarme con esta
 Choose A File...	Elegir un archivo...
 Restore Backup	Restaurar copia
@@ -1436,6 +1441,11 @@ Get {} Ready On A Windows PC	Prepara {} en un PC con Windows
 Copy {}.so to your phone, into the same folder as your ROMs (USB cable, Google Drive, anything).	Copia {}.so a tu móvil, en la misma carpeta que tus ROMs (cable USB, Google Drive, lo que sea).
 FullDex on your phone finds it by itself and the game runs at full speed.	FullDex en tu móvil lo encuentra solo y el juego va a toda velocidad.
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): THEN IT BUILDS	AÑADIENDO {} A FULLDEX (UNA VEZ, UNOS 2 GB): DESPUÉS SE CREA
+{}: NOT A 3DS GAME FULLDEX PLAYS (OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)	{}: NO ES UN JUEGO DE 3DS COMPATIBLE CON FULLDEX (OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)
+THAT FILE IS NOT A 3DS GAME FULLDEX PLAYS	ESE ARCHIVO NO ES UN JUEGO DE 3DS COMPATIBLE CON FULLDEX
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 4 GB): THEN IT BUILDS	AÑADIENDO {} A FULLDEX (UNA VEZ, UNOS 4 GB): DESPUÉS SE CREA
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): IT STARTS WHEN READY	AÑADIENDO {} A FULLDEX (UNA VEZ, UNOS 2 GB): EMPIEZA CUANDO ESTÉ LISTO
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 4 GB): IT STARTS WHEN READY	AÑADIENDO {} A FULLDEX (UNA VEZ, UNOS 4 GB): EMPIEZA CUANDO ESTÉ LISTO
 )FDXLANG";
 static const char* const kLauncherLang_fr = u8R"FDXLANG(# Fulldex launcher: Français. One line each: the English, a tab, the Français. {} stands for a name or number.
 Game Options	Options du jeu
@@ -2031,7 +2041,7 @@ Save to it from the game's menu	Sauvegardez-y depuis le menu du jeu
 Choose a slot to play from it, or delete it. Save to the slots from the game's menu.	Choisissez un emplacement pour y jouer ou le supprimer. On sauvegarde depuis le menu du jeu.
 Fulldex backs up this save every time the game starts and before anything here changes it. Your ROM is never changed.	Fulldex sauvegarde ce fichier à chaque lancement et avant toute modification ici. Votre ROM n'est jamais modifiée.
 The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.	Les jeux GBA ont un état sauvegardé chacun, depuis le menu du jeu. Les emplacements sont pour les jeux DS.
-Omega Ruby and Alpha Sapphire have no save states: they save from the game's own menu. Save state slots are for the DS games.	Rubis Oméga et Saphir Alpha n'ont pas d'états sauvegardés : on sauvegarde depuis le menu du jeu. Les emplacements sont pour les jeux DS.
+3DS games have no save states: they save from the game's own menu. Save state slots are for the DS games.	Les jeux 3DS n'ont pas de sauvegardes d'état : on sauvegarde depuis le menu du jeu. Les emplacements sont pour les jeux DS.
 Keep This One	Garder celle-ci
 Choose A File...	Choisir un fichier...
 Restore Backup	Restaurer
@@ -2154,6 +2164,11 @@ Get {} Ready On A Windows PC	Prépare {} sur un PC Windows
 Copy {}.so to your phone, into the same folder as your ROMs (USB cable, Google Drive, anything).	Copie {}.so sur ton téléphone, dans le même dossier que tes ROMs (câble USB, Google Drive, peu importe).
 FullDex on your phone finds it by itself and the game runs at full speed.	FullDex sur ton téléphone le trouve tout seul et le jeu tourne à pleine vitesse.
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): THEN IT BUILDS	AJOUT DE {} À FULLDEX (UNE FOIS, ENVIRON 2 GO) : ENSUITE IL EST CRÉÉ
+{}: NOT A 3DS GAME FULLDEX PLAYS (OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)	{}: CE N'EST PAS UN JEU 3DS PRIS EN CHARGE PAR FULLDEX (OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)
+THAT FILE IS NOT A 3DS GAME FULLDEX PLAYS	CE FICHIER N'EST PAS UN JEU 3DS PRIS EN CHARGE PAR FULLDEX
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 4 GB): THEN IT BUILDS	AJOUT DE {} À FULLDEX (UNE FOIS, ENVIRON 4 GO) : ENSUITE IL EST CRÉÉ
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): IT STARTS WHEN READY	AJOUT DE {} À FULLDEX (UNE FOIS, ENVIRON 2 GO) : IL DÉMARRE QUAND IL EST PRÊT
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 4 GB): IT STARTS WHEN READY	AJOUT DE {} À FULLDEX (UNE FOIS, ENVIRON 4 GO) : IL DÉMARRE QUAND IL EST PRÊT
 )FDXLANG";
 static const char* const kLauncherLang_it = u8R"FDXLANG(# Fulldex launcher: Italiano. One line each: the English, a tab, the Italiano. {} stands for a name or number.
 Game Options	Opzioni di gioco
@@ -2749,7 +2764,7 @@ Save to it from the game's menu	Salva qui dal menu del gioco
 Choose a slot to play from it, or delete it. Save to the slots from the game's menu.	Scegli uno slot per giocare da lì o eliminarlo. Si salva dal menu del gioco.
 Fulldex backs up this save every time the game starts and before anything here changes it. Your ROM is never changed.	Fulldex fa un backup di questo salvataggio a ogni avvio e prima di qualsiasi modifica qui. La tua ROM non viene mai modificata.
 The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.	I giochi GBA hanno uno stato salvato ciascuno, dal menu del gioco. Gli slot sono per i giochi DS.
-Omega Ruby and Alpha Sapphire have no save states: they save from the game's own menu. Save state slots are for the DS games.	Rubino Omega e Zaffiro Alpha non hanno stati salvati: si salva dal menu del gioco. Gli slot sono per i giochi DS.
+3DS games have no save states: they save from the game's own menu. Save state slots are for the DS games.	I giochi 3DS non hanno stati di salvataggio: si salva dal menu del gioco. Gli slot sono per i giochi DS.
 Keep This One	Tieni questo
 Choose A File...	Scegli un file...
 Restore Backup	Ripristina backup
@@ -2872,6 +2887,11 @@ Get {} Ready On A Windows PC	Prepara {} su un PC Windows
 Copy {}.so to your phone, into the same folder as your ROMs (USB cable, Google Drive, anything).	Copia {}.so sul telefono, nella stessa cartella delle tue ROM (cavo USB, Google Drive, come vuoi).
 FullDex on your phone finds it by itself and the game runs at full speed.	FullDex sul telefono lo trova da solo e il gioco va alla massima velocità.
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): THEN IT BUILDS	AGGIUNTA DI {} A FULLDEX (UNA VOLTA, CIRCA 2 GB): POI VIENE CREATO
+{}: NOT A 3DS GAME FULLDEX PLAYS (OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)	{}: NON È UN GIOCO 3DS COMPATIBILE CON FULLDEX (OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)
+THAT FILE IS NOT A 3DS GAME FULLDEX PLAYS	QUEL FILE NON È UN GIOCO 3DS COMPATIBILE CON FULLDEX
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 4 GB): THEN IT BUILDS	AGGIUNTA DI {} A FULLDEX (UNA VOLTA, CIRCA 4 GB): POI VIENE CREATO
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): IT STARTS WHEN READY	AGGIUNTA DI {} A FULLDEX (UNA VOLTA, CIRCA 2 GB): PARTE QUANDO È PRONTO
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 4 GB): IT STARTS WHEN READY	AGGIUNTA DI {} A FULLDEX (UNA VOLTA, CIRCA 4 GB): PARTE QUANDO È PRONTO
 )FDXLANG";
 static const char* const kLauncherLang_ja = u8R"FDXLANG(# Fulldex launcher: 日本語. One line each: the English, a tab, the 日本語. {} stands for a name or number.
 Game Options	ゲームオプション
@@ -3467,7 +3487,7 @@ Save to it from the game's menu	ゲームのメニューから保存します
 Choose a slot to play from it, or delete it. Save to the slots from the game's menu.	スロットを選ぶとそこから遊ぶか削除できます。保存はゲームのメニューから。
 Fulldex backs up this save every time the game starts and before anything here changes it. Your ROM is never changed.	Fulldex は起動のたびと、ここで変更する前にこのセーブをバックアップします。ROM は変更されません。
 The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.	GBA のゲームはステートを一つずつ持ち、ゲームのメニューで保存・読み込みします。スロットは DS のゲーム用です。
-Omega Ruby and Alpha Sapphire have no save states: they save from the game's own menu. Save state slots are for the DS games.	オメガルビーとアルファサファイアにはステートセーブがありません。ゲームのメニューでセーブします。スロットは DS のゲーム用です。
+3DS games have no save states: they save from the game's own menu. Save state slots are for the DS games.	3DS のゲームにはステートセーブがありません。ゲームのメニューでセーブします。スロットは DS のゲーム用です。
 Keep This One	こちらを残す
 Choose A File...	ファイルを選ぶ...
 Restore Backup	バックアップを戻す
@@ -3590,6 +3610,11 @@ Get {} Ready On A Windows PC	Windows PCで{}を準備する
 Copy {}.so to your phone, into the same folder as your ROMs (USB cable, Google Drive, anything).	{}.soをスマホのROMと同じフォルダにコピーしてください（USBケーブル、Googleドライブなど何でも）。
 FullDex on your phone finds it by itself and the game runs at full speed.	スマホのFullDexが自動で見つけ、ゲームがフルスピードで動きます。
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): THEN IT BUILDS	{}をFULLDEXに追加中（初回のみ、約2 GB）：その後作成します
+{}: NOT A 3DS GAME FULLDEX PLAYS (OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)	{}: FULLDEX で遊べる 3DS ソフトではありません（オメガルビー、アルファサファイア、ウルトラサン、ウルトラムーン）
+THAT FILE IS NOT A 3DS GAME FULLDEX PLAYS	そのファイルは FULLDEX で遊べる 3DS ソフトではありません
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 4 GB): THEN IT BUILDS	{}をFULLDEXに追加中（初回のみ、約4 GB）：その後作成します
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): IT STARTS WHEN READY	{}をFULLDEXに追加中（初回のみ、約2 GB）：準備ができたら始まります
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 4 GB): IT STARTS WHEN READY	{}をFULLDEXに追加中（初回のみ、約4 GB）：準備ができたら始まります
 )FDXLANG";
 static const char* const kLauncherLang_ko = u8R"FDXLANG(# Fulldex launcher: 한국어. One line each: the English, a tab, the 한국어. {} stands for a name or number.
 Game Options	게임 옵션
@@ -4185,7 +4210,7 @@ Save to it from the game's menu	게임 메뉴에서 저장하세요
 Choose a slot to play from it, or delete it. Save to the slots from the game's menu.	슬롯을 골라 플레이하거나 삭제하세요. 저장은 게임 메뉴에서 합니다.
 Fulldex backs up this save every time the game starts and before anything here changes it. Your ROM is never changed.	Fulldex는 게임을 시작할 때마다, 그리고 여기서 바꾸기 전에 이 저장을 백업합니다. ROM은 절대 바뀌지 않습니다.
 The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.	GBA 게임은 상태 저장이 하나씩이며 게임 메뉴에서 저장하고 불러옵니다. 슬롯은 DS 게임용입니다.
-Omega Ruby and Alpha Sapphire have no save states: they save from the game's own menu. Save state slots are for the DS games.	오메가루비와 알파사파이어는 상태 저장이 없으며 게임 메뉴에서 저장합니다. 슬롯은 DS 게임용입니다.
+3DS games have no save states: they save from the game's own menu. Save state slots are for the DS games.	3DS 게임에는 상태 저장이 없습니다. 게임 메뉴에서 저장하세요. 슬롯은 DS 게임용입니다.
 Keep This One	이것을 유지
 Choose A File...	파일 선택...
 Restore Backup	백업 복원
@@ -4308,6 +4333,11 @@ Get {} Ready On A Windows PC	Windows PC에서 {} 준비하기
 Copy {}.so to your phone, into the same folder as your ROMs (USB cable, Google Drive, anything).	{}.so를 휴대폰의 ROM과 같은 폴더에 복사하세요(USB 케이블, Google 드라이브 등 무엇이든).
 FullDex on your phone finds it by itself and the game runs at full speed.	휴대폰의 FullDex가 알아서 찾고 게임이 최고 속도로 돌아갑니다.
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): THEN IT BUILDS	{}을(를) FULLDEX에 추가하는 중(한 번만, 약 2 GB): 그다음 만듭니다
+{}: NOT A 3DS GAME FULLDEX PLAYS (OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)	{}: FULLDEX에서 플레이할 수 있는 3DS 게임이 아닙니다 (오메가루비, 알파사파이어, 울트라썬, 울트라문)
+THAT FILE IS NOT A 3DS GAME FULLDEX PLAYS	그 파일은 FULLDEX에서 플레이할 수 있는 3DS 게임이 아닙니다
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 4 GB): THEN IT BUILDS	{}을(를) FULLDEX에 추가하는 중(한 번만, 약 4 GB): 그다음 만듭니다
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): IT STARTS WHEN READY	{}을(를) FULLDEX에 추가하는 중(한 번만, 약 2 GB): 준비되면 시작합니다
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 4 GB): IT STARTS WHEN READY	{}을(를) FULLDEX에 추가하는 중(한 번만, 약 4 GB): 준비되면 시작합니다
 )FDXLANG";
 inline const char* LauncherLangData(const char* code)
 {

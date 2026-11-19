@@ -3,6 +3,7 @@
 
 ## FullDex 1.6.1 (not released yet)
 
+- **Pokémon Ultra Sun and Ultra Moon (3DS beta).** FullDex lists a .3ds dump of either with your ROMs and plays it the same way as Omega Ruby and Alpha Sapphire: on a PC the game's code is built once from your dump (about 5 minutes), on a phone too. Each keeps its own save (ultrasun.sav, ultramoon.sav) with your other saves.
 - **Omega Ruby and Alpha Sapphire on your Switch, set up from FullDex on a Windows PC.** In a 3DS game's Game Options, Put On My Switch finds the Switch's SD card in the PC, builds the game from your own dump (5 to 10 minutes) and copies it to the card, with the shaders the Switch saved as missing. The Switch tools download once (about 90 MB). On the Switch, a dump that is not set up yet says how. Save To A Folder Instead works without a card.
 - **Omega Ruby and Alpha Sapphire at full speed on phones, with the help of a PC.** Put On My Phone builds the game's code on a Windows PC in a few minutes. Put that file beside the dump on the phone and FullDex uses it on the first Play. A phone can still build it itself (about 25 minutes, plugged in), or play right away through the emulator.
 - **3DS games on Windows: a Vulkan version beside the OpenGL one.** The game's Settings > Graphics: Auto (OpenGL), Vulkan or OpenGL. If Vulkan cannot start, the game falls back to OpenGL by itself.

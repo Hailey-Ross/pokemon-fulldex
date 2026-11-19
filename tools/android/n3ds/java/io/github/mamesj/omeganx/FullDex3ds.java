@@ -44,7 +44,7 @@ public final class FullDex3ds {
         new Thread(() -> {
             try {
                 String id = Oras.addDump(context, Uri.fromFile(new File(path)));
-                note = id == null ? "THAT FILE IS NOT OMEGA RUBY OR ALPHA SAPPHIRE"
+                note = id == null ? "THAT FILE IS NOT A 3DS GAME FULLDEX PLAYS"
                                   : Oras.name(id).toUpperCase() + " IS IN FULLDEX: CHOOSE IT TO PLAY";
             } catch (Exception e) {
                 note = "COULD NOT ADD THE GAME: " + e.getMessage();

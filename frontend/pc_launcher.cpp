@@ -1620,7 +1620,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 // (Copied in once; it starts by itself when the copy is done.)
                 JavaStringArg("threeDsAdd", g.rom);
                 N3dsAutoPlay() = g.folder;
-                note = "ADDING " + name + " TO FULLDEX (ONE TIME, ABOUT 2 GB): IT STARTS WHEN READY";
+                note = "ADDING " + name + " TO FULLDEX (ONE TIME, ABOUT " + N3ds::DumpGb(g) + " GB): IT STARTS WHEN READY";
                 return;
             }
             N3ds::SyncSave(g, fo.saves + "/" + g.saveName, true); // (a save brought in since the list was made)
@@ -2137,7 +2137,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             Launcher::SetPair(fo.settings + "/fulldex-3ds-asked.txt", id, "1");
             if (pick == "#phone")
             {
-                if (!N3ds::Added(g)) { JavaStringArg("threeDsAdd", g.rom); N3dsAfterAdd() = "build:" + g.folder; note = "ADDING " + up + " TO FULLDEX (ONE TIME, ABOUT 2 GB): THEN IT BUILDS"; }
+                if (!N3ds::Added(g)) { JavaStringArg("threeDsAdd", g.rom); N3dsAfterAdd() = "build:" + g.folder; note = "ADDING " + up + " TO FULLDEX (ONE TIME, ABOUT " + N3ds::DumpGb(g) + " GB): THEN IT BUILDS"; }
                 else JavaStringArg("threeDsBuild", id);
                 return;
             }

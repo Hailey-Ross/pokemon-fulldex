@@ -592,7 +592,7 @@ Save to it from the game's menu	게임 메뉴에서 저장하세요
 Choose a slot to play from it, or delete it. Save to the slots from the game's menu.	슬롯을 골라 플레이하거나 삭제하세요. 저장은 게임 메뉴에서 합니다.
 Fulldex backs up this save every time the game starts and before anything here changes it. Your ROM is never changed.	Fulldex는 게임을 시작할 때마다, 그리고 여기서 바꾸기 전에 이 저장을 백업합니다. ROM은 절대 바뀌지 않습니다.
 The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.	GBA 게임은 상태 저장이 하나씩이며 게임 메뉴에서 저장하고 불러옵니다. 슬롯은 DS 게임용입니다.
-Omega Ruby and Alpha Sapphire have no save states: they save from the game's own menu. Save state slots are for the DS games.	오메가루비와 알파사파이어는 상태 저장이 없으며 게임 메뉴에서 저장합니다. 슬롯은 DS 게임용입니다.
+3DS games have no save states: they save from the game's own menu. Save state slots are for the DS games.	3DS 게임에는 상태 저장이 없습니다. 게임 메뉴에서 저장하세요. 슬롯은 DS 게임용입니다.
 Keep This One	이것을 유지
 Choose A File...	파일 선택...
 Restore Backup	백업 복원
@@ -715,3 +715,8 @@ Get {} Ready On A Windows PC	Windows PC에서 {} 준비하기
 Copy {}.so to your phone, into the same folder as your ROMs (USB cable, Google Drive, anything).	{}.so를 휴대폰의 ROM과 같은 폴더에 복사하세요(USB 케이블, Google 드라이브 등 무엇이든).
 FullDex on your phone finds it by itself and the game runs at full speed.	휴대폰의 FullDex가 알아서 찾고 게임이 최고 속도로 돌아갑니다.
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): THEN IT BUILDS	{}을(를) FULLDEX에 추가하는 중(한 번만, 약 2 GB): 그다음 만듭니다
+{}: NOT A 3DS GAME FULLDEX PLAYS (OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)	{}: FULLDEX에서 플레이할 수 있는 3DS 게임이 아닙니다 (오메가루비, 알파사파이어, 울트라썬, 울트라문)
+THAT FILE IS NOT A 3DS GAME FULLDEX PLAYS	그 파일은 FULLDEX에서 플레이할 수 있는 3DS 게임이 아닙니다
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 4 GB): THEN IT BUILDS	{}을(를) FULLDEX에 추가하는 중(한 번만, 약 4 GB): 그다음 만듭니다
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): IT STARTS WHEN READY	{}을(를) FULLDEX에 추가하는 중(한 번만, 약 2 GB): 준비되면 시작합니다
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 4 GB): IT STARTS WHEN READY	{}을(를) FULLDEX에 추가하는 중(한 번만, 약 4 GB): 준비되면 시작합니다

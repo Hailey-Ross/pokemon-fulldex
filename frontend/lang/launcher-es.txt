@@ -592,7 +592,7 @@ Save to it from the game's menu	Guarda en ella desde el menú del juego
 Choose a slot to play from it, or delete it. Save to the slots from the game's menu.	Elige una ranura para jugar desde ella o borrarla. Se guarda desde el menú del juego.
 Fulldex backs up this save every time the game starts and before anything here changes it. Your ROM is never changed.	Fulldex hace una copia de esta partida cada vez que empieza el juego y antes de cambiarla aquí. Tu ROM nunca se modifica.
 The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.	Los juegos de GBA tienen un estado guardado cada uno, desde el menú del juego. Las ranuras son para los juegos de DS.
-Omega Ruby and Alpha Sapphire have no save states: they save from the game's own menu. Save state slots are for the DS games.	Rubí Omega y Zafiro Alfa no tienen estados guardados: se guarda desde el menú del juego. Las ranuras son para los juegos de DS.
+3DS games have no save states: they save from the game's own menu. Save state slots are for the DS games.	Los juegos de 3DS no tienen estados guardados: se guardan desde el menú del propio juego. Las ranuras de estado son para los juegos de DS.
 Keep This One	Quedarme con esta
 Choose A File...	Elegir un archivo...
 Restore Backup	Restaurar copia
@@ -715,3 +715,8 @@ Get {} Ready On A Windows PC	Prepara {} en un PC con Windows
 Copy {}.so to your phone, into the same folder as your ROMs (USB cable, Google Drive, anything).	Copia {}.so a tu móvil, en la misma carpeta que tus ROMs (cable USB, Google Drive, lo que sea).
 FullDex on your phone finds it by itself and the game runs at full speed.	FullDex en tu móvil lo encuentra solo y el juego va a toda velocidad.
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): THEN IT BUILDS	AÑADIENDO {} A FULLDEX (UNA VEZ, UNOS 2 GB): DESPUÉS SE CREA
+{}: NOT A 3DS GAME FULLDEX PLAYS (OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)	{}: NO ES UN JUEGO DE 3DS COMPATIBLE CON FULLDEX (OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)
+THAT FILE IS NOT A 3DS GAME FULLDEX PLAYS	ESE ARCHIVO NO ES UN JUEGO DE 3DS COMPATIBLE CON FULLDEX
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 4 GB): THEN IT BUILDS	AÑADIENDO {} A FULLDEX (UNA VEZ, UNOS 4 GB): DESPUÉS SE CREA
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): IT STARTS WHEN READY	AÑADIENDO {} A FULLDEX (UNA VEZ, UNOS 2 GB): EMPIEZA CUANDO ESTÉ LISTO
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 4 GB): IT STARTS WHEN READY	AÑADIENDO {} A FULLDEX (UNA VEZ, UNOS 4 GB): EMPIEZA CUANDO ESTÉ LISTO
