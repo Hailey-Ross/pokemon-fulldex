@@ -7267,7 +7267,11 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
         std::string name = ShortName(g);
         float npx = 17 * u;
         // (A 3DS game whose code is built says so beside 3DS.)
-        const std::string tag = g.platform == N3DS ? (g.built ? "3DS Beta \xC2\xB7 Built" : "3DS Beta") : PlatformName(g.platform);
+        std::string tag = g.platform == N3DS ? (g.built ? "3DS Beta \xC2\xB7 Built" : "3DS Beta") : PlatformName(g.platform);
+        // (A long name keeps its size: a built 3DS game's tag gets shorter first, 3DS Beta \xC2\xB7 Built, 3DS \xC2\xB7 Built, Built.)
+        if (g.platform == N3DS && g.built)
+            for (const char* t : { "3DS \xC2\xB7 Built", "Built" })
+                if (GW(name, npx, true) > iw - GW(tag, 13 * u, true) - (int)(14 * u)) tag = t;
         const int room = iw - GW(tag, 13 * u, true) - (int)(14 * u);
         while (npx > 10 * u && GW(name, npx, true) > room) npx -= u;
         GT(c, ix + (int)(4 * u), cy, name, npx, text, true);
