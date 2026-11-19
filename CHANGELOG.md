@@ -32,6 +32,7 @@
 - **Omega Ruby and Alpha Sapphire: the speech box is whole in widescreen.** Its ends were stretched apart from its middle (a step at the left, the white past the frame at the right); it now keeps the 3DS's own width, centred.
 - **3DS games on phones: the Menu button stays when the touch controls are off,** so the menu (and the setting to bring them back) can always be reached without a controller.
 - **3DS games in fullscreen hide the mouse pointer** while you play with a controller; it comes back for a moment when the mouse moves.
+- **A 3DS dump named .cci is renamed to .3ds** when FullDex finds it with the ROMs, so it shows up without renaming it by hand. A .cia renamed to .3ds now says it is a .cia, not just "not a 3DS cartridge dump".
 - **Monomyth's map edges in widescreen**: past the strip of the next map the game keeps, the wide picture showed a column of border trees. It now draws the next map there, as Emerald and FireRed already did.
 - **Monomyth 1.2 in widescreen**, with Zoom and its name and picture. 1.2 moved its code, so it has a widescreen patch of its own; 1.0 and 1.1 keep theirs.
 - **A GBA hack's xdelta patch made without file names is no longer listed as a DS hack that can't be played** (Inclement Emerald, beside its ROM). Its size says it is a GBA patch.

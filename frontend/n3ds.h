@@ -171,13 +171,46 @@ inline void Skip(const std::string& path, const std::string& why, int rank = 1)
     if (rank > SkipRank()) { SkipNote() = name + ": " + why; SkipRank() = rank; }
 }
 // (A 3DS file among the ROMs: its title if FullDex plays it, else nullptr and why not said.)
-inline const Title* Check(const std::string& path)
+// (A file that starts as a CIA does: its header's size, 0x2020, then its type and version, 0.)
+inline bool LooksLikeCia(const std::string& path)
 {
-    if (EndsWith(path, ".cia")) { Skip(path, "A .CIA IS NOT PLAYED: THE 3DS GAMES NEED A .3DS DUMP OF THE CARTRIDGE", 2); return nullptr; }
-    if (EndsWith(path, ".cci")) { Skip(path, "RENAME IT TO .3DS", 2); return nullptr; }
+#ifdef _WIN32
+    FILE* f = _wfopen(std::filesystem::u8path(path).wstring().c_str(), L"rb");
+#else
+    FILE* f = fopen(path.c_str(), "rb");
+#endif
+    if (!f) return false;
+    unsigned char h[8] = {};
+    const bool ok = fread(h, 1, sizeof h, f) == sizeof h;
+    fclose(f);
+    static const unsigned char cia[8] = { 0x20, 0x20, 0, 0, 0, 0, 0, 0 };
+    return ok && memcmp(h, cia, sizeof cia) == 0;
+}
+// A cartridge dump named .cci is the same file as a .3ds: it is renamed to .3ds (the player was told
+// to do this by hand before), unless a .3ds of that name is there already or the folder cannot be
+// written. path becomes the new name. Returns false when it is left as it was.
+inline bool RenameCci(std::string& path)
+{
+    if (!EndsWith(path, ".cci") || DumpCrypt(path) < 0) return false;
+    const std::string to = path.substr(0, path.size() - 4) + ".3ds";
+    std::error_code ec;
+    if (std::filesystem::exists(std::filesystem::u8path(to), ec)) return false;
+    std::filesystem::rename(std::filesystem::u8path(path), std::filesystem::u8path(to), ec);
+    if (ec) { fprintf(stderr, "[3ds] could not rename %s to .3ds: %s\n", path.c_str(), ec.message().c_str()); return false; }
+    fprintf(stderr, "[3ds] renamed %s to .3ds\n", path.c_str());
+    path = to;
+    return true;
+}
+// (path: a .cci dump is renamed to .3ds first, and path is then its new name; not with rename false,
+// for a file FullDex was opened with, which a shortcut may name.)
+inline const Title* Check(std::string& path, bool rename = true)
+{
+    static const char* const kCia = "A .CIA IS NOT PLAYED: THE 3DS GAMES NEED A .3DS DUMP OF THE CARTRIDGE";
+    if (EndsWith(path, ".cia")) { Skip(path, kCia, 2); return nullptr; }
+    if (EndsWith(path, ".cci") && !(rename && RenameCci(path))) { Skip(path, DumpCrypt(path) < 0 && LooksLikeCia(path) ? kCia : "RENAME IT TO .3DS", 2); return nullptr; }
     if (!EndsWith(path, ".3ds")) return nullptr;
     const int crypt = DumpCrypt(path);
-    if (crypt < 0) { Skip(path, "NOT A 3DS CARTRIDGE DUMP"); return nullptr; }
+    if (crypt < 0) { Skip(path, LooksLikeCia(path) ? kCia : "NOT A 3DS CARTRIDGE DUMP", LooksLikeCia(path) ? 2 : 1); return nullptr; }
     const Title* t = ById(DumpTitle(path));
     if (!t) { Skip(path, "NOT A 3DS GAME FULLDEX PLAYS (X, Y, OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)"); return nullptr; }
     if (crypt == 1) { Skip(path, "ENCRYPTED: DECRYPT IT FIRST (GODMODE9 ON YOUR 3DS)", 3); return nullptr; }
@@ -404,8 +437,8 @@ inline void AddSwitchDumps(const std::vector<std::string>& dirs, std::vector<Lau
         if (!d) continue;
         while (dirent* e = readdir(d))
         {
-            if (e->d_name[0] == '.' || !EndsWith(e->d_name, ".3ds")) continue;
-            const std::string path = dir + "/" + e->d_name;
+            if (e->d_name[0] == '.' || !(EndsWith(e->d_name, ".3ds") || EndsWith(e->d_name, ".cci"))) continue;
+            std::string path = dir + "/" + e->d_name;
             const Title* t = Check(path);
             if (!t) continue;
             bool have = false;
@@ -502,7 +535,7 @@ inline void AddAndroid(const std::vector<std::string>& romDirs, const std::strin
         if (!d) continue;
         while (dirent* e = readdir(d))
         {
-            const std::string path = dir + "/" + e->d_name;
+            std::string path = dir + "/" + e->d_name;
             if (!IsFile(path)) continue;
             const Title* t = Check(path);
             if (!t || have(*t)) continue;
@@ -562,7 +595,7 @@ inline void AddPc(const std::vector<std::string>& romDirs, const std::string& ap
         for (std::filesystem::directory_iterator it(W(dir), ec), end; !ec && it != end; it.increment(ec))
         {
             if (!it->is_regular_file(ec)) continue;
-            const std::string path = it->path().u8string();
+            std::string path = it->path().u8string();
             const Title* t = Check(path);
             if (!t) continue;
             if (!ProgramHere())

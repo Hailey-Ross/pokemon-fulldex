@@ -4538,7 +4538,7 @@ bool Start(int& argc, char**& argv)
         // (A 3DS dump from anywhere: the 3DS game, as if it were with the ROMs; one that cannot be played says why.)
         if (directGame < 0 && (N3ds::EndsWith(directRom, ".3ds") || N3ds::EndsWith(directRom, ".cci") || N3ds::EndsWith(directRom, ".cia")))
         {
-            if (const N3ds::Title* t = N3ds::Check(directRom))
+            if (const N3ds::Title* t = N3ds::Check(directRom, false))
             {
                 for (size_t i = 0; i < games.size() && directGame < 0; i++)
                     if (games[i].platform == Launcher::N3DS && games[i].code == t->code) directGame = (int)i;
