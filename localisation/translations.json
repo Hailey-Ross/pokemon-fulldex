@@ -1371,7 +1371,12 @@
       "GBA SLOT": "RANURA GBA",
       "NIGHT FISHING REPLACEMENT": "PESCA NOCTURNA",
       "TIME REPLACEMENT": "SEGÚN LA HORA",
-      "And {0} more places": "Y {0} lugares más"
+      "And {0} more places": "Y {0} lugares más",
+      "SHARP PIXELS": "PÍXELES NÍTIDOS",
+      "BLURRED": "DIFUMINADA",
+      "SHARP PIXELS (RECOMMENDED): CRISP AT ANY SCREEN SIZE. BLURRED: THE PICTURE IS SOFTENED AS IT IS SCALED UP, SO TEXT AND MENUS LOOK FUZZY.": "PÍXELES NÍTIDOS (RECOMENDADO): IMAGEN NÍTIDA EN CUALQUIER PANTALLA. DIFUMINADA: LA IMAGEN SE SUAVIZA AL AMPLIARSE, ASÍ QUE LOS TEXTOS Y MENÚS SE VEN BORROSOS.",
+      "Sharp Pixels (recommended) keeps every pixel crisp at any screen size.": "Píxeles nítidos (recomendado) mantiene cada píxel nítido en cualquier pantalla.",
+      "Blurred softens the picture as it is made larger: text and menus look fuzzy.": "Difuminada suaviza la imagen al ampliarla: los textos y menús se ven borrosos."
     },
     "it": {
       " (NEXT START)": " (AL RIAVVIO)",
@@ -2735,7 +2740,12 @@
       "GBA SLOT": "SLOT GBA",
       "NIGHT FISHING REPLACEMENT": "PESCA NOTTURNA",
       "TIME REPLACEMENT": "IN BASE ALL'ORA",
-      "And {0} more places": "E altri {0} luoghi"
+      "And {0} more places": "E altri {0} luoghi",
+      "SHARP PIXELS": "PIXEL NITIDI",
+      "BLURRED": "SFOCATA",
+      "SHARP PIXELS (RECOMMENDED): CRISP AT ANY SCREEN SIZE. BLURRED: THE PICTURE IS SOFTENED AS IT IS SCALED UP, SO TEXT AND MENUS LOOK FUZZY.": "PIXEL NITIDI (CONSIGLIATO): IMMAGINE NITIDA SU QUALSIASI SCHERMO. SFOCATA: L'IMMAGINE VIENE AMMORBIDITA QUANDO È INGRANDITA, QUINDI TESTI E MENU SEMBRANO SFOCATI.",
+      "Sharp Pixels (recommended) keeps every pixel crisp at any screen size.": "Pixel nitidi (consigliato) mantiene ogni pixel nitido su qualsiasi schermo.",
+      "Blurred softens the picture as it is made larger: text and menus look fuzzy.": "Sfocata ammorbidisce l'immagine quando viene ingrandita: testi e menu sembrano sfocati."
     },
     "fr": {
       " (NEXT START)": " (PROCHAIN DÉBUT)",
@@ -4099,7 +4109,12 @@
       "GBA SLOT": "PORT GBA",
       "NIGHT FISHING REPLACEMENT": "PÊCHE DE NUIT",
       "TIME REPLACEMENT": "SELON L'HEURE",
-      "And {0} more places": "Et {0} autres lieux"
+      "And {0} more places": "Et {0} autres lieux",
+      "SHARP PIXELS": "PIXELS NETS",
+      "BLURRED": "FLOUE",
+      "SHARP PIXELS (RECOMMENDED): CRISP AT ANY SCREEN SIZE. BLURRED: THE PICTURE IS SOFTENED AS IT IS SCALED UP, SO TEXT AND MENUS LOOK FUZZY.": "PIXELS NETS (RECOMMANDÉ) : UNE IMAGE NETTE SUR TOUT ÉCRAN. FLOUE : L'IMAGE EST ADOUCIE EN ÉTANT AGRANDIE, LES TEXTES ET MENUS PARAISSENT FLOUS.",
+      "Sharp Pixels (recommended) keeps every pixel crisp at any screen size.": "Pixels nets (recommandé) garde chaque pixel net sur tout écran.",
+      "Blurred softens the picture as it is made larger: text and menus look fuzzy.": "Floue adoucit l'image quand elle est agrandie : les textes et menus paraissent flous."
     },
     "de": {
       " (NEXT START)": " (NÄCHSTER START)",
@@ -5463,7 +5478,12 @@
       "GBA SLOT": "GBA-SCHACHT",
       "NIGHT FISHING REPLACEMENT": "ANGELN BEI NACHT",
       "TIME REPLACEMENT": "JE NACH UHRZEIT",
-      "And {0} more places": "Und {0} weitere Orte"
+      "And {0} more places": "Und {0} weitere Orte",
+      "SHARP PIXELS": "SCHARFE PIXEL",
+      "BLURRED": "WEICHGEZEICHNET",
+      "SHARP PIXELS (RECOMMENDED): CRISP AT ANY SCREEN SIZE. BLURRED: THE PICTURE IS SOFTENED AS IT IS SCALED UP, SO TEXT AND MENUS LOOK FUZZY.": "SCHARFE PIXEL (EMPFOHLEN): KLARES BILD AUF JEDER BILDSCHIRMGRÖSSE. WEICHGEZEICHNET: DAS BILD WIRD BEIM VERGRÖSSERN WEICHGEZEICHNET, TEXTE UND MENÜS WIRKEN UNSCHARF.",
+      "Sharp Pixels (recommended) keeps every pixel crisp at any screen size.": "Scharfe Pixel (empfohlen) hält jeden Pixel auf jeder Bildschirmgröße scharf.",
+      "Blurred softens the picture as it is made larger: text and menus look fuzzy.": "Weichgezeichnet macht das Bild beim Vergrößern weich: Texte und Menüs wirken unscharf."
     },
     "ja": {
       " (NEXT START)": " (次のスタート)",
@@ -6827,7 +6847,12 @@
       "GBA SLOT": "GBAスロット",
       "NIGHT FISHING REPLACEMENT": "夜のつり",
       "TIME REPLACEMENT": "時間帯で変化",
-      "And {0} more places": "ほか{0}か所"
+      "And {0} more places": "ほか{0}か所",
+      "SHARP PIXELS": "くっきりドット",
+      "BLURRED": "ぼかし",
+      "SHARP PIXELS (RECOMMENDED): CRISP AT ANY SCREEN SIZE. BLURRED: THE PICTURE IS SOFTENED AS IT IS SCALED UP, SO TEXT AND MENUS LOOK FUZZY.": "くっきりドット（おすすめ）：どの画面サイズでもドットがくっきり表示されます。ぼかし：拡大するときに画像をぼかすため、文字やメニューがにじんで見えます。",
+      "Sharp Pixels (recommended) keeps every pixel crisp at any screen size.": "くっきりドット（おすすめ）：どの画面サイズでもドットをくっきり保ちます。",
+      "Blurred softens the picture as it is made larger: text and menus look fuzzy.": "ぼかし：拡大するときに画像をぼかします。文字やメニューがにじんで見えます。"
     },
     "ko": {
       " (NEXT START)": " (다음 시작)",
@@ -8191,7 +8216,12 @@
       "GBA SLOT": "GBA 슬롯",
       "NIGHT FISHING REPLACEMENT": "밤 낚시",
       "TIME REPLACEMENT": "시간대에 따라",
-      "And {0} more places": "외 {0}곳"
+      "And {0} more places": "외 {0}곳",
+      "SHARP PIXELS": "선명한 픽셀",
+      "BLURRED": "흐리게",
+      "SHARP PIXELS (RECOMMENDED): CRISP AT ANY SCREEN SIZE. BLURRED: THE PICTURE IS SOFTENED AS IT IS SCALED UP, SO TEXT AND MENUS LOOK FUZZY.": "선명한 픽셀(권장): 어떤 화면 크기에서도 선명합니다. 흐리게: 확대할 때 화면을 부드럽게 하므로 글자와 메뉴가 흐릿해 보입니다.",
+      "Sharp Pixels (recommended) keeps every pixel crisp at any screen size.": "선명한 픽셀(권장): 어떤 화면 크기에서도 모든 픽셀을 선명하게 유지합니다.",
+      "Blurred softens the picture as it is made larger: text and menus look fuzzy.": "흐리게: 확대할 때 화면을 부드럽게 합니다. 글자와 메뉴가 흐릿해 보입니다."
     }
   }
 }

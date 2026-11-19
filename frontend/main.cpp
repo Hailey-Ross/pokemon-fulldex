@@ -6586,8 +6586,10 @@ int main(int argc, char** argv)
                    "Fill the whole screen, with no window border.", "Borderless, so other windows still come up at once.");
 #endif
 #endif
-            toggle(M_SMOOTH, "SMOOTH SCALING", Glass::I_GRID, Menu::P_SMOOTH, cfg.smooth,
-                   "Soften the pixels when the picture is made larger.", "Off keeps every pixel sharp, as the DS drew it.");
+            // (Sharp Pixels first and recommended: "smooth scaling" read as an improvement, and players turned it on.)
+            picker(M_SMOOTH, "PICTURE", Glass::I_GRID, Menu::P_SMOOTH, { "SHARP PIXELS", "BLURRED" }, cfg.smooth ? 1 : 0,
+                   "Sharp Pixels (recommended) keeps every pixel crisp at any screen size.", "Blurred softens the picture as it is made larger: text and menus look fuzzy.");
+            menu.items.back().kind = Menu::K_TOGGLE;
             section("OVERLAYS & INFORMATION", Glass::I_LAYERS);
             // (Black and Black 2; SoulSilver has a layout of its own.)
             {

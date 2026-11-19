@@ -8255,7 +8255,7 @@ inline std::vector<Setting> SettingsList()
                   "HOLD: RELEASE TO STOP. TOGGLE: PRESS ONCE TO START AND AGAIN TO STOP. APPLIES TO KEYBOARD, CONTROLLER AND ON-SCREEN FAST FORWARD." });
     l.push_back({ "aspect", "ASPECT RATIO", { { "auto", "AUTO" }, { "16:9", "16:9" }, { "16:10", "16:10" }, { "3:2", "3:2" }, { "4:3", "4:3" } }, "auto",
                   "DS GAMES: THE SHAPE OF THE PICTURE. AUTO FILLS YOUR SCREEN; A NARROWER SHAPE LEAVES BARS AT THE SIDES. THE SAME CHOICE IS IN THE GAME'S DISPLAY MENU." });
-    l.push_back({ "smooth", "SMOOTH SCALING", onOff, "0", "ON: THE PICTURE IS SOFTENED AS IT IS SCALED UP TO YOUR SCREEN. OFF: SHARP PIXELS." });
+    l.push_back({ "smooth", "PICTURE", { { "0", "SHARP PIXELS" }, { "1", "BLURRED" } }, "0", "SHARP PIXELS (RECOMMENDED): CRISP AT ANY SCREEN SIZE. BLURRED: THE PICTURE IS SOFTENED AS IT IS SCALED UP, SO TEXT AND MENUS LOOK FUZZY." });
     l.push_back({ "screen_filter", "DS SCREEN FILTER", { { "0", "OFF" }, { "1", "SCANLINES" }, { "2", "LCD GRID" } }, "0",
                   "DS GAMES: A RETRO LOOK OVER THE PICTURE. LCD GRID ADDS A FAINT PIXEL GRID. THE SAME CHOICE IS AVAILABLE IN THE GAME'S DISPLAY MENU." });
     l.push_back({ "gba_lcd", "GBA LCD EFFECT", { { "auto", "AUTO" }, { "0", "OFF" }, { "1", "ON" } }, "auto",
