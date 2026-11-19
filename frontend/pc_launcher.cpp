@@ -4021,7 +4021,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
         if (const char* st = getenv("SSR_SETUP_TEST"))
         {
             static bool stDone = false;
-            if (!stDone && Launcher::Focus().dialog == 21 && keysAge >= 3) { stDone = true; if (!strcmp(st, "folder")) { N3ds::SetupPick("#folder"); Launcher::Focus().drow = 0; } }
+            if (!stDone && Launcher::Focus().dialog == 21 && keysAge >= 3) { stDone = true; if (!strcmp(st, "folder")) { N3ds::SetupPick("#folder"); Launcher::Focus().drow = 0; } else if (!strcmp(st, "card")) { const auto paths = Launcher::Focus().dPaths; for (const std::string& dp : paths) if (dp.rfind("#card:", 0) == 0) { N3ds::SetupPick(dp); Launcher::Focus().drow = 0; break; } } }
         }
         if (const char* sp = getenv("SSR_SETUP_SHOTS"))
         {

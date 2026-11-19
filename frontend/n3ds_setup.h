@@ -17,7 +17,7 @@
 #include <cmath>
 #include <functional>
 
-inline const char* kBuilderToolsUrl = "https://github.com/mamesj/pokemon-fulldex/releases/download/fulldex-builder-0.1/FullDex-Builder-0.1.zip";
+inline const char* kBuilderToolsUrl = "https://github.com/mamesj/pokemon-fulldex/releases/download/fulldex-builder-0.2/FullDex-Builder-0.2.zip";
 
 inline const char* kSwitchBat =
     "@echo off\r\n"
