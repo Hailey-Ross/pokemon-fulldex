@@ -25,6 +25,9 @@
 - **Fast forward on the Switch really is faster** (#227). At the Switch's standard processor speed a DS game could not run ahead, so fast forward only reached normal speed and looked choppy. FullDex now raises the processor to 1785 MHz while fast forward is on and puts it back after: about 1.6 times as fast in Black, and smoother.
 - **3DS games start faster the first time, most of all on phones.** The first start made the game's shaders by reading the whole dump (2 to 4 GB, minutes of black screen on a phone); it now reads only the few megabytes that hold them. X, Y, Ultra Sun and Ultra Moon also get their shaders ready during setup now, so they no longer stutter as each one is first needed.
 - **Display > Picture: Sharp Pixels (recommended) or Blurred.** It was called Smooth Scaling, which sounded like an improvement; Blurred is what it does to text and menus. Your choice is kept.
+- **3DS games fill a phone's wide screen by default.** Aspect Ratio starts at Fill screen: on a 20:9 phone the game fills the screen with more of the world at the sides (Ultra Sun and Ultra Moon's field too, which stayed 16:9). On 16:9 screens it looks as before; a saved choice is kept.
+- **Ultra Sun and Ultra Moon: the opening movie and title screen show again.** They stayed black until a button was pressed, on every platform.
+- **Omega Ruby and Alpha Sapphire: the speech box is whole in widescreen.** Its ends were stretched apart from its middle (a step at the left, the white past the frame at the right); it now keeps the 3DS's own width, centred.
 - **Game Options in the launcher** keeps its focus and opens the selected game's menu under the button (#191).
 - **About > Credits:** OzWookiee, Saiborg23 and elripalda.
 
