@@ -2,7 +2,7 @@
 // FullDex's version, shown on the About page and written to the log (releases from 1.6 on are numbered,
 // tagged vMAJOR.MINOR.PATCH). A build can set its own with -DFULLDEX_VERSION="...".
 #ifndef FULLDEX_VERSION
-#define FULLDEX_VERSION "1.6.1"
+#define FULLDEX_VERSION "1.7"
 #endif
 #include <pthread.h>
 #include <functional>

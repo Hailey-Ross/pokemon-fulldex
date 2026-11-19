@@ -1,4 +1,4 @@
-// Pokemon Omega Ruby, Alpha Sapphire, Ultra Sun and Ultra Moon (3DS) in FullDex's game list.
+// Pokemon X, Y, Omega Ruby, Alpha Sapphire, Ultra Sun and Ultra Moon (3DS) in FullDex's game list.
 //
 // The games are the omega-nx programs, each in a folder of its own with its saves and settings:
 // FullDex lists them and starts them, and they come back to the list when the player quits.
@@ -50,6 +50,8 @@ namespace N3ds
 {
 struct Title { const char* code; const char* id; const char* name; };
 inline const Title kTitles[] = {
+    { "EKJA", "0004000000055D00", "POKEMON X" },
+    { "EK2A", "0004000000055E00", "POKEMON Y" },
     { "ECRA", "000400000011C400", "POKEMON OMEGA RUBY" },
     { "ECLA", "000400000011C500", "POKEMON ALPHA SAPPHIRE" },
     { "A2AA", "00040000001B5000", "POKEMON ULTRA SUN" },
@@ -176,7 +178,7 @@ inline const Title* Check(const std::string& path)
     const int crypt = DumpCrypt(path);
     if (crypt < 0) { Skip(path, "NOT A 3DS CARTRIDGE DUMP"); return nullptr; }
     const Title* t = ById(DumpTitle(path));
-    if (!t) { Skip(path, "NOT A 3DS GAME FULLDEX PLAYS (OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)"); return nullptr; }
+    if (!t) { Skip(path, "NOT A 3DS GAME FULLDEX PLAYS (X, Y, OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)"); return nullptr; }
     if (crypt == 1) { Skip(path, "ENCRYPTED: DECRYPT IT FIRST (GODMODE9 ON YOUR 3DS)", 3); return nullptr; }
     return t;
 }
@@ -198,22 +200,22 @@ inline Launcher::Game Make(const Title& t, const std::string& rom, const std::st
 // of the player's own and cloud saves use. SyncSave makes the two the same: whichever was written last
 // wins (a game played, or a save brought in by Import Save or cloud saves), the one it replaces backed up first.
 // (beforePlay: a backup of the save the game is about to start with, as the DS games make.)
-// (Omega Ruby and Alpha Sapphire: 0x76000 bytes; Ultra Sun and Ultra Moon: 0x6CC00.)
-inline bool SaveSizeOk(uintmax_t n) { return n == 0x76000 || n == 0x6CC00; }
+// (X and Y: 0x65600 bytes; Omega Ruby and Alpha Sapphire: 0x76000; Ultra Sun and Ultra Moon: 0x6CC00.)
+inline bool SaveSizeOk(uintmax_t n) { return n == 0x65600 || n == 0x76000 || n == 0x6CC00; }
 inline std::string SaveName(const std::string& code)
 {
-    return code == "ECLA" ? "alphasapphire.sav" : code == "A2AA" ? "ultrasun.sav" : code == "A2BA" ? "ultramoon.sav" : "omegaruby.sav";
+    return code == "EKJA" ? "pokemonx.sav" : code == "EK2A" ? "pokemony.sav" : code == "ECLA" ? "alphasapphire.sav" : code == "A2AA" ? "ultrasun.sav" : code == "A2BA" ? "ultramoon.sav" : "omegaruby.sav";
 }
 // The game's folder in /switch on a Switch (the FullDex Builder's), and its program's name.
 inline std::string SwitchFolder(const std::string& code)
 {
-    return code == "ECLA" ? "pokemon-alpha-sapphire" : code == "A2AA" ? "pokemon-ultra-sun" : code == "A2BA" ? "pokemon-ultra-moon" : "omega-nx";
+    return code == "EKJA" ? "pokemon-x" : code == "EK2A" ? "pokemon-y" : code == "ECLA" ? "pokemon-alpha-sapphire" : code == "A2AA" ? "pokemon-ultra-sun" : code == "A2BA" ? "pokemon-ultra-moon" : "omega-nx";
 }
-// (The dump's size, as the notes say it: Omega Ruby and Alpha Sapphire 2 GB, Ultra Sun and Ultra Moon 4 GB.)
+// (The dump's size, as the notes say it: X, Y, Omega Ruby and Alpha Sapphire 2 GB, Ultra Sun and Ultra Moon 4 GB.)
 inline std::string DumpGb(const Launcher::Game& g) { return g.code == "A2AA" || g.code == "A2BA" ? "4" : "2"; }
 inline std::string ProgramName(const std::string& code)
 {
-    return code == "ECLA" ? "Pokemon Alpha Sapphire" : code == "A2AA" ? "Pokemon Ultra Sun" : code == "A2BA" ? "Pokemon Ultra Moon" : "Pokemon Omega Ruby";
+    return code == "EKJA" ? "Pokemon X" : code == "EK2A" ? "Pokemon Y" : code == "ECLA" ? "Pokemon Alpha Sapphire" : code == "A2AA" ? "Pokemon Ultra Sun" : code == "A2BA" ? "Pokemon Ultra Moon" : "Pokemon Omega Ruby";
 }
 inline std::string GameSave(const Launcher::Game& g) { return g.folder + "/data/user/savedata/" + IdOf(g) + "/main"; }
 inline bool ReadSave(const std::string& p, std::vector<unsigned char>& d)

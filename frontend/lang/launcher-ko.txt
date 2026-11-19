@@ -715,7 +715,7 @@ Get {} Ready On A Windows PC	Windows PC에서 {} 준비하기
 Copy {}.so to your phone, into the same folder as your ROMs (USB cable, Google Drive, anything).	{}.so를 휴대폰의 ROM과 같은 폴더에 복사하세요(USB 케이블, Google 드라이브 등 무엇이든).
 FullDex on your phone finds it by itself and the game runs at full speed.	휴대폰의 FullDex가 알아서 찾고 게임이 최고 속도로 돌아갑니다.
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): THEN IT BUILDS	{}을(를) FULLDEX에 추가하는 중(한 번만, 약 2 GB): 그다음 만듭니다
-{}: NOT A 3DS GAME FULLDEX PLAYS (OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)	{}: FULLDEX에서 플레이할 수 있는 3DS 게임이 아닙니다 (오메가루비, 알파사파이어, 울트라썬, 울트라문)
+{}: NOT A 3DS GAME FULLDEX PLAYS (X, Y, OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)	{}: FULLDEX에서 플레이할 수 있는 3DS 게임이 아닙니다 (X, Y, 오메가루비, 알파사파이어, 울트라썬, 울트라문)
 THAT FILE IS NOT A 3DS GAME FULLDEX PLAYS	그 파일은 FULLDEX에서 플레이할 수 있는 3DS 게임이 아닙니다
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 4 GB): THEN IT BUILDS	{}을(를) FULLDEX에 추가하는 중(한 번만, 약 4 GB): 그다음 만듭니다
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): IT STARTS WHEN READY	{}을(를) FULLDEX에 추가하는 중(한 번만, 약 2 GB): 준비되면 시작합니다

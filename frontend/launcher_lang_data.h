@@ -718,7 +718,7 @@ Get {} Ready On A Windows PC	{} auf einem Windows-PC vorbereiten
 Copy {}.so to your phone, into the same folder as your ROMs (USB cable, Google Drive, anything).	Kopiere {}.so auf dein Handy, in denselben Ordner wie deine ROMs (USB-Kabel, Google Drive, egal wie).
 FullDex on your phone finds it by itself and the game runs at full speed.	FullDex auf deinem Handy findet sie von selbst und das Spiel läuft mit voller Geschwindigkeit.
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): THEN IT BUILDS	{} WIRD ZU FULLDEX HINZUGEFÜGT (EINMALIG, ETWA 2 GB): DANACH WIRD ES ERSTELLT
-{}: NOT A 3DS GAME FULLDEX PLAYS (OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)	{}: KEIN VON FULLDEX UNTERSTÜTZTES 3DS-SPIEL (OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)
+{}: NOT A 3DS GAME FULLDEX PLAYS (X, Y, OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)	{}: KEIN VON FULLDEX UNTERSTÜTZTES 3DS-SPIEL (X, Y, OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)
 THAT FILE IS NOT A 3DS GAME FULLDEX PLAYS	DIESE DATEI IST KEIN VON FULLDEX UNTERSTÜTZTES 3DS-SPIEL
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 4 GB): THEN IT BUILDS	{} WIRD ZU FULLDEX HINZUGEFÜGT (EINMALIG, ETWA 4 GB): DANACH WIRD ES ERSTELLT
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): IT STARTS WHEN READY	{} WIRD ZU FULLDEX HINZUGEFÜGT (EINMALIG, ETWA 2 GB): ES STARTET, SOBALD ES BEREIT IST
@@ -1441,7 +1441,7 @@ Get {} Ready On A Windows PC	Prepara {} en un PC con Windows
 Copy {}.so to your phone, into the same folder as your ROMs (USB cable, Google Drive, anything).	Copia {}.so a tu móvil, en la misma carpeta que tus ROMs (cable USB, Google Drive, lo que sea).
 FullDex on your phone finds it by itself and the game runs at full speed.	FullDex en tu móvil lo encuentra solo y el juego va a toda velocidad.
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): THEN IT BUILDS	AÑADIENDO {} A FULLDEX (UNA VEZ, UNOS 2 GB): DESPUÉS SE CREA
-{}: NOT A 3DS GAME FULLDEX PLAYS (OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)	{}: NO ES UN JUEGO DE 3DS COMPATIBLE CON FULLDEX (OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)
+{}: NOT A 3DS GAME FULLDEX PLAYS (X, Y, OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)	{}: NO ES UN JUEGO DE 3DS COMPATIBLE CON FULLDEX (X, Y, OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)
 THAT FILE IS NOT A 3DS GAME FULLDEX PLAYS	ESE ARCHIVO NO ES UN JUEGO DE 3DS COMPATIBLE CON FULLDEX
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 4 GB): THEN IT BUILDS	AÑADIENDO {} A FULLDEX (UNA VEZ, UNOS 4 GB): DESPUÉS SE CREA
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): IT STARTS WHEN READY	AÑADIENDO {} A FULLDEX (UNA VEZ, UNOS 2 GB): EMPIEZA CUANDO ESTÉ LISTO
@@ -2164,7 +2164,7 @@ Get {} Ready On A Windows PC	Prépare {} sur un PC Windows
 Copy {}.so to your phone, into the same folder as your ROMs (USB cable, Google Drive, anything).	Copie {}.so sur ton téléphone, dans le même dossier que tes ROMs (câble USB, Google Drive, peu importe).
 FullDex on your phone finds it by itself and the game runs at full speed.	FullDex sur ton téléphone le trouve tout seul et le jeu tourne à pleine vitesse.
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): THEN IT BUILDS	AJOUT DE {} À FULLDEX (UNE FOIS, ENVIRON 2 GO) : ENSUITE IL EST CRÉÉ
-{}: NOT A 3DS GAME FULLDEX PLAYS (OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)	{}: CE N'EST PAS UN JEU 3DS PRIS EN CHARGE PAR FULLDEX (OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)
+{}: NOT A 3DS GAME FULLDEX PLAYS (X, Y, OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)	{}: CE N'EST PAS UN JEU 3DS PRIS EN CHARGE PAR FULLDEX (X, Y, OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)
 THAT FILE IS NOT A 3DS GAME FULLDEX PLAYS	CE FICHIER N'EST PAS UN JEU 3DS PRIS EN CHARGE PAR FULLDEX
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 4 GB): THEN IT BUILDS	AJOUT DE {} À FULLDEX (UNE FOIS, ENVIRON 4 GO) : ENSUITE IL EST CRÉÉ
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): IT STARTS WHEN READY	AJOUT DE {} À FULLDEX (UNE FOIS, ENVIRON 2 GO) : IL DÉMARRE QUAND IL EST PRÊT
@@ -2887,7 +2887,7 @@ Get {} Ready On A Windows PC	Prepara {} su un PC Windows
 Copy {}.so to your phone, into the same folder as your ROMs (USB cable, Google Drive, anything).	Copia {}.so sul telefono, nella stessa cartella delle tue ROM (cavo USB, Google Drive, come vuoi).
 FullDex on your phone finds it by itself and the game runs at full speed.	FullDex sul telefono lo trova da solo e il gioco va alla massima velocità.
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): THEN IT BUILDS	AGGIUNTA DI {} A FULLDEX (UNA VOLTA, CIRCA 2 GB): POI VIENE CREATO
-{}: NOT A 3DS GAME FULLDEX PLAYS (OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)	{}: NON È UN GIOCO 3DS COMPATIBILE CON FULLDEX (OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)
+{}: NOT A 3DS GAME FULLDEX PLAYS (X, Y, OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)	{}: NON È UN GIOCO 3DS COMPATIBILE CON FULLDEX (X, Y, OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)
 THAT FILE IS NOT A 3DS GAME FULLDEX PLAYS	QUEL FILE NON È UN GIOCO 3DS COMPATIBILE CON FULLDEX
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 4 GB): THEN IT BUILDS	AGGIUNTA DI {} A FULLDEX (UNA VOLTA, CIRCA 4 GB): POI VIENE CREATO
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): IT STARTS WHEN READY	AGGIUNTA DI {} A FULLDEX (UNA VOLTA, CIRCA 2 GB): PARTE QUANDO È PRONTO
@@ -3610,7 +3610,7 @@ Get {} Ready On A Windows PC	Windows PCで{}を準備する
 Copy {}.so to your phone, into the same folder as your ROMs (USB cable, Google Drive, anything).	{}.soをスマホのROMと同じフォルダにコピーしてください（USBケーブル、Googleドライブなど何でも）。
 FullDex on your phone finds it by itself and the game runs at full speed.	スマホのFullDexが自動で見つけ、ゲームがフルスピードで動きます。
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): THEN IT BUILDS	{}をFULLDEXに追加中（初回のみ、約2 GB）：その後作成します
-{}: NOT A 3DS GAME FULLDEX PLAYS (OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)	{}: FULLDEX で遊べる 3DS ソフトではありません（オメガルビー、アルファサファイア、ウルトラサン、ウルトラムーン）
+{}: NOT A 3DS GAME FULLDEX PLAYS (X, Y, OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)	{}: FULLDEX で遊べる 3DS ソフトではありません（X、Y、オメガルビー、アルファサファイア、ウルトラサン、ウルトラムーン）
 THAT FILE IS NOT A 3DS GAME FULLDEX PLAYS	そのファイルは FULLDEX で遊べる 3DS ソフトではありません
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 4 GB): THEN IT BUILDS	{}をFULLDEXに追加中（初回のみ、約4 GB）：その後作成します
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): IT STARTS WHEN READY	{}をFULLDEXに追加中（初回のみ、約2 GB）：準備ができたら始まります
@@ -4333,7 +4333,7 @@ Get {} Ready On A Windows PC	Windows PC에서 {} 준비하기
 Copy {}.so to your phone, into the same folder as your ROMs (USB cable, Google Drive, anything).	{}.so를 휴대폰의 ROM과 같은 폴더에 복사하세요(USB 케이블, Google 드라이브 등 무엇이든).
 FullDex on your phone finds it by itself and the game runs at full speed.	휴대폰의 FullDex가 알아서 찾고 게임이 최고 속도로 돌아갑니다.
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): THEN IT BUILDS	{}을(를) FULLDEX에 추가하는 중(한 번만, 약 2 GB): 그다음 만듭니다
-{}: NOT A 3DS GAME FULLDEX PLAYS (OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)	{}: FULLDEX에서 플레이할 수 있는 3DS 게임이 아닙니다 (오메가루비, 알파사파이어, 울트라썬, 울트라문)
+{}: NOT A 3DS GAME FULLDEX PLAYS (X, Y, OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)	{}: FULLDEX에서 플레이할 수 있는 3DS 게임이 아닙니다 (X, Y, 오메가루비, 알파사파이어, 울트라썬, 울트라문)
 THAT FILE IS NOT A 3DS GAME FULLDEX PLAYS	그 파일은 FULLDEX에서 플레이할 수 있는 3DS 게임이 아닙니다
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 4 GB): THEN IT BUILDS	{}을(를) FULLDEX에 추가하는 중(한 번만, 약 4 GB): 그다음 만듭니다
 ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): IT STARTS WHEN READY	{}을(를) FULLDEX에 추가하는 중(한 번만, 약 2 GB): 준비되면 시작합니다
