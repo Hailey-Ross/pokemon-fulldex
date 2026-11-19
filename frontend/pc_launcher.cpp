@@ -3705,16 +3705,18 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                         afterAdd.clear();
                     }
                     static std::set<std::string> codesTried;
+                    bool takingCode = false; // (game code from a PC being taken in: the first Play waits for it)
                     if (!busy3ds)
                         for (const Launcher::Game& g : games)
                         {
                             const auto pc = N3ds::PhoneCodes().find(N3ds::IdOf(g));
                             if (g.platform != Launcher::N3DS || g.built || !N3ds::Added(g) || pc == N3ds::PhoneCodes().end() || !codesTried.insert(pc->second).second) continue;
                             JavaStringArg("threeDsImportFile", N3ds::IdOf(g) + "\n" + pc->second);
+                            takingCode = true;
                             break;
                         }
                     std::string& autoPlay = N3dsAutoPlay();
-                    if (!autoPlay.empty() && !busy3ds)
+                    if (!autoPlay.empty() && !busy3ds && !takingCode)
                     {
                         for (const Launcher::Game& g : games)
                             if (g.platform == Launcher::N3DS && g.folder == autoPlay && N3ds::Added(g)) { JavaStringArg("threeDsPlay", N3ds::IdOf(g)); note = "STARTING " + g.name; }
