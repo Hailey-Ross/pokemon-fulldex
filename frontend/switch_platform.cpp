@@ -991,7 +991,7 @@ int PickGame(const std::vector<Launcher::Game>& gamesIn, int selected, const std
                     if (aDown && valid)
                     {
                         if (games[selected].known && !games[selected].comingSoon) { F.popup = 0; note.clear(); }
-                        else note = games[selected].comingSoon ? games[selected].name + ": COMING SOON" : "THIS GAME IS NOT ONE THAT THIS PLAYS";
+                        else note = games[selected].comingSoon ? games[selected].name + (games[selected].addRom ? ": ADD YOUR .3DS DUMP TO YOUR ROMS FOLDER" : ": COMING SOON") : "THIS GAME IS NOT ONE THAT THIS PLAYS";
                     }
                 }
                 if (down & HidNpadButton_Plus) quitList = true;
@@ -1096,7 +1096,7 @@ int PickGame(const std::vector<Launcher::Game>& gamesIn, int selected, const std
                     result = selected;
                     break;
                 }
-                note = games[selected].comingSoon ? games[selected].name + ": COMING SOON"
+                note = games[selected].comingSoon ? games[selected].name + (games[selected].addRom ? ": ADD YOUR .3DS DUMP TO YOUR ROMS FOLDER" : ": COMING SOON")
                      : !games[selected].problem.empty() ? "PATCH: " + games[selected].problem
                      : games[selected].known ? "THIS DOWNLOAD DOES NOT HAVE THIS GAME" : "THIS GAME IS NOT ONE THAT THIS PLAYS";
             }

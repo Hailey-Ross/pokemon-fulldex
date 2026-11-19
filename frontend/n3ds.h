@@ -17,6 +17,7 @@
 #include <cctype>
 #include <ctime>
 #include <cstdint>
+#include <set>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -353,13 +354,16 @@ inline bool& ProgramHere() { static bool b = false; return b; }
 // games this program cannot play here go (a platform without the 3DS programs).
 inline void DropPlaceholders(std::vector<Launcher::Game>& games)
 {
+    // (The real games' codes first: the loop below moves the games it keeps out of the list.)
+    std::set<std::string> realCodes;
+    for (const Launcher::Game& o : games)
+        if (!o.comingSoon && o.platform == Launcher::N3DS) realCodes.insert(o.code);
     std::vector<Launcher::Game> keep;
     for (Launcher::Game& g : games)
     {
         if (g.comingSoon && g.platform == Launcher::N3DS)
         {
-            bool real = false;
-            for (const Launcher::Game& o : games) real |= !o.comingSoon && o.platform == Launcher::N3DS && o.code == g.code;
+            const bool real = realCodes.count(g.code) > 0;
             // (Mac, iPhone, iPad, and Linux without the program (ARM): still coming, so the tiles stay,
             // saying Coming Soon with no countdown.)
             bool stays = false;
@@ -373,7 +377,8 @@ inline void DropPlaceholders(std::vector<Launcher::Game>& games)
                 if (real) continue;
                 g.soonAt = 0;
             }
-            else if (real || (g.soonAt > 0 && g.soonAt <= (long long)std::time(nullptr))) continue;
+            else if (real) continue;
+            else if (g.soonAt <= (long long)std::time(nullptr)) g.addRom = true; // (no dump yet: Add ROM)
         }
         keep.push_back(std::move(g));
     }

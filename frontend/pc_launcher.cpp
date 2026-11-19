@@ -1641,7 +1641,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             quit = true;
         }
         else
-            note = games[selected].comingSoon ? games[selected].name + ": COMING SOON"
+            note = games[selected].comingSoon ? games[selected].name + (games[selected].addRom ? ": ADD YOUR .3DS DUMP TO YOUR ROMS FOLDER" : ": COMING SOON")
                  : !games[selected].problem.empty() ? "PATCH: " + games[selected].problem
                  : games[selected].known ? "THIS DOWNLOAD DOES NOT HAVE THIS GAME" : "THIS GAME IS NOT ONE THAT THIS PLAYS";
     };
@@ -3952,7 +3952,7 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                         libraryCard.px[(size_t)(y+66)*640+x+160]=picture[(size_t)y*320+x]|0xFF000000;
                     std::string title=g->name;if(title.size()>48)title=title.substr(0,47)+".";
                     libraryCard.Text(18,400,title,2,0xFFFFFFFF);
-                    libraryCard.Text(18,432,g->comingSoon?"COMING SOON":g->hasSave?"SAVE FOUND":"READY TO PLAY",2,0xFFB9C9DD);
+                    libraryCard.Text(18,432,g->comingSoon?(g->addRom?"ADD ROM":"COMING SOON"):g->hasSave?"SAVE FOUND":"READY TO PLAY",2,0xFFB9C9DD);
                     if(g->favourite)libraryCard.Text(500,432,"FAVOURITE",1,0xFFFFD75E);
                 }
                 else libraryCard.Text(18,100,"CHOOSE A GAME ON THE MAIN SCREEN",2,0xFFFFFFFF);

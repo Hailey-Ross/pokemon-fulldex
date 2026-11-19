@@ -264,6 +264,7 @@ struct Game
     std::string where;
     // A game on its way (AddComingSoon): its tile says so and it cannot be played.
     bool comingSoon = false;
+    bool addRom = false; // (a 3DS game with no dump found: its tile says Add ROM, so players see it is there to play)
     long long soonAt = 0; // (UTC seconds) a game coming on a set day: its tile counts down to it
     bool favourite = false;
     std::string customName; // the player's own name for it (Rename; fulldex-names.txt), empty: its own
@@ -566,23 +567,20 @@ constexpr int Art = 224;
 // Omega Ruby on the 3DS (its picture as any game's: icons/ECRA.jpg, or SSR_PC_ART's ECRA.jpg).
 inline void AddComingSoon(std::vector<Game>& games)
 {
-    Game g;
-    g.platform = N3DS;
-    g.code = "ECRA";
-    g.rom = "coming-soon:ECRA"; // (never a file: so never the last game played, nor started)
-    g.name = "POKEMON OMEGA RUBY";
-    g.comingSoon = true;
-    g.soonAt = 1794441600LL; // (12 November 2026, 00:00 UTC: Omega Ruby and Alpha Sapphire come together)
-    games.push_back(std::move(g));
-    // Alpha Sapphire, the same day.
-    Game a;
-    a.platform = N3DS;
-    a.code = "ECLA";
-    a.rom = "coming-soon:ECLA";
-    a.name = "POKEMON ALPHA SAPPHIRE";
-    a.comingSoon = true;
-    a.soonAt = 1794441600LL;
-    games.push_back(std::move(a));
+    // (Every 3DS game, so players see them: a dump found takes the tile's place (N3ds::DropPlaceholders); where
+    // the game plays and none is found, the tile says Add ROM; where it cannot play yet, Coming Soon.)
+    static const char* const titles[][2] = { { "EKJA", "POKEMON X" }, { "EK2A", "POKEMON Y" }, { "ECRA", "POKEMON OMEGA RUBY" },
+                                             { "ECLA", "POKEMON ALPHA SAPPHIRE" }, { "A2AA", "POKEMON ULTRA SUN" }, { "A2BA", "POKEMON ULTRA MOON" } };
+    for (const auto& t : titles)
+    {
+        Game g;
+        g.platform = N3DS;
+        g.code = t[0];
+        g.rom = std::string("coming-soon:") + t[0]; // (never a file: so never the last game played, nor started)
+        g.name = t[1];
+        g.comingSoon = true;
+        games.push_back(std::move(g));
+    }
 }
 
 // The day it comes, as "Release: 12 Nov 2026" ("" without a day, or once it has come).
@@ -602,6 +600,7 @@ inline std::string ComingSoonDate(const Game& g)
 inline std::string ComingSoonText(const Game& g)
 {
     if (!g.comingSoon) return "";
+    if (g.addRom) return "Add ROM";
     const long long left = g.soonAt > 0 ? g.soonAt - (long long)std::time(nullptr) : 0;
     if (left <= 0) return "Coming Soon";
     const long long mins = (left + 59) / 60;
@@ -7246,7 +7245,7 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
             DrawCover(c, g, tx0, ty0, t, t, 8 * u);
             if (g.comingSoon) Glass::Round(c, tx0, ty0, t, t, 8 * u, 0x99000000u);
             const int nx = tx0 + t + (int)(14 * u);
-            const std::string sub = g.comingSoon ? std::string("Coming Soon") : !g.known ? std::string("Not Playable") : g.platform == N3DS ? std::string(g.built ? "3DS Beta \xC2\xB7 Built" : "3DS Beta") : std::string(PlatformName(g.platform));
+            const std::string sub = g.comingSoon ? std::string(g.addRom ? "Add ROM" : "Coming Soon") : !g.known ? std::string("Not Playable") : g.platform == N3DS ? std::string(g.built ? "3DS Beta \xC2\xB7 Built" : "3DS Beta") : std::string(PlatformName(g.platform));
             const int sw = GW(sub, 13 * u, true);
             GTFit(c, nx, y + rh * 0.5f, ShortName(g), 17 * u, x + grid.cw - nx - sw - (int)(30 * u), text, true);
             GT(c, x + grid.cw - (int)(16 * u) - sw, y + rh * 0.5f, sub, 13 * u, !g.known && !g.comingSoon ? 0xFFF2A08Au : hint, true);
@@ -7268,10 +7267,16 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
         float npx = 17 * u;
         // (A 3DS game whose code is built says so beside 3DS.)
         std::string tag = g.platform == N3DS ? (g.built ? "3DS Beta \xC2\xB7 Built" : "3DS Beta") : PlatformName(g.platform);
-        // (A long name keeps its size: a built 3DS game's tag gets shorter first, 3DS Beta \xC2\xB7 Built, 3DS \xC2\xB7 Built, Built.)
-        if (g.platform == N3DS && g.built)
-            for (const char* t : { "3DS \xC2\xB7 Built", "Built" })
-                if (GW(name, npx, true) > iw - GW(tag, 13 * u, true) - (int)(14 * u)) tag = t;
+        // (A long name keeps its size: a 3DS game's tag gets shorter first, 3DS Beta \xC2\xB7 Built, 3DS \xC2\xB7 Built, Built, or 3DS Beta, 3DS.)
+        if (g.platform == N3DS)
+        {
+            static const char* const builtTags[] = { "3DS \xC2\xB7 Built", "Built" };
+            static const char* const plainTags[] = { "3DS" };
+            const char* const* tags = g.built ? builtTags : plainTags;
+            const int count = g.built ? 2 : 1;
+            for (int i = 0; i < count; i++)
+                if (GW(name, npx, true) > iw - GW(tag, 13 * u, true) - (int)(14 * u)) tag = tags[i];
+        }
         const int room = iw - GW(tag, 13 * u, true) - (int)(14 * u);
         while (npx > 10 * u && GW(name, npx, true) > room) npx -= u;
         GT(c, ix + (int)(4 * u), cy, name, npx, text, true);
@@ -7364,7 +7369,7 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
         const int nw = std::min(GW(nm, 34 * u, true), (int)(c.w * 0.7f));
         GTFit(c, cx - nw / 2, (float)tb.nameY, nm, 34 * u, nw, text, true);
         const std::string saveS = g.needsSetup ? std::string("Needs A One-Time Setup") : HubCloudOf(g) == 2 ? "Cloud Save: Changed On Both" : HubCloudOf(g) ? "Cloud Save" : g.hasSave ? "Save Found" : "New Game";
-        const std::string meta = g.comingSoon ? std::string("Coming Soon") : !g.known ? std::string("Not Playable") : std::string(PlatformName(g.platform)) + "   \xC2\xB7   " + saveS;
+        const std::string meta = g.comingSoon ? std::string(g.addRom ? "Add ROM" : "Coming Soon") : !g.known ? std::string("Not Playable") : std::string(PlatformName(g.platform)) + "   \xC2\xB7   " + saveS;
         GT(c, cx - GW(meta, 16 * u, true) / 2, (float)tb.metaY, meta, 16 * u, hint, true);
     };
     auto drawTiles = [&]() {
@@ -8131,7 +8136,7 @@ inline void DrawClassic(Canvas& c, const std::vector<Game>& games, int tab, int 
         while ((g.hack || !g.problem.empty()) && name.size() > 4 && Canvas::TextWidth(name, ns) > tile) name = name.substr(0, name.size() - 3) + "..";
         c.Text(x + (tile - Canvas::TextWidth(name, ns)) / 2, y + tile + 3 * s, name, ns, sel ? th.nameSel : th.name);
         if (sel && th.selBar) c.Fill(x + tile / 4, y + tile + (UiLang::Tall() ? 31 : 19) * s, tile / 2, s, th.selBar);
-        std::string sub = g.comingSoon ? "COMING SOON" : !g.problem.empty() ? "PATCH PROBLEM" : !g.known ? "NOT PLAYABLE"
+        std::string sub = g.comingSoon ? (g.addRom ? "ADD ROM" : "COMING SOON") : !g.problem.empty() ? "PATCH PROBLEM" : !g.known ? "NOT PLAYABLE"
                         : g.hack ? (g.hasSave ? "HACK: SAVE FOUND" : "HACK: NEW GAME") : g.hasSave ? "SAVE FOUND" : "NEW GAME";
         if (!g.where.empty() && g.known) sub = (g.hasSave ? "SAVE " : "NEW ") + g.where; // e.g. SAVE IN BLACK2
         if(g.favourite)c.Text(x+tile-24*s,y+4*s,"FAV",s,th.nameSel);
