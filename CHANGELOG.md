@@ -33,6 +33,7 @@
 - **3DS games on phones: the Menu button stays when the touch controls are off,** so the menu (and the setting to bring them back) can always be reached without a controller.
 - **3DS games in fullscreen hide the mouse pointer** while you play with a controller; it comes back for a moment when the mouse moves.
 - **Monomyth 1.2 in widescreen**, with Zoom and its name and picture. 1.2 moved its code, so it has a widescreen patch of its own; 1.0 and 1.1 keep theirs.
+- **A GBA hack's xdelta patch made without file names is no longer listed as a DS hack that can't be played** (Inclement Emerald, beside its ROM). Its size says it is a GBA patch.
 - **Game Options in the launcher** keeps its focus and opens the selected game's menu under the button (#191).
 - **About > Credits:** OzWookiee, Saiborg23 and elripalda.
 
