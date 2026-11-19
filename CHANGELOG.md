@@ -3,6 +3,8 @@
 
 ## FullDex 1.6.1 (not released yet)
 
+- **Nintendo WFC: online play and Mystery Gifts through a community server** (SETTINGS > OPTIONAL FEATURES > NINTENDO WFC, off to start). Nintendo's WFC servers closed in 2014; with this on, the names under `nintendowifi.net` resolve to AltWFC/WFZwei instead (`wfc_server` in `settings.cfg` for another server), and the games' own online menus work again: Mystery Gift's GET VIA NINTENDO WFC (one gift at a time, received in the game), the GTS and the Wi-Fi Club. Set up a Nintendo WFC connection in the game once (any access point; automatic DNS is fine). The community servers are not run by this project and may change.
+
 - **A Spanish (or other full-size) DS game is its own game again, not a ROM hack.** 1.6 treated a full-size dump that matched no listed release as a hack: the Hub showed it read-only and it played from a save of its own. Only a trimmed ROM is a hack now. A save played that way since 1.6 is put back as the game's own, and the save it replaces is kept as `.before-1.6.1`.
 - **Auto Save State and Resume on Start (DS and GBA games, both off by default)** (#214). Settings > Playback in DS games, Controls in GBA games. FullDex keeps a separate state every minute, when the app goes to the background and when you quit, and can start the game from it next time. Your in-game save and your manual slots are left as they are, and a changed ROM or hack gets its own automatic state.
 - **A save state cut short no longer stops its slot working.** If FullDex closed while writing a state (a crash, the power going), that slot refused to save again until a file was deleted by hand. The half-written file is now kept aside as `.pending.failed` and the slot saves as normal.
