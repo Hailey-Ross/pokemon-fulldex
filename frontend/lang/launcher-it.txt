@@ -700,3 +700,18 @@ The Switch can't build 3DS games itself. FullDex on a Windows PC does it in 5 to
 3. Put the card back here: {} is ready to play.	3. Rimetti qui la scheda: {} è pronto per giocare.
 OK	OK
 Needs A One-Time Setup	Serve una preparazione unica
+# 3DS on phones: getting a game ready
+Get {} Ready	Prepara {}
+A one-time step so it runs at full speed.	Un passaggio unico perché vada alla massima velocità.
+A Windows PC does it in 5 to 10 minutes; this phone in about 25 (keep it plugged in, it gets warm).	Un PC Windows lo fa in 5-10 minuti; questo telefono in circa 25 (tienilo in carica, si scalda).
+Until then it plays through an emulator: slower, and busy scenes can stutter.	Fino ad allora si gioca con un emulatore: più lento, e le scene affollate possono scattare.
+With A Windows PC (Recommended)	Con un PC Windows (consigliato)
+On This Phone (About 25 Minutes)	Su questo telefono (circa 25 minuti)
+Play Now With The Emulator	Gioca ora con l'emulatore
+Get {} Ready On A Windows PC	Prepara {} su un PC Windows
+1. In FullDex on your PC, open {}'s Game Options and choose Put On My Phone.	1. In FullDex sul PC, apri le Opzioni gioco di {} e scegli Metti sul mio telefono.
+2. Copy the file it makes into your ROMs folder here.	2. Copia il file creato nella tua cartella delle ROM qui.
+3. FullDex finds it by itself and {} runs at full speed.	3. FullDex lo trova da solo e {} va alla massima velocità.
+Copy {}.so to your phone, into the same folder as your ROMs (USB cable, Google Drive, anything).	Copia {}.so sul telefono, nella stessa cartella delle tue ROM (cavo USB, Google Drive, come vuoi).
+FullDex on your phone finds it by itself and the game runs at full speed.	FullDex sul telefono lo trova da solo e il gioco va alla massima velocità.
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): THEN IT BUILDS	AGGIUNTA DI {} A FULLDEX (UNA VOLTA, CIRCA 2 GB): POI VIENE CREATO

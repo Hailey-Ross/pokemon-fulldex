@@ -478,7 +478,7 @@ inline void SetupFill(Launcher::GlassFocus& F)
         else
         {
             F.dTitle = n + " For Your Phone Is Ready";
-            F.dMsg = "Copy " + j.id + ".so to your phone (USB cable, Google Drive, anything).  Then in FullDex on your phone, open " + n + "'s Game Options and choose Use Game Code From PC.";
+            F.dMsg = "Copy " + j.id + ".so to your phone, into the same folder as your ROMs (USB cable, Google Drive, anything).  FullDex on your phone finds it by itself and the game runs at full speed.";
             F.dItems = { "Open The Folder", "Done" }; F.dPaths = { "#open", "#close" };
         }
         return;

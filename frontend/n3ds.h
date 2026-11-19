@@ -20,6 +20,7 @@
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
+#include <map>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -447,9 +448,20 @@ inline void AddSwitch(std::vector<Launcher::Game>& games, const std::string& roo
 // Android, with the Omega Ruby kit in the app (GameActivity.threeDsAvailable): a game already added
 // (<app files>/3ds/<title id>/game.3ds, the kit's own folder), else a dump in the ROM folders, which
 // is copied there the first time it is chosen (GameActivity.threeDsAdd).
+// (Android: the game code Put On My Phone made on a PC, <title id>.so, found in the ROM folders: by title id.)
+inline std::map<std::string, std::string>& PhoneCodes() { static std::map<std::string, std::string> m; return m; }
 inline void AddAndroid(const std::vector<std::string>& romDirs, const std::string& appDir, std::vector<Launcher::Game>& games)
 {
     SkipNote().clear(); SkipRank() = 0;
+    PhoneCodes().clear();
+    for (const std::string& dir : romDirs)
+        if (DIR* d = opendir(dir.c_str()))
+        {
+            while (dirent* e = readdir(d))
+                for (const Title& t : kTitles)
+                    if (!strcasecmp(e->d_name, (std::string(t.id) + ".so").c_str())) PhoneCodes()[t.id] = dir + "/" + e->d_name;
+            closedir(d);
+        }
     auto have = [&](const Title& t) {
         for (const Launcher::Game& o : games) if (o.platform == Launcher::N3DS && o.code == t.code) return true;
         return false;

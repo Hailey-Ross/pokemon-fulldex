@@ -293,6 +293,8 @@ void JavaStringArg(const char* method, const std::string& value)
 
 // The game folder of a 3DS game whose first Play is copying it in: it starts when that is done.
 std::string& N3dsAutoPlay() { static std::string folder; return folder; }
+// (Android: what to do once a game's copy into the app is done: "build:<its folder>" builds it on the phone.)
+std::string& N3dsAfterAdd() { static std::string a; return a; }
 
 bool JavaBoolStringArg(const char* method, const std::string& value)
 {
@@ -1597,6 +1599,19 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             std::string name = Launcher::TitleCase(g.name);
             for (char& c : name) c = (char)toupper((unsigned char)c);
             if (JavaBool("threeDsBusy")) { note = JavaString("threeDsNote"); if (note.empty()) note = "WAIT FOR " + name + " TO FINISH"; return; }
+            // (Not built yet, no game code from a PC in the ROM folders and never asked: how to get it
+            // ready, or play now with the emulator.)
+            if (!g.built && !N3ds::PhoneCodes().count(N3ds::IdOf(g)) && !Launcher::ReadPairs(fo.settings + "/fulldex-3ds-asked.txt").count(N3ds::IdOf(g)))
+            {
+                Launcher::GlassFocus& F = Launcher::Focus();
+                const std::string nm = N3ds::SetupName(g.name);
+                F.dialog = 22; F.drow = 0;
+                F.dTitle = "Get " + nm + " Ready";
+                F.dMsg = "A one-time step so it runs at full speed.  A Windows PC does it in 5 to 10 minutes; this phone in about 25 (keep it plugged in, it gets warm).  Until then it plays through an emulator: slower, and busy scenes can stutter.";
+                F.dItems = { "With A Windows PC (Recommended)", "On This Phone (About 25 Minutes)", "Play Now With The Emulator" };
+                F.dPaths = { "#pc", "#phone", "#play" };
+                return;
+            }
             if (!N3ds::Added(g))
             {
                 double needGb = 0;
@@ -2099,6 +2114,37 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
         Launcher::GlassFocus& F = Launcher::Focus();
         const bool noGame = selected < 0 || selected >= (int)games.size();
         // (A tab's menu, and the keyboard for a tab's name, a new tab or the search, need no game: a tab with none in it is where they are wanted.)
+#ifdef __ANDROID__
+        if (F.dialog == 22)
+        {
+            // (A 3DS game's first Play: with a PC, on this phone, or now with the emulator.)
+            const std::string pick = F.drow >= 0 && F.drow < (int)F.dPaths.size() ? F.dPaths[F.drow] : std::string("#close");
+            if (selected < 0 || selected >= (int)games.size() || pick == "#close") { dialogClose(); return; }
+            const Launcher::Game& g = games[selected];
+            const std::string id = N3ds::IdOf(g), nm = N3ds::SetupName(g.name);
+            std::string up = nm;
+            for (char& c : up) c = (char)toupper((unsigned char)c);
+            if (pick == "#pc")
+            {
+                F.dTitle = "Get " + nm + " Ready On A Windows PC";
+                F.dMsg = "1. In FullDex on your PC, open " + nm + "'s Game Options and choose Put On My Phone.  2. Copy the file it makes into your ROMs folder here.  3. FullDex finds it by itself and " + nm + " runs at full speed.";
+                F.dItems = { "OK", "Play Now With The Emulator" };
+                F.dPaths = { "#close", "#play" };
+                F.drow = 0;
+                return;
+            }
+            dialogClose();
+            Launcher::SetPair(fo.settings + "/fulldex-3ds-asked.txt", id, "1");
+            if (pick == "#phone")
+            {
+                if (!N3ds::Added(g)) { JavaStringArg("threeDsAdd", g.rom); N3dsAfterAdd() = "build:" + g.folder; note = "ADDING " + up + " TO FULLDEX (ONE TIME, ABOUT 2 GB): THEN IT BUILDS"; }
+                else JavaStringArg("threeDsBuild", id);
+                return;
+            }
+            launchSelected(); // (Play Now With The Emulator: as Play does, the card not shown again)
+            return;
+        }
+#endif
         if (F.dialog == 21)
         {
             // (The 3DS setup: n3ds_setup.h does it; closed when it says so.)
@@ -3651,6 +3697,22 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                         for (const Launcher::Game& g : games)
                             if (g.platform == Launcher::N3DS) N3ds::SyncSave(g, fo.saves + "/" + g.saveName);
                     // (The first Play's copy done: the game starts.)
+                    std::string& afterAdd = N3dsAfterAdd();
+                    if (!afterAdd.empty() && !busy3ds)
+                    {
+                        for (const Launcher::Game& g : games)
+                            if (g.platform == Launcher::N3DS && "build:" + g.folder == afterAdd && N3ds::Added(g)) JavaStringArg("threeDsBuild", N3ds::IdOf(g));
+                        afterAdd.clear();
+                    }
+                    static std::set<std::string> codesTried;
+                    if (!busy3ds)
+                        for (const Launcher::Game& g : games)
+                        {
+                            const auto pc = N3ds::PhoneCodes().find(N3ds::IdOf(g));
+                            if (g.platform != Launcher::N3DS || g.built || !N3ds::Added(g) || pc == N3ds::PhoneCodes().end() || !codesTried.insert(pc->second).second) continue;
+                            JavaStringArg("threeDsImportFile", N3ds::IdOf(g) + "\n" + pc->second);
+                            break;
+                        }
                     std::string& autoPlay = N3dsAutoPlay();
                     if (!autoPlay.empty() && !busy3ds)
                     {

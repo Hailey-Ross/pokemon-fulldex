@@ -700,3 +700,18 @@ The Switch can't build 3DS games itself. FullDex on a Windows PC does it in 5 to
 3. Put the card back here: {} is ready to play.	3. 카드를 다시 여기에 넣으면 {}을(를) 플레이할 수 있습니다.
 OK	확인
 Needs A One-Time Setup	한 번 준비가 필요함
+# 3DS on phones: getting a game ready
+Get {} Ready	{} 준비하기
+A one-time step so it runs at full speed.	최고 속도로 돌리기 위한 한 번만의 준비입니다.
+A Windows PC does it in 5 to 10 minutes; this phone in about 25 (keep it plugged in, it gets warm).	Windows PC는 5~10분, 이 휴대폰은 약 25분 걸립니다(충전기를 꽂아 두세요. 따뜻해집니다).
+Until then it plays through an emulator: slower, and busy scenes can stutter.	그때까지는 에뮬레이터로 플레이합니다. 더 느리고 복잡한 장면에서 끊길 수 있습니다.
+With A Windows PC (Recommended)	Windows PC로(추천)
+On This Phone (About 25 Minutes)	이 휴대폰에서(약 25분)
+Play Now With The Emulator	지금 에뮬레이터로 플레이
+Get {} Ready On A Windows PC	Windows PC에서 {} 준비하기
+1. In FullDex on your PC, open {}'s Game Options and choose Put On My Phone.	1. PC의 FullDex에서 {}의 게임 옵션을 열고 내 휴대폰에 넣기를 고르세요.
+2. Copy the file it makes into your ROMs folder here.	2. 만들어진 파일을 여기 ROM 폴더에 복사하세요.
+3. FullDex finds it by itself and {} runs at full speed.	3. FullDex가 알아서 찾고 {}이(가) 최고 속도로 돌아갑니다.
+Copy {}.so to your phone, into the same folder as your ROMs (USB cable, Google Drive, anything).	{}.so를 휴대폰의 ROM과 같은 폴더에 복사하세요(USB 케이블, Google 드라이브 등 무엇이든).
+FullDex on your phone finds it by itself and the game runs at full speed.	휴대폰의 FullDex가 알아서 찾고 게임이 최고 속도로 돌아갑니다.
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): THEN IT BUILDS	{}을(를) FULLDEX에 추가하는 중(한 번만, 약 2 GB): 그다음 만듭니다
