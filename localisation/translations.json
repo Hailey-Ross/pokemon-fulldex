@@ -1376,7 +1376,9 @@
       "BLURRED": "DIFUMINADA",
       "SHARP PIXELS (RECOMMENDED): CRISP AT ANY SCREEN SIZE. BLURRED: THE PICTURE IS SOFTENED AS IT IS SCALED UP, SO TEXT AND MENUS LOOK FUZZY.": "PÍXELES NÍTIDOS (RECOMENDADO): IMAGEN NÍTIDA EN CUALQUIER PANTALLA. DIFUMINADA: LA IMAGEN SE SUAVIZA AL AMPLIARSE, ASÍ QUE LOS TEXTOS Y MENÚS SE VEN BORROSOS.",
       "Sharp Pixels (recommended) keeps every pixel crisp at any screen size.": "Píxeles nítidos (recomendado) mantiene cada píxel nítido en cualquier pantalla.",
-      "Blurred softens the picture as it is made larger: text and menus look fuzzy.": "Difuminada suaviza la imagen al ampliarla: los textos y menús se ven borrosos."
+      "Blurred softens the picture as it is made larger: text and menus look fuzzy.": "Difuminada suaviza la imagen al ampliarla: los textos y menús se ven borrosos.",
+      "NINTENDO WFC": "NINTENDO WFC",
+      "ONLINE PLAY AND MYSTERY GIFTS THROUGH A COMMUNITY SERVER (ALTWFC/WFZWEI), AS NINTENDO'S SERVERS ARE CLOSED. IN THE GAME, SET UP A NINTENDO WFC CONNECTION ONCE (ANY ACCESS POINT, AUTOMATIC DNS); THE SERVER'S ADDRESS IS WFC_SERVER IN SETTINGS.CFG.": "JUEGO EN LÍNEA Y REGALOS MISTERIOSOS A TRAVÉS DE UN SERVIDOR DE LA COMUNIDAD (ALTWFC/WFZWEI), YA QUE LOS SERVIDORES DE NINTENDO ESTÁN CERRADOS. EN EL JUEGO, CONFIGURA UNA VEZ UNA CONEXIÓN NINTENDO WFC (CUALQUIER PUNTO DE ACCESO, DNS AUTOMÁTICO); LA DIRECCIÓN DEL SERVIDOR ES WFC_SERVER EN SETTINGS.CFG."
     },
     "it": {
       " (NEXT START)": " (AL RIAVVIO)",
@@ -2745,7 +2747,9 @@
       "BLURRED": "SFOCATA",
       "SHARP PIXELS (RECOMMENDED): CRISP AT ANY SCREEN SIZE. BLURRED: THE PICTURE IS SOFTENED AS IT IS SCALED UP, SO TEXT AND MENUS LOOK FUZZY.": "PIXEL NITIDI (CONSIGLIATO): IMMAGINE NITIDA SU QUALSIASI SCHERMO. SFOCATA: L'IMMAGINE VIENE AMMORBIDITA QUANDO È INGRANDITA, QUINDI TESTI E MENU SEMBRANO SFOCATI.",
       "Sharp Pixels (recommended) keeps every pixel crisp at any screen size.": "Pixel nitidi (consigliato) mantiene ogni pixel nitido su qualsiasi schermo.",
-      "Blurred softens the picture as it is made larger: text and menus look fuzzy.": "Sfocata ammorbidisce l'immagine quando viene ingrandita: testi e menu sembrano sfocati."
+      "Blurred softens the picture as it is made larger: text and menus look fuzzy.": "Sfocata ammorbidisce l'immagine quando viene ingrandita: testi e menu sembrano sfocati.",
+      "NINTENDO WFC": "NINTENDO WFC",
+      "ONLINE PLAY AND MYSTERY GIFTS THROUGH A COMMUNITY SERVER (ALTWFC/WFZWEI), AS NINTENDO'S SERVERS ARE CLOSED. IN THE GAME, SET UP A NINTENDO WFC CONNECTION ONCE (ANY ACCESS POINT, AUTOMATIC DNS); THE SERVER'S ADDRESS IS WFC_SERVER IN SETTINGS.CFG.": "GIOCO ONLINE E DONI SEGRETI TRAMITE UN SERVER DELLA COMUNITÀ (ALTWFC/WFZWEI), DATO CHE I SERVER DI NINTENDO SONO CHIUSI. NEL GIOCO, IMPOSTA UNA VOLTA UNA CONNESSIONE NINTENDO WFC (QUALSIASI ACCESS POINT, DNS AUTOMATICO); L'INDIRIZZO DEL SERVER È WFC_SERVER IN SETTINGS.CFG."
     },
     "fr": {
       " (NEXT START)": " (PROCHAIN DÉBUT)",
@@ -4114,7 +4118,9 @@
       "BLURRED": "FLOUE",
       "SHARP PIXELS (RECOMMENDED): CRISP AT ANY SCREEN SIZE. BLURRED: THE PICTURE IS SOFTENED AS IT IS SCALED UP, SO TEXT AND MENUS LOOK FUZZY.": "PIXELS NETS (RECOMMANDÉ) : UNE IMAGE NETTE SUR TOUT ÉCRAN. FLOUE : L'IMAGE EST ADOUCIE EN ÉTANT AGRANDIE, LES TEXTES ET MENUS PARAISSENT FLOUS.",
       "Sharp Pixels (recommended) keeps every pixel crisp at any screen size.": "Pixels nets (recommandé) garde chaque pixel net sur tout écran.",
-      "Blurred softens the picture as it is made larger: text and menus look fuzzy.": "Floue adoucit l'image quand elle est agrandie : les textes et menus paraissent flous."
+      "Blurred softens the picture as it is made larger: text and menus look fuzzy.": "Floue adoucit l'image quand elle est agrandie : les textes et menus paraissent flous.",
+      "NINTENDO WFC": "NINTENDO WFC",
+      "ONLINE PLAY AND MYSTERY GIFTS THROUGH A COMMUNITY SERVER (ALTWFC/WFZWEI), AS NINTENDO'S SERVERS ARE CLOSED. IN THE GAME, SET UP A NINTENDO WFC CONNECTION ONCE (ANY ACCESS POINT, AUTOMATIC DNS); THE SERVER'S ADDRESS IS WFC_SERVER IN SETTINGS.CFG.": "JEU EN LIGNE ET CADEAUX MYSTÈRE VIA UN SERVEUR DE LA COMMUNAUTÉ (ALTWFC/WFZWEI), CAR LES SERVEURS DE NINTENDO SONT FERMÉS. DANS LE JEU, CONFIGUREZ UNE FOIS UNE CONNEXION NINTENDO WFC (N'IMPORTE QUEL POINT D'ACCÈS, DNS AUTOMATIQUE) ; L'ADRESSE DU SERVEUR EST WFC_SERVER DANS SETTINGS.CFG."
     },
     "de": {
       " (NEXT START)": " (NÄCHSTER START)",
@@ -5483,7 +5489,9 @@
       "BLURRED": "WEICHGEZEICHNET",
       "SHARP PIXELS (RECOMMENDED): CRISP AT ANY SCREEN SIZE. BLURRED: THE PICTURE IS SOFTENED AS IT IS SCALED UP, SO TEXT AND MENUS LOOK FUZZY.": "SCHARFE PIXEL (EMPFOHLEN): KLARES BILD AUF JEDER BILDSCHIRMGRÖSSE. WEICHGEZEICHNET: DAS BILD WIRD BEIM VERGRÖSSERN WEICHGEZEICHNET, TEXTE UND MENÜS WIRKEN UNSCHARF.",
       "Sharp Pixels (recommended) keeps every pixel crisp at any screen size.": "Scharfe Pixel (empfohlen) hält jeden Pixel auf jeder Bildschirmgröße scharf.",
-      "Blurred softens the picture as it is made larger: text and menus look fuzzy.": "Weichgezeichnet macht das Bild beim Vergrößern weich: Texte und Menüs wirken unscharf."
+      "Blurred softens the picture as it is made larger: text and menus look fuzzy.": "Weichgezeichnet macht das Bild beim Vergrößern weich: Texte und Menüs wirken unscharf.",
+      "NINTENDO WFC": "NINTENDO WFC",
+      "ONLINE PLAY AND MYSTERY GIFTS THROUGH A COMMUNITY SERVER (ALTWFC/WFZWEI), AS NINTENDO'S SERVERS ARE CLOSED. IN THE GAME, SET UP A NINTENDO WFC CONNECTION ONCE (ANY ACCESS POINT, AUTOMATIC DNS); THE SERVER'S ADDRESS IS WFC_SERVER IN SETTINGS.CFG.": "ONLINE-SPIEL UND GEHEIMGESCHENKE ÜBER EINEN COMMUNITY-SERVER (ALTWFC/WFZWEI), DA NINTENDOS SERVER ABGESCHALTET SIND. RICHTE IM SPIEL EINMAL EINE NINTENDO WFC-VERBINDUNG EIN (BELIEBIGER ZUGANGSPUNKT, AUTOMATISCHER DNS); DIE ADRESSE DES SERVERS STEHT ALS WFC_SERVER IN SETTINGS.CFG."
     },
     "ja": {
       " (NEXT START)": " (次のスタート)",
@@ -6852,7 +6860,9 @@
       "BLURRED": "ぼかし",
       "SHARP PIXELS (RECOMMENDED): CRISP AT ANY SCREEN SIZE. BLURRED: THE PICTURE IS SOFTENED AS IT IS SCALED UP, SO TEXT AND MENUS LOOK FUZZY.": "くっきりドット（おすすめ）：どの画面サイズでもドットがくっきり表示されます。ぼかし：拡大するときに画像をぼかすため、文字やメニューがにじんで見えます。",
       "Sharp Pixels (recommended) keeps every pixel crisp at any screen size.": "くっきりドット（おすすめ）：どの画面サイズでもドットをくっきり保ちます。",
-      "Blurred softens the picture as it is made larger: text and menus look fuzzy.": "ぼかし：拡大するときに画像をぼかします。文字やメニューがにじんで見えます。"
+      "Blurred softens the picture as it is made larger: text and menus look fuzzy.": "ぼかし：拡大するときに画像をぼかします。文字やメニューがにじんで見えます。",
+      "NINTENDO WFC": "ニンテンドーWFC",
+      "ONLINE PLAY AND MYSTERY GIFTS THROUGH A COMMUNITY SERVER (ALTWFC/WFZWEI), AS NINTENDO'S SERVERS ARE CLOSED. IN THE GAME, SET UP A NINTENDO WFC CONNECTION ONCE (ANY ACCESS POINT, AUTOMATIC DNS); THE SERVER'S ADDRESS IS WFC_SERVER IN SETTINGS.CFG.": "ニンテンドーのサーバーは終了しているため、コミュニティのサーバー（ALTWFC/WFZWEI）を通じて通信対戦やふしぎなおくりものを使えます。ゲーム内で一度だけニンテンドーWFCの接続を設定してください（アクセスポイントは自由、DNSは自動）。サーバーのアドレスはSETTINGS.CFGのWFC_SERVERです。"
     },
     "ko": {
       " (NEXT START)": " (다음 시작)",
@@ -8221,7 +8231,9 @@
       "BLURRED": "흐리게",
       "SHARP PIXELS (RECOMMENDED): CRISP AT ANY SCREEN SIZE. BLURRED: THE PICTURE IS SOFTENED AS IT IS SCALED UP, SO TEXT AND MENUS LOOK FUZZY.": "선명한 픽셀(권장): 어떤 화면 크기에서도 선명합니다. 흐리게: 확대할 때 화면을 부드럽게 하므로 글자와 메뉴가 흐릿해 보입니다.",
       "Sharp Pixels (recommended) keeps every pixel crisp at any screen size.": "선명한 픽셀(권장): 어떤 화면 크기에서도 모든 픽셀을 선명하게 유지합니다.",
-      "Blurred softens the picture as it is made larger: text and menus look fuzzy.": "흐리게: 확대할 때 화면을 부드럽게 합니다. 글자와 메뉴가 흐릿해 보입니다."
+      "Blurred softens the picture as it is made larger: text and menus look fuzzy.": "흐리게: 확대할 때 화면을 부드럽게 합니다. 글자와 메뉴가 흐릿해 보입니다.",
+      "NINTENDO WFC": "닌텐도 WFC",
+      "ONLINE PLAY AND MYSTERY GIFTS THROUGH A COMMUNITY SERVER (ALTWFC/WFZWEI), AS NINTENDO'S SERVERS ARE CLOSED. IN THE GAME, SET UP A NINTENDO WFC CONNECTION ONCE (ANY ACCESS POINT, AUTOMATIC DNS); THE SERVER'S ADDRESS IS WFC_SERVER IN SETTINGS.CFG.": "닌텐도 서버가 종료되었으므로 커뮤니티 서버(ALTWFC/WFZWEI)를 통해 온라인 플레이와 이상한소포를 이용할 수 있습니다. 게임에서 닌텐도 WFC 접속을 한 번 설정하세요(아무 액세스 포인트, DNS 자동). 서버 주소는 SETTINGS.CFG의 WFC_SERVER입니다."
     }
   }
 }

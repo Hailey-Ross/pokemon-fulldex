@@ -23,6 +23,9 @@
 #include "sampler.h"
 #include "../gba/frontend/fast_forward_button.h"
 #include "ssr_os.h"
+#ifdef SSR_NET
+#include "net/Net_Slirp.h" // (NINTENDO WFC's community server: SetWFCRedirect)
+#endif
 #ifdef SSR_IOS
 #include "ios_orient.h"
 #endif
@@ -1730,6 +1733,9 @@ struct Settings : OptionalFeatures
     std::string gbaLcd; // Empty keeps the GBA player's existing LCD preference.
     std::string romsFolder, savesFolder; // Keep launcher paths when in-game settings are saved.
     std::string listColour, listBackground, listLang, listSort; // (GAME LIST: COLOUR, BACKGROUND; LANGUAGE)
+    // NINTENDO WFC (OptionalFeatures::wfc): the community server that answers nintendowifi.net.
+    // AltWFC/WFZwei, whose event list has the most Mystery Gifts; any other by its address.
+    std::string wfcServer = "172.104.88.237";
     bool cpuBoost = true; // Switch only: the processor's boost mode (see SwitchPlatform)
     bool jit = true;      // Switch, games that are not recompiled: melonDS's JIT (read at start-up)
     bool fastMem = true;  // ... and its fast memory (also read at start-up)
@@ -1818,6 +1824,7 @@ struct Settings : OptionalFeatures
             else if (k == "list_colour") { listColour = v; Menu::Accent = AccentNamed(v); }
             else if (k == "list_background") listBackground = v;
             else if (k == "list_sort") listSort = v;
+            else if (k == "wfc_server") wfcServer = v;
             else if (k == "roms_folder") romsFolder = v;
             else if (k == "saves_folder") savesFolder = v;
             else if (k == "list_lang" || k == "language") { listLang = v; UiLang::Set(v); }
@@ -1922,6 +1929,7 @@ struct Settings : OptionalFeatures
         f << "music_quiet=" << (musicQuiet ? 1 : 0) << "\n";
         if (!listColour.empty()) f << "list_colour=" << listColour << "\n";
         if (!listSort.empty()) f << "list_sort=" << listSort << "\n";
+        f << "wfc_server=" << wfcServer << "\n";
         if (!romsFolder.empty()) f << "roms_folder=" << romsFolder << "\n";
         if (!savesFolder.empty()) f << "saves_folder=" << savesFolder << "\n";
         if (!listBackground.empty()) f << "list_background=" << listBackground << "\n";
@@ -2062,6 +2070,24 @@ static std::string EvoTr(const std::string& line)
     else if (starts("USE ")) out = UiLang::F("USE {0}", { m.substr(4) });
     else out = UiLang::Tr(m);
     return line.substr(0, colon + 2) + out;
+}
+
+// NINTENDO WFC (OptionalFeatures::wfc): Nintendo's servers are closed, so the names under
+// nintendowifi.net are answered with a community server's address by melonDS's user-mode DNS,
+// and the games' own online play and Mystery Gifts work. The address is wfc_server.
+static void ApplyWfcSetting(const Settings& s)
+{
+#ifdef SSR_NET
+    unsigned a = 0, b = 0, c = 0, d = 0;
+    const bool parsed = sscanf(s.wfcServer.c_str(), "%u.%u.%u.%u", &a, &b, &c, &d) == 4 &&
+                        a < 256 && b < 256 && c < 256 && d < 256;
+    const unsigned ip = s.wfc && parsed ? (a << 24) | (b << 16) | (c << 8) | d : 0;
+    melonDS::Net_Slirp::SetWFCRedirect(ip);
+    if (s.wfc && !parsed) fprintf(stderr, "[wfc] wfc_server is not an IPv4 address: %s\n", s.wfcServer.c_str());
+    else fprintf(stderr, "[wfc] %s\n", ip ? ("community server " + s.wfcServer).c_str() : "off");
+#else
+    (void)s;
+#endif
 }
 
 int main(int argc, char** argv)
@@ -2456,6 +2482,7 @@ int main(int argc, char** argv)
     cfg.padTouch = true;
 #endif
     for (const std::string& kv : opt.sets) cfg.Apply(kv);
+    ApplyWfcSetting(cfg); // (NINTENDO WFC: before the first packet, not only from the menu)
     if (!opt.sets.empty() || opt.keepSettings) cfg.readOnly = true;
     if (autoStateAllowed && cfg.autoResume && opt.stateLoad.empty() && AutoState::Present(autoStatePath))
     {
@@ -6075,7 +6102,7 @@ int main(int argc, char** argv)
         M_COMPANION, M_CPARTY, M_CBAG, M_CDEX, M_CLOCATION, M_CMAP, M_CENCOUNTERS, M_REFERENCE, M_REFERENCE_KIND, M_REFERENCE_QUERY, M_CPOCKET, M_CDEX_FILTER, M_CDEX_TYPE, M_CBATTLE, M_CGUIDE, M_CGUIDE_REVEAL, M_CGUIDE_NEXT, M_CGUIDE_HERE, M_NUZLOCKE, M_RUN_ENABLED, M_RUN_RESET, M_RUN_RESET_CONFIRM, M_QUICK_ACTIONS, M_OPEN_PC, M_FLY, M_HUB_SAVE, M_HUB_LOAD, M_HUB_CHEATS, M_HUB_FAST, M_HUB_SETTINGS, M_HUB_QUIT,
         M_QUIT_YES, M_RESET_YES, // (QUIT GAME / RESET GAME asked first: PAGE_QUIT_CONFIRM)
         M_SHORTCUTS, // (CONTROLS: Fulldex's own four shortcuts, opening KEYS AND BUTTONS at them)
-        M_EXTRAS, M_EXTRA0=92000, M_EXTRA_END=92006, M_PLAYBACK=93000, M_FAST_SPEED, M_SMART_FAST, M_SLOW_MOTION, M_REWIND_MB, M_REWIND, M_TURBO_A, M_SCREEN_FILTER, M_COMPANION_OVERLAY, M_PARTY_HUD, M_STATUS_BAR, M_LIVE_GLASS, M_FAST_BUTTON, M_ZOOM, M_ZOOM_TEXT,
+        M_EXTRAS, M_EXTRA0=92000, M_EXTRA_END=92007, M_PLAYBACK=93000, M_FAST_SPEED, M_SMART_FAST, M_SLOW_MOTION, M_REWIND_MB, M_REWIND, M_TURBO_A, M_SCREEN_FILTER, M_COMPANION_OVERLAY, M_PARTY_HUD, M_STATUS_BAR, M_LIVE_GLASS, M_FAST_BUTTON, M_ZOOM, M_ZOOM_TEXT,
         M_STATES, M_SLOT_SAVE, M_SLOT_LOAD, M_SLOT_PREVIOUS, M_UNDO_LOAD, M_AUTO_STATE, M_AUTO_RESUME,
         M_KEY0=94000, M_KEY_LAYER=94900, M_KEY_SPACE, M_KEY_DEL, M_KEY_DONE, M_KEY_SYMBOLS, // (the keyboard's keys, Menu::keyGrid: SEARCH, the log in)
         M_FLY0=96000, M_CPARTY0=80000, M_CDEX0=81000, M_CITEM0=83000, M_RRESULT0=86000, M_SLOT0=90000, M_GUIDE0=91000, M_CGUIDE_GYM0=91100,
@@ -6546,8 +6573,14 @@ int main(int argc, char** argv)
             size_t count;const auto* options=OptionalFeatures::Options(count);
             // (From 1: LIVE COMPANION, the first, is in COMPANION as LIVE UPDATES.)
             for(size_t i=1;i<count;i++)
+            {
+#ifndef SSR_NET
+                // (NINTENDO WFC needs the user-mode Wi-Fi: the Switch build has none.)
+                if(options[i].value==&OptionalFeatures::wfc)continue;
+#endif
                 toggle(M_EXTRA0+(int)i,options[i].name,icons[std::min<size_t>(i,5)],Menu::P_NONE,cfg.*options[i].value,options[i].help,
                        "Live updates are in Companion; the HUD, companion window and filters in Display; speed, rewind and turbo in Playback.");
+            }
         }
         else if (menuPage == PAGE_DISPLAY)
         {
@@ -10530,7 +10563,12 @@ int main(int argc, char** argv)
             if(id>=M_EXTRA0&&id<M_EXTRA_END)
             {
                 size_t count;const auto* options=OptionalFeatures::Options(count);const int option=id-M_EXTRA0;
-                if(option<(int)count){cfg.*options[option].value=!(cfg.*options[option].value);cfg.Save(opt.config);readCompanion();buildMenu();}
+                if(option<(int)count)
+                {
+                    cfg.*options[option].value=!(cfg.*options[option].value);
+                    if(options[option].value==&OptionalFeatures::wfc)ApplyWfcSetting(cfg);
+                    cfg.Save(opt.config);readCompanion();buildMenu();
+                }
                 hit=-1;
             }
             // A cheat: on or off at once, for the game as it runs (cheats.h).

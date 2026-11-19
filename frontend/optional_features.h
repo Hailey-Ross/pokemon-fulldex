@@ -7,6 +7,10 @@ struct OptionalFeatures
 {
     bool liveCompanion=false,quickActions=false,statePreviews=false;
     bool libraryHistory=false,secondArtwork=false,gbaMirror=false;
+    // NINTENDO WFC through a community server (AltWFC/WFZwei, wfc_server in the settings):
+    // Nintendo's servers are closed, and this is how the games' own online play and Mystery Gifts
+    // still work. Off until chosen.
+    bool wfc=false;
     struct Option { const char* key;const char* name;bool OptionalFeatures::* value;const char* help; };
     static const Option* Options(size_t& count)
     {
@@ -16,7 +20,8 @@ struct OptionalFeatures
             {"extra_state_previews","STATE THUMBNAILS",&OptionalFeatures::statePreviews,"SAVE AND DISPLAY A SMALL PICTURE WITH SAVE STATES. OFF KEEPS EXISTING PICTURES WITHOUT CREATING NEW ONES. SAVE PROTECTION STAYS ACTIVE."},
             {"extra_library_history","RECENTLY PLAYED HISTORY",&OptionalFeatures::libraryHistory,"RECORD GAMES YOU LAUNCH FOR RECENTLY PLAYED SORTING. OFF STOPS NEW RECORDS AND KEEPS EXISTING HISTORY AND FAVOURITES."},
             {"extra_second_artwork","SECOND SCREEN ARTWORK",&OptionalFeatures::secondArtwork,"SHOW THE SELECTED GAME ON AN ENABLED SECOND DISPLAY WHILE THE LAUNCHER IS OPEN. REQUIRES SECOND SCREEN MODE TO BE ENABLED."},
-            {"extra_gba_mirror","GBA SECOND SCREEN",&OptionalFeatures::gbaMirror,"MIRROR THE GBA GAME ON AN ENABLED SECOND DISPLAY. PRIMARY CONTROLS REMAIN AVAILABLE. APPLIES WHEN A GBA GAME STARTS."}
+            {"extra_gba_mirror","GBA SECOND SCREEN",&OptionalFeatures::gbaMirror,"MIRROR THE GBA GAME ON AN ENABLED SECOND DISPLAY. PRIMARY CONTROLS REMAIN AVAILABLE. APPLIES WHEN A GBA GAME STARTS."},
+            {"extra_wfc","NINTENDO WFC",&OptionalFeatures::wfc,"ONLINE PLAY AND MYSTERY GIFTS THROUGH A COMMUNITY SERVER (ALTWFC/WFZWEI), AS NINTENDO'S SERVERS ARE CLOSED. IN THE GAME, SET UP A NINTENDO WFC CONNECTION ONCE (ANY ACCESS POINT, AUTOMATIC DNS); THE SERVER'S ADDRESS IS WFC_SERVER IN SETTINGS.CFG."}
         };
         count=sizeof(options)/sizeof(*options);return options;
     }

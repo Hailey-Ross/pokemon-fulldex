@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "Net.h"
+#include "WfcNames.h"
 #include "Net_Slirp.h"
 #include "FIFO.h"
 #include "Platform.h"
@@ -46,6 +47,8 @@ const u32 kDNSIP    = kSubnet | 0x02;
 const u32 kClientIP = kSubnet | 0x10;
 
 const u8 kServerMAC[6] = {0x00, 0xAB, 0x33, 0x28, 0x99, 0x44};
+
+std::atomic<u32> Net_Slirp::WFCRedirectIP {0};
 
 #ifdef __WIN32__
 
@@ -215,6 +218,7 @@ void Net_Slirp::HandleDNSFrame(u8* data, int len) noexcept
     u8* dnsbody = &data[0x2A];
 
     u32 srcip = ntohl(*(u32*)&ipheader[12]);
+    const u32 dstip = ntohl(*(u32*)&ipheader[16]); // (the server the game asked)
     u16 srcport = ntohs(*(u16*)&udpheader[0]);
 
     u16 id = ntohs(*(u16*)&dnsbody[0]);
@@ -250,7 +254,7 @@ void Net_Slirp::HandleDNSFrame(u8* data, int len) noexcept
     *out++ = 0x80; // TTL
     *out++ = 0x11; // protocol (UDP)
     *(u16*)out = 0; out += 2; // checksum
-    *(u32*)out = htonl(kDNSIP); out += 4; // source IP
+    *(u32*)out = htonl(dstip); out += 4; // source IP (the name server that was asked)
     *(u32*)out = htonl(srcip); out += 4; // destination IP
 
     // UDP
@@ -320,29 +324,40 @@ void Net_Slirp::HandleDNSFrame(u8* data, int len) noexcept
 		struct addrinfo* dns_res;
 		u32 addr_res;
 
-		memset(&dns_hint, 0, sizeof(dns_hint));
-		dns_hint.ai_family = AF_INET; // TODO: other address types (INET6, etc)
-		if (getaddrinfo(domainname, "0", &dns_hint, &dns_res) == 0)
-        {
-            struct addrinfo* p = dns_res;
-            while (p)
-            {
-                struct sockaddr_in* addr = (struct sockaddr_in*)p->ai_addr;
-                addr_res = *(u32*)&addr->sin_addr;
+		const u32 wfc = WFCRedirectIP.load(std::memory_order_relaxed);
+		if (wfc && Wfc::IsName(domainname))
+		{
+			// Nintendo WFC's servers are gone: the community server takes their place.
+			addr_res = htonl(wfc);
+			fprintf(stderr, "[wfc] %s -> %u.%u.%u.%u (community server)\n", domainname,
+			        wfc >> 24, (wfc >> 16) & 0xFF, (wfc >> 8) & 0xFF, wfc & 0xFF);
+		}
+		else
+		{
+			memset(&dns_hint, 0, sizeof(dns_hint));
+			dns_hint.ai_family = AF_INET; // TODO: other address types (INET6, etc)
+			if (getaddrinfo(domainname, "0", &dns_hint, &dns_res) == 0)
+			{
+				struct addrinfo* p = dns_res;
+				while (p)
+				{
+					struct sockaddr_in* addr = (struct sockaddr_in*)p->ai_addr;
+					addr_res = *(u32*)&addr->sin_addr;
 
-                printf(" -> %d.%d.%d.%d",
-                       addr_res & 0xFF, (addr_res >> 8) & 0xFF,
-                       (addr_res >> 16) & 0xFF, addr_res >> 24);
+					printf(" -> %d.%d.%d.%d",
+					       addr_res & 0xFF, (addr_res >> 8) & 0xFF,
+					       (addr_res >> 16) & 0xFF, addr_res >> 24);
 
-                break;
-                p = p->ai_next;
-            }
-        }
-        else
-        {
-            printf(" shat itself :(");
-            addr_res = 0;
-        }
+					break;
+					p = p->ai_next;
+				}
+			}
+			else
+			{
+				printf(" shat itself :(");
+				addr_res = 0;
+			}
+		}
 
 		printf("\n");
 		curoffset += 4;
@@ -383,7 +398,10 @@ int Net_Slirp::SendPacket(u8* data, int len) noexcept
         if (protocol == 0x11) // UDP
         {
             u16 dstport = ntohs(*(u16*)&data[0x24]);
-            if (dstport == 53 && htonl(*(u32*)&data[0x1E]) == kDNSIP) // DNS
+            // (With the community WFC redirect on, any DNS server is answered here, so a game
+            // with an old DNS setting set in its WFC settings still reaches the server.)
+            if (dstport == 53 && (htonl(*(u32*)&data[0x1E]) == kDNSIP ||
+                                  WFCRedirectIP.load(std::memory_order_relaxed) != 0)) // DNS
             {
                 HandleDNSFrame(data, len);
                 return len;

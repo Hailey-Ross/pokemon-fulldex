@@ -8338,7 +8338,14 @@ inline std::vector<Setting> SettingsList()
     l.insert(l.begin(), { "list_lang", "LANGUAGE", UiLang::Choices(), "auto",
                           "THE LANGUAGE OF THE GAME LIST, THE SETTINGS AND THE PAUSE MENU (NOT OF THE GAMES)." });
     size_t extraCount;const auto* extras=OptionalFeatures::Options(extraCount);
-    for(size_t i=0;i<extraCount;i++)l.push_back({extras[i].key,extras[i].name,onOff,"0",extras[i].help});
+    for(size_t i=0;i<extraCount;i++)
+    {
+#ifndef SSR_NET
+        // (NINTENDO WFC needs the user-mode Wi-Fi: the Switch build has none.)
+        if(extras[i].value==&OptionalFeatures::wfc)continue;
+#endif
+        l.push_back({extras[i].key,extras[i].name,onOff,"0",extras[i].help});
+    }
 #if !defined(__SWITCH__)
     // RetroAchievements from the game list too (pc_launcher.cpp: the login, as the pause menu's).
     l.push_back({ "ra", "RETROACHIEVEMENTS", onOff, "0",
