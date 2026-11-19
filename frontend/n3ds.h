@@ -359,6 +359,41 @@ inline void DropPlaceholders(std::vector<Launcher::Game>& games)
     games.swap(keep);
 }
 
+// What the Switch says about a 3DS game it found as a dump but cannot build itself: Put On My Switch,
+// on a Windows PC. (Its sentences apart, two spaces between, so each is looked up in the language.)
+inline std::string SetupName(const std::string& name) { std::string n = Launcher::TitleCase(name); if (n.rfind("Pokemon ", 0) == 0) n = n.substr(8); return n; }
+inline std::string SetupHowTo(const std::string& name)
+{
+    return "The Switch can't build 3DS games itself. FullDex on a Windows PC does it in 5 to 10 minutes, from your own dump."
+           "  1. Put this SD card in your PC.  2. In FullDex on the PC, open " + name + "'s Game Options and choose Put On My Switch."
+           "  3. Put the card back here: " + name + " is ready to play.";
+}
+// Switch: dumps (.3ds) of the games in the ROM folders that no folder of /switch plays yet: listed,
+// needing the one-time setup on a PC (choosing one says how).
+inline void AddSwitchDumps(const std::vector<std::string>& dirs, std::vector<Launcher::Game>& games)
+{
+    for (const std::string& dir : dirs)
+    {
+        DIR* d = opendir(dir.c_str());
+        if (!d) continue;
+        while (dirent* e = readdir(d))
+        {
+            if (e->d_name[0] == '.' || !EndsWith(e->d_name, ".3ds")) continue;
+            const std::string path = dir + "/" + e->d_name;
+            const Title* t = Check(path);
+            if (!t) continue;
+            bool have = false;
+            for (const Launcher::Game& o : games) have |= o.platform == Launcher::N3DS && !o.comingSoon && o.code == t->code;
+            if (have) continue;
+            Launcher::Game g = Make(*t, path, dir);
+            g.needsSetup = true;
+            games.push_back(g);
+            fprintf(stderr, "[3ds] %s: a dump to set up on a PC (%s)\n", t->name, path.c_str());
+        }
+        closedir(d);
+    }
+}
+
 // Switch: each folder in root with game.3ds, titles/<a title id> and a .nro. One tile a game: the
 // FullDex Builder's own folder (omega-nx, pokemon-alpha-sapphire) when there, else the newest .nro
 // (an older test folder of the same game is left out of the list).
@@ -686,6 +721,10 @@ inline void StartPrepare(const std::string& appDir, const Launcher::Game& g)
         p.running = false;
     });
 }
+
+#ifdef _WIN32
+#include "n3ds_setup.h" // (Put On My Switch, Put On My Phone)
+#endif
 
 // What the launcher says about it: while it is being made, and once, when it ends. "" otherwise.
 inline std::string Status()

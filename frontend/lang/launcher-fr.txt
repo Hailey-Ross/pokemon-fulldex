@@ -642,3 +642,61 @@ SCANLINES	LIGNES DE BALAYAGE
 THE WIDESCREEN PATCH DOESN'T FIT	LE PATCH ÉCRAN LARGE NE CONVIENT PAS
 TOGGLE	BASCULE
 Use This Folder	Utiliser ce dossier
+# 3DS: Put On My Switch, Put On My Phone
+Put On My Switch	Mettre sur ma Switch
+Put On My Phone	Mettre sur mon téléphone
+Pick Where It Goes	Choisis où ça va
+Build	Créer
+Copy To Your Phone	Copier sur le téléphone
+Put {} On Your Switch	Mettre {} sur ta Switch
+Take the SD card out of your Switch and put it in this PC: FullDex finds it and does the rest. It uses your own dump and takes 5 to 10 minutes.	Retire la carte SD de ta Switch et mets-la dans ce PC : FullDex la trouve et fait le reste. Ça utilise ton propre dump et prend 5 à 10 minutes.
+The first time, FullDex also downloads the Switch tools (about 90 MB).	La première fois, FullDex télécharge aussi les outils Switch (environ 90 Mo).
+No SD card found yet: put it in and it shows up here.	Aucune carte SD trouvée pour l'instant : mets-la et elle apparaîtra ici.
+SD Card ({})	Carte SD ({})
+Save To A Folder Instead	Enregistrer dans un dossier
+Keep Using FullDex	Continuer à utiliser FullDex
+Open The Folder	Ouvrir le dossier
+Try Again	Réessayer
+Building {} For Your Switch	Création de {} pour ta Switch
+Building {} For Your Phone	Création de {} pour ton téléphone
+Leave the SD card in. You can keep using FullDex: the game's options show how it is going.	Laisse la carte SD dedans. Tu peux continuer à utiliser FullDex : les options du jeu montrent où ça en est.
+You can keep using FullDex: the game's options show how it is going.	Tu peux continuer à utiliser FullDex : les options du jeu montrent où ça en est.
+Getting the Switch tools (once)	Téléchargement des outils Switch (une fois)
+Getting the tools (once)	Téléchargement des outils (une fois)
+Building the game from your dump	Création du jeu à partir de ton dump
+Making the shaders	Création des shaders
+Saving it in a folder	Enregistrement dans un dossier
+Copying it to the SD card ({})	Copie sur la carte SD ({})
+About a minute left	Encore une minute environ
+About {#} minutes left	Encore environ {} minutes
+{} Is On Your SD Card	{} est sur ta carte SD
+{} Is Ready For Your Switch	{} est prêt pour ta Switch
+{} For Your Phone Is Ready	{} pour ton téléphone est prêt
+Now, on your Switch: put the SD card back in, open FullDex and pick {} in the 3DS Beta tab.	Maintenant, sur ta Switch : remets la carte SD, ouvre FullDex et choisis {} dans l'onglet 3DS Beta.
+Also added {#} shaders your Switch found while you played, so those spots no longer stutter.	{} shaders que ta Switch a trouvés pendant que tu jouais ont aussi été ajoutés : ces endroits ne saccadent plus.
+Next time you put the card in this PC, Put On My Switch picks up any new shaders.	La prochaine fois que tu mets la carte dans ce PC, Mettre sur ma Switch récupère les nouveaux shaders.
+Copy the folder {} into /switch/ on your Switch's SD card (it has the game and your dump in it).	Copie le dossier {} dans /switch/ sur la carte SD de ta Switch (il contient le jeu et ton dump).
+Then open FullDex on your Switch and pick {} in the 3DS Beta tab.	Ensuite, ouvre FullDex sur ta Switch et choisis {} dans l'onglet 3DS Beta.
+Copy {}.so to your phone (USB cable, Google Drive, anything).	Copie {}.so sur ton téléphone (câble USB, Google Drive, peu importe).
+Then in FullDex on your phone, open {}'s Game Options and choose Use Game Code From PC.	Ensuite, dans FullDex sur ton téléphone, ouvre les Options du jeu de {} et choisis Utiliser le code du jeu du PC.
+Couldn't Finish	Impossible de terminer
+Couldn't download the tools. Check the internet connection and try again.	Impossible de télécharger les outils. Vérifie la connexion internet et réessaie.
+Couldn't unpack the tools.	Impossible de décompresser les outils.
+The tools download was not complete. Try again.	Le téléchargement des outils n'est pas complet. Réessaie.
+Couldn't put the tools in place.	Impossible d'installer les outils.
+Not enough space: it needs {} GB free and there is {} GB.	Pas assez de place : il faut {} Go libres et il y a {} Go.
+Couldn't copy it. Is the SD card still in, and not locked?	Impossible de copier. La carte SD est-elle toujours là et non verrouillée ?
+The tools are missing. Try again to download them.	Les outils manquent. Réessaie pour les télécharger.
+Building it didn't work. Try again; if it fails again, please report it with this PC's log.	La création n'a pas marché. Réessaie ; si ça échoue encore, signale-le avec le journal de ce PC.
+Stopped. Nothing was finished.	Arrêté. Rien n'a été terminé.
+Nothing else on your SD card was changed.	Rien d'autre n'a été changé sur ta carte SD.
+{} IS READY FOR YOUR SWITCH	{} EST PRÊT POUR TA SWITCH
+{} IS READY FOR YOUR PHONE	{} EST PRÊT POUR TON TÉLÉPHONE
+COULDN'T FINISH {}: CHOOSE IT AGAIN IN THE GAME'S OPTIONS	IMPOSSIBLE DE TERMINER {} : CHOISIS-LE À NOUVEAU DANS LES OPTIONS DU JEU
+Set Up {} On A Windows PC	Prépare {} sur un PC Windows
+The Switch can't build 3DS games itself. FullDex on a Windows PC does it in 5 to 10 minutes, from your own dump.	La Switch ne peut pas créer les jeux 3DS elle-même. FullDex sur un PC Windows le fait en 5 à 10 minutes, à partir de ton propre dump.
+1. Put this SD card in your PC.	1. Mets cette carte SD dans ton PC.
+2. In FullDex on the PC, open {}'s Game Options and choose Put On My Switch.	2. Dans FullDex sur le PC, ouvre les Options du jeu de {} et choisis Mettre sur ma Switch.
+3. Put the card back here: {} is ready to play.	3. Remets la carte ici : {} est prêt à jouer.
+OK	OK
+Needs A One-Time Setup	Demande une préparation unique

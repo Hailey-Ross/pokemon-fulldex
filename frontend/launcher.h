@@ -280,6 +280,9 @@ struct Game
     std::string baseSave;
     // A patch file that could not be made into a game: why (shown, and it cannot be played).
     std::string problem;
+    // A 3DS game found as a dump where it cannot be built (the Switch): choosing it says how to set
+    // it up on a Windows PC (Put On My Switch).
+    bool needsSetup = false;
 };
 
 inline std::string& ContinueRom() { static std::string r; return r; } // the game played last (last-game.txt)
@@ -320,15 +323,26 @@ inline std::function<std::string(const Game&)>& PlatformEntryLabel() { static st
 // Whether the launcher itself is in Steam ("IN STEAM") or not, for the settings row.
 inline std::function<std::string()>& PlatformLauncherState() { static std::function<std::string()> f; return f; }
 #if defined(__ANDROID__) || (!defined(SSR_PHONE) && !defined(__SWITCH__))
-inline int PopupCount() { return 8; } // (Android's phone home, or the desktop's Steam/Desktop entry)
+inline int PopupBase() { return 8; } // (Android's phone home, or the desktop's Steam/Desktop entry)
 #else
-inline int PopupCount() { return 7; }
+inline int PopupBase() { return 7; }
 #endif
+// (Windows: a 3DS game's menu also has Put On My Switch and Put On My Phone after Play, items 8 and 9;
+// set as the menu is drawn, for the game it is drawn for.)
+inline bool& Popup3ds() { static bool b = false; return b; }
+inline int PopupCount() { return PopupBase() + (Popup3ds() ? 2 : 0); }
 // The game's menu in the order shown: Play, Manage Saves, Add To Home, Rename, Change Picture, Add To
 // Tab, Remove Game (row -> what it is, PopupLabel's numbers).
-inline int PopupItem(int row) { static const int order[] = { 0, 4, 1, 7, 2, 3, 5, 6 }; return row >= 0 && row < PopupCount() ? (PopupCount() == 8 ? order[row] : order[row < 3 ? row : row + 1]) : row; }
+inline int PopupItem(int row)
+{
+    if (Popup3ds()) { if (row == 1 || row == 2) return row + 7; if (row > 2) row -= 2; }
+    static const int order[] = { 0, 4, 1, 7, 2, 3, 5, 6 };
+    return row >= 0 && row < PopupBase() ? (PopupBase() == 8 ? order[row] : order[row < 3 ? row : row + 1]) : row;
+}
 inline std::string PopupLabel(const Game& g, int i)
 {
+    if (i == 8) return "Put On My Switch";
+    if (i == 9) return "Put On My Phone";
     static const char* n[] = { "Play", "", "Rename", "Change Picture", "Manage Saves", "Add To Tab", "Remove Game", "Add To Phone Home Screen" };
 #ifdef __ANDROID__
     // (A 3DS game inside the app: its game code, from a PC's FullDex Builder or built on the phone.)
@@ -1370,6 +1384,19 @@ struct Grid
     int cw = 0, ch = 0, colStep = 0, rowStep = 0;
     bool horiz = false; // (a phone sideways: one row of cards that scrolls along, not down)
 };
+// The 3DS setup's dialog (21, n3ds_setup.h): what it shows besides its title, words and rows: the
+// steps along the top, the list of what it is doing (0 to come, 1 under way, 2 done) and a bar.
+struct SetupView { std::vector<std::string> steps; int step = -1; std::vector<std::pair<std::string, int>> list; float progress = -1; std::string under; };
+inline SetupView& SetupShown() { static SetupView v; return v; }
+inline int SetupExtraHeight(float u)
+{
+    const SetupView& v = SetupShown();
+    int h = 0;
+    if (!v.steps.empty()) h += (int)(42 * u);
+    h += (int)v.list.size() * (int)(32 * u);
+    if (v.progress >= 0) h += (int)(48 * u);
+    return h;
+}
 // The glass launcher (DrawGlass) on landscape screens with the clean font; the classic list otherwise.
 inline bool& GlassOn() { static bool on = true; return on; }
 // A phone: its text and buttons bigger (the design 480 high sideways, 405 wide upright), the Tiles layout whichever way it is held.
@@ -7332,7 +7359,7 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
         const std::string nm = ShortName(g);
         const int nw = std::min(GW(nm, 34 * u, true), (int)(c.w * 0.7f));
         GTFit(c, cx - nw / 2, (float)tb.nameY, nm, 34 * u, nw, text, true);
-        const std::string saveS = HubCloudOf(g) == 2 ? "Cloud Save: Changed On Both" : HubCloudOf(g) ? "Cloud Save" : g.hasSave ? "Save Found" : "New Game";
+        const std::string saveS = g.needsSetup ? std::string("Needs A One-Time Setup") : HubCloudOf(g) == 2 ? "Cloud Save: Changed On Both" : HubCloudOf(g) ? "Cloud Save" : g.hasSave ? "Save Found" : "New Game";
         const std::string meta = g.comingSoon ? std::string("Coming Soon") : !g.known ? std::string("Not Playable") : std::string(PlatformName(g.platform)) + "   \xC2\xB7   " + saveS;
         GT(c, cx - GW(meta, 16 * u, true) / 2, (float)tb.metaY, meta, 16 * u, hint, true);
     };
@@ -7472,10 +7499,10 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
         const int tx = phP ? ax : ax + aw + (int)(24 * u);
         const bool played = !ContinueRom().empty() && g.rom == ContinueRom();
         const std::string meta = std::string(played ? "Continue Playing" : "Ready To Play") + "   \xC2\xB7   " + PlatformName(g.platform)
-                               + "   \xC2\xB7   " + (HubCloudOf(g) == 2 ? "Cloud Save: Changed On Both" : HubCloudOf(g) ? "Cloud Save" : g.hasSave ? "Save Found" : "New Game");
+                               + "   \xC2\xB7   " + (g.needsSetup ? std::string("Needs A One-Time Setup") : HubCloudOf(g) == 2 ? "Cloud Save: Changed On Both" : HubCloudOf(g) ? "Cloud Save" : g.hasSave ? "Save Found" : "New Game");
         if (phP)
         {
-            const std::string sv = HubCloudOf(g) == 2 ? "Cloud Save: Changed On Both" : HubCloudOf(g) ? "Cloud Save" : g.hasSave ? "Save Found" : "New Game";
+            const std::string sv = g.needsSetup ? std::string("Needs A One-Time Setup") : HubCloudOf(g) == 2 ? "Cloud Save: Changed On Both" : HubCloudOf(g) ? "Cloud Save" : g.hasSave ? "Save Found" : "New Game";
             GT(c, tx, ay + ah + 18 * u, played ? "Continue Playing" : "Ready To Play", 13 * u, hint, true);
             GTFit(c, tx, ay + ah + 46 * u, ShortName(g), 28 * u, sp.contX - tx - (int)(10 * u), text, true);
             GT(c, tx, ay + ah + 74 * u, std::string(PlatformName(g.platform)) + "   \xC2\xB7   " + sv, 13 * u, hint, true);
@@ -7619,7 +7646,7 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
             float ty = (float)(py0 + ph + 34 * u);
             GTFit(c, ix, ty, ShortName(g), 34 * u, iw, text, true);
             ty += 46 * u;
-            const std::string saveS = HubCloudOf(g) == 2 ? "Cloud: Changed On Both" : HubCloudOf(g) ? "Cloud Save" : g.hasSave ? "Save Found" : "New Game";
+            const std::string saveS = g.needsSetup ? std::string("Needs A One-Time Setup") : HubCloudOf(g) == 2 ? "Cloud: Changed On Both" : HubCloudOf(g) ? "Cloud Save" : g.hasSave ? "Save Found" : "New Game";
             std::string last = "Never";
             if (g.lastPlayed > 0)
             {
@@ -7717,8 +7744,11 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
         // (from the Game Options button the menu sits under it, so the game need not be in the list shown)
         if (k >= 0 || (Focus().banner == 2 && !PhoneLook()))
         {
-            static const int icons[] = { Glass::I_PLAY, Glass::I_POKEBALL, Glass::I_SPARKLE, Glass::I_WINDOW, Glass::I_SAVE, Glass::I_LAYERS, Glass::I_BACK, Glass::I_GLOBE };
+            static const int icons[] = { Glass::I_PLAY, Glass::I_POKEBALL, Glass::I_SPARKLE, Glass::I_WINDOW, Glass::I_SAVE, Glass::I_LAYERS, Glass::I_BACK, Glass::I_GLOBE, Glass::I_PAD, Glass::I_SCREENS };
             const Game& g = games[mg];
+#ifdef _WIN32 // (SSR_N3DS_PC is set by n3ds.h, after this)
+            Popup3ds() = g.platform == N3DS && !g.comingSoon;
+#endif
             const int n = PopupCount(), rowH = (int)(44 * u), rg = (int)(4 * u), pad = (int)(8 * u), pw = (int)(250 * u);
             const int ph = n * rowH + (n - 1) * rg + 2 * pad;
             int px, py;
@@ -7805,6 +7835,7 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
             if (!line.empty()) lines.push_back(line);
         }
         const int ph = pad + (int)(36 * u) + (int)lines.size() * (int)(22 * u) + (int)(16 * u) + (F.dialog == 3 ? fieldH + rg : 0) + (F.dialog == 4 ? (int)(150 * u) + 2 * rg : 0) + (F.dialog == 10 ? (int)(200 * u) + 2 * rg : 0)
+                     + (F.dialog == 21 ? SetupExtraHeight(u) : 0)
                      + (int)rows.size() * (rowH + rg) - rg + pad;
         const int px = (c.w - pw) / 2, py = (c.h - ph) / 2;
         Glass::Round(c, 0, 0, c.w, c.h, 0, 0x73000000u);
@@ -7841,6 +7872,50 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
 #endif
             DrawQr(c, kBeerQr, kBeerQrSize, px + (pw - qs) / 2, y, qs);
             y += qs + 2 * rg;
+        }
+        if (F.dialog == 21)
+        {
+            // (The 3DS setup: its steps, what it is doing and how far it has got.)
+            const SetupView& sv = SetupShown();
+            const int x0 = px + pad, w0 = pw - 2 * pad;
+            if (!sv.steps.empty())
+            {
+                const int d = (int)(24 * u);
+                int sx = x0;
+                const float cy = y + d * 0.5f;
+                for (size_t i = 0; i < sv.steps.size(); i++)
+                {
+                    const bool cur = (int)i == sv.step, done = (int)i < sv.step;
+                    Glass::Round(c, sx, y, d, d, d * 0.5f, cur ? 0xF2F2F5F9u : done ? 0xD99BE8BBu : 0x24FFFFFFu, cur || done ? 0 : 0x3DFFFFFFu, 1.0f * u);
+                    const std::string num = std::to_string(i + 1);
+                    GT(c, sx + (d - GW(num, 13 * u, true)) / 2, cy, num, 13 * u, cur || done ? 0xFF101826u : text, true);
+                    sx += d + (int)(8 * u);
+                    GT(c, sx, cy, sv.steps[i], 14 * u, cur ? text : hint, cur);
+                    sx += GW(sv.steps[i], 14 * u, cur) + (int)(12 * u);
+                    if (i + 1 < sv.steps.size()) { Glass::Round(c, sx, (int)cy, (int)(20 * u), std::max(1, (int)(2 * u)), 0, 0x33FFFFFFu); sx += (int)(32 * u); }
+                }
+                y += (int)(42 * u);
+            }
+            for (const auto& it : sv.list)
+            {
+                const int d = (int)(18 * u);
+                const float cy = y + 15 * u;
+                if (it.second == 2) Glass::Round(c, x0 + 2, (int)(cy - d * 0.5f), d, d, d * 0.5f, 0xE69BE8BBu);
+                else Glass::Round(c, x0 + 2, (int)(cy - d * 0.5f), d, d, d * 0.5f, it.second == 1 ? 0x33FFFFFFu : 0, it.second == 1 ? 0xF2FFFFFFu : 0x40FFFFFFu, (it.second == 1 ? 2.5f : 1.5f) * u);
+                GT(c, x0 + d + (int)(14 * u), cy, it.first, 15 * u, it.second == 1 ? text : hint, it.second == 1);
+                y += (int)(32 * u);
+            }
+            if (sv.progress >= 0)
+            {
+                const int bh = std::max(4, (int)(8 * u));
+                y += (int)(6 * u);
+                Glass::Round(c, x0, y, w0, bh, bh * 0.5f, 0x1FFFFFFFu);
+                Glass::Round(c, x0, y, std::max(bh, (int)(w0 * std::min(1.0f, sv.progress))), bh, bh * 0.5f, 0xF2F2F5F9u);
+                GT(c, x0, y + bh + 16 * u, sv.under, 13 * u, hint, false);
+                const std::string pc = std::to_string((int)(sv.progress * 100)) + "%";
+                GT(c, x0 + w0 - GW(pc, 13 * u, false), y + bh + 16 * u, pc, 13 * u, hint, false);
+                y += (int)(42 * u);
+            }
         }
         if (F.dialog == 3)
         {

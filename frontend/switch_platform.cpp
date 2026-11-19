@@ -1012,6 +1012,17 @@ int PickGame(const std::vector<Launcher::Game>& gamesIn, int selected, const std
                     play = true;
                 }
             }
+            if (play && selected >= 0 && selected < (int)games.size() && games[selected].needsSetup)
+            {
+                // (A 3DS dump the Switch cannot build: how to set it up on a Windows PC.)
+                Launcher::GlassFocus& SF = Launcher::Focus();
+                const std::string nm = N3ds::SetupName(games[selected].name);
+                SF.dialog = 12; SF.drow = 0;
+                SF.dTitle = "Set Up " + nm + " On A Windows PC";
+                SF.dMsg = N3ds::SetupHowTo(nm);
+                SF.dItems = { "OK" }; SF.dPaths = { "#close" };
+                play = false;
+            }
             if (play && selected >= 0 && selected < (int)games.size())
             {
                 if (Playable(games[selected]))
@@ -1377,9 +1388,11 @@ std::vector<Launcher::Game> FindGames(const std::string& dir, bool& ownFolder)
     Launcher::AdoptHackSaves(games, SavePathFor);
     // Omega Ruby and Alpha Sapphire: the FullDex Builder's folders in /switch (n3ds.h).
     N3ds::AddSwitch(games);
+    // (A dump of one with no folder in /switch yet: listed, to be set up on a PC.)
+    N3ds::AddSwitchDumps({ dir, dir + "/roms" }, games);
     // (Their saves: a copy beside the game's folder kept the same as the game's own, n3ds.h.)
     for (Launcher::Game& g : games)
-        if (g.platform == Launcher::N3DS)
+        if (g.platform == Launcher::N3DS && !g.needsSetup)
         {
             g.saveName = N3ds::SaveName(g.code);
             N3ds::SyncSave(g, SavePath(g));

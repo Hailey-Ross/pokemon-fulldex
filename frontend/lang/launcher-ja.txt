@@ -642,3 +642,61 @@ SCANLINES	スキャンライン
 THE WIDESCREEN PATCH DOESN'T FIT	ワイドスクリーンパッチが合いません
 TOGGLE	切り替え
 Use This Folder	このフォルダを使う
+# 3DS: Put On My Switch, Put On My Phone
+Put On My Switch	Switchに入れる
+Put On My Phone	スマホに入れる
+Pick Where It Goes	入れ先を選ぶ
+Build	作成
+Copy To Your Phone	スマホにコピー
+Put {} On Your Switch	{}をSwitchに入れる
+Take the SD card out of your Switch and put it in this PC: FullDex finds it and does the rest. It uses your own dump and takes 5 to 10 minutes.	SwitchからSDカードを抜いてこのPCに入れてください。FullDexが見つけて残りをやります。あなた自身のダンプを使い、5〜10分かかります。
+The first time, FullDex also downloads the Switch tools (about 90 MB).	初回はSwitch用のツール（約90 MB）もダウンロードします。
+No SD card found yet: put it in and it shows up here.	まだSDカードが見つかりません。入れるとここに表示されます。
+SD Card ({})	SDカード（{}）
+Save To A Folder Instead	フォルダに保存する
+Keep Using FullDex	FullDexを使い続ける
+Open The Folder	フォルダを開く
+Try Again	もう一度
+Building {} For Your Switch	Switch用の{}を作成中
+Building {} For Your Phone	スマホ用の{}を作成中
+Leave the SD card in. You can keep using FullDex: the game's options show how it is going.	SDカードは入れたままにしてください。FullDexは使い続けられます。進み具合はゲームのオプションで見られます。
+You can keep using FullDex: the game's options show how it is going.	FullDexは使い続けられます。進み具合はゲームのオプションで見られます。
+Getting the Switch tools (once)	Switch用ツールを取得中（初回のみ）
+Getting the tools (once)	ツールを取得中（初回のみ）
+Building the game from your dump	ダンプからゲームを作成中
+Making the shaders	シェーダーを作成中
+Saving it in a folder	フォルダに保存中
+Copying it to the SD card ({})	SDカードにコピー中（{}）
+About a minute left	残り約1分
+About {#} minutes left	残り約{}分
+{} Is On Your SD Card	{}をSDカードに入れました
+{} Is Ready For Your Switch	Switch用の{}ができました
+{} For Your Phone Is Ready	スマホ用の{}ができました
+Now, on your Switch: put the SD card back in, open FullDex and pick {} in the 3DS Beta tab.	次はSwitchで：SDカードを戻し、FullDexを開いて3DS Betaタブの{}を選んでください。
+Also added {#} shaders your Switch found while you played, so those spots no longer stutter.	プレイ中にSwitchが見つけたシェーダー{}個も追加したので、その場面でカクつかなくなります。
+Next time you put the card in this PC, Put On My Switch picks up any new shaders.	次にこのPCにカードを入れた時、Switchに入れるで新しいシェーダーも取り込めます。
+Copy the folder {} into /switch/ on your Switch's SD card (it has the game and your dump in it).	フォルダ{}をSwitchのSDカードの/switch/にコピーしてください（ゲームとダンプが入っています）。
+Then open FullDex on your Switch and pick {} in the 3DS Beta tab.	それからSwitchでFullDexを開き、3DS Betaタブの{}を選んでください。
+Copy {}.so to your phone (USB cable, Google Drive, anything).	{}.soをスマホにコピーしてください（USBケーブル、Googleドライブなど何でも）。
+Then in FullDex on your phone, open {}'s Game Options and choose Use Game Code From PC.	それからスマホのFullDexで{}のゲームオプションを開き、PCのゲームコードを使うを選んでください。
+Couldn't Finish	完了できませんでした
+Couldn't download the tools. Check the internet connection and try again.	ツールをダウンロードできませんでした。インターネット接続を確認して、もう一度試してください。
+Couldn't unpack the tools.	ツールを展開できませんでした。
+The tools download was not complete. Try again.	ツールのダウンロードが完全ではありません。もう一度試してください。
+Couldn't put the tools in place.	ツールを配置できませんでした。
+Not enough space: it needs {} GB free and there is {} GB.	空き容量が足りません：{} GB必要で、{} GBしかありません。
+Couldn't copy it. Is the SD card still in, and not locked?	コピーできませんでした。SDカードは入ったままで、ロックされていませんか？
+The tools are missing. Try again to download them.	ツールがありません。もう一度試してダウンロードしてください。
+Building it didn't work. Try again; if it fails again, please report it with this PC's log.	作成できませんでした。もう一度試してください。また失敗したら、このPCのログを添えて報告してください。
+Stopped. Nothing was finished.	中止しました。何も完了していません。
+Nothing else on your SD card was changed.	SDカードのほかの部分は変わっていません。
+{} IS READY FOR YOUR SWITCH	SWITCH用の{}ができました
+{} IS READY FOR YOUR PHONE	スマホ用の{}ができました
+COULDN'T FINISH {}: CHOOSE IT AGAIN IN THE GAME'S OPTIONS	{}を完了できませんでした：ゲームのオプションでもう一度選んでください
+Set Up {} On A Windows PC	Windows PCで{}を準備する
+The Switch can't build 3DS games itself. FullDex on a Windows PC does it in 5 to 10 minutes, from your own dump.	Switchは3DSのゲームを自分で作成できません。Windows PCのFullDexなら、あなた自身のダンプから5〜10分で作成できます。
+1. Put this SD card in your PC.	1. このSDカードをPCに入れる。
+2. In FullDex on the PC, open {}'s Game Options and choose Put On My Switch.	2. PCのFullDexで{}のゲームオプションを開き、Switchに入れるを選ぶ。
+3. Put the card back here: {} is ready to play.	3. カードをここに戻せば、{}を遊べます。
+OK	OK
+Needs A One-Time Setup	一度だけ準備が必要

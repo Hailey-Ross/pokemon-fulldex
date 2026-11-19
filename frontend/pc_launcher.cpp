@@ -1774,6 +1774,9 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 {
                     F.banner = 2;
                     F.popup = 0;
+#ifdef _WIN32
+                    Launcher::Popup3ds() = games[selected].platform == Launcher::N3DS && !games[selected].comingSoon; // (its rows before it is drawn)
+#endif
                     follow = true;
                 }
                 return;
@@ -1792,6 +1795,16 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 F.popup = -1;
                 if (item == 1) { toggleFavourite(); return; }
                 const bool valid = selected >= 0 && selected < (int)games.size();
+#if defined(SSR_N3DS_PC) && defined(_WIN32)
+                // (A 3DS game: Put On My Switch, Put On My Phone, the dialog that walks through it.)
+                if ((item == 8 || item == 9) && valid && games[selected].platform == Launcher::N3DS)
+                {
+                    N3ds::SetupOpenAndGo(fo.dir, games[selected], item == 8 ? 1 : 2);
+                    F.dialog = 21; F.drow = 0;
+                    N3ds::SetupFill(F);
+                    return;
+                }
+#endif
                 if (item == 2 && valid) { F.kbFor = 0; F.dialog = 3; F.drow = 0; F.text = Launcher::ShortName(games[selected]); StartListKeyboard(); return; }
                 if (item == 5 && valid) { Launcher::OpenAddToTab(games[selected].rom); return; }
                 if (item == 6 && valid) { F.dialog = 1; F.drow = 0; return; }
@@ -1865,6 +1878,9 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             else if (!direct && !onTabs && !onSettings && selected >= 0 && selected < (int)games.size() && games[selected].known && !games[selected].comingSoon)
             {
                 F.popup = 0; // (A on a game: its menu, Play first)
+#ifdef _WIN32
+                Launcher::Popup3ds() = games[selected].platform == Launcher::N3DS && !games[selected].comingSoon; // (its rows before it is drawn)
+#endif
                 note.clear();
                 return;
             }
@@ -2083,6 +2099,19 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
         Launcher::GlassFocus& F = Launcher::Focus();
         const bool noGame = selected < 0 || selected >= (int)games.size();
         // (A tab's menu, and the keyboard for a tab's name, a new tab or the search, need no game: a tab with none in it is where they are wanted.)
+        if (F.dialog == 21)
+        {
+            // (The 3DS setup: n3ds_setup.h does it; closed when it says so.)
+            const std::string pick = F.drow >= 0 && F.drow < (int)F.dPaths.size() ? F.dPaths[F.drow] : std::string("#close");
+#if defined(SSR_N3DS_PC) && defined(_WIN32)
+            if (N3ds::SetupPick(pick)) { F.drow = 0; N3ds::SetupFill(F); }
+            else dialogClose();
+#else
+            (void)pick;
+            dialogClose();
+#endif
+            return;
+        }
         const bool tabOnly = F.dialog == 19 || F.dialog == 8 || F.dialog == 9 || F.dialog == 13 || F.dialog == 14 || F.dialog == 16 || (F.dialog == 3 && F.kbFor);
         if (noGame && !tabOnly) { dialogClose(); return; }
         if (F.dialog == 19)
@@ -3591,6 +3620,12 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
                 if (np.artVersion != artSeen) { artSeen = np.artVersion; MB.art = np.art; MB.artW = np.artW; MB.artH = np.artH; }
                 if (MB.action >= 0) { if (!fake) NowPlaying::Command(MB.action); MB.action = -1; }
             }
+#if defined(SSR_N3DS_PC) && defined(_WIN32)
+            // (Put On My Switch / Phone: its dialog kept up to date; one note when it ends out of sight.)
+            if (Launcher::Focus().dialog == 21) { N3ds::SetupFill(Launcher::Focus()); Launcher::Focus().drow = std::min(Launcher::Focus().drow, std::max(0, (int)Launcher::Focus().dItems.size() - 1)); }
+            else if (N3ds::SJ().open) { std::lock_guard<std::mutex> sl(N3ds::SJ().m); N3ds::SJ().open = false; }
+            if (note.empty()) note = N3ds::SetupNote();
+#endif
 #ifdef SSR_N3DS_PC
             n3dsPrep = N3ds::Peek();
             if (n3dsPrep.active)
@@ -3916,6 +3951,26 @@ int PickGame(Folders& fo, std::vector<Launcher::Game>& games, int selected, bool
             if (ls.state == HubLink::State::Linked && !ls.mine.any && !autoOffered) { Launcher::TradeDo(Launcher::TRADE_FIRST, 0); autoOffered = true; }
             if (ls.state == HubLink::State::Linked && ls.mine.any && ls.theirs.any && ls.theyCanTake && !ls.iAccepted && !autoAccepted) { HubLink::Accept(true); autoAccepted = true; }
         }
+#if defined(SSR_N3DS_PC) && defined(_WIN32)
+        // (Tests of Put On My Switch: SSR_SETUP_TEST=folder chooses Save To A Folder Instead once its dialog is
+        // up; SSR_SETUP_SHOTS=prefix keeps a picture of the dialog every 20 seconds, prefix-0.bmp and on.)
+        if (const char* st = getenv("SSR_SETUP_TEST"))
+        {
+            static bool stDone = false;
+            if (!stDone && Launcher::Focus().dialog == 21 && keysAge >= 3) { stDone = true; if (!strcmp(st, "folder")) { N3ds::SetupPick("#folder"); Launcher::Focus().drow = 0; } }
+        }
+        if (const char* sp = getenv("SSR_SETUP_SHOTS"))
+        {
+            static auto lastShot = std::chrono::steady_clock::now() - std::chrono::seconds(60);
+            static int shotN = 0;
+            if (Launcher::Focus().dialog == 21 && keysAge >= 3 && std::chrono::steady_clock::now() - lastShot >= std::chrono::seconds(20))
+            {
+                lastShot = std::chrono::steady_clock::now();
+                const std::string file = std::string(sp) + "-" + std::to_string(shotN++) + ".bmp";
+                if (SDL_Surface* sf = SDL_CreateRGBSurfaceWithFormatFrom(canvas.px.data(), canvas.w, canvas.h, 32, canvas.w * 4, SDL_PIXELFORMAT_ARGB8888)) { SDL_SaveBMP(sf, file.c_str()); SDL_FreeSurface(sf); }
+            }
+        }
+#endif
         const char* shotWait = getenv("SSR_LIST_SHOT_WAIT");
 #ifdef SSR_N3DS_PC
         const bool preparing = N3ds::P().running;
