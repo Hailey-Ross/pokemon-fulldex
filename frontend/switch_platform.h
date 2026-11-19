@@ -37,6 +37,10 @@ void JoinThread();
 void MoveMainThread();
 
 // Called last: the next start (the game list again, or the next test run).
+// Fast forward on the Switch (GitHub #227): the processor at 1785 MHz while it is on, the clock
+// it had put back when it goes off. The Switch's standard 1020 MHz ran a DS game's frame in about
+// 16 ms, so fast forward only reached normal speed.
+void FastClock(bool on);
 void Finish();
 
 // The system's software keyboard: the text typed, or false if closed without.

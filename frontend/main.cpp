@@ -11168,6 +11168,9 @@ int main(int argc, char** argv)
                 if (ps.lt > 0.3f) curPress = true;
             }
         }
+#ifdef __SWITCH__
+        SwitchPlatform::FastClock(!paused && fastRequested); // (#227: a faster processor while it is on)
+#endif
         // Fast forward (4x) while the right trigger (ZR on the Switch) or Left Shift is held, or
         // locked on from the menu.
         // Fast forward runs several frames at once and shows the last, up to 4. As many as fit

@@ -2002,8 +2002,42 @@ void ForceExit()
 
 extern "C" void SsrJitRelease();
 
+void FastClock(bool on)
+{
+    // (One clock session at a time, closed straight away, and only when fast forward starts or
+    // stops: pcv stops the console when it runs out of sessions, see the test log's clocks.)
+    static bool now = false, usable = true;
+    static u32 before = 0;
+    if (on == now || !usable) return;
+    now = on;
+    if (!hosversionAtLeast(8, 0, 0) || R_FAILED(clkrstInitialize())) { usable = false; return; }
+    ClkrstSession s;
+    if (R_SUCCEEDED(clkrstOpenSession(&s, PcvModuleId_CpuBus, 3)))
+    {
+        const u32 fast = 1785000000;
+        if (on)
+        {
+            u32 cur = 0;
+            if (R_SUCCEEDED(clkrstGetClockRate(&s, &cur)) && cur && cur < fast && R_SUCCEEDED(clkrstSetClockRate(&s, fast)))
+            {
+                before = cur;
+                fprintf(stderr, "[ff] processor %u -> 1785 MHz while fast forward is on\n", cur / 1000000);
+            }
+        }
+        else if (before)
+        {
+            clkrstSetClockRate(&s, before);
+            fprintf(stderr, "[ff] processor back to %u MHz\n", before / 1000000);
+            before = 0;
+        }
+        clkrstCloseSession(&s);
+    }
+    clkrstExit();
+}
+
 void Finish()
 {
+    FastClock(false);
     JitStarted(); // (an ordinary exit: the JIT did start)
     SsrJitRelease(); // (the JIT's code memory given back: without that the Homebrew Menu cannot start the game list again)
     // (A game chosen from the list: its own closing down traced, in exit-trace-game.txt beside the program.)
