@@ -23,6 +23,7 @@ inline const Hack* Hacks(size_t& n)
         { "emeraldlegacy", "Emerald Legacy", { nullptr, nullptr, nullptr } },
         { "inclement", "Inclement Emerald", { nullptr, nullptr, nullptr } },
         { "monomyth", "Monomyth", { "ae1c4be9be8d706bb989602bc05731203d42860d", "eb660caffbc26e1f09f86714d03af4c3eccd9e4d", nullptr } }, // 1.0, 1.1
+        { "monomyth12", "Monomyth", { "742e62ffa5a8d607171fdb8477eb1f417dc36086", nullptr, nullptr } }, // 1.2 (its own patch: its code moved)
         { "gen3evolved", "Gen 3 Evolved", { nullptr, nullptr, nullptr } },
         { "emeraldrogue", "Emerald Rogue", { "7600af1fe08444c850c3c1227fd7dfd81336ae8e", nullptr, nullptr } }, // 2.2.1-EX
     };

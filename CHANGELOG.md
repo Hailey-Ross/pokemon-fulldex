@@ -32,6 +32,7 @@
 - **Omega Ruby and Alpha Sapphire: the speech box is whole in widescreen.** Its ends were stretched apart from its middle (a step at the left, the white past the frame at the right); it now keeps the 3DS's own width, centred.
 - **3DS games on phones: the Menu button stays when the touch controls are off,** so the menu (and the setting to bring them back) can always be reached without a controller.
 - **3DS games in fullscreen hide the mouse pointer** while you play with a controller; it comes back for a moment when the mouse moves.
+- **Monomyth 1.2 in widescreen**, with Zoom and its name and picture. 1.2 moved its code, so it has a widescreen patch of its own; 1.0 and 1.1 keep theirs.
 - **Game Options in the launcher** keeps its focus and opens the selected game's menu under the button (#191).
 - **About > Credits:** OzWookiee, Saiborg23 and elripalda.
 

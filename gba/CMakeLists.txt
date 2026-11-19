@@ -33,7 +33,7 @@ set(GBAW_PATCH_FILES emerald-wide.ips emerald-wide.safety firered-wide.ips firer
     emeraldfr-wide.ips emeraldfr-wide.safety emeraldde-wide.ips emeraldde-wide.safety emeraldes-wide.ips emeraldes-wide.safety emeraldit-wide.ips emeraldit-wide.safety emeraldjp-wide.ips emeraldjp-wide.safety fireredfr-wide.ips fireredfr-wide.safety fireredde-wide.ips fireredde-wide.safety fireredes-wide.ips fireredes-wide.safety fireredit-wide.ips fireredit-wide.safety leafgreenfr-wide.ips leafgreenfr-wide.safety leafgreende-wide.ips leafgreende-wide.safety leafgreenes-wide.ips leafgreenes-wide.safety leafgreenit-wide.ips leafgreenit-wide.safety
     radicalred-wide.ips radicalred-wide.safety unbound-wide.ips unbound-wide.safety
     emeraldlegacy-wide.ips emeraldlegacy-wide.safety inclement-wide.ips inclement-wide.safety
-    monomyth-wide.ips monomyth-wide.safety gen3evolved-wide.ips gen3evolved-wide.safety)
+    monomyth-wide.ips monomyth-wide.safety monomyth12-wide.ips monomyth12-wide.safety gen3evolved-wide.ips gen3evolved-wide.safety)
 if(NOT GBAW_PATCHES_H)
     foreach(f ${GBAW_PATCH_FILES})
         if(NOT EXISTS "${GBAW_PATCHES}/${f}")
