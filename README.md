@@ -488,6 +488,14 @@ Other languages add theirs to the name (`heartgold-it.sav`, `black2-es.sav` ...)
 - **SAVE BACKUPS** in a DS game's pause menu restores one of those for you: choose a dated
   backup and RESTORE AND RESTART. The save it replaces is kept beside it with
   `.before-restore.sav` added to its name.
+- **Nintendo WFC: online play and Mystery Gifts.** Nintendo's servers closed in 2014. Turn on
+  **SETTINGS > OPTIONAL FEATURES > NINTENDO WFC** and Fulldex answers the games' WFC names with
+  a community server instead (AltWFC/WFZwei by default; another by its address in
+  `wfc_server` in `settings.cfg`). Set up a Nintendo WFC connection in the game once (any
+  access point; automatic DNS is fine), then use the game's own online menus: Mystery Gift's
+  **GET VIA NINTENDO WFC**, the GTS, trades and battles. The gifts arrive one at a time through
+  the game itself, as they did from Nintendo's servers; which events are up is the community
+  server's choice, and the community servers are not run by this project.
 
 ### Updates
 
@@ -815,4 +823,5 @@ open an issue and it will be taken out.
 
 ---
 
-Built with AI assistance.
+Built with AI assistance. Building it yourself, or working on it with an AI agent: see
+[docs/DEVELOPING.md](docs/DEVELOPING.md) and [AGENTS.md](AGENTS.md).

@@ -991,7 +991,7 @@ int PickGame(const std::vector<Launcher::Game>& gamesIn, int selected, const std
                     if (aDown && valid)
                     {
                         if (games[selected].known && !games[selected].comingSoon) { F.popup = 0; note.clear(); }
-                        else note = games[selected].comingSoon ? games[selected].name + ": COMING SOON" : "THIS GAME IS NOT ONE THAT THIS PLAYS";
+                        else note = games[selected].comingSoon ? games[selected].name + (games[selected].addRom ? ": ADD YOUR .3DS DUMP TO YOUR ROMS FOLDER" : ": COMING SOON") : "THIS GAME IS NOT ONE THAT THIS PLAYS";
                     }
                 }
                 if (down & HidNpadButton_Plus) quitList = true;
@@ -1011,6 +1011,17 @@ int PickGame(const std::vector<Launcher::Game>& gamesIn, int selected, const std
                     Launcher::HubMode() = 0; Launcher::Focus().page = -1; Launcher::Focus().side = -1; Launcher::Focus().pact = -1;
                     play = true;
                 }
+            }
+            if (play && selected >= 0 && selected < (int)games.size() && games[selected].needsSetup)
+            {
+                // (A 3DS dump the Switch cannot build: how to set it up on a Windows PC.)
+                Launcher::GlassFocus& SF = Launcher::Focus();
+                const std::string nm = N3ds::SetupName(games[selected].name);
+                SF.dialog = 12; SF.drow = 0;
+                SF.dTitle = "Set Up " + nm + " On A Windows PC";
+                SF.dMsg = N3ds::SetupHowTo(nm);
+                SF.dItems = { "OK" }; SF.dPaths = { "#close" };
+                play = false;
             }
             if (play && selected >= 0 && selected < (int)games.size())
             {
@@ -1085,7 +1096,7 @@ int PickGame(const std::vector<Launcher::Game>& gamesIn, int selected, const std
                     result = selected;
                     break;
                 }
-                note = games[selected].comingSoon ? games[selected].name + ": COMING SOON"
+                note = games[selected].comingSoon ? games[selected].name + (games[selected].addRom ? ": ADD YOUR .3DS DUMP TO YOUR ROMS FOLDER" : ": COMING SOON")
                      : !games[selected].problem.empty() ? "PATCH: " + games[selected].problem
                      : games[selected].known ? "THIS DOWNLOAD DOES NOT HAVE THIS GAME" : "THIS GAME IS NOT ONE THAT THIS PLAYS";
             }
@@ -1377,9 +1388,11 @@ std::vector<Launcher::Game> FindGames(const std::string& dir, bool& ownFolder)
     Launcher::AdoptHackSaves(games, SavePathFor);
     // Omega Ruby and Alpha Sapphire: the FullDex Builder's folders in /switch (n3ds.h).
     N3ds::AddSwitch(games);
+    // (A dump of one with no folder in /switch yet: listed, to be set up on a PC.)
+    N3ds::AddSwitchDumps({ dir, dir + "/roms" }, games);
     // (Their saves: a copy beside the game's folder kept the same as the game's own, n3ds.h.)
     for (Launcher::Game& g : games)
-        if (g.platform == Launcher::N3DS)
+        if (g.platform == Launcher::N3DS && !g.needsSetup)
         {
             g.saveName = N3ds::SaveName(g.code);
             N3ds::SyncSave(g, SavePath(g));
@@ -1444,7 +1457,7 @@ static bool Start3ds(const Launcher::Game& g)
         fprintf(stderr, "[3ds] cannot start another program from here (no homebrew loader)\n");
         return false;
     }
-    const std::string args = "\"" + g.rom + "\"" + (g_self.empty() ? std::string() : " \"FULLDEX_RETURN=" + g_self + "\"");
+    const std::string args = "\"" + g.rom + "\"" + (g_self.empty() ? std::string() : " \"FULLDEX_RETURN=" + g_self + "\"") + " \"FULLDEX_LANG=" + N3ds::MenuLanguage() + "\"";
     const Result rc = envSetNextLoad(g.rom.c_str(), args.c_str());
     fprintf(stderr, "[3ds] %s: %s (0x%x)\n", g.name.c_str(), args.c_str(), (unsigned)rc);
     ExitTrace("3ds handoff: closing network");
@@ -1989,8 +2002,42 @@ void ForceExit()
 
 extern "C" void SsrJitRelease();
 
+void FastClock(bool on)
+{
+    // (One clock session at a time, closed straight away, and only when fast forward starts or
+    // stops: pcv stops the console when it runs out of sessions, see the test log's clocks.)
+    static bool now = false, usable = true;
+    static u32 before = 0;
+    if (on == now || !usable) return;
+    now = on;
+    if (!hosversionAtLeast(8, 0, 0) || R_FAILED(clkrstInitialize())) { usable = false; return; }
+    ClkrstSession s;
+    if (R_SUCCEEDED(clkrstOpenSession(&s, PcvModuleId_CpuBus, 3)))
+    {
+        const u32 fast = 1785000000;
+        if (on)
+        {
+            u32 cur = 0;
+            if (R_SUCCEEDED(clkrstGetClockRate(&s, &cur)) && cur && cur < fast && R_SUCCEEDED(clkrstSetClockRate(&s, fast)))
+            {
+                before = cur;
+                fprintf(stderr, "[ff] processor %u -> 1785 MHz while fast forward is on\n", cur / 1000000);
+            }
+        }
+        else if (before)
+        {
+            clkrstSetClockRate(&s, before);
+            fprintf(stderr, "[ff] processor back to %u MHz\n", before / 1000000);
+            before = 0;
+        }
+        clkrstCloseSession(&s);
+    }
+    clkrstExit();
+}
+
 void Finish()
 {
+    FastClock(false);
     JitStarted(); // (an ordinary exit: the JIT did start)
     SsrJitRelease(); // (the JIT's code memory given back: without that the Homebrew Menu cannot start the game list again)
     // (A game chosen from the list: its own closing down traced, in exit-trace-game.txt beside the program.)

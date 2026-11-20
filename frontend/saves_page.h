@@ -663,7 +663,7 @@ inline void DrawSavesPage(Canvas& c, bool solid, float u, int L, int R, int top,
     if (!s.ds)
     {
         s.cw = 0;
-        for (const std::string& line : WrapLines(s.want ? "Omega Ruby and Alpha Sapphire have no save states: they save from the game's own menu. Save state slots are for the DS games."
+        for (const std::string& line : WrapLines(s.want ? "3DS games have no save states: they save from the game's own menu. Save state slots are for the DS games."
                                                         : "The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.", 13 * u, dw - 2 * ip, false))
         { GT(c, dx + ip, y + 8 * u, line, 13 * u, hint, false); y += (int)(20 * u); }
     }

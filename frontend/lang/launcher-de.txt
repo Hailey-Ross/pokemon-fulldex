@@ -592,7 +592,7 @@ Save to it from the game's menu	Im Spielmenü darauf speichern
 Choose a slot to play from it, or delete it. Save to the slots from the game's menu.	Wähle einen Platz, um davon zu spielen oder ihn zu löschen. Gespeichert wird im Spielmenü.
 Fulldex backs up this save every time the game starts and before anything here changes it. Your ROM is never changed.	Fulldex sichert diesen Spielstand bei jedem Spielstart und bevor hier etwas daran geändert wird. Dein ROM wird nie verändert.
 The GBA games keep one save state each, made and loaded from the game's menu. Save state slots are for the DS games.	Die GBA-Spiele haben je einen Speicherzustand, im Spielmenü gespeichert und geladen. Plätze gibt es für die DS-Spiele.
-Omega Ruby and Alpha Sapphire have no save states: they save from the game's own menu. Save state slots are for the DS games.	Omega Rubin und Alpha Saphir haben keine Speicherzustände: Sie speichern im Menü des Spiels. Plätze gibt es für die DS-Spiele.
+3DS games have no save states: they save from the game's own menu. Save state slots are for the DS games.	3DS-Spiele haben keine Speicherzustände: Sie speichern im Menü des Spiels. Plätze gibt es für die DS-Spiele.
 Keep This One	Diesen behalten
 Choose A File...	Datei wählen...
 Restore Backup	Sicherung wiederherstellen
@@ -642,3 +642,84 @@ SCANLINES	ABTASTLINIEN
 THE WIDESCREEN PATCH DOESN'T FIT	DER BREITBILD-PATCH PASST NICHT
 TOGGLE	UMSCHALTEN
 Use This Folder	Diesen Ordner verwenden
+# 3DS: Put On My Switch, Put On My Phone
+Put On My Switch	Auf meine Switch
+Put On My Phone	Auf mein Handy
+Pick Where It Goes	Ziel wählen
+Build	Erstellen
+Copy To Your Phone	Aufs Handy kopieren
+Put {} On Your Switch	{} auf deine Switch
+Take the SD card out of your Switch and put it in this PC: FullDex finds it and does the rest. It uses your own dump and takes 5 to 10 minutes.	Nimm die SD-Karte aus deiner Switch und steck sie in diesen PC: FullDex findet sie und macht den Rest. Es nutzt deinen eigenen Dump und dauert 5 bis 10 Minuten.
+The first time, FullDex also downloads the Switch tools (about 90 MB).	Beim ersten Mal lädt FullDex auch die Switch-Werkzeuge herunter (etwa 90 MB).
+No SD card found yet: put it in and it shows up here.	Noch keine SD-Karte gefunden: steck sie rein, dann erscheint sie hier.
+SD Card ({})	SD-Karte ({})
+Save To A Folder Instead	Stattdessen in einen Ordner
+Keep Using FullDex	FullDex weiter nutzen
+Open The Folder	Ordner öffnen
+Try Again	Erneut versuchen
+Building {} For Your Switch	{} wird für deine Switch erstellt
+Building {} For Your Phone	{} wird für dein Handy erstellt
+Leave the SD card in. You can keep using FullDex: the game's options show how it is going.	Lass die SD-Karte drin. Du kannst FullDex weiter nutzen: die Spieloptionen zeigen, wie weit es ist.
+You can keep using FullDex: the game's options show how it is going.	Du kannst FullDex weiter nutzen: die Spieloptionen zeigen, wie weit es ist.
+Getting the Switch tools (once)	Switch-Werkzeuge werden geladen (einmalig)
+Getting the tools (once)	Werkzeuge werden geladen (einmalig)
+Building the game from your dump	Das Spiel wird aus deinem Dump erstellt
+Making the shaders	Shader werden erstellt
+Saving it in a folder	Wird in einem Ordner gespeichert
+Copying it to the SD card ({})	Wird auf die SD-Karte kopiert ({})
+About a minute left	Noch etwa eine Minute
+About {#} minutes left	Noch etwa {} Minuten
+{} Is On Your SD Card	{} ist auf deiner SD-Karte
+{} Is Ready For Your Switch	{} ist bereit für deine Switch
+{} For Your Phone Is Ready	{} für dein Handy ist bereit
+Now, on your Switch: put the SD card back in, open FullDex and pick {} in the 3DS Beta tab.	Jetzt auf deiner Switch: steck die SD-Karte wieder rein, öffne FullDex und wähle {} im Tab 3DS Beta.
+Also added {#} shaders your Switch found while you played, so those spots no longer stutter.	Außerdem wurden {} Shader hinzugefügt, die deine Switch beim Spielen gefunden hat, damit diese Stellen nicht mehr ruckeln.
+Next time you put the card in this PC, Put On My Switch picks up any new shaders.	Wenn du die Karte das nächste Mal in diesen PC steckst, holt Auf meine Switch neue Shader dazu.
+Copy the folder {} into /switch/ on your Switch's SD card (it has the game and your dump in it).	Kopiere den Ordner {} nach /switch/ auf der SD-Karte deiner Switch (darin sind das Spiel und dein Dump).
+Then open FullDex on your Switch and pick {} in the 3DS Beta tab.	Öffne dann FullDex auf deiner Switch und wähle {} im Tab 3DS Beta.
+Copy {}.so to your phone (USB cable, Google Drive, anything).	Kopiere {}.so auf dein Handy (USB-Kabel, Google Drive, egal wie).
+Then in FullDex on your phone, open {}'s Game Options and choose Use Game Code From PC.	Öffne dann in FullDex auf deinem Handy die Spieloptionen von {} und wähle Spielcode vom PC verwenden.
+Couldn't Finish	Konnte nicht fertig werden
+Couldn't download the tools. Check the internet connection and try again.	Die Werkzeuge konnten nicht geladen werden. Prüfe die Internetverbindung und versuch es erneut.
+Couldn't unpack the tools.	Die Werkzeuge konnten nicht entpackt werden.
+The tools download was not complete. Try again.	Der Download der Werkzeuge ist unvollständig. Versuch es erneut.
+Couldn't put the tools in place.	Die Werkzeuge konnten nicht abgelegt werden.
+Not enough space: it needs {} GB free and there is {} GB.	Nicht genug Platz: es braucht {} GB frei und es gibt {} GB.
+Couldn't copy it. Is the SD card still in, and not locked?	Konnte nicht kopieren. Steckt die SD-Karte noch und ist sie nicht gesperrt?
+The tools are missing. Try again to download them.	Die Werkzeuge fehlen. Versuch es erneut, um sie zu laden.
+Building it didn't work. Try again; if it fails again, please report it with this PC's log.	Das Erstellen hat nicht geklappt. Versuch es erneut; wenn es wieder scheitert, melde es bitte mit dem Log dieses PCs.
+Stopped. Nothing was finished.	Angehalten. Nichts wurde fertig.
+Nothing else on your SD card was changed.	Sonst wurde auf deiner SD-Karte nichts geändert.
+{} IS READY FOR YOUR SWITCH	{} IST BEREIT FÜR DEINE SWITCH
+{} IS READY FOR YOUR PHONE	{} IST BEREIT FÜR DEIN HANDY
+COULDN'T FINISH {}: CHOOSE IT AGAIN IN THE GAME'S OPTIONS	{} KONNTE NICHT FERTIG WERDEN: WÄHLE ES ERNEUT IN DEN SPIELOPTIONEN
+Set Up {} On A Windows PC	{} auf einem Windows-PC einrichten
+The Switch can't build 3DS games itself. FullDex on a Windows PC does it in 5 to 10 minutes, from your own dump.	Die Switch kann 3DS-Spiele nicht selbst erstellen. FullDex auf einem Windows-PC macht das in 5 bis 10 Minuten aus deinem eigenen Dump.
+1. Put this SD card in your PC.	1. Steck diese SD-Karte in deinen PC.
+2. In FullDex on the PC, open {}'s Game Options and choose Put On My Switch.	2. Öffne in FullDex auf dem PC die Spieloptionen von {} und wähle Auf meine Switch.
+3. Put the card back here: {} is ready to play.	3. Steck die Karte wieder hier rein: {} ist bereit zum Spielen.
+OK	OK
+Needs A One-Time Setup	Braucht eine einmalige Einrichtung
+# 3DS on phones: getting a game ready
+Get {} Ready	{} vorbereiten
+A one-time step so it runs at full speed.	Ein einmaliger Schritt, damit es mit voller Geschwindigkeit läuft.
+A Windows PC does it in 5 to 10 minutes; this phone in about 25 (keep it plugged in, it gets warm).	Ein Windows-PC schafft das in 5 bis 10 Minuten, dieses Handy in etwa 25 (lass es am Strom, es wird warm).
+Until then it plays through an emulator: slower, and busy scenes can stutter.	Bis dahin läuft es über einen Emulator: langsamer, und volle Szenen können ruckeln.
+With A Windows PC (Recommended)	Mit einem Windows-PC (empfohlen)
+On This Phone (About 25 Minutes)	Auf diesem Handy (etwa 25 Minuten)
+Play Now With The Emulator	Jetzt mit dem Emulator spielen
+Get {} Ready On A Windows PC	{} auf einem Windows-PC vorbereiten
+1. In FullDex on your PC, open {}'s Game Options and choose Put On My Phone.	1. Öffne in FullDex auf deinem PC die Spieloptionen von {} und wähle Auf mein Handy.
+2. Copy the file it makes into your ROMs folder here.	2. Kopiere die erstellte Datei hier in deinen ROM-Ordner.
+3. FullDex finds it by itself and {} runs at full speed.	3. FullDex findet sie von selbst und {} läuft mit voller Geschwindigkeit.
+Copy {}.so to your phone, into the same folder as your ROMs (USB cable, Google Drive, anything).	Kopiere {}.so auf dein Handy, in denselben Ordner wie deine ROMs (USB-Kabel, Google Drive, egal wie).
+FullDex on your phone finds it by itself and the game runs at full speed.	FullDex auf deinem Handy findet sie von selbst und das Spiel läuft mit voller Geschwindigkeit.
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): THEN IT BUILDS	{} WIRD ZU FULLDEX HINZUGEFÜGT (EINMALIG, ETWA 2 GB): DANACH WIRD ES ERSTELLT
+{}: NOT A 3DS GAME FULLDEX PLAYS (X, Y, OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)	{}: KEIN VON FULLDEX UNTERSTÜTZTES 3DS-SPIEL (X, Y, OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)
+THAT FILE IS NOT A 3DS GAME FULLDEX PLAYS	DIESE DATEI IST KEIN VON FULLDEX UNTERSTÜTZTES 3DS-SPIEL
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 4 GB): THEN IT BUILDS	{} WIRD ZU FULLDEX HINZUGEFÜGT (EINMALIG, ETWA 4 GB): DANACH WIRD ES ERSTELLT
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 2 GB): IT STARTS WHEN READY	{} WIRD ZU FULLDEX HINZUGEFÜGT (EINMALIG, ETWA 2 GB): ES STARTET, SOBALD ES BEREIT IST
+ADDING {} TO FULLDEX (ONE TIME, ABOUT 4 GB): IT STARTS WHEN READY	{} WIRD ZU FULLDEX HINZUGEFÜGT (EINMALIG, ETWA 4 GB): ES STARTET, SOBALD ES BEREIT IST
+Add ROM	ROM hinzufügen
+ADD ROM	ROM HINZUFÜGEN
+{}: ADD YOUR .3DS DUMP TO YOUR ROMS FOLDER	{}: LEGE DEINEN .3DS-DUMP IN DEINEN ROM-ORDNER

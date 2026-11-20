@@ -2,7 +2,7 @@
 // FullDex's version, shown on the About page and written to the log (releases from 1.6 on are numbered,
 // tagged vMAJOR.MINOR.PATCH). A build can set its own with -DFULLDEX_VERSION="...".
 #ifndef FULLDEX_VERSION
-#define FULLDEX_VERSION "1.6"
+#define FULLDEX_VERSION "1.7"
 #endif
 #include <pthread.h>
 #include <functional>
@@ -264,6 +264,7 @@ struct Game
     std::string where;
     // A game on its way (AddComingSoon): its tile says so and it cannot be played.
     bool comingSoon = false;
+    bool addRom = false; // (a 3DS game with no dump found: its tile says Add ROM, so players see it is there to play)
     long long soonAt = 0; // (UTC seconds) a game coming on a set day: its tile counts down to it
     bool favourite = false;
     std::string customName; // the player's own name for it (Rename; fulldex-names.txt), empty: its own
@@ -280,6 +281,9 @@ struct Game
     std::string baseSave;
     // A patch file that could not be made into a game: why (shown, and it cannot be played).
     std::string problem;
+    // A 3DS game found as a dump where it cannot be built (the Switch): choosing it says how to set
+    // it up on a Windows PC (Put On My Switch).
+    bool needsSetup = false;
 };
 
 inline std::string& ContinueRom() { static std::string r; return r; } // the game played last (last-game.txt)
@@ -320,15 +324,26 @@ inline std::function<std::string(const Game&)>& PlatformEntryLabel() { static st
 // Whether the launcher itself is in Steam ("IN STEAM") or not, for the settings row.
 inline std::function<std::string()>& PlatformLauncherState() { static std::function<std::string()> f; return f; }
 #if defined(__ANDROID__) || (!defined(SSR_PHONE) && !defined(__SWITCH__))
-inline int PopupCount() { return 8; } // (Android's phone home, or the desktop's Steam/Desktop entry)
+inline int PopupBase() { return 8; } // (Android's phone home, or the desktop's Steam/Desktop entry)
 #else
-inline int PopupCount() { return 7; }
+inline int PopupBase() { return 7; }
 #endif
+// (Windows: a 3DS game's menu also has Put On My Switch and Put On My Phone after Play, items 8 and 9;
+// set as the menu is drawn, for the game it is drawn for.)
+inline bool& Popup3ds() { static bool b = false; return b; }
+inline int PopupCount() { return PopupBase() + (Popup3ds() ? 2 : 0); }
 // The game's menu in the order shown: Play, Manage Saves, Add To Home, Rename, Change Picture, Add To
 // Tab, Remove Game (row -> what it is, PopupLabel's numbers).
-inline int PopupItem(int row) { static const int order[] = { 0, 4, 1, 7, 2, 3, 5, 6 }; return row >= 0 && row < PopupCount() ? (PopupCount() == 8 ? order[row] : order[row < 3 ? row : row + 1]) : row; }
+inline int PopupItem(int row)
+{
+    if (Popup3ds()) { if (row == 1 || row == 2) return row + 7; if (row > 2) row -= 2; }
+    static const int order[] = { 0, 4, 1, 7, 2, 3, 5, 6 };
+    return row >= 0 && row < PopupBase() ? (PopupBase() == 8 ? order[row] : order[row < 3 ? row : row + 1]) : row;
+}
 inline std::string PopupLabel(const Game& g, int i)
 {
+    if (i == 8) return "Put On My Switch";
+    if (i == 9) return "Put On My Phone";
     static const char* n[] = { "Play", "", "Rename", "Change Picture", "Manage Saves", "Add To Tab", "Remove Game", "Add To Phone Home Screen" };
 #ifdef __ANDROID__
     // (A 3DS game inside the app: its game code, from a PC's FullDex Builder or built on the phone.)
@@ -552,23 +567,20 @@ constexpr int Art = 224;
 // Omega Ruby on the 3DS (its picture as any game's: icons/ECRA.jpg, or SSR_PC_ART's ECRA.jpg).
 inline void AddComingSoon(std::vector<Game>& games)
 {
-    Game g;
-    g.platform = N3DS;
-    g.code = "ECRA";
-    g.rom = "coming-soon:ECRA"; // (never a file: so never the last game played, nor started)
-    g.name = "POKEMON OMEGA RUBY";
-    g.comingSoon = true;
-    g.soonAt = 1794441600LL; // (12 November 2026, 00:00 UTC: Omega Ruby and Alpha Sapphire come together)
-    games.push_back(std::move(g));
-    // Alpha Sapphire, the same day.
-    Game a;
-    a.platform = N3DS;
-    a.code = "ECLA";
-    a.rom = "coming-soon:ECLA";
-    a.name = "POKEMON ALPHA SAPPHIRE";
-    a.comingSoon = true;
-    a.soonAt = 1794441600LL;
-    games.push_back(std::move(a));
+    // (Every 3DS game, so players see them: a dump found takes the tile's place (N3ds::DropPlaceholders); where
+    // the game plays and none is found, the tile says Add ROM; where it cannot play yet, Coming Soon.)
+    static const char* const titles[][2] = { { "EKJA", "POKEMON X" }, { "EK2A", "POKEMON Y" }, { "ECRA", "POKEMON OMEGA RUBY" },
+                                             { "ECLA", "POKEMON ALPHA SAPPHIRE" }, { "A2AA", "POKEMON ULTRA SUN" }, { "A2BA", "POKEMON ULTRA MOON" } };
+    for (const auto& t : titles)
+    {
+        Game g;
+        g.platform = N3DS;
+        g.code = t[0];
+        g.rom = std::string("coming-soon:") + t[0]; // (never a file: so never the last game played, nor started)
+        g.name = t[1];
+        g.comingSoon = true;
+        games.push_back(std::move(g));
+    }
 }
 
 // The day it comes, as "Release: 12 Nov 2026" ("" without a day, or once it has come).
@@ -588,6 +600,7 @@ inline std::string ComingSoonDate(const Game& g)
 inline std::string ComingSoonText(const Game& g)
 {
     if (!g.comingSoon) return "";
+    if (g.addRom) return "Add ROM";
     const long long left = g.soonAt > 0 ? g.soonAt - (long long)std::time(nullptr) : 0;
     if (left <= 0) return "Coming Soon";
     const long long mins = (left + 59) / 60;
@@ -1370,6 +1383,19 @@ struct Grid
     int cw = 0, ch = 0, colStep = 0, rowStep = 0;
     bool horiz = false; // (a phone sideways: one row of cards that scrolls along, not down)
 };
+// The 3DS setup's dialog (21, n3ds_setup.h): what it shows besides its title, words and rows: the
+// steps along the top, the list of what it is doing (0 to come, 1 under way, 2 done) and a bar.
+struct SetupView { std::vector<std::string> steps; int step = -1; std::vector<std::pair<std::string, int>> list; float progress = -1; std::string under; };
+inline SetupView& SetupShown() { static SetupView v; return v; }
+inline int SetupExtraHeight(float u)
+{
+    const SetupView& v = SetupShown();
+    int h = 0;
+    if (!v.steps.empty()) h += (int)(42 * u);
+    h += (int)v.list.size() * (int)(32 * u);
+    if (v.progress >= 0) h += (int)(48 * u);
+    return h;
+}
 // The glass launcher (DrawGlass) on landscape screens with the clean font; the classic list otherwise.
 inline bool& GlassOn() { static bool on = true; return on; }
 // A phone: its text and buttons bigger (the design 480 high sideways, 405 wide upright), the Tiles layout whichever way it is held.
@@ -7219,7 +7245,7 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
             DrawCover(c, g, tx0, ty0, t, t, 8 * u);
             if (g.comingSoon) Glass::Round(c, tx0, ty0, t, t, 8 * u, 0x99000000u);
             const int nx = tx0 + t + (int)(14 * u);
-            const std::string sub = g.comingSoon ? std::string("Coming Soon") : !g.known ? std::string("Not Playable") : g.platform == N3DS ? std::string(g.built ? "3DS Beta \xC2\xB7 Built" : "3DS Beta") : std::string(PlatformName(g.platform));
+            const std::string sub = g.comingSoon ? std::string(g.addRom ? "Add ROM" : "Coming Soon") : !g.known ? std::string("Not Playable") : g.platform == N3DS ? std::string(g.built ? "3DS Beta \xC2\xB7 Built" : "3DS Beta") : std::string(PlatformName(g.platform));
             const int sw = GW(sub, 13 * u, true);
             GTFit(c, nx, y + rh * 0.5f, ShortName(g), 17 * u, x + grid.cw - nx - sw - (int)(30 * u), text, true);
             GT(c, x + grid.cw - (int)(16 * u) - sw, y + rh * 0.5f, sub, 13 * u, !g.known && !g.comingSoon ? 0xFFF2A08Au : hint, true);
@@ -7240,7 +7266,17 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
         std::string name = ShortName(g);
         float npx = 17 * u;
         // (A 3DS game whose code is built says so beside 3DS.)
-        const std::string tag = g.platform == N3DS ? (g.built ? "3DS Beta \xC2\xB7 Built" : "3DS Beta") : PlatformName(g.platform);
+        std::string tag = g.platform == N3DS ? (g.built ? "3DS Beta \xC2\xB7 Built" : "3DS Beta") : PlatformName(g.platform);
+        // (A long name keeps its size: a 3DS game's tag gets shorter first, 3DS Beta \xC2\xB7 Built, 3DS \xC2\xB7 Built, Built, or 3DS Beta, 3DS.)
+        if (g.platform == N3DS)
+        {
+            static const char* const builtTags[] = { "3DS \xC2\xB7 Built", "Built" };
+            static const char* const plainTags[] = { "3DS" };
+            const char* const* tags = g.built ? builtTags : plainTags;
+            const int count = g.built ? 2 : 1;
+            for (int i = 0; i < count; i++)
+                if (GW(name, npx, true) > iw - GW(tag, 13 * u, true) - (int)(14 * u)) tag = tags[i];
+        }
         const int room = iw - GW(tag, 13 * u, true) - (int)(14 * u);
         while (npx > 10 * u && GW(name, npx, true) > room) npx -= u;
         GT(c, ix + (int)(4 * u), cy, name, npx, text, true);
@@ -7332,8 +7368,8 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
         const std::string nm = ShortName(g);
         const int nw = std::min(GW(nm, 34 * u, true), (int)(c.w * 0.7f));
         GTFit(c, cx - nw / 2, (float)tb.nameY, nm, 34 * u, nw, text, true);
-        const std::string saveS = HubCloudOf(g) == 2 ? "Cloud Save: Changed On Both" : HubCloudOf(g) ? "Cloud Save" : g.hasSave ? "Save Found" : "New Game";
-        const std::string meta = g.comingSoon ? std::string("Coming Soon") : !g.known ? std::string("Not Playable") : std::string(PlatformName(g.platform)) + "   \xC2\xB7   " + saveS;
+        const std::string saveS = g.needsSetup ? std::string("Needs A One-Time Setup") : HubCloudOf(g) == 2 ? "Cloud Save: Changed On Both" : HubCloudOf(g) ? "Cloud Save" : g.hasSave ? "Save Found" : "New Game";
+        const std::string meta = g.comingSoon ? std::string(g.addRom ? "Add ROM" : "Coming Soon") : !g.known ? std::string("Not Playable") : std::string(PlatformName(g.platform)) + "   \xC2\xB7   " + saveS;
         GT(c, cx - GW(meta, 16 * u, true) / 2, (float)tb.metaY, meta, 16 * u, hint, true);
     };
     auto drawTiles = [&]() {
@@ -7472,10 +7508,10 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
         const int tx = phP ? ax : ax + aw + (int)(24 * u);
         const bool played = !ContinueRom().empty() && g.rom == ContinueRom();
         const std::string meta = std::string(played ? "Continue Playing" : "Ready To Play") + "   \xC2\xB7   " + PlatformName(g.platform)
-                               + "   \xC2\xB7   " + (HubCloudOf(g) == 2 ? "Cloud Save: Changed On Both" : HubCloudOf(g) ? "Cloud Save" : g.hasSave ? "Save Found" : "New Game");
+                               + "   \xC2\xB7   " + (g.needsSetup ? std::string("Needs A One-Time Setup") : HubCloudOf(g) == 2 ? "Cloud Save: Changed On Both" : HubCloudOf(g) ? "Cloud Save" : g.hasSave ? "Save Found" : "New Game");
         if (phP)
         {
-            const std::string sv = HubCloudOf(g) == 2 ? "Cloud Save: Changed On Both" : HubCloudOf(g) ? "Cloud Save" : g.hasSave ? "Save Found" : "New Game";
+            const std::string sv = g.needsSetup ? std::string("Needs A One-Time Setup") : HubCloudOf(g) == 2 ? "Cloud Save: Changed On Both" : HubCloudOf(g) ? "Cloud Save" : g.hasSave ? "Save Found" : "New Game";
             GT(c, tx, ay + ah + 18 * u, played ? "Continue Playing" : "Ready To Play", 13 * u, hint, true);
             GTFit(c, tx, ay + ah + 46 * u, ShortName(g), 28 * u, sp.contX - tx - (int)(10 * u), text, true);
             GT(c, tx, ay + ah + 74 * u, std::string(PlatformName(g.platform)) + "   \xC2\xB7   " + sv, 13 * u, hint, true);
@@ -7619,7 +7655,7 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
             float ty = (float)(py0 + ph + 34 * u);
             GTFit(c, ix, ty, ShortName(g), 34 * u, iw, text, true);
             ty += 46 * u;
-            const std::string saveS = HubCloudOf(g) == 2 ? "Cloud: Changed On Both" : HubCloudOf(g) ? "Cloud Save" : g.hasSave ? "Save Found" : "New Game";
+            const std::string saveS = g.needsSetup ? std::string("Needs A One-Time Setup") : HubCloudOf(g) == 2 ? "Cloud: Changed On Both" : HubCloudOf(g) ? "Cloud Save" : g.hasSave ? "Save Found" : "New Game";
             std::string last = "Never";
             if (g.lastPlayed > 0)
             {
@@ -7717,8 +7753,11 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
         // (from the Game Options button the menu sits under it, so the game need not be in the list shown)
         if (k >= 0 || (Focus().banner == 2 && !PhoneLook()))
         {
-            static const int icons[] = { Glass::I_PLAY, Glass::I_POKEBALL, Glass::I_SPARKLE, Glass::I_WINDOW, Glass::I_SAVE, Glass::I_LAYERS, Glass::I_BACK, Glass::I_GLOBE };
+            static const int icons[] = { Glass::I_PLAY, Glass::I_POKEBALL, Glass::I_SPARKLE, Glass::I_WINDOW, Glass::I_SAVE, Glass::I_LAYERS, Glass::I_BACK, Glass::I_GLOBE, Glass::I_PAD, Glass::I_SCREENS };
             const Game& g = games[mg];
+#ifdef _WIN32 // (SSR_N3DS_PC is set by n3ds.h, after this)
+            Popup3ds() = g.platform == N3DS && !g.comingSoon;
+#endif
             const int n = PopupCount(), rowH = (int)(44 * u), rg = (int)(4 * u), pad = (int)(8 * u), pw = (int)(250 * u);
             const int ph = n * rowH + (n - 1) * rg + 2 * pad;
             int px, py;
@@ -7805,6 +7844,7 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
             if (!line.empty()) lines.push_back(line);
         }
         const int ph = pad + (int)(36 * u) + (int)lines.size() * (int)(22 * u) + (int)(16 * u) + (F.dialog == 3 ? fieldH + rg : 0) + (F.dialog == 4 ? (int)(150 * u) + 2 * rg : 0) + (F.dialog == 10 ? (int)(200 * u) + 2 * rg : 0)
+                     + (F.dialog == 21 ? SetupExtraHeight(u) : 0)
                      + (int)rows.size() * (rowH + rg) - rg + pad;
         const int px = (c.w - pw) / 2, py = (c.h - ph) / 2;
         Glass::Round(c, 0, 0, c.w, c.h, 0, 0x73000000u);
@@ -7841,6 +7881,50 @@ inline void DrawGlass(Canvas& c, const std::vector<Game>& games, const View& v, 
 #endif
             DrawQr(c, kBeerQr, kBeerQrSize, px + (pw - qs) / 2, y, qs);
             y += qs + 2 * rg;
+        }
+        if (F.dialog == 21)
+        {
+            // (The 3DS setup: its steps, what it is doing and how far it has got.)
+            const SetupView& sv = SetupShown();
+            const int x0 = px + pad, w0 = pw - 2 * pad;
+            if (!sv.steps.empty())
+            {
+                const int d = (int)(24 * u);
+                int sx = x0;
+                const float cy = y + d * 0.5f;
+                for (size_t i = 0; i < sv.steps.size(); i++)
+                {
+                    const bool cur = (int)i == sv.step, done = (int)i < sv.step;
+                    Glass::Round(c, sx, y, d, d, d * 0.5f, cur ? 0xF2F2F5F9u : done ? 0xD99BE8BBu : 0x24FFFFFFu, cur || done ? 0 : 0x3DFFFFFFu, 1.0f * u);
+                    const std::string num = std::to_string(i + 1);
+                    GT(c, sx + (d - GW(num, 13 * u, true)) / 2, cy, num, 13 * u, cur || done ? 0xFF101826u : text, true);
+                    sx += d + (int)(8 * u);
+                    GT(c, sx, cy, sv.steps[i], 14 * u, cur ? text : hint, cur);
+                    sx += GW(sv.steps[i], 14 * u, cur) + (int)(12 * u);
+                    if (i + 1 < sv.steps.size()) { Glass::Round(c, sx, (int)cy, (int)(20 * u), std::max(1, (int)(2 * u)), 0, 0x33FFFFFFu); sx += (int)(32 * u); }
+                }
+                y += (int)(42 * u);
+            }
+            for (const auto& it : sv.list)
+            {
+                const int d = (int)(18 * u);
+                const float cy = y + 15 * u;
+                if (it.second == 2) Glass::Round(c, x0 + 2, (int)(cy - d * 0.5f), d, d, d * 0.5f, 0xE69BE8BBu);
+                else Glass::Round(c, x0 + 2, (int)(cy - d * 0.5f), d, d, d * 0.5f, it.second == 1 ? 0x33FFFFFFu : 0, it.second == 1 ? 0xF2FFFFFFu : 0x40FFFFFFu, (it.second == 1 ? 2.5f : 1.5f) * u);
+                GT(c, x0 + d + (int)(14 * u), cy, it.first, 15 * u, it.second == 1 ? text : hint, it.second == 1);
+                y += (int)(32 * u);
+            }
+            if (sv.progress >= 0)
+            {
+                const int bh = std::max(4, (int)(8 * u));
+                y += (int)(6 * u);
+                Glass::Round(c, x0, y, w0, bh, bh * 0.5f, 0x1FFFFFFFu);
+                Glass::Round(c, x0, y, std::max(bh, (int)(w0 * std::min(1.0f, sv.progress))), bh, bh * 0.5f, 0xF2F2F5F9u);
+                GT(c, x0, y + bh + 16 * u, sv.under, 13 * u, hint, false);
+                const std::string pc = std::to_string((int)(sv.progress * 100)) + "%";
+                GT(c, x0 + w0 - GW(pc, 13 * u, false), y + bh + 16 * u, pc, 13 * u, hint, false);
+                y += (int)(42 * u);
+            }
         }
         if (F.dialog == 3)
         {
@@ -8052,7 +8136,7 @@ inline void DrawClassic(Canvas& c, const std::vector<Game>& games, int tab, int 
         while ((g.hack || !g.problem.empty()) && name.size() > 4 && Canvas::TextWidth(name, ns) > tile) name = name.substr(0, name.size() - 3) + "..";
         c.Text(x + (tile - Canvas::TextWidth(name, ns)) / 2, y + tile + 3 * s, name, ns, sel ? th.nameSel : th.name);
         if (sel && th.selBar) c.Fill(x + tile / 4, y + tile + (UiLang::Tall() ? 31 : 19) * s, tile / 2, s, th.selBar);
-        std::string sub = g.comingSoon ? "COMING SOON" : !g.problem.empty() ? "PATCH PROBLEM" : !g.known ? "NOT PLAYABLE"
+        std::string sub = g.comingSoon ? (g.addRom ? "ADD ROM" : "COMING SOON") : !g.problem.empty() ? "PATCH PROBLEM" : !g.known ? "NOT PLAYABLE"
                         : g.hack ? (g.hasSave ? "HACK: SAVE FOUND" : "HACK: NEW GAME") : g.hasSave ? "SAVE FOUND" : "NEW GAME";
         if (!g.where.empty() && g.known) sub = (g.hasSave ? "SAVE " : "NEW ") + g.where; // e.g. SAVE IN BLACK2
         if(g.favourite)c.Text(x+tile-24*s,y+4*s,"FAV",s,th.nameSel);
@@ -8171,7 +8255,7 @@ inline std::vector<Setting> SettingsList()
                   "HOLD: RELEASE TO STOP. TOGGLE: PRESS ONCE TO START AND AGAIN TO STOP. APPLIES TO KEYBOARD, CONTROLLER AND ON-SCREEN FAST FORWARD." });
     l.push_back({ "aspect", "ASPECT RATIO", { { "auto", "AUTO" }, { "16:9", "16:9" }, { "16:10", "16:10" }, { "3:2", "3:2" }, { "4:3", "4:3" } }, "auto",
                   "DS GAMES: THE SHAPE OF THE PICTURE. AUTO FILLS YOUR SCREEN; A NARROWER SHAPE LEAVES BARS AT THE SIDES. THE SAME CHOICE IS IN THE GAME'S DISPLAY MENU." });
-    l.push_back({ "smooth", "SMOOTH SCALING", onOff, "0", "ON: THE PICTURE IS SOFTENED AS IT IS SCALED UP TO YOUR SCREEN. OFF: SHARP PIXELS." });
+    l.push_back({ "smooth", "PICTURE", { { "0", "SHARP PIXELS" }, { "1", "BLURRED" } }, "0", "SHARP PIXELS (RECOMMENDED): CRISP AT ANY SCREEN SIZE. BLURRED: THE PICTURE IS SOFTENED AS IT IS SCALED UP, SO TEXT AND MENUS LOOK FUZZY." });
     l.push_back({ "screen_filter", "DS SCREEN FILTER", { { "0", "OFF" }, { "1", "SCANLINES" }, { "2", "LCD GRID" } }, "0",
                   "DS GAMES: A RETRO LOOK OVER THE PICTURE. LCD GRID ADDS A FAINT PIXEL GRID. THE SAME CHOICE IS AVAILABLE IN THE GAME'S DISPLAY MENU." });
     l.push_back({ "gba_lcd", "GBA LCD EFFECT", { { "auto", "AUTO" }, { "0", "OFF" }, { "1", "ON" } }, "auto",
@@ -8254,7 +8338,14 @@ inline std::vector<Setting> SettingsList()
     l.insert(l.begin(), { "list_lang", "LANGUAGE", UiLang::Choices(), "auto",
                           "THE LANGUAGE OF THE GAME LIST, THE SETTINGS AND THE PAUSE MENU (NOT OF THE GAMES)." });
     size_t extraCount;const auto* extras=OptionalFeatures::Options(extraCount);
-    for(size_t i=0;i<extraCount;i++)l.push_back({extras[i].key,extras[i].name,onOff,"0",extras[i].help});
+    for(size_t i=0;i<extraCount;i++)
+    {
+#ifndef SSR_NET
+        // (NINTENDO WFC needs the user-mode Wi-Fi: the Switch build has none.)
+        if(extras[i].value==&OptionalFeatures::wfc)continue;
+#endif
+        l.push_back({extras[i].key,extras[i].name,onOff,"0",extras[i].help});
+    }
 #if !defined(__SWITCH__)
     // RetroAchievements from the game list too (pc_launcher.cpp: the login, as the pause menu's).
     l.push_back({ "ra", "RETROACHIEVEMENTS", onOff, "0",

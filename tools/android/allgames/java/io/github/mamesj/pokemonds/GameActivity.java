@@ -573,6 +573,12 @@ public class GameActivity extends SDLActivity {
     public static void threeDsBuild(String id) {
         if (self != null) call3ds("build", new Class<?>[] { android.content.Context.class, String.class }, self.getApplicationContext(), id);
     }
+    // The game code Put On My Phone made on a PC, found in the ROM folders ("<title id>\n<path>"): taken in by itself.
+    public static void threeDsImportFile(String arg) {
+        int nl = arg.indexOf('\n');
+        if (self == null || nl < 0) return;
+        call3ds("importCode", new Class<?>[] { android.content.Context.class, String.class, Uri.class }, self.getApplicationContext(), arg.substring(0, nl), Uri.fromFile(new java.io.File(arg.substring(nl + 1))));
+    }
     // The game code the FullDex Builder made on a PC (<title id>.so), picked by the player.
     public static void threeDsImport(String id) {
         if (self == null) return;

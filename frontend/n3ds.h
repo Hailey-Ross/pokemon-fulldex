@@ -1,4 +1,4 @@
-// Pokemon Omega Ruby and Alpha Sapphire (3DS) in FullDex's game list.
+// Pokemon X, Y, Omega Ruby, Alpha Sapphire, Ultra Sun and Ultra Moon (3DS) in FullDex's game list.
 //
 // The games are the omega-nx programs, each in a folder of its own with its saves and settings:
 // FullDex lists them and starts them, and they come back to the list when the player quits.
@@ -17,9 +17,11 @@
 #include <cctype>
 #include <ctime>
 #include <cstdint>
+#include <set>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
+#include <map>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -49,8 +51,12 @@ namespace N3ds
 {
 struct Title { const char* code; const char* id; const char* name; };
 inline const Title kTitles[] = {
+    { "EKJA", "0004000000055D00", "POKEMON X" },
+    { "EK2A", "0004000000055E00", "POKEMON Y" },
     { "ECRA", "000400000011C400", "POKEMON OMEGA RUBY" },
     { "ECLA", "000400000011C500", "POKEMON ALPHA SAPPHIRE" },
+    { "A2AA", "00040000001B5000", "POKEMON ULTRA SUN" },
+    { "A2BA", "00040000001B5100", "POKEMON ULTRA MOON" },
 };
 inline const Title* ById(const std::string& id)
 {
@@ -165,15 +171,48 @@ inline void Skip(const std::string& path, const std::string& why, int rank = 1)
     if (rank > SkipRank()) { SkipNote() = name + ": " + why; SkipRank() = rank; }
 }
 // (A 3DS file among the ROMs: its title if FullDex plays it, else nullptr and why not said.)
-inline const Title* Check(const std::string& path)
+// (A file that starts as a CIA does: its header's size, 0x2020, then its type and version, 0.)
+inline bool LooksLikeCia(const std::string& path)
 {
-    if (EndsWith(path, ".cia")) { Skip(path, "A .CIA IS NOT PLAYED: THE 3DS GAMES NEED A .3DS DUMP OF THE CARTRIDGE", 2); return nullptr; }
-    if (EndsWith(path, ".cci")) { Skip(path, "RENAME IT TO .3DS", 2); return nullptr; }
+#ifdef _WIN32
+    FILE* f = _wfopen(std::filesystem::u8path(path).wstring().c_str(), L"rb");
+#else
+    FILE* f = fopen(path.c_str(), "rb");
+#endif
+    if (!f) return false;
+    unsigned char h[8] = {};
+    const bool ok = fread(h, 1, sizeof h, f) == sizeof h;
+    fclose(f);
+    static const unsigned char cia[8] = { 0x20, 0x20, 0, 0, 0, 0, 0, 0 };
+    return ok && memcmp(h, cia, sizeof cia) == 0;
+}
+// A cartridge dump named .cci is the same file as a .3ds: it is renamed to .3ds (the player was told
+// to do this by hand before), unless a .3ds of that name is there already or the folder cannot be
+// written. path becomes the new name. Returns false when it is left as it was.
+inline bool RenameCci(std::string& path)
+{
+    if (!EndsWith(path, ".cci") || DumpCrypt(path) < 0) return false;
+    const std::string to = path.substr(0, path.size() - 4) + ".3ds";
+    std::error_code ec;
+    if (std::filesystem::exists(std::filesystem::u8path(to), ec)) return false;
+    std::filesystem::rename(std::filesystem::u8path(path), std::filesystem::u8path(to), ec);
+    if (ec) { fprintf(stderr, "[3ds] could not rename %s to .3ds: %s\n", path.c_str(), ec.message().c_str()); return false; }
+    fprintf(stderr, "[3ds] renamed %s to .3ds\n", path.c_str());
+    path = to;
+    return true;
+}
+// (path: a .cci dump is renamed to .3ds first, and path is then its new name; not with rename false,
+// for a file FullDex was opened with, which a shortcut may name.)
+inline const Title* Check(std::string& path, bool rename = true)
+{
+    static const char* const kCia = "A .CIA IS NOT PLAYED: THE 3DS GAMES NEED A .3DS DUMP OF THE CARTRIDGE";
+    if (EndsWith(path, ".cia")) { Skip(path, kCia, 2); return nullptr; }
+    if (EndsWith(path, ".cci") && !(rename && RenameCci(path))) { Skip(path, DumpCrypt(path) < 0 && LooksLikeCia(path) ? kCia : "RENAME IT TO .3DS", 2); return nullptr; }
     if (!EndsWith(path, ".3ds")) return nullptr;
     const int crypt = DumpCrypt(path);
-    if (crypt < 0) { Skip(path, "NOT A 3DS CARTRIDGE DUMP"); return nullptr; }
+    if (crypt < 0) { Skip(path, LooksLikeCia(path) ? kCia : "NOT A 3DS CARTRIDGE DUMP", LooksLikeCia(path) ? 2 : 1); return nullptr; }
     const Title* t = ById(DumpTitle(path));
-    if (!t) { Skip(path, "NOT OMEGA RUBY OR ALPHA SAPPHIRE, THE 3DS GAMES FULLDEX PLAYS"); return nullptr; }
+    if (!t) { Skip(path, "NOT A 3DS GAME FULLDEX PLAYS (X, Y, OMEGA RUBY, ALPHA SAPPHIRE, ULTRA SUN, ULTRA MOON)"); return nullptr; }
     if (crypt == 1) { Skip(path, "ENCRYPTED: DECRYPT IT FIRST (GODMODE9 ON YOUR 3DS)", 3); return nullptr; }
     return t;
 }
@@ -195,22 +234,38 @@ inline Launcher::Game Make(const Title& t, const std::string& rom, const std::st
 // of the player's own and cloud saves use. SyncSave makes the two the same: whichever was written last
 // wins (a game played, or a save brought in by Import Save or cloud saves), the one it replaces backed up first.
 // (beforePlay: a backup of the save the game is about to start with, as the DS games make.)
-inline const size_t kSaveSize = 0x76000;
-inline std::string SaveName(const std::string& code) { return code == "ECLA" ? "alphasapphire.sav" : "omegaruby.sav"; }
+// (X and Y: 0x65600 bytes; Omega Ruby and Alpha Sapphire: 0x76000; Ultra Sun and Ultra Moon: 0x6CC00.)
+inline bool SaveSizeOk(uintmax_t n) { return n == 0x65600 || n == 0x76000 || n == 0x6CC00; }
+inline std::string SaveName(const std::string& code)
+{
+    return code == "EKJA" ? "pokemonx.sav" : code == "EK2A" ? "pokemony.sav" : code == "ECLA" ? "alphasapphire.sav" : code == "A2AA" ? "ultrasun.sav" : code == "A2BA" ? "ultramoon.sav" : "omegaruby.sav";
+}
+// The game's folder in /switch on a Switch (the FullDex Builder's), and its program's name.
+inline std::string SwitchFolder(const std::string& code)
+{
+    return code == "EKJA" ? "pokemon-x" : code == "EK2A" ? "pokemon-y" : code == "ECLA" ? "pokemon-alpha-sapphire" : code == "A2AA" ? "pokemon-ultra-sun" : code == "A2BA" ? "pokemon-ultra-moon" : "omega-nx";
+}
+// (The dump's size, as the notes say it: X, Y, Omega Ruby and Alpha Sapphire 2 GB, Ultra Sun and Ultra Moon 4 GB.)
+inline std::string DumpGb(const Launcher::Game& g) { return g.code == "A2AA" || g.code == "A2BA" ? "4" : "2"; }
+inline std::string ProgramName(const std::string& code)
+{
+    return code == "EKJA" ? "Pokemon X" : code == "EK2A" ? "Pokemon Y" : code == "ECLA" ? "Pokemon Alpha Sapphire" : code == "A2AA" ? "Pokemon Ultra Sun" : code == "A2BA" ? "Pokemon Ultra Moon" : "Pokemon Omega Ruby";
+}
 inline std::string GameSave(const Launcher::Game& g) { return g.folder + "/data/user/savedata/" + IdOf(g) + "/main"; }
 inline bool ReadSave(const std::string& p, std::vector<unsigned char>& d)
 {
     std::error_code ec;
     const std::filesystem::path f = std::filesystem::u8path(p);
-    if (!std::filesystem::is_regular_file(f, ec) || std::filesystem::file_size(f, ec) != kSaveSize || ec) return false;
+    if (!std::filesystem::is_regular_file(f, ec) || !SaveSizeOk(std::filesystem::file_size(f, ec)) || ec) return false;
+    const size_t size = (size_t)std::filesystem::file_size(f, ec);
 #ifdef _WIN32
     FILE* h = _wfopen(f.wstring().c_str(), L"rb");
 #else
     FILE* h = fopen(p.c_str(), "rb");
 #endif
     if (!h) return false;
-    d.resize(kSaveSize);
-    const bool ok = fread(d.data(), 1, kSaveSize, h) == kSaveSize;
+    d.resize(size);
+    const bool ok = fread(d.data(), 1, size, h) == size;
     fclose(h);
     return ok;
 }
@@ -273,12 +328,16 @@ inline bool CopySave(const std::string& from, const std::vector<unsigned char>& 
 // The game's program keeps the same copy itself as it plays (omega-nx savefile.rs: written when the game saves,
 // taken in at its start when newer), in <FullDex>/saves unless OMEGA_NX_SAVE names the file: told the saves
 // folder FullDex uses, so the two keep one copy, a saves folder of the player's own included.
+// The game's menu in FullDex's language (omega-nx lang.rs): FULLDEX_LANG, en es it fr de ja ko.
+inline const char* MenuLanguage() { return UiLang::Codes[UiLang::lang >= 0 && UiLang::lang < 7 ? UiLang::lang : 0]; }
 inline void TellSave(const std::string& copy)
 {
 #ifdef _WIN32
     _wputenv_s(L"OMEGA_NX_SAVE", std::filesystem::u8path(copy).wstring().c_str());
+    _putenv_s("FULLDEX_LANG", MenuLanguage());
 #else
     setenv("OMEGA_NX_SAVE", copy.c_str(), 1);
+    setenv("FULLDEX_LANG", MenuLanguage(), 1);
 #endif
 }
 inline void SyncSave(const Launcher::Game& g, const std::string& copy, bool beforePlay = false)
@@ -328,13 +387,16 @@ inline bool& ProgramHere() { static bool b = false; return b; }
 // games this program cannot play here go (a platform without the 3DS programs).
 inline void DropPlaceholders(std::vector<Launcher::Game>& games)
 {
+    // (The real games' codes first: the loop below moves the games it keeps out of the list.)
+    std::set<std::string> realCodes;
+    for (const Launcher::Game& o : games)
+        if (!o.comingSoon && o.platform == Launcher::N3DS) realCodes.insert(o.code);
     std::vector<Launcher::Game> keep;
     for (Launcher::Game& g : games)
     {
         if (g.comingSoon && g.platform == Launcher::N3DS)
         {
-            bool real = false;
-            for (const Launcher::Game& o : games) real |= !o.comingSoon && o.platform == Launcher::N3DS && o.code == g.code;
+            const bool real = realCodes.count(g.code) > 0;
             // (Mac, iPhone, iPad, and Linux without the program (ARM): still coming, so the tiles stay,
             // saying Coming Soon with no countdown.)
             bool stays = false;
@@ -348,11 +410,47 @@ inline void DropPlaceholders(std::vector<Launcher::Game>& games)
                 if (real) continue;
                 g.soonAt = 0;
             }
-            else if (real || (g.soonAt > 0 && g.soonAt <= (long long)std::time(nullptr))) continue;
+            else if (real) continue;
+            else if (g.soonAt <= (long long)std::time(nullptr)) g.addRom = true; // (no dump yet: Add ROM)
         }
         keep.push_back(std::move(g));
     }
     games.swap(keep);
+}
+
+// What the Switch says about a 3DS game it found as a dump but cannot build itself: Put On My Switch,
+// on a Windows PC. (Its sentences apart, two spaces between, so each is looked up in the language.)
+inline std::string SetupName(const std::string& name) { std::string n = Launcher::TitleCase(name); if (n.rfind("Pokemon ", 0) == 0) n = n.substr(8); return n; }
+inline std::string SetupHowTo(const std::string& name)
+{
+    return "The Switch can't build 3DS games itself. FullDex on a Windows PC does it in 5 to 10 minutes, from your own dump."
+           "  1. Put this SD card in your PC.  2. In FullDex on the PC, open " + name + "'s Game Options and choose Put On My Switch."
+           "  3. Put the card back here: " + name + " is ready to play.";
+}
+// Switch: dumps (.3ds) of the games in the ROM folders that no folder of /switch plays yet: listed,
+// needing the one-time setup on a PC (choosing one says how).
+inline void AddSwitchDumps(const std::vector<std::string>& dirs, std::vector<Launcher::Game>& games)
+{
+    for (const std::string& dir : dirs)
+    {
+        DIR* d = opendir(dir.c_str());
+        if (!d) continue;
+        while (dirent* e = readdir(d))
+        {
+            if (e->d_name[0] == '.' || !(EndsWith(e->d_name, ".3ds") || EndsWith(e->d_name, ".cci"))) continue;
+            std::string path = dir + "/" + e->d_name;
+            const Title* t = Check(path);
+            if (!t) continue;
+            bool have = false;
+            for (const Launcher::Game& o : games) have |= o.platform == Launcher::N3DS && !o.comingSoon && o.code == t->code;
+            if (have) continue;
+            Launcher::Game g = Make(*t, path, dir);
+            g.needsSetup = true;
+            games.push_back(g);
+            fprintf(stderr, "[3ds] %s: a dump to set up on a PC (%s)\n", t->name, path.c_str());
+        }
+        closedir(d);
+    }
 }
 
 // Switch: each folder in root with game.3ds, titles/<a title id> and a .nro. One tile a game: the
@@ -369,7 +467,7 @@ inline void AddSwitch(std::vector<Launcher::Game>& games, const std::string& roo
     std::sort(names.begin(), names.end());
     for (const Title& t : kTitles)
     {
-        const std::string builderFolder = !strcmp(t.code, "ECRA") ? "omega-nx" : "pokemon-alpha-sapphire";
+        const std::string builderFolder = SwitchFolder(t.code);
         std::string best, bestNro;
         long long bestTime = -1;
         bool bestIsBuilders = false;
@@ -408,9 +506,20 @@ inline void AddSwitch(std::vector<Launcher::Game>& games, const std::string& roo
 // Android, with the Omega Ruby kit in the app (GameActivity.threeDsAvailable): a game already added
 // (<app files>/3ds/<title id>/game.3ds, the kit's own folder), else a dump in the ROM folders, which
 // is copied there the first time it is chosen (GameActivity.threeDsAdd).
+// (Android: the game code Put On My Phone made on a PC, <title id>.so, found in the ROM folders: by title id.)
+inline std::map<std::string, std::string>& PhoneCodes() { static std::map<std::string, std::string> m; return m; }
 inline void AddAndroid(const std::vector<std::string>& romDirs, const std::string& appDir, std::vector<Launcher::Game>& games)
 {
     SkipNote().clear(); SkipRank() = 0;
+    PhoneCodes().clear();
+    for (const std::string& dir : romDirs)
+        if (DIR* d = opendir(dir.c_str()))
+        {
+            while (dirent* e = readdir(d))
+                for (const Title& t : kTitles)
+                    if (!strcasecmp(e->d_name, (std::string(t.id) + ".so").c_str())) PhoneCodes()[t.id] = dir + "/" + e->d_name;
+            closedir(d);
+        }
     auto have = [&](const Title& t) {
         for (const Launcher::Game& o : games) if (o.platform == Launcher::N3DS && o.code == t.code) return true;
         return false;
@@ -426,7 +535,7 @@ inline void AddAndroid(const std::vector<std::string>& romDirs, const std::strin
         if (!d) continue;
         while (dirent* e = readdir(d))
         {
-            const std::string path = dir + "/" + e->d_name;
+            std::string path = dir + "/" + e->d_name;
             if (!IsFile(path)) continue;
             const Title* t = Check(path);
             if (!t || have(*t)) continue;
@@ -486,7 +595,7 @@ inline void AddPc(const std::vector<std::string>& romDirs, const std::string& ap
         for (std::filesystem::directory_iterator it(W(dir), ec), end; !ec && it != end; it.increment(ec))
         {
             if (!it->is_regular_file(ec)) continue;
-            const std::string path = it->path().u8string();
+            std::string path = it->path().u8string();
             const Title* t = Check(path);
             if (!t) continue;
             if (!ProgramHere())
@@ -682,6 +791,10 @@ inline void StartPrepare(const std::string& appDir, const Launcher::Game& g)
         p.running = false;
     });
 }
+
+#ifdef _WIN32
+#include "n3ds_setup.h" // (Put On My Switch, Put On My Phone)
+#endif
 
 // What the launcher says about it: while it is being made, and once, when it ends. "" otherwise.
 inline std::string Status()

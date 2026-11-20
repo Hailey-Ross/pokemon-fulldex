@@ -26,6 +26,8 @@
 
 #include <libslirp.h>
 
+#include <atomic>
+
 #ifdef __WIN32__
     #include <ws2tcpip.h>
 #else
@@ -48,7 +50,13 @@ public:
 
     int SendPacket(u8* data, int len) noexcept override;
     void RecvCheck() noexcept override;
+
+    // Nintendo WFC through a community server (AltWFC/WFZwei and the like): the names under
+    // nintendowifi.net resolve to `ip` (host byte order) instead of the real, long-closed
+    // servers. 0 turns it off. Read by the network thread, set from the UI thread.
+    static void SetWFCRedirect(u32 ip) noexcept { WFCRedirectIP.store(ip, std::memory_order_relaxed); }
 private:
+    static std::atomic<u32> WFCRedirectIP;
     static constexpr int PollListMax = 64;
     static const SlirpCb cb;
     static int SlirpCbGetREvents(int idx, void* opaque) noexcept;
