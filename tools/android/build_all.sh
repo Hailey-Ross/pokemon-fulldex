@@ -279,7 +279,7 @@ import re, sys, zipfile
 regional_codes = '|'.join(p['code'] for p in __import__('json').loads(__import__('pathlib').Path(__import__('os').environ['SSR_SRC'], 'tools/regions/profiles.json').read_text())['profiles'] if p['kind']=='functions')
 ok = re.compile(r'^(AndroidManifest\.xml|resources\.arsc|classes\.dex|res/.*\.png|res/mipmap-anydpi-v26/ic_launcher\.xml|lib/(arm64-v8a|x86_64)/lib(main|SDL2)\.so|assets/funcs/(?:IREO|IRDO|IRBO|IRAO|CPUE|ADAE|APAE|ADAS|APAF|APAS|APAD|ADAD|ADAI|IRAS|CPUS|IREF|IRDF|CPUF|IRBF|IRAF|IRBS|IRES|IRDS|' + regional_codes + r')\.txt|assets/FONT-LICENSES\.txt|assets/LICENSE(-mGBA|-Noto)?\.txt)$')
 # The 3DS kit: its game, the compiler, the compiler's headers and each game's settings (text).
-kit = re.compile(r'^(lib/arm64-v8a/lib(pocketnative|cc_[a-z0-9]+)\.so|assets/cc/[A-Za-z0-9_./-]+\.h|assets/titles/[0-9A-F]{16}/[A-Za-z0-9_./-]+\.(toml|txt|reach|readers|files|c))$')
+kit = re.compile(r'^(lib/arm64-v8a/lib(pocketnative|pocketnative_vk|cc_[a-z0-9]+)\.so|assets/cc/[A-Za-z0-9_./-]+\.h|assets/titles/[0-9A-F]{16}/[A-Za-z0-9_./-]+\.(toml|txt|reach|readers|files|c))$')
 names = zipfile.ZipFile(sys.argv[1]).namelist()
 bad = [n for n in names if not ok.match(n) and not (__import__('os').environ.get('SSR_KIT') and kit.match(n))]
 if bad: sys.exit('unexpected files in the APK: %s' % bad)
