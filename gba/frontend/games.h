@@ -454,7 +454,7 @@ inline void Identify(Game& g, const std::vector<uint8_t>& rom)
         if (PatchFits(rom, p, why))
         {
             g.patch = p.name;
-            g.colour = !strcmp(p.name, "emerald") || !strcmp(p.name, "emeraldlegacy") || !strcmp(p.name, "inclement") || !strncmp(p.name, "monomyth", 8) ? 0xFF2A6E50 : !strncmp(p.name, "leafgreen", 9) ? 0xFF3E7A34
+            g.colour = !strcmp(p.name, "emerald") || !strcmp(p.name, "emeraldlegacy") || !strcmp(p.name, "inclement") || !strcmp(p.name, "imperium") || !strncmp(p.name, "monomyth", 8) ? 0xFF2A6E50 : !strncmp(p.name, "leafgreen", 9) ? 0xFF3E7A34
                      : !strncmp(p.name, "sapphire", 8) ? 0xFF2A4A8A : 0xFF8A3A30;
             return;
         }
