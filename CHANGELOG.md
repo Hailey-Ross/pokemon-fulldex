@@ -39,6 +39,18 @@
 - **Monomyth 1.2 in widescreen**, with Zoom and its name and picture. 1.2 moved its code, so it has a widescreen patch of its own; 1.0 and 1.1 keep theirs.
 - **A GBA hack's xdelta patch made without file names is no longer listed as a DS hack that can't be played** (Inclement Emerald, beside its ROM). Its size says it is a GBA patch.
 - **Updating works when FullDex is on another drive than its folders** (moved to an external drive): the new files are copied across instead of failing.
+- **Every 3DS game shows in the library.** One whose dump isn't found says Add ROM over its cover, and choosing it says where the dump goes (all seven languages). Mac, iPhone/iPad and ARM Linux keep Coming Soon.
+- **A card while a 3DS game is prepared for the first time** (#225, thanks OzWookiee): the game's name, the step it's on (unpacking, translating, building, shaders, finishing), a progress bar and the time so far.
+- **A much bigger Guide for Black, HeartGold, SoulSilver and Platinum** (#220, #221, thanks OzWookiee): NEXT STEPS through the whole story, GYMS (the type to bring, the badge and TM), WHERE IS (HMs and key items), EVOLUTIONS, LEGENDARIES, POST-GAME and TIPS, plus HERE (the wild Pokémon of the place you're in), NEXT BOSS and STUCK? (the blockers people hit and what clears them). Long answers scroll with the wheel or a finger.
+- **The pause menu, companion pages, Pokédex and Guide in all seven languages:** page titles, setting descriptions, the party summary, bag, battle info, stats, effectiveness, Pokédex facts, cheats, backups, achievements and type names. Japanese text wraps between characters.
+- **Pokédex: a Pokémon's whole evolution family, and what's ahead for each Pokémon in the party** (#224, thanks OzWookiee). An entry's facts (egg groups, growth rate, gender share, hatch steps, EV yield, how and when it's found) are in every language.
+- **Cheats: a code that needs a button held or pressed shows those buttons in a bright preview card** (#223, thanks OzWookiee).
+- **Fast forward in even steps where the 3D runs at half speed** (#178): at 3x the gen 4 overworld no longer shows 1 and 2 frames on by turns.
+- **Text stays sharp at an uneven scale** (#183): text boxes and menus keep whole pixels while the moving world keeps its even ones.
+- **A GBA hack's own name and picture (Radical Red, Unbound, Monomyth...) only for that hack:** another FireRed-engine hack that fits Radical Red's widescreen patch keeps its own name and its widescreen.
+- **Switch: HOME MENU ICONS shows INSTALLING... and its result** (#170); the row had kept saying INSTALL after the icons were made.
+- **Game tiles: a long name keeps its size;** a built 3DS game's tag shortens first.
+- **iPad: the game list stays still under your finger,** and the system keyboard no longer covers the list's own (thanks moomof, #219).
 - **Game Options in the launcher** keeps its focus and opens the selected game's menu under the button (#191).
 - **About > Credits:** OzWookiee, Saiborg23 and elripalda.
 
